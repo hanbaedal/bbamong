@@ -7,9 +7,7 @@ import {
 import { createSession, hasActiveSession, deleteSession } from "../sessionManager";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { db } from "../UserStorage/db";
-import { users } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { UserModel } from "../UserStorage/db";
 import { getRedisClient } from "../redis";
 
 const AUTH_CODE_PREFIX = "authcode:";
@@ -70,10 +68,10 @@ interface OAuthConfig {
 
 // 각 플랫폼별 OAuth 설정
 function getOAuthConfig(provider: 'kakao' | 'google' | 'apple'): OAuthConfig {
-  // 개발: http://localhost:5000, 프로덕션: https://ppadun9.com
+  // 개발: http://localhost:5000, 프로덕션: https://ppamong.com
   const isProduction = process.env.NODE_ENV === 'production';
   const baseUrl = isProduction 
-    ? 'https://ppadun9.com' 
+    ? 'https://ppamong.com' 
     : 'http://localhost:5000';
   
   switch (provider) {
@@ -430,7 +428,7 @@ export function registerSocialAuthRoutes(app: Express) {
       });
 
       const now = new Date();
-      await db.update(users).set({ lastLogin: now, lastActive: now }).where(eq(users.id, user.id));
+      await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       const authCode = crypto.randomBytes(32).toString('hex');
       await setAuthCode(authCode, {
@@ -588,7 +586,7 @@ export function registerSocialAuthRoutes(app: Express) {
       });
 
       const now = new Date();
-      await db.update(users).set({ lastLogin: now, lastActive: now }).where(eq(users.id, user.id));
+      await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       const authCode = crypto.randomBytes(32).toString('hex');
       await setAuthCode(authCode, {
@@ -720,7 +718,7 @@ export function registerSocialAuthRoutes(app: Express) {
       });
 
       const now = new Date();
-      await db.update(users).set({ lastLogin: now, lastActive: now }).where(eq(users.id, user.id));
+      await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       const authCode = crypto.randomBytes(32).toString('hex');
       await setAuthCode(authCode, {

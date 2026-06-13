@@ -5,9 +5,9 @@ const config: CapacitorConfig = {
   appName: "빠던9",
   webDir: "dist/public",
   server: {
-    url: "https://ppadun9.com/login",
+    url: "https://ppamong.com/login",
     allowNavigation: [
-      "https://ppadun9.com",
+      "https://ppamong.com",
       "https://kauth.kakao.com",
       "https://kapi.kakao.com",
       "https://accounts.google.com",

@@ -1,6 +1,5 @@
-import { db } from "../UserStorage/db";
-import { advertisements, type InsertAdvertisement, type Advertisement } from "../../shared/schema";
-import { eq, desc, count } from "drizzle-orm";
+import { AdvertisementModel, getNextSequence } from "../UserStorage/db";
+import type { InsertAdvertisement, Advertisement } from "../../shared/schema";
 
 export interface IAdminAdvertisementStorage {
   getAllAdvertisements(page: number, limit: number): Promise<{ data: Advertisement[]; total: number }>;
@@ -11,59 +10,36 @@ export interface IAdminAdvertisementStorage {
 }
 
 export class AdminAdvertisementStorage implements IAdminAdvertisementStorage {
-  async getAllAdvertisements(page: number = 1, limit: number = 8): Promise<{ data: Advertisement[]; total: number }> {
+  async getAllAdvertisements(page = 1, limit = 8) {
     const offset = (page - 1) * limit;
-
-    const [data, countResult] = await Promise.all([
-      db
-        .select()
-        .from(advertisements)
-        .orderBy(desc(advertisements.createdAt))
-        .limit(limit)
-        .offset(offset),
-      db.select({ count: count() }).from(advertisements),
+    const [data, total] = await Promise.all([
+      AdvertisementModel.find().sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+      AdvertisementModel.countDocuments(),
     ]);
-
-    const total = Number(countResult[0]?.count ?? 0);
-
-    return { data, total };
+    return { data: data as Advertisement[], total };
   }
 
   async getAdvertisementById(id: number): Promise<Advertisement | undefined> {
-    const result = await db
-      .select()
-      .from(advertisements)
-      .where(eq(advertisements.id, id))
-      .limit(1);
-
-    return result[0];
+    const doc = await AdvertisementModel.findOne({ id }).lean();
+    return doc ? (doc as Advertisement) : undefined;
   }
 
   async createAdvertisement(data: InsertAdvertisement): Promise<Advertisement> {
-    const result = await db
-      .insert(advertisements)
-      .values(data)
-      .returning();
-
-    return result[0];
+    const adId = await getNextSequence("advertisement");
+    const doc = await AdvertisementModel.create({ id: adId, ...data });
+    return doc.toObject() as Advertisement;
   }
 
-  async updateAdvertisement(id: number, data: Partial<InsertAdvertisement>): Promise<Advertisement | undefined> {
-    const result = await db
-      .update(advertisements)
-      .set(data)
-      .where(eq(advertisements.id, id))
-      .returning();
-
-    return result[0];
+  async updateAdvertisement(
+    id: number,
+    data: Partial<InsertAdvertisement>,
+  ): Promise<Advertisement | undefined> {
+    const doc = await AdvertisementModel.findOneAndUpdate({ id }, data, { new: true }).lean();
+    return doc ? (doc as Advertisement) : undefined;
   }
 
   async deleteAdvertisement(id: number): Promise<boolean> {
-    const result = await db
-      .delete(advertisements)
-      .where(eq(advertisements.id, id))
-      .returning();
-
-    return result.length > 0;
+    const result = await AdvertisementModel.deleteOne({ id });
+    return result.deletedCount > 0;
   }
 }

@@ -1,9 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { verifyAccessToken, verifyRefreshToken, generateAccessToken, generateRefreshToken, type TokenPayload } from "../utils/jwt";
-import { db } from "../UserStorage/db";
-import { adminUsers } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { AdminUserModel } from "../UserStorage/db";
 import { createSession, refreshSession, hasActiveSession } from "../sessionManager";
 
 export interface AuthenticatedManagerRequest extends Request {
@@ -57,14 +55,9 @@ async function tryRefreshManagerToken(req: Request, res: Response): Promise<Toke
 }
 
 async function validateManagerStatus(decoded: TokenPayload, res: Response): Promise<boolean> {
-  const [manager] = await db
-    .select({
-      approvalStatus: adminUsers.approvalStatus,
-      status: adminUsers.status,
-    })
-    .from(adminUsers)
-    .where(eq(adminUsers.id, decoded.adminId))
-    .limit(1);
+  const manager = await AdminUserModel.findOne({ id: decoded.adminId })
+    .select("approvalStatus status")
+    .lean();
 
   if (!manager) {
     res.status(403).json({ message: "계정을 찾을 수 없습니다." });

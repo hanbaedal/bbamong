@@ -1,8 +1,8 @@
 # API 명세서
 
-> **Base URL**: `https://ppadun9.com`  
+> **Base URL**: `https://ppamong.com`  
 > **인증 방식**: Bearer Token (JWT) — `Authorization: Bearer <accessToken>` 헤더  
-> **WebSocket**: `wss://ppadun9.com/ws/match?token=<accessToken>`
+> **WebSocket**: `wss://ppamong.com/ws/match?token=<accessToken>`
 
 ---
 
@@ -634,7 +634,7 @@ FAQ 목록
 
 ## 13. WebSocket 이벤트
 
-**연결**: `wss://ppadun9.com/ws/match?token=<accessToken>`  
+**연결**: `wss://ppamong.com/ws/match?token=<accessToken>`  
 **연결 후**: `{ "type": "join_match", "matchId": "uuid" }` 전송
 
 ### 서버 → 클라이언트 이벤트

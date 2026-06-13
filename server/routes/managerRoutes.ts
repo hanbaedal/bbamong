@@ -340,14 +340,8 @@ export async function managerRoutes(app: Express): Promise<void> {
       await revokeLogoutPermission("manager", managerId);
 
       try {
-        const { db } = await import("../UserStorage/db");
-        const { adminUsers } = await import("@shared/schema");
-        const { eq } = await import("drizzle-orm");
-        await db
-          .update(adminUsers)
-          .set({ lastLogout: new Date() })
-          .where(eq(adminUsers.id, managerId))
-          .execute();
+        const { AdminUserModel } = await import("../UserStorage/db");
+        await AdminUserModel.updateOne({ id: managerId }, { lastLogout: new Date() });
       } catch (dbError) {
         console.error("[Manager Logout] DB 업데이트 실패:", dbError);
       }

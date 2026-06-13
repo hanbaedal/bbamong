@@ -8,7 +8,7 @@ import {
   clearManagerTokens 
 } from "./managerTokenManager";
 
-const PRODUCTION_API_URL = 'https://ppadun9.com';
+const PRODUCTION_API_URL = 'https://ppamong.com';
 
 function getApiBaseUrl(): string {
   if (Capacitor.isNativePlatform()) {

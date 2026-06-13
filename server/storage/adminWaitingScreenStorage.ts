@@ -1,6 +1,5 @@
-import { db } from "../UserStorage/db";
-import { waitingScreens, type InsertWaitingScreen, type WaitingScreen } from "../../shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { WaitingScreenModel, getNextSequence } from "../UserStorage/db";
+import type { InsertWaitingScreen, WaitingScreen } from "../../shared/schema";
 
 export interface IAdminWaitingScreenStorage {
   getAllWaitingScreens(page: number, limit: number): Promise<{ data: WaitingScreen[]; total: number }>;
@@ -11,59 +10,36 @@ export interface IAdminWaitingScreenStorage {
 }
 
 export class AdminWaitingScreenStorage implements IAdminWaitingScreenStorage {
-  async getAllWaitingScreens(page: number = 1, limit: number = 8): Promise<{ data: WaitingScreen[]; total: number }> {
+  async getAllWaitingScreens(page = 1, limit = 8) {
     const offset = (page - 1) * limit;
-
-    const [data, countResult] = await Promise.all([
-      db
-        .select()
-        .from(waitingScreens)
-        .orderBy(desc(waitingScreens.createdAt))
-        .limit(limit)
-        .offset(offset),
-      db.select({ count: waitingScreens.id }).from(waitingScreens),
+    const [data, total] = await Promise.all([
+      WaitingScreenModel.find().sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+      WaitingScreenModel.countDocuments(),
     ]);
-
-    const total = countResult.length;
-
-    return { data, total };
+    return { data: data as WaitingScreen[], total };
   }
 
   async getWaitingScreenById(id: number): Promise<WaitingScreen | undefined> {
-    const result = await db
-      .select()
-      .from(waitingScreens)
-      .where(eq(waitingScreens.id, id))
-      .limit(1);
-
-    return result[0];
+    const doc = await WaitingScreenModel.findOne({ id }).lean();
+    return doc ? (doc as WaitingScreen) : undefined;
   }
 
   async createWaitingScreen(data: InsertWaitingScreen): Promise<WaitingScreen> {
-    const result = await db
-      .insert(waitingScreens)
-      .values(data)
-      .returning();
-
-    return result[0];
+    const screenId = await getNextSequence("waitingScreen");
+    const doc = await WaitingScreenModel.create({ id: screenId, ...data });
+    return doc.toObject() as WaitingScreen;
   }
 
-  async updateWaitingScreen(id: number, data: Partial<InsertWaitingScreen>): Promise<WaitingScreen | undefined> {
-    const result = await db
-      .update(waitingScreens)
-      .set(data)
-      .where(eq(waitingScreens.id, id))
-      .returning();
-
-    return result[0];
+  async updateWaitingScreen(
+    id: number,
+    data: Partial<InsertWaitingScreen>,
+  ): Promise<WaitingScreen | undefined> {
+    const doc = await WaitingScreenModel.findOneAndUpdate({ id }, data, { new: true }).lean();
+    return doc ? (doc as WaitingScreen) : undefined;
   }
 
   async deleteWaitingScreen(id: number): Promise<boolean> {
-    const result = await db
-      .delete(waitingScreens)
-      .where(eq(waitingScreens.id, id))
-      .returning();
-
-    return result.length > 0;
+    const result = await WaitingScreenModel.deleteOne({ id });
+    return result.deletedCount > 0;
   }
 }

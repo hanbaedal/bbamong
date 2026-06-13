@@ -1,6 +1,15 @@
-import { db } from "./UserStorage/db";
-import { users, comments, posts, attendanceRecords, pointTransactions, inquiries, ebookPurchases, predictions, adViewHistory } from "@shared/schema";
-import { eq, and, lte } from "drizzle-orm";
+import {
+  mongoose,
+  UserModel,
+  CommentModel,
+  PostModel,
+  AttendanceRecordModel,
+  PointTransactionModel,
+  InquiryModel,
+  EbookPurchaseModel,
+  PredictionModel,
+  AdViewHistoryModel,
+} from "./UserStorage/db";
 import { deleteSession } from "./sessionManager";
 
 const BATCH_INTERVAL_MS = 60 * 60 * 1000;
@@ -13,15 +22,12 @@ async function cleanupSuspendedUsers() {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - RETENTION_DAYS);
 
-    const expiredUsers = await db
-      .select({ id: users.id, username: users.username })
-      .from(users)
-      .where(
-        and(
-          eq(users.isSuspended, 1),
-          lte(users.suspendedAt, cutoffDate)
-        )
-      );
+    const expiredUsers = await UserModel.find({
+      isSuspended: 1,
+      suspendedAt: { $lte: cutoffDate },
+    })
+      .select("id username")
+      .lean();
 
     if (expiredUsers.length === 0) return;
 
@@ -29,17 +35,25 @@ async function cleanupSuspendedUsers() {
 
     for (const user of expiredUsers) {
       try {
-        await db.transaction(async (tx) => {
-          await tx.delete(comments).where(eq(comments.authorId, user.id));
-          await tx.delete(posts).where(eq(posts.authorId, user.id));
-          await tx.delete(attendanceRecords).where(eq(attendanceRecords.userId, user.id));
-          await tx.delete(pointTransactions).where(eq(pointTransactions.userId, user.id));
-          await tx.delete(inquiries).where(eq(inquiries.userId, user.id));
-          await tx.delete(ebookPurchases).where(eq(ebookPurchases.userId, user.id));
-          await tx.delete(predictions).where(eq(predictions.userId, user.id));
-          await tx.delete(adViewHistory).where(eq(adViewHistory.userId, user.id));
-          await tx.delete(users).where(eq(users.id, user.id));
-        });
+        const session = await mongoose.startSession();
+        try {
+          session.startTransaction();
+          await CommentModel.deleteMany({ authorId: user.id }, { session });
+          await PostModel.deleteMany({ authorId: user.id }, { session });
+          await AttendanceRecordModel.deleteMany({ userId: user.id }, { session });
+          await PointTransactionModel.deleteMany({ userId: user.id }, { session });
+          await InquiryModel.deleteMany({ userId: user.id }, { session });
+          await EbookPurchaseModel.deleteMany({ userId: user.id }, { session });
+          await PredictionModel.deleteMany({ userId: user.id }, { session });
+          await AdViewHistoryModel.deleteMany({ userId: user.id }, { session });
+          await UserModel.deleteOne({ id: user.id }, { session });
+          await session.commitTransaction();
+        } catch (error) {
+          await session.abortTransaction();
+          throw error;
+        } finally {
+          session.endSession();
+        }
 
         try {
           await deleteSession("user", user.id);
@@ -62,5 +76,7 @@ export function startSuspendedUserCleanupBatch() {
 
   cleanupSuspendedUsers();
   intervalId = setInterval(cleanupSuspendedUsers, BATCH_INTERVAL_MS);
-  console.log(`[SuspendedCleanup] Started - checking every 1 hour for users suspended > ${RETENTION_DAYS} days`);
+  console.log(
+    `[SuspendedCleanup] Started - checking every 1 hour for users suspended > ${RETENTION_DAYS} days`,
+  );
 }

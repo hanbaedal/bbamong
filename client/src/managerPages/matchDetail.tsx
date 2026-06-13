@@ -8,7 +8,7 @@ import { useManagerAssets } from "@/contexts/ManagerAssetContext";
 import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
 
-const WS_BASE_URL = 'wss://ppadun9.com';
+const WS_BASE_URL = 'wss://ppamong.com';
 
 interface Match {
   id: string;

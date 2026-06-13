@@ -1,9 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { verifyAccessToken, verifyRefreshToken, generateAccessToken, generateRefreshToken, type TokenPayload } from "../utils/jwt";
-import { db } from "../UserStorage/db";
-import { adminUsers } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { AdminUserModel } from "../UserStorage/db";
 
 export interface AuthenticatedAdminRequest extends Request {
   admin?: TokenPayload;
@@ -16,17 +14,9 @@ async function tryRefreshAdminToken(req: Request, res: Response): Promise<TokenP
   try {
     const decoded = verifyRefreshToken(refreshToken);
 
-    const [admin] = await db
-      .select({
-        id: adminUsers.id,
-        email: adminUsers.email,
-        userType: adminUsers.userType,
-        approvalStatus: adminUsers.approvalStatus,
-        status: adminUsers.status,
-      })
-      .from(adminUsers)
-      .where(eq(adminUsers.id, decoded.adminId))
-      .limit(1);
+    const admin = await AdminUserModel.findOne({ id: decoded.adminId })
+      .select("id email userType approvalStatus status")
+      .lean();
 
     if (!admin || admin.approvalStatus !== "승인") {
       res.clearCookie("adminAccessToken");

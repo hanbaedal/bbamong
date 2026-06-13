@@ -1,6 +1,7 @@
-// storage/db.ts
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-
-const client = postgres(process.env.DATABASE_URL!, { max: 10 });
-export const db = drizzle(client);
+/**
+ * MongoDB 데이터베이스 진입점 (ppamong — Atlas)
+ * PostgreSQL/Drizzle 대신 Mongoose 사용
+ */
+export { connectMongoDB, disconnectMongoDB, mongoose } from "../mongodb/connect";
+export { getNextSequence } from "../mongodb/counter";
+export * from "../mongodb/models";

@@ -201,7 +201,7 @@ web/
 ### 인프라
 
 - Replit 환경, Neon DB, Redis
-- 프로덕션: `https://ppadun9.com`
+- 프로덕션: `https://ppamong.com`
 - Capacitor 모바일 앱
 
 ---

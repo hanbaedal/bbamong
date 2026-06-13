@@ -14,6 +14,7 @@ import { startInactiveLogoutBatch } from "./inactiveLogoutBatch";
 import { startMatchAutoCloseBatch } from "./matchAutoCloseBatch";
 import { startSuspendedUserCleanupBatch } from "./suspendedUserCleanupBatch";
 import { getRedisClient } from "./redis";
+import { connectMongoDB } from "./UserStorage/db";
 
 const execAsync = promisify(exec);
 
@@ -109,8 +110,8 @@ app.use((req, res, next) => {
     'https://localhost', // Capacitor 모바일 앱 (Android)
     'capacitor://localhost', // Capacitor 모바일 앱 (iOS)
     'http://localhost:5000', // 개발 환경
-    'https://ppadun9.com', // 실제 도메인
-    'https://www.ppadun9.com', // www 서브도메인
+    'https://ppamong.com', // 실제 도메인
+    'https://www.ppamong.com', // www 서브도메인
   ];
   
   // origin이 허용 목록에 있으면 CORS 헤더 추가
@@ -168,6 +169,8 @@ app.use((req, res, next) => {
 
 (async () => {
   const redisProcess = await startRedis();
+
+  await connectMongoDB();
 
   process.on("SIGINT", () => {
     log("Shutting down gracefully...");

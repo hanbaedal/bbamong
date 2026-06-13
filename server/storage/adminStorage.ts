@@ -1,6 +1,7 @@
-import { db } from "../UserStorage/db";
-import { adminUsers, users, type InsertAdminUser, type AdminUser, type User } from "@shared/schema";
-import { eq, desc, sql, and, or, ilike, ne, notInArray } from "drizzle-orm";
+import { randomUUID } from "crypto";
+import { AdminUserModel } from "../UserStorage/db";
+import type { InsertAdminUser, AdminUser, User } from "@shared/schema";
+import { UserModel } from "../UserStorage/db";
 
 export interface IAdminStorage {
   createAdminUser(data: InsertAdminUser): Promise<AdminUser>;
@@ -15,88 +16,63 @@ export interface IAdminStorage {
   getAllRegularUsers(): Promise<User[]>;
   suspendUser(userId: string, isSuspended: boolean): Promise<User | undefined>;
   getTopDonors(page: number, limit: number): Promise<{ data: User[]; total: number }>;
-  getAdminUsersByStatus(status: "대기중" | "승인" | "거부", page: number, limit: number): Promise<{ data: AdminUser[]; total: number; pendingCount: number; approvedCount: number }>;
+  getAdminUsersByStatus(
+    status: "대기중" | "승인" | "거부",
+    page: number,
+    limit: number,
+  ): Promise<{ data: AdminUser[]; total: number; pendingCount: number; approvedCount: number }>;
   searchAdminUsersByStatus(
     status: "대기중" | "승인" | "거부",
     searchQuery: string,
     filterType: "전체" | "부서" | "직책",
     page: number,
-    limit: number
+    limit: number,
   ): Promise<{ data: AdminUser[]; total: number; pendingCount: number; approvedCount: number }>;
 }
+
+const EXCLUDED_TYPES = ["매니저", "슈퍼어드민"];
 
 export class AdminStorage implements IAdminStorage {
   async createAdminUser(data: InsertAdminUser): Promise<AdminUser> {
     const cleanData = {
       ...data,
+      id: randomUUID(),
       phone: data.phone ? data.phone.replace(/-/g, "") : data.phone,
     };
-    const result = await db
-      .insert(adminUsers)
-      .values(cleanData)
-      .returning();
-
-    return result[0];
+    const doc = await AdminUserModel.create(cleanData);
+    return doc.toObject() as AdminUser;
   }
 
   async getAdminUserById(id: string): Promise<AdminUser | undefined> {
-    const result = await db
-      .select()
-      .from(adminUsers)
-      .where(eq(adminUsers.id, id))
-      .limit(1);
-
-    return result[0];
+    const doc = await AdminUserModel.findOne({ id }).lean();
+    return doc ? (doc as AdminUser) : undefined;
   }
 
-  async getAdminUserByEmail(email: string, approvedOnly: boolean = false): Promise<AdminUser | undefined> {
-    const conditions = approvedOnly
-      ? and(eq(adminUsers.email, email), eq(adminUsers.approvalStatus, "승인"))
-      : eq(adminUsers.email, email);
-    const result = await db
-      .select()
-      .from(adminUsers)
-      .where(conditions)
-      .limit(1);
-
-    return result[0];
+  async getAdminUserByEmail(email: string, approvedOnly = false): Promise<AdminUser | undefined> {
+    const filter: Record<string, unknown> = { email };
+    if (approvedOnly) filter.approvalStatus = "승인";
+    const doc = await AdminUserModel.findOne(filter).lean();
+    return doc ? (doc as AdminUser) : undefined;
   }
 
-  async getAdminUserByUsername(username: string, approvedOnly: boolean = false): Promise<AdminUser | undefined> {
-    const conditions = approvedOnly
-      ? and(eq(adminUsers.username, username), eq(adminUsers.approvalStatus, "승인"))
-      : eq(adminUsers.username, username);
-    const result = await db
-      .select()
-      .from(adminUsers)
-      .where(conditions)
-      .limit(1);
-
-    return result[0];
+  async getAdminUserByUsername(username: string, approvedOnly = false): Promise<AdminUser | undefined> {
+    const filter: Record<string, unknown> = { username };
+    if (approvedOnly) filter.approvalStatus = "승인";
+    const doc = await AdminUserModel.findOne(filter).lean();
+    return doc ? (doc as AdminUser) : undefined;
   }
 
-  async getAdminUserByPhone(phone: string, approvedOnly: boolean = false): Promise<AdminUser | undefined> {
+  async getAdminUserByPhone(phone: string, approvedOnly = false): Promise<AdminUser | undefined> {
     const cleanPhone = phone.replace(/-/g, "");
-    const phoneMatch = sql`REPLACE(${adminUsers.phone}, '-', '') = ${cleanPhone}`;
-    const conditions = approvedOnly
-      ? and(phoneMatch, eq(adminUsers.approvalStatus, "승인"))
-      : phoneMatch;
-    const result = await db
-      .select()
-      .from(adminUsers)
-      .where(conditions)
-      .limit(1);
-
-    return result[0];
+    const filter: Record<string, unknown> = { phone: cleanPhone };
+    if (approvedOnly) filter.approvalStatus = "승인";
+    const doc = await AdminUserModel.findOne(filter).lean();
+    return doc ? (doc as AdminUser) : undefined;
   }
 
   async getAllAdminUsers(): Promise<AdminUser[]> {
-    const result = await db
-      .select()
-      .from(adminUsers)
-      .orderBy(desc(adminUsers.createdAt));
-
-    return result;
+    const docs = await AdminUserModel.find().sort({ createdAt: -1 }).lean();
+    return docs as AdminUser[];
   }
 
   async updateAdminUser(id: string, data: Partial<AdminUser>): Promise<AdminUser | undefined> {
@@ -104,193 +80,99 @@ export class AdminStorage implements IAdminStorage {
       ...data,
       ...(data.phone ? { phone: data.phone.replace(/-/g, "") } : {}),
     };
-    const result = await db
-      .update(adminUsers)
-      .set(cleanData)
-      .where(eq(adminUsers.id, id))
-      .returning();
-
-    return result[0];
+    const doc = await AdminUserModel.findOneAndUpdate({ id }, cleanData, { new: true }).lean();
+    return doc ? (doc as AdminUser) : undefined;
   }
 
   async deleteAdminUser(id: string): Promise<boolean> {
-    const result = await db
-      .delete(adminUsers)
-      .where(eq(adminUsers.id, id))
-      .returning();
-
-    return result.length > 0;
+    const result = await AdminUserModel.deleteOne({ id });
+    return result.deletedCount > 0;
   }
 
-  async updateApprovalStatus(id: string, status: "대기중" | "승인" | "거부"): Promise<AdminUser | undefined> {
-    const result = await db
-      .update(adminUsers)
-      .set({ approvalStatus: status })
-      .where(eq(adminUsers.id, id))
-      .returning();
-
-    return result[0];
+  async updateApprovalStatus(
+    id: string,
+    status: "대기중" | "승인" | "거부",
+  ): Promise<AdminUser | undefined> {
+    const doc = await AdminUserModel.findOneAndUpdate(
+      { id },
+      { approvalStatus: status },
+      { new: true },
+    ).lean();
+    return doc ? (doc as AdminUser) : undefined;
   }
 
   async getAllRegularUsers(): Promise<User[]> {
-    const result = await db
-      .select()
-      .from(users)
-      .orderBy(desc(users.createdAt));
-
-    return result;
+    const docs = await UserModel.find().sort({ createdAt: -1 }).lean();
+    return docs as User[];
   }
 
   async suspendUser(userId: string, isSuspended: boolean): Promise<User | undefined> {
-    const result = await db
-      .update(users)
-      .set({ isSuspended: isSuspended ? 1 : 0 })
-      .where(eq(users.id, userId))
-      .returning();
-
-    return result[0];
+    const doc = await UserModel.findOneAndUpdate(
+      { id: userId },
+      { isSuspended: isSuspended ? 1 : 0 },
+      { new: true },
+    ).lean();
+    return doc ? (doc as User) : undefined;
   }
 
-  async getAdminUsersByStatus(
-    status: "대기중" | "승인" | "거부",
-    page: number = 1,
-    limit: number = 8
-  ): Promise<{ data: AdminUser[]; total: number; pendingCount: number; approvedCount: number }> {
+  async getAdminUsersByStatus(status: "대기중" | "승인" | "거부", page = 1, limit = 8) {
     const offset = (page - 1) * limit;
+    const baseFilter = { approvalStatus: status, userType: { $nin: EXCLUDED_TYPES } };
 
-    // 조회 조건: 상태 + 매니저/슈퍼어드민 제외
-    const excludedTypes = ['매니저', '슈퍼어드민'];
-    const baseCondition = and(
-      eq(adminUsers.approvalStatus, status),
-      notInArray(adminUsers.userType, excludedTypes)
-    );
+    const [total, pendingCount, approvedCount, data] = await Promise.all([
+      AdminUserModel.countDocuments(baseFilter),
+      AdminUserModel.countDocuments({ approvalStatus: "대기중", userType: { $nin: EXCLUDED_TYPES } }),
+      AdminUserModel.countDocuments({ approvalStatus: "승인", userType: { $nin: EXCLUDED_TYPES } }),
+      AdminUserModel.find(baseFilter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+    ]);
 
-    // 총 개수
-    const totalResult = await db
-      .select({ total: sql<number>`count(${adminUsers.id})` })
-      .from(adminUsers)
-      .where(baseCondition)
-      .execute();
-    const total = Number(totalResult[0]?.total ?? 0);
-
-    // 대기중 인원 수
-    const pendingResult = await db
-      .select({ count: sql<number>`count(${adminUsers.id})` })
-      .from(adminUsers)
-      .where(and(eq(adminUsers.approvalStatus, "대기중"), notInArray(adminUsers.userType, excludedTypes)))
-      .execute();
-    const pendingCount = Number(pendingResult[0]?.count ?? 0);
-
-    // 승인 인원 수
-    const approvedResult = await db
-      .select({ count: sql<number>`count(${adminUsers.id})` })
-      .from(adminUsers)
-      .where(and(eq(adminUsers.approvalStatus, "승인"), notInArray(adminUsers.userType, excludedTypes)))
-      .execute();
-    const approvedCount = Number(approvedResult[0]?.count ?? 0);
-
-    // 페이지 단위로 데이터 조회
-    const data = await db
-      .select()
-      .from(adminUsers)
-      .where(baseCondition)
-      .orderBy(desc(adminUsers.createdAt))
-      .limit(limit)
-      .offset(offset)
-      .execute();
-
-    return { data, total, pendingCount, approvedCount };
+    return { data: data as AdminUser[], total, pendingCount, approvedCount };
   }
 
   async searchAdminUsersByStatus(
     status: "대기중" | "승인" | "거부",
     searchQuery: string,
     filterType: "전체" | "부서" | "직책",
-    page: number = 1,
-    limit: number = 8
-  ): Promise<{ data: AdminUser[]; total: number; pendingCount: number; approvedCount: number }> {
+    page = 1,
+    limit = 8,
+  ) {
     const offset = (page - 1) * limit;
-    const excludedTypes = ['매니저', '슈퍼어드민'];
+    const regex = { $regex: searchQuery, $options: "i" };
 
-    // 검색 조건 구성
-    const searchConditions = [];
+    const searchFilter: Record<string, unknown> = {
+      approvalStatus: status,
+      userType: { $nin: EXCLUDED_TYPES },
+    };
+
     if (filterType === "전체") {
-      searchConditions.push(
-        or(
-          ilike(adminUsers.department, `%${searchQuery}%`),
-          ilike(adminUsers.position, `%${searchQuery}%`),
-          ilike(adminUsers.name, `%${searchQuery}%`),
-          ilike(adminUsers.email, `%${searchQuery}%`)
-        )
-      );
+      searchFilter.$or = [
+        { department: regex },
+        { position: regex },
+        { name: regex },
+        { email: regex },
+      ];
     } else if (filterType === "부서") {
-      searchConditions.push(ilike(adminUsers.department, `%${searchQuery}%`));
+      searchFilter.department = regex;
     } else if (filterType === "직책") {
-      searchConditions.push(ilike(adminUsers.position, `%${searchQuery}%`));
+      searchFilter.position = regex;
     }
 
-    const whereCondition = and(
-      eq(adminUsers.approvalStatus, status),
-      notInArray(adminUsers.userType, excludedTypes),
-      ...searchConditions
-    );
+    const [total, pendingCount, approvedCount, data] = await Promise.all([
+      AdminUserModel.countDocuments(searchFilter),
+      AdminUserModel.countDocuments({ approvalStatus: "대기중", userType: { $nin: EXCLUDED_TYPES } }),
+      AdminUserModel.countDocuments({ approvalStatus: "승인", userType: { $nin: EXCLUDED_TYPES } }),
+      AdminUserModel.find(searchFilter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+    ]);
 
-    // 총 개수
-    const totalResult = await db
-      .select({ total: sql<number>`count(${adminUsers.id})` })
-      .from(adminUsers)
-      .where(whereCondition)
-      .execute();
-    const total = Number(totalResult[0]?.total ?? 0);
-
-    // 대기중 인원 수
-    const pendingResult = await db
-      .select({ count: sql<number>`count(${adminUsers.id})` })
-      .from(adminUsers)
-      .where(and(eq(adminUsers.approvalStatus, "대기중"), notInArray(adminUsers.userType, excludedTypes)))
-      .execute();
-    const pendingCount = Number(pendingResult[0]?.count ?? 0);
-
-    // 승인 인원 수
-    const approvedResult = await db
-      .select({ count: sql<number>`count(${adminUsers.id})` })
-      .from(adminUsers)
-      .where(and(eq(adminUsers.approvalStatus, "승인"), notInArray(adminUsers.userType, excludedTypes)))
-      .execute();
-    const approvedCount = Number(approvedResult[0]?.count ?? 0);
-
-    // 페이지 단위 데이터 조회
-    const data = await db
-      .select()
-      .from(adminUsers)
-      .where(whereCondition)
-      .orderBy(desc(adminUsers.createdAt))
-      .limit(limit)
-      .offset(offset)
-      .execute();
-
-    return { data, total, pendingCount, approvedCount };
+    return { data: data as AdminUser[], total, pendingCount, approvedCount };
   }
 
-  async getTopDonors(page: number = 1, limit: number = 8): Promise<{ data: User[]; total: number }> {
+  async getTopDonors(page = 1, limit = 8): Promise<{ data: User[]; total: number }> {
     const offset = (page - 1) * limit;
-
-    // 총 개수
-    const totalResult = await db
-      .select({ total: sql<number>`count(${users.id})` })
-      .from(users)
-      .execute();
-    const total = Number(totalResult[0]?.total ?? 0);
-
-    // 기부 금액 기준 정렬
-    const data = await db
-      .select()
-      .from(users)
-      .orderBy(desc(users.totalDonationAmount))
-      .limit(limit)
-      .offset(offset)
-      .execute();
-
-    return { data, total };
+    const [total, data] = await Promise.all([
+      UserModel.countDocuments(),
+      UserModel.find().sort({ totalDonationAmount: -1 }).skip(offset).limit(limit).lean(),
+    ]);
+    return { data: data as User[], total };
   }
 }

@@ -14,9 +14,7 @@ import {
 } from "./predictionStorage";
 import { insertPredictionSchema } from "@shared/schema";
 import { z } from "zod";
-import { db } from "../UserStorage/db";
-import { predictions, users, pointTransactions } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { mongoose, PredictionModel, UserModel, PointTransactionModel, getNextSequence } from "../UserStorage/db";
 import { userAuthMiddleware } from "../middleware/userAuth";
 
 const router = Router();
@@ -234,10 +232,7 @@ router.get("/predictions/:id", userAuthMiddleware, async (req: any, res: Respons
       return res.status(401).json({ error: "인증이 필요합니다." });
     }
 
-    const [prediction] = await db
-      .select()
-      .from(predictions)
-      .where(eq(predictions.id, predictionId));
+    const prediction = await PredictionModel.findOne({ id: predictionId }).lean();
     
     if (!prediction) {
       return res.status(404).json({ error: "예측을 찾을 수 없습니다." });
@@ -278,10 +273,7 @@ router.post("/predictions/:id/donate", userAuthMiddleware, async (req: any, res:
     }
 
     // 1. 예측 조회
-    const [prediction] = await db
-      .select()
-      .from(predictions)
-      .where(eq(predictions.id, predictionId));
+    const prediction = await PredictionModel.findOne({ id: predictionId }).lean();
     
     if (!prediction) {
       return res.status(404).json({ error: "예측을 찾을 수 없습니다." });
@@ -311,10 +303,7 @@ router.post("/predictions/:id/donate", userAuthMiddleware, async (req: any, res:
     const donationAmount = Math.round(prize * 0.1);
 
     // 4. 유저 포인트 확인
-    const [user] = await db
-      .select({ points: users.points })
-      .from(users)
-      .where(eq(users.id, prediction.userId));
+    const user = await UserModel.findOne({ id: prediction.userId }).select("points").lean();
 
     // 기부 금액이 0이면 기부하지 않고 성공 반환
     if (donationAmount <= 0) {
@@ -335,40 +324,46 @@ router.post("/predictions/:id/donate", userAuthMiddleware, async (req: any, res:
     }
 
     // 5. 트랜잭션으로 포인트 차감 및 기부 내역 기록
-    await db.transaction(async (tx: any) => {
-      // 유저 포인트 차감
-      await tx.execute(
-        sql`UPDATE users SET points = points - ${donationAmount} WHERE id = ${prediction.userId}`
-      );
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
 
-      // totalDonationAmount 업데이트
-      await tx.execute(
-        sql`UPDATE users SET total_donation_amount = total_donation_amount + ${donationAmount} WHERE id = ${prediction.userId}`
-      );
+      const updatedUser = await UserModel.findOneAndUpdate(
+        { id: prediction.userId },
+        { $inc: { points: -donationAmount, totalDonationAmount: donationAmount } },
+        { new: true, session },
+      ).lean();
 
-      // 잔액 조회
-      const [updatedUser] = await tx
-        .select({ points: users.points })
-        .from(users)
-        .where(eq(users.id, prediction.userId));
-
-      // 거래 내역 기록
       if (updatedUser) {
-        await tx.insert(pointTransactions).values({
-          userId: prediction.userId,
-          transactionType: 'donation',
-          amount: -donationAmount,
-          balance: updatedUser.points,
-          description: `예측 승리 포인트 기부 (${donationAmount}포인트)`,
-        });
+        const txId = await getNextSequence("pointTransaction");
+        await PointTransactionModel.create(
+          [
+            {
+              id: txId,
+              userId: prediction.userId,
+              transactionType: "donation",
+              amount: -donationAmount,
+              balance: updatedUser.points,
+              description: `예측 승리 포인트 기부 (${donationAmount}포인트)`,
+            },
+          ],
+          { session },
+        );
       }
 
-      // donatedAmount 업데이트
-      await tx
-        .update(predictions)
-        .set({ donatedAmount: donationAmount })
-        .where(eq(predictions.id, predictionId));
-    });
+      await PredictionModel.updateOne(
+        { id: predictionId },
+        { donatedAmount: donationAmount },
+        { session },
+      );
+
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
 
     res.json({
       success: true,

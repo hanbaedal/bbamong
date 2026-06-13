@@ -3,7 +3,7 @@ import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clea
 import { Capacitor } from "@capacitor/core";
 
 // API Base URL - 모바일 앱용 (실제 도메인)
-const PRODUCTION_API_URL = 'https://ppadun9.com';
+const PRODUCTION_API_URL = 'https://ppamong.com';
 
 // 환경에 따른 API Base URL 반환
 function getApiBaseUrl(): string {

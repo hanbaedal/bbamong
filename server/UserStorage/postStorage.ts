@@ -1,15 +1,12 @@
-import { db } from "./db";
-import { posts, comments, users } from "@shared/schema";
-import { eq, sql, like } from "drizzle-orm";
+import { PostModel, CommentModel, UserModel, getNextSequence } from "./db";
 import type { Post, InsertPost, Comment, InsertComment } from "@shared/schema";
 
 export class PostStorage {
-
   async getPosts(
     page: number,
     limit: number,
     search?: string,
-    searchType: "all" | "author" | "title" = "title"
+    searchType: "all" | "author" | "title" = "title",
   ): Promise<{
     posts: Array<Post & { authorName: string; commentCount: number }>;
     total: number;
@@ -17,142 +14,97 @@ export class PostStorage {
   }> {
     const offset = (page - 1) * limit;
 
-    // 검색 조건 생성
-    const buildSearchCondition = () => {
-      if (!search) return undefined;
-      
+    let postFilter: Record<string, unknown> = {};
+    let authorIds: string[] | undefined;
+
+    if (search) {
       if (searchType === "title") {
-        return like(posts.title, `%${search}%`);
+        postFilter = { title: { $regex: search, $options: "i" } };
       } else if (searchType === "author") {
-        return like(users.name, `%${search}%`);
+        const authors = await UserModel.find({ name: { $regex: search, $options: "i" } })
+          .select("id")
+          .lean();
+        authorIds = authors.map((a) => a.id);
+        postFilter = { authorId: { $in: authorIds } };
       } else if (searchType === "all") {
-        return sql`${posts.title} LIKE ${`%${search}%`} OR ${users.name} LIKE ${`%${search}%`}`;
+        const authors = await UserModel.find({ name: { $regex: search, $options: "i" } })
+          .select("id")
+          .lean();
+        authorIds = authors.map((a) => a.id);
+        postFilter = {
+          $or: [
+            { title: { $regex: search, $options: "i" } },
+            { authorId: { $in: authorIds } },
+          ],
+        };
       }
-      return undefined;
-    };
-
-    const searchCondition = buildSearchCondition();
-
-    // 전체 개수 조회
-    let countQuery = db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(posts)
-      .leftJoin(users, eq(posts.authorId, users.id));
-    
-    if (searchCondition) {
-      countQuery = countQuery.where(searchCondition) as any;
-    }
-    const countResult = await countQuery;
-    const total = countResult[0]?.count || 0;
-
-    // 게시글 조회
-    let query = db
-      .select({
-        id: posts.id,
-        title: posts.title,
-        content: posts.content,
-        authorId: posts.authorId,
-        createdAt: posts.createdAt,
-        viewCount: posts.viewCount,
-        authorName: users.name,
-      })
-      .from(posts)
-      .leftJoin(users, eq(posts.authorId, users.id)) as any;
-
-    if (searchCondition) {
-      query = query.where(searchCondition);
     }
 
-    const result = await query
-      .orderBy(sql`${posts.createdAt} DESC`)
-      .limit(limit)
-      .offset(offset);
+    const [total, posts] = await Promise.all([
+      PostModel.countDocuments(postFilter),
+      PostModel.find(postFilter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+    ]);
 
     const postsWithComments = await Promise.all(
-      result.map(async (row: typeof result[number]) => {
-        const countRes = await db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(comments)
-          .where(eq(comments.postId, row.id));
+      posts.map(async (row) => {
+        const [author, commentCount] = await Promise.all([
+          UserModel.findOne({ id: row.authorId }).select("name").lean(),
+          CommentModel.countDocuments({ postId: row.id }),
+        ]);
         return {
-          ...row,
-          commentCount: countRes[0]?.count || 0,
-          authorName: row.authorName || "Unknown",
+          ...(row as Post),
+          commentCount,
+          authorName: author?.name || "Unknown",
         };
-      })
+      }),
     );
 
     return {
       posts: postsWithComments,
       total,
-      hasMore: offset + result.length < total,
+      hasMore: offset + posts.length < total,
     };
   }
 
   async createPost(post: InsertPost): Promise<Post> {
-    const result = await db.insert(posts).values(post).returning();
-    return result[0];
+    const id = await getNextSequence("post");
+    const doc = await PostModel.create({ id, ...post });
+    return doc.toObject() as Post;
   }
 
-  async getPost(
-    id: number,
-  ): Promise<(Post & { authorName: string }) | undefined> {
-    const result = await db
-      .select({
-        id: posts.id,
-        title: posts.title,
-        content: posts.content,
-        authorId: posts.authorId,
-        createdAt: posts.createdAt,
-        viewCount: posts.viewCount,
-        authorName: users.name,
-      })
-      .from(posts)
-      .leftJoin(users, eq(posts.authorId, users.id))
-      .where(eq(posts.id, id));
+  async getPost(id: number): Promise<(Post & { authorName: string }) | undefined> {
+    const post = await PostModel.findOne({ id }).lean();
+    if (!post) return undefined;
 
-    if (!result[0]) return undefined;
-    return { ...result[0], authorName: result[0].authorName || "Unknown" };
+    const author = await UserModel.findOne({ id: post.authorId }).select("name").lean();
+    return {
+      ...(post as Post),
+      authorName: author?.name || "Unknown",
+    };
   }
 
   async incrementViewCount(id: number) {
-    await db
-      .update(posts)
-      .set({ viewCount: sql`${posts.viewCount} + 1` })
-      .where(eq(posts.id, id));
+    await PostModel.updateOne({ id }, { $inc: { viewCount: 1 } });
   }
 
-  // 댓글 CRUD
-  async getCommentsByPostId(
-    postId: number,
-  ): Promise<Array<Comment & { authorName: string }>> {
-    const result = await db
-      .select({
-        id: comments.id,
-        postId: comments.postId,
-        content: comments.content,
-        authorId: comments.authorId,
-        createdAt: comments.createdAt,
-        authorName: users.name,
-      })
-      .from(comments)
-      .leftJoin(users, eq(comments.authorId, users.id))
-      .where(eq(comments.postId, postId))
-      .orderBy(comments.createdAt);
+  async getCommentsByPostId(postId: number): Promise<Array<Comment & { authorName: string }>> {
+    const comments = await CommentModel.find({ postId }).sort({ createdAt: 1 }).lean();
 
-    return result.map((row) => ({
-      id: row.id,
-      postId: row.postId,
-      content: row.content,
-      authorId: row.authorId,
-      createdAt: row.createdAt,
-      authorName: row.authorName || "Unknown",
-    }));
+    return Promise.all(
+      comments.map(async (row) => {
+        const author = await UserModel.findOne({ id: row.authorId }).select("name").lean();
+        return {
+          ...(row as Comment),
+          authorName: author?.name || "Unknown",
+        };
+      }),
+    );
   }
 
   async createComment(comment: InsertComment): Promise<Comment> {
-    const result = await db.insert(comments).values(comment).returning();
-    return result[0];
+    const id = await getNextSequence("comment");
+    const doc = await CommentModel.create({ id, ...comment });
+    return doc.toObject() as Comment;
   }
 
   async updateComment(
@@ -160,22 +112,15 @@ export class PostStorage {
     content: string,
     userId: string,
   ): Promise<{ success: boolean; message: string; comment?: Comment }> {
-    const comment = await db.select().from(comments).where(eq(comments.id, id));
+    const comment = await CommentModel.findOne({ id }).lean();
+    if (!comment) return { success: false, message: "댓글을 찾을 수 없습니다." };
+    if (comment.authorId !== userId) return { success: false, message: "작성자만 수정할 수 있습니다." };
 
-    if (!comment[0])
-      return { success: false, message: "댓글을 찾을 수 없습니다." };
-    if (comment[0].authorId !== userId)
-      return { success: false, message: "작성자만 수정할 수 있습니다." };
-
-    const result = await db
-      .update(comments)
-      .set({ content })
-      .where(eq(comments.id, id))
-      .returning();
+    const doc = await CommentModel.findOneAndUpdate({ id }, { content }, { new: true }).lean();
     return {
       success: true,
       message: "댓글이 수정되었습니다.",
-      comment: result[0],
+      comment: doc as Comment,
     };
   }
 
@@ -183,14 +128,11 @@ export class PostStorage {
     id: number,
     userId: string,
   ): Promise<{ success: boolean; message: string }> {
-    const comment = await db.select().from(comments).where(eq(comments.id, id));
+    const comment = await CommentModel.findOne({ id }).lean();
+    if (!comment) return { success: false, message: "댓글을 찾을 수 없습니다." };
+    if (comment.authorId !== userId) return { success: false, message: "작성자만 삭제할 수 있습니다." };
 
-    if (!comment[0])
-      return { success: false, message: "댓글을 찾을 수 없습니다." };
-    if (comment[0].authorId !== userId)
-      return { success: false, message: "작성자만 삭제할 수 있습니다." };
-
-    await db.delete(comments).where(eq(comments.id, id));
+    await CommentModel.deleteOne({ id });
     return { success: true, message: "댓글이 삭제되었습니다." };
   }
 
@@ -199,21 +141,15 @@ export class PostStorage {
     post: Partial<InsertPost>,
     userId: string,
   ): Promise<{ success: boolean; message: string; post?: Post }> {
-    const existing = await db.select().from(posts).where(eq(posts.id, id));
-    if (!existing[0])
-      return { success: false, message: "게시물을 찾을 수 없습니다." };
-    if (existing[0].authorId !== userId)
-      return { success: false, message: "작성자만 수정할 수 있습니다." };
+    const existing = await PostModel.findOne({ id }).lean();
+    if (!existing) return { success: false, message: "게시물을 찾을 수 없습니다." };
+    if (existing.authorId !== userId) return { success: false, message: "작성자만 수정할 수 있습니다." };
 
-    const result = await db
-      .update(posts)
-      .set(post)
-      .where(eq(posts.id, id))
-      .returning();
+    const doc = await PostModel.findOneAndUpdate({ id }, post, { new: true }).lean();
     return {
       success: true,
       message: "게시물이 수정되었습니다.",
-      post: result[0],
+      post: doc as Post,
     };
   }
 
@@ -221,14 +157,13 @@ export class PostStorage {
     id: number,
     userId: string,
   ): Promise<{ success: boolean; message: string }> {
-    const existing = await db.select().from(posts).where(eq(posts.id, id));
-    if (!existing[0])
-      return { success: false, message: "게시물을 찾을 수 없습니다." };
-    if (existing[0].authorId !== userId)
-      return { success: false, message: "작성자만 삭제할 수 있습니다." };
+    const existing = await PostModel.findOne({ id }).lean();
+    if (!existing) return { success: false, message: "게시물을 찾을 수 없습니다." };
+    if (existing.authorId !== userId) return { success: false, message: "작성자만 삭제할 수 있습니다." };
 
-    await db.delete(posts).where(eq(posts.id, id));
+    await PostModel.deleteOne({ id });
     return { success: true, message: "게시물이 삭제되었습니다." };
   }
 }
+
 export const postStorage = new PostStorage();

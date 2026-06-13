@@ -1,6 +1,12 @@
-import { db } from "../UserStorage/db";
-import { stadiums, matches, predictions, roundStatistics, type Stadium, type InsertStadium } from "@shared/schema";
-import { eq, desc, sql, inArray } from "drizzle-orm";
+import {
+  mongoose,
+  StadiumModel,
+  MatchModel,
+  PredictionModel,
+  RoundStatisticsModel,
+  getNextSequence,
+} from "../UserStorage/db";
+import type { Stadium, InsertStadium } from "@shared/schema";
 
 export interface IAdminStadiumStorage {
   getAllStadiums(): Promise<Stadium[]>;
@@ -11,51 +17,46 @@ export interface IAdminStadiumStorage {
 
 export class AdminStadiumStorage implements IAdminStadiumStorage {
   async getAllStadiums(): Promise<Stadium[]> {
-    const result = await db.execute<{ id: number; name: string; createdAt: Date }>(sql`
-      SELECT s.id, s.name, s.created_at as "createdAt"
-      FROM stadiums s
-      ORDER BY s.created_at DESC
-    `);
-    return result.map(row => ({
-      id: row.id,
-      name: row.name,
-      createdAt: new Date(row.createdAt)
-    }));
+    const docs = await StadiumModel.find().sort({ createdAt: -1 }).lean();
+    return docs as Stadium[];
   }
 
   async createStadium(stadium: InsertStadium): Promise<Stadium> {
-    const [result] = await db.insert(stadiums).values(stadium).returning().execute();
-    return result;
+    const id = await getNextSequence("stadium");
+    const doc = await StadiumModel.create({ id, ...stadium });
+    return doc.toObject() as Stadium;
   }
 
   async updateStadium(id: number, stadium: InsertStadium): Promise<Stadium | undefined> {
-    const [result] = await db
-      .update(stadiums)
-      .set(stadium)
-      .where(eq(stadiums.id, id))
-      .returning()
-      .execute();
-    return result;
+    const doc = await StadiumModel.findOneAndUpdate({ id }, stadium, { new: true }).lean();
+    return doc ? (doc as Stadium) : undefined;
   }
 
   async getMatchCountByStadium(id: number): Promise<number> {
-    const result = await db.select({ count: sql<number>`count(*)` }).from(matches).where(eq(matches.stadiumId, id));
-    return Number(result[0]?.count ?? 0);
+    return MatchModel.countDocuments({ stadiumId: id });
   }
 
   async deleteStadium(id: number): Promise<void> {
-    await db.transaction(async (tx) => {
-      const relatedMatches = await tx.select({ id: matches.id }).from(matches).where(eq(matches.stadiumId, id));
-      const matchIds = relatedMatches.map(m => m.id);
-      
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+      const relatedMatches = await MatchModel.find({ stadiumId: id }).select("id").lean();
+      const matchIds = relatedMatches.map((m) => m.id);
+
       if (matchIds.length > 0) {
-        await tx.delete(predictions).where(inArray(predictions.matchId, matchIds)).execute();
-        await tx.delete(roundStatistics).where(inArray(roundStatistics.matchId, matchIds)).execute();
-        await tx.delete(matches).where(eq(matches.stadiumId, id)).execute();
+        await PredictionModel.deleteMany({ matchId: { $in: matchIds } }, { session });
+        await RoundStatisticsModel.deleteMany({ matchId: { $in: matchIds } }, { session });
+        await MatchModel.deleteMany({ stadiumId: id }, { session });
       }
-      
-      await tx.delete(stadiums).where(eq(stadiums.id, id)).execute();
-    });
+
+      await StadiumModel.deleteOne({ id }, { session });
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
 }
 

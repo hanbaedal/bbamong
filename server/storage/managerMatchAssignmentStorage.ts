@@ -1,6 +1,4 @@
-import { db } from "../UserStorage/db";
-import { adminUsers, matches, stadiums, type AdminUser, type Match } from "@shared/schema";
-import { eq, and, or, ilike, count, sql } from "drizzle-orm";
+import { AdminUserModel, MatchModel, StadiumModel } from "../UserStorage/db";
 
 export interface ManagerWithAssignment {
   id: string;
@@ -39,55 +37,27 @@ export interface IManagerMatchAssignmentStorage {
 }
 
 export class ManagerMatchAssignmentStorage implements IManagerMatchAssignmentStorage {
-  async getManagers(search?: string, page: number = 1, limit: number = 8): Promise<ManagerListResponse> {
-    const conditions = [eq(adminUsers.userType, "매니저")];
+  async getManagers(search?: string, page = 1, limit = 8): Promise<ManagerListResponse> {
+    const filter: Record<string, unknown> = { userType: "매니저" };
 
     if (search && search.trim()) {
-      conditions.push(
-        or(
-          ilike(adminUsers.username, `%${search}%`),
-          ilike(adminUsers.name, `%${search}%`),
-          ilike(adminUsers.id, `%${search}%`)
-        )!
-      );
+      const regex = { $regex: search.trim(), $options: "i" };
+      filter.$or = [{ username: regex }, { name: regex }, { id: regex }];
     }
 
-    // 전체 개수 카운트
-    const totalQuery = db
-      .select({ count: count() })
-      .from(adminUsers)
-      .where(and(...conditions));
-
-    const totalResult = await totalQuery.execute();
-    const total = totalResult[0]?.count || 0;
+    const total = await AdminUserModel.countDocuments(filter);
     const totalPages = Math.ceil(total / limit);
     const offset = (page - 1) * limit;
 
-    // 매니저 목록 가져오기 (조인 없음, assignedMatchNumber만)
-    const managers = await db
-      .select({
-        id: adminUsers.id,
-        username: adminUsers.username,
-        name: adminUsers.name,
-        userType: adminUsers.userType,
-        status: adminUsers.status,
-        lastLogin: adminUsers.lastLogin,
-        assignedMatchNumber: adminUsers.assignedMatchNumber,
-      })
-      .from(adminUsers)
-      .where(and(...conditions))
-      .orderBy(
-        // 1. 경기 할당된 매니저 먼저 표시
-        sql`CASE WHEN ${adminUsers.assignedMatchNumber} IS NULL THEN 1 ELSE 0 END`,
-        // 2. 마지막 로그인 시간 최신순
-        sql`${adminUsers.lastLogin} DESC NULLS LAST`
-      )
+    const managers = await AdminUserModel.find(filter)
+      .select("id username name userType status lastLogin assignedMatchNumber")
+      .sort({ assignedMatchNumber: 1, lastLogin: -1 })
+      .skip(offset)
       .limit(limit)
-      .offset(offset)
-      .execute();
+      .lean();
 
     return {
-      managers,
+      managers: managers as ManagerWithAssignment[],
       total,
       page,
       limit,
@@ -96,78 +66,52 @@ export class ManagerMatchAssignmentStorage implements IManagerMatchAssignmentSto
   }
 
   async getAllMatches(): Promise<MatchWithStadium[]> {
-    const matchesWithStadium = await db
-      .select({
-        id: matches.id,
-        name: matches.name,
-        startTime: matches.startTime,
-        endTime: matches.endTime,
-        matchStatus: matches.matchStatus,
-        stadiumName: stadiums.name,
-      })
-      .from(matches)
-      .leftJoin(stadiums, eq(matches.stadiumId, stadiums.id))
-      .execute();
+    const matches = await MatchModel.find().lean();
 
-    return matchesWithStadium.map((row) => ({
-      ...row,
-      stadiumName: row.stadiumName || "경기장 정보 없음",
-    }));
+    return Promise.all(
+      matches.map(async (row) => {
+        const stadium = await StadiumModel.findOne({ id: row.stadiumId }).select("name").lean();
+        return {
+          id: row.id,
+          name: row.name,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          matchStatus: row.matchStatus,
+          stadiumName: stadium?.name || "경기장 정보 없음",
+        };
+      }),
+    );
   }
 
   async assignMatch(managerId: string, matchNumber: string): Promise<void> {
-    // 이미 해당 경기 번호가 할당된 다른 매니저가 있는지 확인
-    const existingAssignment = await db
-      .select()
-      .from(adminUsers)
-      .where(
-        and(
-          eq(adminUsers.assignedMatchNumber, matchNumber),
-          sql`${adminUsers.id} != ${managerId}`
-        )
-      )
-      .limit(1)
-      .execute();
+    const existingAssignment = await AdminUserModel.findOne({
+      assignedMatchNumber: matchNumber,
+      id: { $ne: managerId },
+    }).lean();
 
-    if (existingAssignment.length > 0) {
+    if (existingAssignment) {
       throw new Error(`${matchNumber}는 이미 다른 매니저에게 할당되었습니다.`);
     }
 
-    // 매니저에게 경기 번호 할당
-    await db
-      .update(adminUsers)
-      .set({ assignedMatchNumber: matchNumber })
-      .where(eq(adminUsers.id, managerId))
-      .execute();
+    await AdminUserModel.updateOne({ id: managerId }, { assignedMatchNumber: matchNumber });
   }
 
   async unassignMatch(managerId: string): Promise<void> {
-    await db
-      .update(adminUsers)
-      .set({ assignedMatchNumber: null })
-      .where(eq(adminUsers.id, managerId))
-      .execute();
+    await AdminUserModel.updateOne({ id: managerId }, { assignedMatchNumber: null });
   }
 
   async updateManagerStatus(managerId: string, status: string): Promise<void> {
-    await db
-      .update(adminUsers)
-      .set({ status })
-      .where(eq(adminUsers.id, managerId))
-      .execute();
+    await AdminUserModel.updateOne({ id: managerId }, { status });
   }
 
   async getAvailableMatchNumbers(): Promise<string[]> {
-    // 이미 할당된 경기 번호들 가져오기
-    const assignedNumbers = await db
-      .select({ assignedMatchNumber: adminUsers.assignedMatchNumber })
-      .from(adminUsers)
-      .where(sql`${adminUsers.assignedMatchNumber} IS NOT NULL`)
-      .execute();
+    const assigned = await AdminUserModel.find({
+      assignedMatchNumber: { $ne: null },
+    })
+      .select("assignedMatchNumber")
+      .lean();
 
-    const assignedSet = new Set(assignedNumbers.map((r) => r.assignedMatchNumber));
-
-    // 전체 경기 번호에서 할당된 것 제외
+    const assignedSet = new Set(assigned.map((r) => r.assignedMatchNumber));
     const allNumbers = ["1경기", "2경기", "3경기", "4경기", "5경기"];
     return allNumbers.filter((num) => !assignedSet.has(num));
   }

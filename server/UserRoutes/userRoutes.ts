@@ -1,15 +1,24 @@
 import type { Express, Request, Response } from "express";
 import { userStorage as storage } from "../UserStorage/userStorage"
 import { attendanceStorage as attendanceStorage } from "../UserStorage/attendanceStorage"
-import { db } from "../UserStorage/db";
-import { users, predictions, matches, stadiums, adViewHistory, advertisements, pointTransactions } from "@shared/schema";
-import { eq, desc, sql, and } from "drizzle-orm";
+import {
+  UserModel,
+  PredictionModel,
+  MatchModel,
+  StadiumModel,
+  AdViewHistoryModel,
+  AdvertisementModel,
+  PointTransactionModel,
+  mongoose,
+  getNextSequence,
+} from "../UserStorage/db";
 
 import { insertUserSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { generateUserAccessToken, generateUserRefreshToken, verifyUserRefreshToken } from "../utils/jwt";
 import { userAuthMiddleware, type AuthenticatedUserRequest } from "../middleware/userAuth";
 import { hasActiveSession, createSession, deleteSession } from "../sessionManager";
+import { getSocialPendingData, deleteSocialPendingData } from "./socialAuthRoutes";
 import { getRedisClient } from "../redis";
 
 export async function userRoutes(app: Express): Promise<void> {
@@ -74,7 +83,7 @@ export async function userRoutes(app: Express): Promise<void> {
         return res.json({ available: false, message: "이메일을 입력해주세요." });
       }
 
-      const allUsersWithEmail = await db.select().from(users).where(eq(users.email, email.trim()));
+      const allUsersWithEmail = await UserModel.find({ email: email.trim() }).lean();
       const otherUser = allUsersWithEmail.find(u => u.id !== excludeUserId);
 
       if (otherUser) {
@@ -218,7 +227,7 @@ export async function userRoutes(app: Express): Promise<void> {
 
       // lastLogin, lastActive 동시 업데이트
       const now = new Date();
-      await db.update(users).set({ lastLogin: now, lastActive: now }).where(eq(users.id, user.id));
+      await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       // Redis 세션 생성
       await createSession("user", user.id, {
@@ -292,7 +301,7 @@ export async function userRoutes(app: Express): Promise<void> {
       const refreshToken = generateUserRefreshToken(tokenPayload);
 
       const now = new Date();
-      await db.update(users).set({ lastLogin: now, lastActive: now }).where(eq(users.id, user.id));
+      await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       await createSession("user", user.id, {
         username: user.username,
@@ -598,7 +607,6 @@ export async function userRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "인증 정보가 없습니다. 소셜 로그인을 다시 시도해주세요." });
       }
 
-      const { getSocialPendingData, deleteSocialPendingData } = await import("./socialAuthRoutes");
       const socialData = await getSocialPendingData(pendingCode);
       if (!socialData) {
         return res.status(400).json({ error: "인증 정보가 만료되었습니다. 소셜 로그인을 다시 시도해주세요." });
@@ -677,7 +685,7 @@ export async function userRoutes(app: Express): Promise<void> {
       });
 
       const now = new Date();
-      await db.update(users).set({ lastLogin: now, lastActive: now }).where(eq(users.id, user.id));
+      await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       const updatedUser = await storage.getUser(user.id);
       const { password: _, ...userWithoutPassword } = updatedUser || user;
@@ -711,10 +719,10 @@ export async function userRoutes(app: Express): Promise<void> {
           .json({ error: "사용자를 찾을 수 없습니다." });
       }
 
-      await db
-        .update(users)
-        .set({ isSuspended: 1, suspendedAt: new Date(), lastLogout: new Date() })
-        .where(eq(users.id, userId));
+      await UserModel.updateOne(
+        { id: userId },
+        { isSuspended: 1, suspendedAt: new Date(), lastLogout: new Date() },
+      );
 
       try {
         await deleteSession("user", userId);
@@ -751,7 +759,7 @@ export async function userRoutes(app: Express): Promise<void> {
 
       // 리프레시 토큰으로 자동 로그인 시에도 lastLogin, lastActive 업데이트
       const now = new Date();
-      await db.update(users).set({ lastLogin: now, lastActive: now }).where(eq(users.id, user.id));
+      await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       const tokenPayload = {
         userId: user.id,
@@ -787,9 +795,9 @@ export async function userRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: "인증되지 않은 사용자입니다." });
       }
 
-      const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const user = await UserModel.findOne({ id: userId }).lean();
 
-      if (!user || user.length === 0) {
+      if (!user) {
         return res.status(404).json({ error: "사용자를 찾을 수 없습니다." });
       }
 
@@ -797,13 +805,13 @@ export async function userRoutes(app: Express): Promise<void> {
       const attendanceRecords = await attendanceStorage.getUserAttendanceRecords(userId);
 
       // 비밀번호는 응답에서 제외
-      const { password: _, ...userWithoutPassword } = user[0];
+      const { password: _, ...userWithoutPassword } = user;
 
       return res.json({
         success: true,
         user: {
           ...userWithoutPassword,
-          hasPassword: !!user[0].password,
+          hasPassword: !!user.password,
         },
         attendanceRecords,
       });
@@ -820,7 +828,7 @@ export async function userRoutes(app: Express): Promise<void> {
 
       if (userId) {
         // lastLogout 업데이트
-        await db.update(users).set({ lastLogout: new Date() }).where(eq(users.id, userId));
+        await UserModel.updateOne({ id: userId }, { lastLogout: new Date() });
         
         // Redis 세션 삭제
         await deleteSession("user", userId);
@@ -876,75 +884,61 @@ export async function userRoutes(app: Express): Promise<void> {
       const limit = Number(req.query.limit) || 5;
       const offset = (page - 1) * limit;
 
-      // predictions와 matches, stadiums를 join하여 조회
-      const userPredictions = await db
-        .select({
-          id: predictions.id,
-          prediction: predictions.prediction,
-          amount: predictions.amount,
-          status: predictions.status,
-          wonAmount: predictions.wonAmount,
-          createdAt: predictions.createdAt,
-          matchId: matches.id,
-          matchName: matches.name,
-          matchDate: matches.matchDate,
-          stadiumName: stadiums.name,
-        })
-        .from(predictions)
-        .innerJoin(matches, eq(predictions.matchId, matches.id))
-        .innerJoin(stadiums, eq(matches.stadiumId, stadiums.id))
-        .where(eq(predictions.userId, userId))
-        .orderBy(desc(predictions.createdAt))
+      const userPredictionsRaw = await PredictionModel.find({ userId })
+        .sort({ createdAt: -1 })
+        .skip(offset)
         .limit(limit)
-        .offset(offset);
+        .lean();
 
-      // 전체 예측 수 조회
-      const totalResult = await db
-        .select({
-          count: sql<number>`count(*)::int`,
-        })
-        .from(predictions)
-        .where(eq(predictions.userId, userId));
+      const matchIds = Array.from(new Set(userPredictionsRaw.map((p) => p.matchId)));
+      const matches = await MatchModel.find({ id: { $in: matchIds } }).lean();
+      const stadiumIds = Array.from(new Set(matches.map((m) => m.stadiumId)));
+      const stadiums = await StadiumModel.find({ id: { $in: stadiumIds } }).lean();
+      const matchMap = Object.fromEntries(matches.map((m) => [m.id, m]));
+      const stadiumMap = Object.fromEntries(stadiums.map((s) => [s.id, s]));
 
-      const total = totalResult[0]?.count || 0;
+      const userPredictions = userPredictionsRaw.map((p) => {
+        const match = matchMap[p.matchId];
+        const stadium = match ? stadiumMap[match.stadiumId] : undefined;
+        return {
+          id: p.id,
+          prediction: p.prediction,
+          amount: p.amount,
+          status: p.status,
+          wonAmount: p.wonAmount,
+          createdAt: p.createdAt,
+          matchId: match?.id,
+          matchName: match?.name,
+          matchDate: match?.matchDate,
+          stadiumName: stadium?.name,
+        };
+      });
 
-      // 승/패 통계 계산
-      const stats = await db
-        .select({
-          status: predictions.status,
-        })
-        .from(predictions)
-        .where(eq(predictions.userId, userId));
+      const total = await PredictionModel.countDocuments({ userId });
+
+      const stats = await PredictionModel.find({ userId }).select("status").lean();
 
       const wins = stats.filter((s) => s.status === "success").length;
       const losses = stats.filter((s) => s.status === "fail").length;
       const pending = stats.filter((s) => s.status === "pending").length;
 
-      // 현재 유저의 랭킹 계산 (승리 횟수 기준)
       let userRank: { rank: number; victories: number } | null = null;
-      
-      if (wins > 0) {
-        // CTE를 사용하여 모든 유저의 승리 횟수와 랭킹을 계산
-        const rankRows = await db.execute<{ rank: number; victory_count: number }>(sql`
-          WITH ranked_users AS (
-            SELECT 
-              user_id,
-              COUNT(*) as victory_count,
-              DENSE_RANK() OVER (ORDER BY COUNT(*) DESC) as rank
-            FROM ${predictions}
-            WHERE status = 'success'
-            GROUP BY user_id
-          )
-          SELECT rank::int as rank, victory_count::int as victory_count
-          FROM ranked_users
-          WHERE user_id = ${userId}
-        `);
 
-        // db.execute는 RowList(배열)을 반환
-        if (rankRows.length > 0) {
+      if (wins > 0) {
+        const victoryCounts = await PredictionModel.aggregate<{ userId: string; victory_count: number }>([
+          { $match: { status: "success" } },
+          { $group: { _id: "$userId", victory_count: { $sum: 1 } } },
+          { $sort: { victory_count: -1 } },
+          { $project: { _id: 0, userId: "$_id", victory_count: 1 } },
+        ]);
+
+        const userEntry = victoryCounts.find((v) => v.userId === userId);
+        if (userEntry) {
+          const rank =
+            victoryCounts.filter((v) => v.victory_count > userEntry.victory_count).length + 1;
           userRank = {
-            rank: rankRows[0].rank,
-            victories: rankRows[0].victory_count,
+            rank,
+            victories: userEntry.victory_count,
           };
         }
       }
@@ -985,8 +979,7 @@ export async function userRoutes(app: Express): Promise<void> {
         });
       }
 
-      // 현재 유저 정보 조회
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      const user = await UserModel.findOne({ id: userId }).lean();
 
       if (!user) {
         return res.status(404).json({ 
@@ -1004,16 +997,7 @@ export async function userRoutes(app: Express): Promise<void> {
         });
       }
 
-      // 2. 시청 기록 확인
-      const viewHistory = await db
-        .select()
-        .from(adViewHistory)
-        .where(
-          and(
-            eq(adViewHistory.userId, userId),
-            eq(adViewHistory.advertisementId, adId)
-          )
-        );
+      const viewHistory = await AdViewHistoryModel.find({ userId, advertisementId: adId }).lean();
 
       if (viewHistory.length > 0) {
         return res.json({
@@ -1044,17 +1028,11 @@ export async function userRoutes(app: Express): Promise<void> {
       const userId = req.user!.userId;
 
       // ID 1, 2만 가져오기 (소개 영상)
-      const videoAds = await db
-        .select()
-        .from(advertisements)
-        .where(sql`${advertisements.id} IN (1, 2)`)
-        .orderBy(advertisements.id);
+      const videoAds = await AdvertisementModel.find({ id: { $in: [1, 2] } })
+        .sort({ id: 1 })
+        .lean();
 
-      // 해당 유저의 시청 기록 조회
-      const viewHistory = await db
-        .select()
-        .from(adViewHistory)
-        .where(eq(adViewHistory.userId, userId));
+      const viewHistory = await AdViewHistoryModel.find({ userId }).lean();
 
       const watchedAdIds = new Set(viewHistory.map(v => v.advertisementId));
 
@@ -1109,57 +1087,64 @@ export async function userRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "아직 준비 중인 영상입니다." });
       }
 
-      // 이미 시청했는지 확인
-      const existingView = await db
-        .select()
-        .from(adViewHistory)
-        .where(
-          and(
-            eq(adViewHistory.userId, userId),
-            eq(adViewHistory.advertisementId, adId)
-          )
-        );
+      const existingView = await AdViewHistoryModel.findOne({ userId, advertisementId: adId }).lean();
 
-      if (existingView.length > 0) {
+      if (existingView) {
         return res.status(400).json({ error: "이미 시청한 영상입니다." });
       }
 
-      // 포인트 결정
       const pointsMap: Record<number, number> = { 1: 500, 2: 1000, 3: 1500 };
       const earnedPoints = pointsMap[adId] || 0;
 
-      // 현재 유저 정보 조회
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!user) {
-        return res.status(404).json({ error: "사용자를 찾을 수 없습니다." });
+      const session = await mongoose.startSession();
+      let newPoints = 0;
+
+      try {
+        session.startTransaction();
+
+        const user = await UserModel.findOne({ id: userId }).session(session);
+        if (!user) {
+          throw new Error("사용자를 찾을 수 없습니다.");
+        }
+
+        const viewId = await getNextSequence("adViewHistory");
+        await AdViewHistoryModel.create(
+          [{ id: viewId, userId, advertisementId: adId }],
+          { session },
+        );
+
+        newPoints = user.points + earnedPoints;
+        const txId = await getNextSequence("pointTransaction");
+        await PointTransactionModel.create(
+          [
+            {
+              id: txId,
+              userId,
+              amount: earnedPoints,
+              balance: newPoints,
+              description: `영상 시청 보상 (${adId === 1 ? "빠던 소개영상" : "게임소개영상 카페2"})`,
+              transactionType: "earned",
+            },
+          ],
+          { session },
+        );
+
+        user.points = newPoints;
+        await user.save({ session });
+
+        await session.commitTransaction();
+      } catch (error) {
+        await session.abortTransaction();
+        throw error;
+      } finally {
+        session.endSession();
       }
 
-      // 시청 기록 추가
-      await db.insert(adViewHistory).values({
-        userId,
-        advertisementId: adId,
-      });
-
-      // 포인트 트랜잭션 생성
-      await db.insert(pointTransactions).values({
-        userId,
-        amount: earnedPoints,
-        balance: user.points + earnedPoints,
-        description: `영상 시청 보상 (${adId === 1 ? '빠던 소개영상' : '게임소개영상 카페2'})`,
-        transactionType: "earned",
-      });
-
-      // 유저 포인트 업데이트
-      await db
-        .update(users)
-        .set({ points: user.points + earnedPoints })
-        .where(eq(users.id, userId));
-
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         earnedPoints,
         message: `${earnedPoints}P가 지급되었습니다!`,
-        newPoints: user.points + earnedPoints,
+        newPoints,
       });
     } catch (error) {
       console.error("Video reward complete error:", error);

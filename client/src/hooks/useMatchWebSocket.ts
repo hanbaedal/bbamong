@@ -6,7 +6,7 @@ import { getOrRefreshAccessToken } from "@/lib/queryClient";
 export type WSConnectionState = "connecting" | "connected" | "disconnected" | "reconnecting";
 
 // 네이티브 앱용 WebSocket URL
-const WS_BASE_URL = 'wss://ppadun9.com';
+const WS_BASE_URL = 'wss://ppamong.com';
 
 export interface WSEventHandlers {
   onConnected?: (data: any) => void;

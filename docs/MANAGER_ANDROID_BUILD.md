@@ -62,12 +62,12 @@ cp android-manager/app/src/main/assets/public/manager.html android-manager/app/s
 
 ### API URL 설정
 - `managerQueryClient.ts`에서 `Capacitor.isNativePlatform()` 체크
-- 네이티브 앱: `https://ppadun9.com` (프로덕션 서버)
+- 네이티브 앱: `https://ppamong.com` (프로덕션 서버)
 - 웹 브라우저: 상대 경로 (현재 호스트)
 
 ### WebSocket URL 설정
 - `matchDetail.tsx`에서 Capacitor 플랫폼 감지
-- 네이티브 앱: `wss://ppadun9.com/ws/match`
+- 네이티브 앱: `wss://ppamong.com/ws/match`
 - 웹 브라우저: `wss://{window.location.host}/ws/match`
 
 ### 에셋 경로

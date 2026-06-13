@@ -22,6 +22,8 @@ vite.config.ts.*
 
 # Generated docs (optional local copies)
 PPADUN9_소스분석.docx
+PPADUN9_분산소스_상관관계.docx
+~$*.docx
 
 # Chat attachments (not source code)
 attached_assets/

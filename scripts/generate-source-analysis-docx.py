@@ -330,7 +330,7 @@ def build_document():
         "DB: Neon (서버리스 PostgreSQL)",
         "세션: Redis (서버 시작 시 자동 기동 시도)",
         "파일: Replit Object Storage / Google Cloud Storage",
-        "프로덕션 도메인: https://ppadun9.com",
+        "프로덕션 도메인: https://ppamong.com",
         "Capacitor 앱은 원격 URL 로드 (capacitor.config.ts의 server.url)",
     ]:
         add_bullet(doc, item)
