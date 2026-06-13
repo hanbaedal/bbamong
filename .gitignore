@@ -1,0 +1,27 @@
+node_modules
+dist
+dist-manager
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Local / runtime data
+.cache/
+.redis-data/
+.local/
+
+# Replit / IDE
+.replit.nix
+*.log
+
+# Generated docs (optional local copies)
+PPADUN9_소스분석.docx
+
+# Chat attachments (not source code)
+attached_assets/

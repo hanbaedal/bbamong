@@ -1,0 +1,14 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "VmiT8WEsjaXa_bz6abwxi"
+uri = "file://docs/api-spec.md"
+type = "text"
+title = "API 명세서"
+
+[[outputs]]
+id = "7O0mIyDiN-Mr7wQnq90DQ"
+uri = "file://docs/db-erd.md"
+type = "text"
+title = "DB 구조 및 ERD"
