@@ -18,6 +18,7 @@ import { connectMongoDB } from "./UserStorage/db";
 import { ensureSuperAdmin } from "./bootstrapSuperAdmin";
 import { ensureOperatorsReady, syncOperatorMatchAssignments } from "./managerOperatorService";
 import { startManagerDailyPasswordBatch } from "./managerDailyPasswordBatch";
+import { startPostgresMongoSyncBatch } from "./postgresMongoSyncBatch";
 
 const execAsync = promisify(exec);
 
@@ -236,6 +237,7 @@ app.use((req, res, next) => {
     startMatchAutoCloseBatch();
     startSuspendedUserCleanupBatch();
     startManagerDailyPasswordBatch();
+    startPostgresMongoSyncBatch();
     
     (async () => {
       try {

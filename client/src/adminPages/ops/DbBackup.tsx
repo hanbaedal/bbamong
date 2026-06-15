@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import AdminLayout from "../adminLayout";
-import { adminFetch } from "@/lib/adminQueryClient";
+import { adminFetch, apiRequest } from "@/lib/adminQueryClient";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import { useUser } from "@/contexts/UserContext";
 import { useLocation } from "wouter";
@@ -22,6 +22,37 @@ interface DbTablesResponse {
   tables: BackupTableInfo[];
   primarySource: string;
   postgresConfigured: boolean;
+  syncIntervalMinutes: number | null;
+  lastSync: SyncRunResult | null;
+  syncRunning: boolean;
+  syncableTables: string[];
+}
+
+interface SyncTableResult {
+  pgTable: string;
+  label: string;
+  read: number;
+  upserted: number;
+  modified: number;
+  skipped?: boolean;
+  error?: string;
+}
+
+interface SyncRunResult {
+  startedAt: string;
+  finishedAt: string;
+  success: boolean;
+  tables: SyncTableResult[];
+  message?: string;
+}
+
+function formatSyncSummary(result: SyncRunResult, pgTable?: string): string {
+  const row = pgTable
+    ? result.tables.find((t) => t.pgTable === pgTable)
+    : result.tables[0];
+  if (!row) return result.message ?? "저장 완료";
+  if (row.error && !row.skipped) return `${row.label}: ${row.error}`;
+  return `${row.label}: PostgreSQL ${row.read}건 → MongoDB 저장 (신규 ${row.upserted}, 갱신 ${row.modified})`;
 }
 
 export default function DbBackupPage() {
@@ -30,8 +61,8 @@ export default function DbBackupPage() {
   const { assets } = useAdminAssets();
   const { toast } = useToast();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [source, setSource] = useState<"mongodb" | "postgresql">("mongodb");
-  const [downloading, setDownloading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importingTable, setImportingTable] = useState<string | null>(null);
 
   const isSuperAdmin = user?.userType === "슈퍼어드민";
 
@@ -41,7 +72,7 @@ export default function DbBackupPage() {
     }
   }, [isUserLoaded, isSuperAdmin, setLocation]);
 
-  const { data, isLoading } = useQuery<DbTablesResponse>({
+  const { data, isLoading, refetch } = useQuery<DbTablesResponse>({
     queryKey: ["/api/admin/ops/db-tables"],
     queryFn: async () => {
       const res = await adminFetch("/api/admin/ops/db-tables");
@@ -51,7 +82,49 @@ export default function DbBackupPage() {
     enabled: isUserLoaded && isSuperAdmin,
   });
 
+  const syncAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/ops/sync-postgres-to-mongo", {});
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "동기화에 실패했습니다.");
+      }
+      return (await res.json()) as SyncRunResult;
+    },
+    onSuccess: (result) => {
+      void refetch();
+      toast({ description: result.message ?? "전체 동기화가 완료되었습니다." });
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "동기화에 실패했습니다.";
+      toast({ variant: "destructive", description: message });
+    },
+  });
+
+  const syncableSet = new Set(data?.syncableTables ?? []);
+
+  const importTable = async (pgTable: string) => {
+    const res = await apiRequest("POST", `/api/admin/ops/sync-postgres-to-mongo/${pgTable}`, {});
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "저장에 실패했습니다.");
+    }
+    return (await res.json()) as SyncRunResult;
+  };
+
+  const importSelectedTables = async (pgTables: string[]) => {
+    const res = await apiRequest("POST", "/api/admin/ops/sync-postgres-to-mongo", {
+      tables: pgTables,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "저장에 실패했습니다.");
+    }
+    return (await res.json()) as SyncRunResult;
+  };
+
   const toggleTable = (pgTable: string, checked: boolean) => {
+    if (!syncableSet.has(pgTable)) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (checked) next.add(pgTable);
@@ -60,15 +133,38 @@ export default function DbBackupPage() {
     });
   };
 
+  const syncableTables = (data?.tables ?? []).filter((t) => syncableSet.has(t.pgTable));
+  const allSelected =
+    syncableTables.length > 0 && selected.size === syncableTables.length;
+
   const toggleAll = (checked: boolean) => {
-    if (!data?.tables) return;
-    setSelected(checked ? new Set(data.tables.map((t) => t.pgTable)) : new Set());
+    setSelected(checked ? new Set(syncableTables.map((t) => t.pgTable)) : new Set());
   };
 
-  const downloadTable = async (pgTable: string) => {
-    const res = await adminFetch(
-      `/api/admin/ops/db-backup/${pgTable}?source=${source}`,
-    );
+  const handleImportSelected = async () => {
+    if (!data?.postgresConfigured) {
+      toast({ variant: "destructive", description: "DATABASE_URL을 먼저 설정해주세요." });
+      return;
+    }
+    if (selected.size === 0) {
+      toast({ variant: "destructive", description: "저장할 테이블을 선택해주세요." });
+      return;
+    }
+    setImporting(true);
+    try {
+      const result = await importSelectedTables(Array.from(selected));
+      void refetch();
+      toast({ description: result.message ?? `${selected.size}개 테이블을 MongoDB에 저장했습니다.` });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "저장에 실패했습니다.";
+      toast({ variant: "destructive", description: message });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const downloadMongoJson = async (pgTable: string) => {
+    const res = await adminFetch(`/api/admin/ops/db-backup/${pgTable}?source=mongodb`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || "백업 실패");
@@ -77,27 +173,9 @@ export default function DbBackupPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${pgTable}_${source}_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `${pgTable}_mongodb_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const handleDownloadSelected = async () => {
-    if (selected.size === 0) {
-      toast({ variant: "destructive", description: "백업할 테이블을 선택해주세요." });
-      return;
-    }
-    setDownloading(true);
-    try {
-      for (const pgTable of Array.from(selected)) {
-        await downloadTable(pgTable);
-      }
-      toast({ description: `${selected.size}개 테이블 백업을 다운로드했습니다.` });
-    } catch (err: any) {
-      toast({ variant: "destructive", description: err?.message || "백업에 실패했습니다." });
-    } finally {
-      setDownloading(false);
-    }
   };
 
   if (!isUserLoaded || !isSuperAdmin) {
@@ -109,7 +187,6 @@ export default function DbBackupPage() {
   }
 
   const tables = data?.tables ?? [];
-  const allSelected = tables.length > 0 && selected.size === tables.length;
 
   return (
     <AdminLayout>
@@ -122,107 +199,156 @@ export default function DbBackupPage() {
 
         <h1 className="text-lg md:text-xl lg:text-2xl font-semibold text-[#201E22] mb-4 flex items-center gap-2">
           <img src={assets.adTermIcon} className="w-8 h-8" alt="" />
-          디비 백업하기
+          공통 DB → MongoDB 가져오기
         </h1>
 
-        <p className="text-sm text-[#666] mb-4">
-          PostgreSQL 테이블명 기준으로 데이터를 JSON 파일로 백업합니다.
-          현재 운영 DB는 MongoDB이며, <strong>운영 DB(MongoDB)</strong> 또는{" "}
-          {data?.postgresConfigured ? (
-            <strong>레거시 PostgreSQL(DATABASE_URL)</strong>
-          ) : (
-            <span className="text-[#E11936]">레거시 PostgreSQL(미설정)</span>
+        <p className="text-sm text-[#666] mb-4 leading-relaxed">
+          다른 프로그램과 공유하는 <strong>PostgreSQL</strong>은 <strong>읽기만</strong> 합니다.
+          「받기」를 누르면 해당 테이블 데이터를 PPAMONG 운영 DB인 <strong>MongoDB</strong>에
+          저장(upsert)합니다. PostgreSQL에는 쓰지 않습니다.
+          {!data?.postgresConfigured && (
+            <span className="block mt-2 text-[#E11936]">
+              DATABASE_URL(공통 PostgreSQL)이 설정되지 않았습니다.
+            </span>
           )}
-          에서 선택해 내려받을 수 있습니다.
         </p>
+
+        {data?.postgresConfigured && (
+          <div className="mb-4 p-4 rounded-lg border border-[#E9E9E9] bg-[#FFF9FA]">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#201E22]">전체 테이블 자동 가져오기</p>
+                <p className="text-xs text-[#666] mt-1">
+                  {data.syncIntervalMinutes
+                    ? `백그라운드: ${data.syncIntervalMinutes}분마다 PostgreSQL → MongoDB`
+                    : "백그라운드 자동 동기화 사용 중"}
+                </p>
+                {data.lastSync && (
+                  <p className="text-xs text-[#888] mt-1">
+                    마지막 실행: {new Date(data.lastSync.finishedAt).toLocaleString("ko-KR")}
+                    {data.lastSync.success ? " (성공)" : " (일부 실패)"}
+                  </p>
+                )}
+              </div>
+              <Button
+                className="bg-[#E11936] hover:bg-[#B71C1C] shrink-0"
+                disabled={syncAllMutation.isPending || data.syncRunning}
+                onClick={() => syncAllMutation.mutate()}
+              >
+                {syncAllMutation.isPending || data.syncRunning ? "가져오는 중..." : "전체 받기"}
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-3 mb-4">
           <Button
-            type="button"
-            variant={source === "mongodb" ? "default" : "outline"}
-            className={source === "mongodb" ? "bg-[#E11936] hover:bg-[#B71C1C]" : ""}
-            onClick={() => setSource("mongodb")}
+            onClick={handleImportSelected}
+            disabled={importing || !data?.postgresConfigured || selected.size === 0}
+            className="bg-[#E11936] hover:bg-[#B71C1C]"
           >
-            운영 DB (MongoDB)
-          </Button>
-          <Button
-            type="button"
-            variant={source === "postgresql" ? "default" : "outline"}
-            className={source === "postgresql" ? "bg-[#E11936] hover:bg-[#B71C1C]" : ""}
-            onClick={() => setSource("postgresql")}
-            disabled={!data?.postgresConfigured}
-          >
-            레거시 PostgreSQL
-          </Button>
-          <Button
-            onClick={handleDownloadSelected}
-            disabled={downloading || selected.size === 0}
-            className="bg-[#4285F4] hover:bg-[#357AE8] ml-auto"
-          >
-            {downloading ? "다운로드 중..." : `선택 항목 백업 (${selected.size})`}
+            {importing ? "저장 중..." : `선택 항목 받기 (${selected.size})`}
           </Button>
         </div>
 
         <div className="overflow-x-auto flex-1 min-h-0">
-          <div className="min-w-[640px]">
-            <div className="grid grid-cols-[40px_1fr_120px_120px_100px] px-4 py-3 bg-[#F9F9F9] text-sm font-medium text-[#4D4B4E] border-b">
+          <div className="min-w-[720px]">
+            <div className="grid grid-cols-[40px_1fr_100px_100px_140px_80px] px-4 py-3 bg-[#F9F9F9] text-sm font-medium text-[#4D4B4E] border-b">
               <div>
                 <Checkbox
                   checked={allSelected}
                   onCheckedChange={(v) => toggleAll(!!v)}
                   aria-label="전체 선택"
+                  disabled={!data?.postgresConfigured}
                 />
               </div>
-              <div>테이블 (PostgreSQL 명)</div>
-              <div>MongoDB 건수</div>
-              <div>PostgreSQL 건수</div>
-              <div>개별</div>
+              <div>테이블</div>
+              <div>MongoDB</div>
+              <div>PostgreSQL</div>
+              <div>받기 → MongoDB</div>
+              <div>JSON</div>
             </div>
 
             {isLoading ? (
               <div className="p-8 text-center text-[#BFBFBF]">불러오는 중...</div>
             ) : (
-              tables.map((table) => (
-                <div
-                  key={table.pgTable}
-                  className="grid grid-cols-[40px_1fr_120px_120px_100px] px-4 py-3 border-b items-center text-sm"
-                >
-                  <Checkbox
-                    checked={selected.has(table.pgTable)}
-                    onCheckedChange={(v) => toggleTable(table.pgTable, !!v)}
-                  />
-                  <div>
-                    <div className="font-medium text-[#201E22]">{table.pgTable}</div>
-                    <div className="text-xs text-[#888]">{table.label}</div>
-                  </div>
-                  <div>{table.mongoCount.toLocaleString()}</div>
-                  <div>
-                    {table.postgresCount !== null
-                      ? table.postgresCount.toLocaleString()
-                      : "—"}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      setDownloading(true);
-                      try {
-                        await downloadTable(table.pgTable);
-                        toast({ description: `${table.pgTable} 백업 완료` });
-                      } catch (err: any) {
-                        toast({ variant: "destructive", description: err?.message });
-                      } finally {
-                        setDownloading(false);
-                      }
-                    }}
+              tables.map((table) => {
+                const canImport = syncableSet.has(table.pgTable);
+                return (
+                  <div
+                    key={table.pgTable}
+                    className="grid grid-cols-[40px_1fr_100px_100px_140px_80px] px-4 py-3 border-b items-center text-sm"
                   >
-                    받기
-                  </Button>
-                </div>
-              ))
+                    <Checkbox
+                      checked={selected.has(table.pgTable)}
+                      onCheckedChange={(v) => toggleTable(table.pgTable, !!v)}
+                      disabled={!canImport || !data?.postgresConfigured}
+                    />
+                    <div>
+                      <div className="font-medium text-[#201E22]">{table.pgTable}</div>
+                      <div className="text-xs text-[#888]">{table.label}</div>
+                      {!canImport && (
+                        <div className="text-[10px] text-[#999]">MongoDB 전용 · 받기 없음</div>
+                      )}
+                    </div>
+                    <div>{table.mongoCount.toLocaleString()}</div>
+                    <div>
+                      {table.postgresCount !== null
+                        ? table.postgresCount.toLocaleString()
+                        : "—"}
+                    </div>
+                    <Button
+                      size="sm"
+                      className="bg-[#E11936] hover:bg-[#B71C1C] text-white"
+                      disabled={
+                        !canImport ||
+                        !data?.postgresConfigured ||
+                        importing ||
+                        importingTable === table.pgTable
+                      }
+                      onClick={async () => {
+                        setImportingTable(table.pgTable);
+                        try {
+                          const result = await importTable(table.pgTable);
+                          void refetch();
+                          toast({ description: formatSyncSummary(result, table.pgTable) });
+                        } catch (err: unknown) {
+                          const message =
+                            err instanceof Error ? err.message : "저장에 실패했습니다.";
+                          toast({ variant: "destructive", description: message });
+                        } finally {
+                          setImportingTable(null);
+                        }
+                      }}
+                    >
+                      {importingTable === table.pgTable ? "저장 중" : "받기"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          await downloadMongoJson(table.pgTable);
+                          toast({ description: `${table.pgTable} MongoDB JSON 다운로드` });
+                        } catch (err: unknown) {
+                          const message =
+                            err instanceof Error ? err.message : "다운로드 실패";
+                          toast({ variant: "destructive", description: message });
+                        }
+                      }}
+                    >
+                      JSON
+                    </Button>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
+
+        <p className="text-[10px] text-[#999] mt-3 shrink-0">
+          MongoDB 전용(홈페이지·굿즈·운영자 비밀번호 등)은 PostgreSQL 가져오기 시 덮어쓰지 않습니다.
+        </p>
       </div>
     </AdminLayout>
   );

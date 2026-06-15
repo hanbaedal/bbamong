@@ -1,6 +1,14 @@
 import type { Express } from "express";
 import { superAdminAuthMiddleware } from "../middleware/adminAuth";
 import { superAdminOpsStorage } from "../storage/superAdminOpsStorage";
+import {
+  getLastPostgresMongoSyncResult,
+  getSyncablePgTables,
+  isPostgresMongoSyncRunning,
+  syncPostgresTableToMongo,
+  syncPostgresTablesToMongo,
+  syncPostgresToMongo,
+} from "../storage/postgresToMongoSync";
 
 export async function superAdminOpsRoutes(app: Express): Promise<void> {
   app.get("/api/admin/ops/db-tables", superAdminAuthMiddleware, async (_req, res) => {
@@ -10,11 +18,56 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
         tables,
         primarySource: "mongodb",
         postgresConfigured: !!process.env.DATABASE_URL,
+        syncIntervalMinutes: process.env.DATABASE_URL
+          ? Math.round(
+              parseInt(process.env.PG_MONGO_SYNC_INTERVAL_MS || "1800000", 10) / 60000,
+            ) || 30
+          : null,
+        lastSync: getLastPostgresMongoSyncResult(),
+        syncRunning: isPostgresMongoSyncRunning(),
+        syncableTables: getSyncablePgTables(),
       });
     } catch (error) {
       console.error("[Ops] db-tables error:", error);
       res.status(500).json({ error: "테이블 목록 조회에 실패했습니다." });
     }
+  });
+
+  app.post("/api/admin/ops/sync-postgres-to-mongo", superAdminAuthMiddleware, async (req, res) => {
+    try {
+      const tables = Array.isArray(req.body?.tables) ? (req.body.tables as string[]) : undefined;
+      const result = tables?.length
+        ? await syncPostgresTablesToMongo(tables)
+        : await syncPostgresToMongo();
+      res.json(result);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "동기화에 실패했습니다.";
+      console.error("[Ops] sync-postgres-to-mongo error:", error);
+      res.status(400).json({ error: message });
+    }
+  });
+
+  app.post(
+    "/api/admin/ops/sync-postgres-to-mongo/:table",
+    superAdminAuthMiddleware,
+    async (req, res) => {
+      try {
+        const result = await syncPostgresTableToMongo(req.params.table);
+        res.json(result);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "저장에 실패했습니다.";
+        console.error("[Ops] sync-postgres-to-mongo table error:", error);
+        res.status(400).json({ error: message });
+      }
+    },
+  );
+
+  app.get("/api/admin/ops/sync-postgres-to-mongo/status", superAdminAuthMiddleware, async (_req, res) => {
+    res.json({
+      postgresConfigured: !!process.env.DATABASE_URL,
+      syncRunning: isPostgresMongoSyncRunning(),
+      lastSync: getLastPostgresMongoSyncResult(),
+    });
   });
 
   app.get("/api/admin/ops/db-backup/:table", superAdminAuthMiddleware, async (req, res) => {
