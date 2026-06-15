@@ -18,17 +18,33 @@ interface MenuItem {
   superAdminOnly?: boolean;
 }
 
-export default function AdminSidebar({ onNavigate, className }: AdminSidebarProps) {
-  const [location, setLocation] = useLocation();
-  const { user } = useUser();
-  
-  const isSuperAdmin = user?.userType === "슈퍼어드민";
-
-  const superAdminOnlyMenuItems: MenuItem[] = [
+function buildMenuItems(isSuperAdmin: boolean): MenuItem[] {
+  const items: MenuItem[] = [
     {
+      id: "home",
+      label: "홈 페이지",
+      path: "/admin/home",
+      iconKey: "adListIcon",
+    },
+    {
+      id: "homepage-management",
+      label: "홈페이지 관리",
+      path: "/admin/homepage-management",
+      iconKey: "adMatchCharaterIcon",
+    },
+  ];
+
+  if (isSuperAdmin) {
+    items.push({
+      id: "staff-management",
+      label: "관리자 관리",
+      path: "/admin/staff",
+      iconKey: "adEmployeeIcon",
+    });
+    items.push({
       id: "ops-management",
-      label: "업무관리",
-      iconKey: "adCustomerIcon",
+      label: "업무 관리",
+      iconKey: "adTermIcon",
       children: [
         {
           id: "db-backup",
@@ -49,58 +65,28 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
           iconKey: "adMangerListIcon",
         },
       ],
-    },
-  ];
-  
-  const baseMenuItems: MenuItem[] = [
+    });
+  }
+
+  items.push(
     {
-      id: "members",
-      label: "회원 관리",
-      iconKey: "adMemberIcon",
+      id: "revenue-management",
+      label: "수익 관리",
+      iconKey: "adProfitIcon",
       children: [
         {
-          id: "member-list",
-          label: "회원 리스트",
-          path: "/admin/members/list",
-          iconKey: "adUserListIcon",
+          id: "video-revenue",
+          label: "동영상 광고 수익 현황",
+          path: "/admin/revenue/video",
+          iconKey: "adVideoProfitIcon",
         },
-        {
-          id: "donation-rankings",
-          label: "사회공헌참여기록 관리",
-          path: "/admin/members/donation-rankings",
-          iconKey: "adDonationPointIcon",
-        },
-        // {
-        //   id: "invite-management",
-        //   label: "친구 초대 관리",
-        //   path: "/admin/members/invite",
-        //   iconKey: "adInviteFriendIcon",
-        // },
-        // {
-        //   id: "victory-ranking",
-        //   label: "승리 랭킹",
-        //   path: "/admin/members/victory-ranking",
-        //   iconKey: "adWinRankingIcon",
-        // },
-        // {
-        //   id: "points-ranking",
-        //   label: "승리 획득 포인트 랭킹",
-        //   path: "/admin/members/points-ranking",
-        //   iconKey: "adWinPointRankingIcon",
-        // },
       ],
     },
     {
-      id: "admin-management",
+      id: "operator-management",
       label: "운영자 관리",
-      iconKey: "adEmployeeIcon",
+      iconKey: "adMangerListIcon",
       children: [
-        {
-          id: "staff-list",
-          label: "관리자 관리",
-          path: "/admin/staff",
-          iconKey: "adEmployeeIcon",
-        },
         {
           id: "operator-list",
           label: "운영자 리스트",
@@ -122,95 +108,87 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
       ],
     },
     {
-      id: "revenue-management",
-      label: "수익 관리",
-      iconKey: "adProfitIcon",
-      children: [
-        // {
-        //   id: "banner-revenue",
-        //   label: "배너 광고 수익 현황",
-        //   path: "/admin/revenue/banner",
-        //   iconKey: "adBannerProfitIcon",
-        // },
-        {
-          id: "video-revenue",
-          label: "동영상 광고 수익 현황",
-          path: "/admin/revenue/video",
-          iconKey: "adVideoProfitIcon",
-        },
-        // {
-        //   id: "video-advertisement-management",
-        //   label: "동영상 광고 관리",
-        //   path: "/admin/revenue/video-ad-manage",
-        //   iconKey: "adAdvertisementIcon",
-        // },
-        // {
-        //   id: "waiting-screen-revenue",
-        //   label: "예측 대기화면 관리",
-        //   path: "/admin/revenue/waiting-screen",
-        //   iconKey: "adPendingGifManagementIcon",
-        // },
-      ],
-    },
-    {
       id: "match-management",
       label: "경기 관리",
       path: "/admin/match-management",
       iconKey: "adMatchIcon",
     },
     {
+      id: "members",
+      label: "회원 관리",
+      iconKey: "adMemberIcon",
+      children: [
+        {
+          id: "member-list",
+          label: "회원 리스트",
+          path: "/admin/members/list",
+          iconKey: "adUserListIcon",
+        },
+        {
+          id: "donation-rankings",
+          label: "사회공헌참여기록 관리",
+          path: "/admin/members/donation-rankings",
+          iconKey: "adDonationPointIcon",
+        },
+      ],
+    },
+    {
       id: "notice-management",
-      label: "공지사항",
+      label: "공지 사항",
       path: "/admin/notices",
       iconKey: "adNoticeIcon",
     },
     {
       id: "customer-support",
-      label: "고객 지원 센터",
-      path: "/admin/support",
+      label: "고객 지원 관리",
       iconKey: "adCustomerIcon",
+      children: [
+        {
+          id: "support-center",
+          label: "고객 지원 센터",
+          path: "/admin/support",
+          iconKey: "adCustomerIcon",
+        },
+        {
+          id: "terms-management",
+          label: "약관 관리",
+          path: "/admin/terms",
+          iconKey: "adTermIcon",
+        },
+      ],
     },
-    {
-      id: "terms-management",
-      label: "약관 관리",
-      path: "/admin/terms",
-      iconKey: "adTermIcon",
-    },
-  ];
+  );
 
+  return items;
+}
+
+export default function AdminSidebar({ onNavigate, className }: AdminSidebarProps) {
+  const [location, setLocation] = useLocation();
+  const { user } = useUser();
   const { assets } = useAdminAssets();
-  
-  const menuItems: MenuItem[] = useMemo(() => {
-    const adminMenus = baseMenuItems.map((item) => {
-      if (item.id === "admin-management" && item.children) {
-        return {
-          ...item,
-          children: item.children.filter((child) => {
-            if (child.id === "staff-list") {
-              return isSuperAdmin;
-            }
-            return true;
-          }),
-        };
-      }
-      return item;
-    });
 
-    if (isSuperAdmin) {
-      return [...adminMenus, ...superAdminOnlyMenuItems];
-    }
+  const isSuperAdmin = user?.userType === "슈퍼어드민";
 
-    return adminMenus;
-  }, [isSuperAdmin]);
+  const menuItems = useMemo(() => buildMenuItems(isSuperAdmin), [isSuperAdmin]);
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
+  const getIconSrc = (iconKey: string, active: boolean) => {
+    const activeKey = `${iconKey}_active` as keyof typeof assets;
+    if (active && assets[activeKey]) {
+      return assets[activeKey];
+    }
+    return assets[iconKey as keyof typeof assets];
+  };
+
   useEffect(() => {
-    const openParent = menuItems.find((item) =>
-      item.children?.some((child) => child.path === location),
+    const openParent = menuItems.find(
+      (item) =>
+        item.path === location ||
+        item.children?.some((child) => child.path === location),
     );
 
-    if (!openParent) {
+    if (!openParent?.children) {
       setExpandedItems([]);
       return;
     }
@@ -239,7 +217,7 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
 
   const isActive = (path?: string) => path === location;
   const isParentActive = (item: MenuItem) =>
-    item.children?.some((child) => isActive(child.path));
+    isActive(item.path) || item.children?.some((child) => isActive(child.path));
 
   return (
     <div
@@ -253,57 +231,36 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
         {menuItems.map((item) => (
           <div key={item.id}>
             {item.children ? (
-              <div className={`rounded transition-all duration-200 `}>
-                {/* 상위 메뉴 버튼 */}
+              <div className="rounded transition-all duration-200">
                 <button
                   onClick={() => toggleExpanded(item.id)}
                   className="w-full flex items-center justify-between px-2 md:px-[14px] py-2 md:py-[10px] rounded hover:bg-[#FDF2F3] transition"
                   data-testid={`menu-${item.id}`}
                 >
                   <div className="flex items-center gap-1 md:gap-2 relative">
-                    {/* 아이콘 부드럽게 전환 */}
                     {item.iconKey && (
-                      <>
-                        <img
-                          src={assets[item.iconKey as keyof typeof assets]}
-                          alt=""
-                          className={`w-4 h-4 md:w-5 md:h-5 object-contain absolute transition-opacity duration-300 ${
-                            isParentActive(item) ? "opacity-0" : "opacity-100"
-                          }`}
-                        />
-                        <img
-                          src={
-                            assets[
-                              (String(item.iconKey) +
-                                "_active") as keyof typeof assets
-                            ]
-                          }
-                          alt=""
-                          className={`w-4 h-4 md:w-5 md:h-5 object-contain absolute transition-opacity duration-300 ${
-                            isParentActive(item) ? "opacity-100" : "opacity-0"
-                          }`}
-                        />
-                      </>
+                      <img
+                        src={getIconSrc(item.iconKey, isParentActive(item))}
+                        alt=""
+                        className="w-4 h-4 md:w-5 md:h-5 object-contain flex-shrink-0"
+                      />
                     )}
                     <span
-                      className={`text-xs md:text-base font-medium pl-5 md:pl-7 ${
-                        isParentActive(item)
-                          ? "text-[#E11936]"
-                          : "text-[#4D4B4E]"
+                      className={`text-xs md:text-base font-medium ${
+                        isParentActive(item) ? "text-[#E11936]" : "text-[#4D4B4E]"
                       }`}
                     >
                       {item.label}
                     </span>
                   </div>
 
-                  {/* 화살표 */}
                   <svg
                     width="20"
                     height="20"
                     viewBox="0 0 20 20"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
-                    className={`transform transition-transform ${
+                    className={`transform transition-transform flex-shrink-0 ${
                       expandedItems.includes(item.id) ? "rotate-90" : ""
                     }`}
                   >
@@ -317,12 +274,11 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
                   </svg>
                 </button>
 
-                {/* 하위 메뉴: max-height + transition */}
                 <div
-                  className={`overflow-hidden transition-[max-height] duration-300 ease-in-out`}
+                  className="overflow-hidden transition-[max-height] duration-300 ease-in-out"
                   style={{
                     maxHeight: expandedItems.includes(item.id)
-                      ? `${item.children.length * 60}px` // 버튼 높이에 맞춰 조정
+                      ? `${item.children.length * 60}px`
                       : "0px",
                   }}
                 >
@@ -337,36 +293,18 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
                       }`}
                       data-testid={`menu-${child.id}`}
                     >
-                      <div className="w-4 h-4 md:w-5 md:h-5 flex items-center justify-center relative flex-shrink-0">
+                      <div className="w-4 h-4 md:w-5 md:h-5 flex items-center justify-center flex-shrink-0">
                         {child.iconKey && (
-                          <>
-                            <img
-                              src={assets[child.iconKey as keyof typeof assets]}
-                              alt=""
-                              className={`w-full h-full object-contain absolute transition-opacity duration-300 ${
-                                isActive(child.path)
-                                  ? "opacity-0"
-                                  : "opacity-100"
-                              }`}
-                            />
-                            <img
-                              src={
-                                assets[
-                                  (String(child.iconKey) +
-                                    "_active") as keyof typeof assets
-                                ]
-                              }
-                              alt=""
-                              className={`w-full h-full object-contain absolute transition-opacity duration-300 ${
-                                isActive(child.path)
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              }`}
-                            />
-                          </>
+                          <img
+                            src={getIconSrc(child.iconKey, !!isActive(child.path))}
+                            alt=""
+                            className="w-full h-full object-contain"
+                          />
                         )}
                       </div>
-                      <span className="text-xs md:text-sm font-medium">{child.label}</span>
+                      <span className="text-xs md:text-sm font-medium text-left">
+                        {child.label}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -381,32 +319,18 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
                 }`}
                 data-testid={`menu-${item.id}`}
               >
-                <div className="w-4 h-4 md:w-5 md:h-5 flex items-center justify-center relative flex-shrink-0">
+                <div className="w-4 h-4 md:w-5 md:h-5 flex items-center justify-center flex-shrink-0">
                   {item.iconKey && (
-                    <>
-                      <img
-                        src={assets[item.iconKey as keyof typeof assets]}
-                        alt=""
-                        className={`w-full h-full object-contain absolute transition-opacity duration-300 ${
-                          isActive(item.path) ? "opacity-0" : "opacity-100"
-                        }`}
-                      />
-                      <img
-                        src={
-                          assets[
-                            (String(item.iconKey) +
-                              "_active") as keyof typeof assets
-                          ]
-                        }
-                        alt=""
-                        className={`w-full h-full object-contain absolute transition-opacity duration-300 ${
-                          isActive(item.path) ? "opacity-100" : "opacity-0"
-                        }`}
-                      />
-                    </>
+                    <img
+                      src={getIconSrc(item.iconKey, !!isActive(item.path))}
+                      alt=""
+                      className="w-full h-full object-contain"
+                    />
                   )}
                 </div>
-                <span className="text-xs md:text-base font-medium">{item.label}</span>
+                <span className="text-xs md:text-base font-medium text-left">
+                  {item.label}
+                </span>
               </button>
             )}
           </div>

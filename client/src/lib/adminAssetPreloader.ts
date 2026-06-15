@@ -65,6 +65,7 @@ export const ADMIN_ASSETS = {
   // Common icons
   adCalanderIcon,
   adListIcon,
+  adListIcon_active: adListIcon,
 
   // Admin sidebar (기본)
   adMatchIcon,
@@ -108,6 +109,7 @@ export const ADMIN_ASSETS = {
   adPendingGifManagementIcon_active,
   adAdvertisementIcon_active,
   adMatchCharaterIcon,
+  adMatchCharaterIcon_active: adMatchCharaterIcon,
   adRightArrowIcon,
   adFlagIcon
 } as const;

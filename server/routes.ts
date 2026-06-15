@@ -8,6 +8,7 @@ import { pointRoutes } from "./UserRoutes/pointRoutes";
 import { inquiryRoutes } from "./UserRoutes/inquiryRoutes";
 import { noticeRoutes } from "./UserRoutes/noticeRoutes";
 import { termRoutes } from "./UserRoutes/termRoutes";
+import { homePageRoutes } from "./UserRoutes/homePageRoutes";
 import { faqRoutes } from "./UserRoutes/faqRoutes";
 import { ebookRoutes } from "./UserRoutes/ebookRoutes";
 import { registerSocialAuthRoutes } from "./UserRoutes/socialAuthRoutes";
@@ -41,6 +42,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   await inquiryRoutes(app)
   await noticeRoutes(app)
   await termRoutes(app)
+  await homePageRoutes(app)
   await faqRoutes(app)
   await ebookRoutes(app)
   

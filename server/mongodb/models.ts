@@ -283,4 +283,59 @@ const adViewHistorySchema = new Schema(
 );
 export const AdViewHistoryModel = mongoose.model("AdViewHistory", adViewHistorySchema);
 
+const homePageSettingsSchema = new Schema(
+  {
+    id: { type: String, required: true, unique: true, default: "default" },
+    greetingPrefix: { type: String, default: "안녕하세요" },
+    subGreeting: { type: String, default: "" },
+    buttonText: { type: String, default: "경기 참여하기" },
+    buttonEnabled: { type: Boolean, default: true },
+    showDate: { type: Boolean, default: true },
+    gameGuideTitle: { type: String, default: "야구 예측 게임이란?" },
+    gameGuideSummary: { type: String, default: "실시간 경기를 예측하고 포인트를 획득하는 야구 예측 게임입니다." },
+    gameGuideContent: { type: String, default: "" },
+    gameGuideEnabled: { type: Boolean, default: true },
+    gameGuideImageUrl: { type: String, default: "" },
+    goodsSectionTitle: { type: String, default: "PPAMONG 굿즈" },
+    goodsSectionEnabled: { type: Boolean, default: true },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+export const HomePageSettingsModel = mongoose.model("HomePageSettings", homePageSettingsSchema);
+
+const goodsCategorySchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true },
+    name: { type: String, required: true },
+    description: { type: String, default: "" },
+    imageUrl: { type: String, default: "" },
+    displayOrder: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+export const GoodsCategoryModel = mongoose.model("GoodsCategory", goodsCategorySchema);
+
+const goodsProductSchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true },
+    categoryId: { type: Number, required: true },
+    name: { type: String, required: true },
+    summary: { type: String, default: "" },
+    detailContent: { type: String, default: "" },
+    imageUrl: { type: String, default: "" },
+    priceLabel: { type: String, default: "" },
+    displayOrder: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+goodsProductSchema.index({ categoryId: 1, displayOrder: 1 });
+export const GoodsProductModel = mongoose.model("GoodsProduct", goodsProductSchema);
+
 export type MongoUser = InferSchemaType<typeof userSchema>;

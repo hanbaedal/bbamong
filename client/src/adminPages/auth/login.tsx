@@ -55,11 +55,7 @@ export default function AdminLoginPage() {
 
       if (response.ok) {
         await refetchUser();
-        if (data.userType === "슈퍼어드민") {
-          setLocation("/admin/staff");
-        } else {
-          setLocation("/admin/members/list");
-        }
+        setLocation("/admin/home");
       } else {
         // 승인 대기 중인 경우 waiting 페이지로 이동
         if (response.status === 403 && data.error?.includes("승인 대기")) {

@@ -4,6 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 
 // Auth Pages
 import AdminLoginPage from "@/adminPages/auth/login";
+import AdminHomePage from "@/adminPages/AdminHome";
+import HomePageManagementPage from "@/adminPages/HomePageManagement";
 import AdminSignupPage from "@/adminPages/auth/signup";
 import AdminWaitingPage from "@/adminPages/auth/waiting";
 
@@ -49,6 +51,8 @@ function Router() {
       <Route path="/admin/login" component={AdminLoginPage} />
       <Route path="/admin/signup" component={AdminSignupPage} />
       <Route path="/admin/waiting" component={AdminWaitingPage} />
+      <Route path="/admin/home" component={AdminHomePage} />
+      <Route path="/admin/homepage-management" component={HomePageManagementPage} />
 
       {/* 회원 관리 */}
       <Route path="/admin/members/list" component={MemberListPage} />

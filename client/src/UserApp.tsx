@@ -16,6 +16,9 @@ import LoginPage from "@/pages/auth/login";
 import SignupPage from "@/pages/auth/signup";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import HomePage from "@/pages/home";
+import GameGuidePage from "@/pages/home/game-guide";
+import GoodsCategoryPage from "@/pages/home/goods-category";
+import GoodsDetailPage from "@/pages/home/goods-detail";
 import PredictionPage from "@/pages/prediction";
 import AttendancePage from "@/pages/attendance";
 import BoardPage from "@/pages/board";
@@ -159,6 +162,13 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/social-onboarding" component={SocialOnboardingPage} />
       <Route path="/home">{() => <ProtectedRoute component={HomePage} />}</Route>
+      <Route path="/home/game-guide">{() => <ProtectedRoute component={GameGuidePage} />}</Route>
+      <Route path="/home/goods/item/:productId">
+        {() => <ProtectedRoute component={GoodsDetailPage} />}
+      </Route>
+      <Route path="/home/goods/:categoryId">
+        {() => <ProtectedRoute component={GoodsCategoryPage} />}
+      </Route>
       <Route path="/prediction">{() => <ProtectedRoute component={PredictionPage} />}</Route>
       <Route path="/attendance">{() => <ProtectedRoute component={AttendancePage} />}</Route>
       <Route path="/board">{() => <ProtectedRoute component={BoardPage} />}</Route>

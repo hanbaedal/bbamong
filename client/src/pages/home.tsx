@@ -1,9 +1,37 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
+import { getFullUrl } from "@/lib/queryClient";
+import { ChevronRight } from "lucide-react";
+
+interface HomePageSettings {
+  greetingPrefix: string;
+  subGreeting: string;
+  buttonText: string;
+  buttonEnabled: boolean;
+  showDate: boolean;
+  gameGuideTitle: string;
+  gameGuideSummary: string;
+  gameGuideEnabled: boolean;
+  goodsSectionTitle: string;
+  goodsSectionEnabled: boolean;
+}
+
+interface GoodsCategory {
+  id: number;
+  name: string;
+  description: string;
+  imageUrl: string;
+}
+
+interface HomePageContent {
+  settings: HomePageSettings;
+  categories: GoodsCategory[];
+}
 
 export default function HomePage() {
   const [, setLocation] = useLocation();
@@ -11,72 +39,157 @@ export default function HomePage() {
   const { assets } = useUserAssets();
   const [formattedDate, setFormattedDate] = useState("");
 
+  const { data: content } = useQuery<HomePageContent>({
+    queryKey: ["/api/homepage/content"],
+    queryFn: async () => {
+      const res = await fetch(getFullUrl("/api/homepage/content"));
+      if (!res.ok) throw new Error("Failed to load homepage");
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+
+  const settings = content?.settings;
+  const categories = content?.categories ?? [];
+
+  const greetingPrefix = settings?.greetingPrefix ?? "안녕하세요";
+  const subGreeting = settings?.subGreeting ?? "";
+  const buttonText = settings?.buttonText ?? "경기 참여하기";
+  const buttonEnabled = settings?.buttonEnabled ?? true;
+  const showDate = settings?.showDate ?? true;
+
   useEffect(() => {
     const now = new Date();
-
     const options: Intl.DateTimeFormatOptions = {
       year: "numeric",
       month: "numeric",
       day: "numeric",
-      weekday: "short", // "화" 같은 요일 축약형
+      weekday: "short",
     };
-
-    // ex) 2025. 6. 25. 화
     const localeDate = now.toLocaleDateString("ko-KR", options);
-    // localeDate 예: "2025. 6. 25. 화"
-
-    // "2025. 6. 25. 화" → "2025년 6월 25일 (화)" 변환
     const parts = localeDate.split(" ");
-    // parts = ["2025.", "6.", "25.", "화"]
     const year = parts[0].replace(".", "년");
     const month = parts[1].replace(".", "월");
     const day = parts[2].replace(".", "일");
-    const weekday = parts[3]; // "화"
-
+    const weekday = parts[3];
     setFormattedDate(`${year} ${month} ${day} ${weekday}`);
   }, []);
 
   return (
-    <div className="h-app-screen bg-[#111111]">
+    <div className="h-app-screen bg-[#111111] flex flex-col">
       <PageHeader title="" />
 
-      {/* 메인 컨텐츠 */}
-      <div className="flex-1 flex flex-col items-center justify-center px-5 overflow-y-scroll-touch pb-bottom-nav">
-        {/* 날짜 정보 */}
-        <div className="text-center mb-4">
-          <p className="text-white text-[14px] mb-1">{formattedDate}</p>
-          <p className="text-[#6B6B6B] text-[20px]">
-            {user ? `안녕하세요 ${user.name}님` : "안녕하세요"}
-          </p>
+      <div className="flex-1 overflow-y-scroll-touch px-5 pb-bottom-nav">
+        {/* 인사 + 참여 버튼 */}
+        <div className="flex flex-col items-center pt-4 pb-6">
+          <div className="text-center mb-4">
+            {showDate && (
+              <p className="text-white text-[14px] mb-1">{formattedDate}</p>
+            )}
+            <p className="text-[#6B6B6B] text-[20px]">
+              {user ? `${greetingPrefix} ${user.name}님` : greetingPrefix}
+            </p>
+            {subGreeting.trim() && (
+              <p className="text-[#6B6B6B] text-[14px] mt-2">{subGreeting}</p>
+            )}
+          </div>
+
+          <div className="w-[110px] h-[140px] mb-6 flex items-center justify-center">
+            <img
+              src={assets.mainLogo}
+              alt=""
+              className="w-[110px] h-[140px] object-contain"
+            />
+          </div>
+
+          {buttonEnabled && (
+            <button
+              data-testid="button-start-prediction"
+              onClick={() => setLocation("/prediction")}
+              className="w-auto max-w-[220px] px-5 py-2 bg-[#CDFF00] text-black font-bold rounded-[6px] flex items-center justify-center gap-2"
+            >
+              <img src={assets.baseballLogo} alt="" className="w-4 h-4 object-contain" />
+              {buttonText}
+            </button>
+          )}
         </div>
 
-        {/* 마스코트 이미지 Placeholder */}
-        <div className="w-[110px] h-[180px] mb-8 flex items-center justify-center">
-          <img
-            src={assets.mainLogo}
-            alt=""
-            className="w-[110px] h-[180px] object-contain"
-            data-testid="icon-email"
-          />
-        </div>
+        {/* 야구 예측 게임 소개 */}
+        {settings?.gameGuideEnabled && (
+          <section className="mb-8">
+            <h2 className="text-white text-base font-bold mb-3">
+              {settings.gameGuideTitle}
+            </h2>
+            <button
+              type="button"
+              onClick={() => setLocation("/home/game-guide")}
+              className="w-full text-left p-4 rounded-lg bg-[#1A1A1A] border border-[#333] flex items-center gap-3"
+            >
+              <img
+                src={assets.baseballLogo}
+                alt=""
+                className="w-10 h-10 object-contain flex-shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-[#D5D5D5] text-sm line-clamp-2">
+                  {settings.gameGuideSummary ||
+                    "실시간 야구 경기를 예측하고 포인트를 획득하세요."}
+                </p>
+                <p className="text-[#CDFF00] text-xs mt-2">자세히 보기</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
+            </button>
+          </section>
+        )}
 
-        {/* 예측하기 버튼 */}
-        <button
-          data-testid="button-start-prediction"
-          onClick={() => setLocation("/prediction")}
-          className="w-auto max-w-[200px] h-auto px-5 py-2 bg-[#CDFF00] text-black font-bold rounded-[6px] hover:bg-[#CDFF00]/90 flex items-center justify-center gap-2"
-        >
-          <img
-            src={assets.baseballLogo}
-            alt=""
-            className="w-4 h-4 object-contain"
-            data-testid="icon-email"
-          />
-          경기 참여하기
-        </button>
+        {/* 굿즈 쇼핑몰 */}
+        {settings?.goodsSectionEnabled && (
+          <section className="mb-6">
+            <h2 className="text-white text-base font-bold mb-3">
+              {settings.goodsSectionTitle}
+            </h2>
+            {categories.length === 0 ? (
+              <p className="text-[#888] text-sm text-center py-8">
+                준비 중인 굿즈입니다.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setLocation(`/home/goods/${cat.id}`)}
+                    className="text-left rounded-lg overflow-hidden bg-[#1A1A1A] border border-[#333]"
+                  >
+                    <div className="aspect-[4/3] bg-[#252525]">
+                      {cat.imageUrl ? (
+                        <img
+                          src={cat.imageUrl}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-[#CDFF00] text-lg font-bold">
+                          {cat.name}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="text-white text-sm font-medium">{cat.name}</p>
+                      {cat.description && (
+                        <p className="text-[#888] text-xs mt-0.5 line-clamp-1">
+                          {cat.description}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
-      {/* 하단 네비게이션 */}
       <BottomNavigation />
     </div>
   );
