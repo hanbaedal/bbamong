@@ -69,16 +69,12 @@ export async function getTodayMatchesByRegistrationOrder(): Promise<OrderedToday
   return result;
 }
 
-async function applyDailyPasswordIfNeeded(
+async function setOperatorPassword(
   managerId: string,
-  currentDate: string | null | undefined,
-  today: string,
-): Promise<{ plain?: string; rotated: boolean }> {
-  if (currentDate === today) {
-    return { rotated: false };
-  }
-  const plain = generateDailyPassword();
+  plain: string,
+): Promise<void> {
   const hash = await bcrypt.hash(plain, 10);
+  const today = getKstDateKey();
   await AdminUserModel.updateOne(
     { id: managerId },
     { password: hash, dailyPasswordPlain: plain, dailyPasswordDate: today },
@@ -88,7 +84,15 @@ async function applyDailyPasswordIfNeeded(
   } catch {
     /* 세션 없음 */
   }
-  return { plain, rotated: true };
+}
+
+export async function rotateOperatorPassword(operatorId: string): Promise<void> {
+  const doc = await AdminUserModel.findOne({ id: operatorId, userType: "매니저" }).lean();
+  if (!doc || !OPERATOR_USERNAMES.includes(doc.username as (typeof OPERATOR_USERNAMES)[number])) {
+    throw new Error("시스템 운영자 계정만 비밀번호를 재발급할 수 있습니다.");
+  }
+  const plain = generateDailyPassword();
+  await setOperatorPassword(doc.id, plain);
 }
 
 /** 오늘 경기 등록 순서 1~5 → op1~op5 자동 할당 */
@@ -119,21 +123,18 @@ export async function syncOperatorMatchAssignments(): Promise<void> {
 }
 
 export async function ensureOperatorsReady(): Promise<void> {
-  const today = getKstDateKey();
-
   for (let slot = 1; slot <= OPERATOR_COUNT; slot++) {
     const username = `op${slot}`;
     const existing = await AdminUserModel.findOne({ username }).lean();
 
     if (!existing) {
-      const plain = generateDailyPassword();
-      const hash = await bcrypt.hash(plain, 10);
+      const placeholder = await bcrypt.hash(randomBytes(32).toString("hex"), 10);
       await AdminUserModel.create({
         id: randomUUID(),
         username,
         email: `${username}@operators.ppamong.local`,
         name: `${slot}번 운영자`,
-        password: hash,
+        password: placeholder,
         phone: `010000000${slot}0`,
         department: "현장운영",
         position: "운영자",
@@ -142,10 +143,10 @@ export async function ensureOperatorsReady(): Promise<void> {
         status: "활성화",
         assignedMatchNumber: null,
         operatorSlot: slot,
-        dailyPasswordPlain: plain,
-        dailyPasswordDate: today,
+        dailyPasswordPlain: "",
+        dailyPasswordDate: "",
       });
-      console.log(`[Operators] 계정 생성: ${username}`);
+      console.log(`[Operators] 계정 생성: ${username} (비밀번호는 관리자 수동 생성 필요)`);
       continue;
     }
 
@@ -154,13 +155,6 @@ export async function ensureOperatorsReady(): Promise<void> {
       approvalStatus: "승인",
       operatorSlot: slot,
     };
-
-    if (existing.dailyPasswordDate !== today) {
-      const plain = generateDailyPassword();
-      updates.password = await bcrypt.hash(plain, 10);
-      updates.dailyPasswordPlain = plain;
-      updates.dailyPasswordDate = today;
-    }
 
     await AdminUserModel.updateOne({ id: existing.id }, updates);
   }
@@ -200,24 +194,12 @@ export async function listOperatorAccounts(): Promise<{
     .sort({ operatorSlot: 1 })
     .lean();
 
-  const today = getKstDateKey();
   const operators: OperatorAccountView[] = [];
 
   for (const doc of docs) {
     const slot = (doc as { operatorSlot?: number }).operatorSlot ?? 0;
-    let plain = (doc as { dailyPasswordPlain?: string }).dailyPasswordPlain ?? "";
-    const dateKey = (doc as { dailyPasswordDate?: string }).dailyPasswordDate;
-
-    if (dateKey !== today || !plain) {
-      const rotated = await applyDailyPasswordIfNeeded(doc.id, dateKey, today);
-      plain = rotated.plain ?? plain;
-      if (!plain) {
-        const refreshed = await AdminUserModel.findOne({ id: doc.id })
-          .select("dailyPasswordPlain")
-          .lean();
-        plain = (refreshed as { dailyPasswordPlain?: string })?.dailyPasswordPlain ?? "";
-      }
-    }
+    const plain = (doc as { dailyPasswordPlain?: string }).dailyPasswordPlain ?? "";
+    const dateKey = (doc as { dailyPasswordDate?: string }).dailyPasswordDate ?? "";
 
     const match = todayMatches[slot - 1];
     const assignmentLabel = match
@@ -237,7 +219,7 @@ export async function listOperatorAccounts(): Promise<{
       assignmentLabel,
       status: doc.status,
       dailyPasswordPlain: plain,
-      dailyPasswordDate: today,
+      dailyPasswordDate: dateKey,
       lastLogin: doc.lastLogin ?? null,
       operatorSlot: slot,
     });
@@ -258,26 +240,4 @@ export async function setOperatorStatus(
     throw new Error("시스템 운영자 계정만 상태를 변경할 수 있습니다.");
   }
   await AdminUserModel.updateOne({ id: operatorId }, { status });
-}
-
-export async function rotateAllOperatorPasswordsNow(): Promise<void> {
-  const today = getKstDateKey();
-  for (const username of OPERATOR_USERNAMES) {
-    const doc = await AdminUserModel.findOne({ username }).lean();
-    if (!doc) continue;
-    const plain = generateDailyPassword();
-    await AdminUserModel.updateOne(
-      { id: doc.id },
-      {
-        password: await bcrypt.hash(plain, 10),
-        dailyPasswordPlain: plain,
-        dailyPasswordDate: today,
-      },
-    );
-    try {
-      await deleteSession("manager", doc.id);
-    } catch {
-      /* 세션 없음 */
-    }
-  }
 }

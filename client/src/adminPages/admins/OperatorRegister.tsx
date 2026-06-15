@@ -15,7 +15,7 @@ export default function OperatorRegisterPage() {
     mutationFn: async () => apiRequest("POST", "/api/admin/operators/ensure", {}),
     onSuccess: () => {
       toast({
-        description: "운영자 op1~op5 계정이 생성·갱신되었습니다. 리스트에서 비밀번호를 확인하세요.",
+        description: "운영자 op1~op5 계정이 준비되었습니다. 리스트에서 비밀번호를 생성하세요.",
       });
       setLocation("/admin/operators/list");
     },
@@ -45,7 +45,7 @@ export default function OperatorRegisterPage() {
             (<strong>op1</strong> ~ <strong>op5</strong>)으로 현장 운영합니다.
           </p>
           <ul className="list-disc pl-5 space-y-1">
-            <li>비밀번호는 <strong>매일 자동 변경</strong>됩니다 (8자리).</li>
+            <li>비밀번호는 관리자가 <strong>운영자를 선택해 수동 생성</strong>할 때만 발급·갱신됩니다 (8자리).</li>
             <li>
               <strong>경기 관리</strong>에서 오늘 경기를 등록하면, 등록 순서대로 op1~op5에
               자동 할당됩니다.
@@ -61,7 +61,7 @@ export default function OperatorRegisterPage() {
             disabled={ensureMutation.isPending}
             data-testid="button-ensure-operators"
           >
-            {ensureMutation.isPending ? "준비 중..." : "운영자 5명 계정 생성·갱신"}
+            {ensureMutation.isPending ? "준비 중..." : "운영자 5명 계정 생성"}
           </Button>
           <Button variant="outline" onClick={() => setLocation("/admin/operators/list")}>
             운영자 리스트로 이동

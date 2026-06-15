@@ -15,164 +15,189 @@ interface MenuItem {
   iconKey?: string;
   path?: string;
   children?: MenuItem[];
+}
+
+interface MenuSection {
+  id: string;
+  items: MenuItem[];
   superAdminOnly?: boolean;
 }
 
-function buildMenuItems(isSuperAdmin: boolean): MenuItem[] {
-  const items: MenuItem[] = [
+function buildMenuSections(isSuperAdmin: boolean): MenuSection[] {
+  const sections: MenuSection[] = [
     {
-      id: "home",
-      label: "홈 페이지",
-      path: "/admin/home",
-      iconKey: "adListIcon",
+      id: "main",
+      items: [
+        {
+          id: "admin-home",
+          label: "홈 페이지",
+          path: "/admin/home",
+          iconKey: "adListIcon",
+        },
+        {
+          id: "homepage-management",
+          label: "홈페이지 관리",
+          path: "/admin/homepage-management",
+          iconKey: "adMatchCharaterIcon",
+        },
+      ],
     },
     {
-      id: "homepage-management",
-      label: "홈페이지 관리",
-      path: "/admin/homepage-management",
-      iconKey: "adMatchCharaterIcon",
+      id: "staff-ops",
+      superAdminOnly: true,
+      items: [
+        {
+          id: "staff-management",
+          label: "관리자 관리",
+          iconKey: "adEmployeeIcon",
+          children: [
+            {
+              id: "staff-register",
+              label: "관리자 등록",
+              path: "/admin/staff/register",
+              iconKey: "adEmployeeIcon",
+            },
+            {
+              id: "staff-list",
+              label: "관리자 리스트",
+              path: "/admin/staff/list",
+              iconKey: "adUserListIcon",
+            },
+          ],
+        },
+        {
+          id: "ops-management",
+          label: "업무 관리",
+          iconKey: "adTermIcon",
+          children: [
+            {
+              id: "db-backup",
+              label: "디비 백업하기",
+              path: "/admin/ops/db-backup",
+              iconKey: "adTermIcon",
+            },
+            {
+              id: "admin-login-status",
+              label: "관리자 로그인 현황",
+              path: "/admin/ops/admin-login-status",
+              iconKey: "adEmployeeIcon",
+            },
+            {
+              id: "manager-login-status",
+              label: "운영자 로그인 현황",
+              path: "/admin/ops/manager-login-status",
+              iconKey: "adMangerListIcon",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "revenue-operator",
+      items: [
+        {
+          id: "revenue-management",
+          label: "수익 관리",
+          iconKey: "adProfitIcon",
+          children: [
+            {
+              id: "video-revenue",
+              label: "동영상 광고 수익 현황",
+              path: "/admin/revenue/video",
+              iconKey: "adVideoProfitIcon",
+            },
+          ],
+        },
+        {
+          id: "operator-management",
+          label: "운영자 관리",
+          iconKey: "adMangerListIcon",
+          children: [
+            {
+              id: "operator-register",
+              label: "운영자 등록",
+              path: "/admin/operators/register",
+              iconKey: "adMangerListIcon",
+            },
+            {
+              id: "operator-list",
+              label: "운영자 리스트",
+              path: "/admin/operators/list",
+              iconKey: "adUserListIcon",
+            },
+            {
+              id: "operator-monitoring",
+              label: "운영자 상태 모니터링",
+              path: "/admin/monitoring",
+              iconKey: "adManagerMonitoringIcon",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "match-members",
+      items: [
+        {
+          id: "match-management",
+          label: "경기 관리",
+          path: "/admin/match-management",
+          iconKey: "adMatchIcon",
+        },
+        {
+          id: "members",
+          label: "회원 관리",
+          iconKey: "adMemberIcon",
+          children: [
+            {
+              id: "member-list",
+              label: "회원 리스트",
+              path: "/admin/members/list",
+              iconKey: "adUserListIcon",
+            },
+            {
+              id: "donation-rankings",
+              label: "사회공헌참여기록 관리",
+              path: "/admin/members/donation-rankings",
+              iconKey: "adDonationPointIcon",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "notice-support",
+      items: [
+        {
+          id: "notice-management",
+          label: "공지 사항",
+          path: "/admin/notices",
+          iconKey: "adNoticeIcon",
+        },
+        {
+          id: "customer-support",
+          label: "고객 지원 관리",
+          iconKey: "adCustomerIcon",
+          children: [
+            {
+              id: "support-center",
+              label: "고객 지원 센터",
+              path: "/admin/support",
+              iconKey: "adCustomerIcon",
+            },
+            {
+              id: "terms-management",
+              label: "약관 관리",
+              path: "/admin/terms",
+              iconKey: "adTermIcon",
+            },
+          ],
+        },
+      ],
     },
   ];
 
-  if (isSuperAdmin) {
-    items.push({
-      id: "staff-management",
-      label: "관리자 관리",
-      iconKey: "adEmployeeIcon",
-      children: [
-        {
-          id: "staff-register",
-          label: "관리자 등록",
-          path: "/admin/staff/register",
-          iconKey: "adEmployeeIcon",
-        },
-        {
-          id: "staff-list",
-          label: "관리자 리스트",
-          path: "/admin/staff/list",
-          iconKey: "adUserListIcon",
-        },
-      ],
-    });
-    items.push({
-      id: "ops-management",
-      label: "업무 관리",
-      iconKey: "adTermIcon",
-      children: [
-        {
-          id: "db-backup",
-          label: "디비 백업하기",
-          path: "/admin/ops/db-backup",
-          iconKey: "adTermIcon",
-        },
-        {
-          id: "admin-login-status",
-          label: "관리자 로그인 현황",
-          path: "/admin/ops/admin-login-status",
-          iconKey: "adEmployeeIcon",
-        },
-        {
-          id: "manager-login-status",
-          label: "운영자 로그인 현황",
-          path: "/admin/ops/manager-login-status",
-          iconKey: "adMangerListIcon",
-        },
-      ],
-    });
-  }
-
-  items.push(
-    {
-      id: "revenue-management",
-      label: "수익 관리",
-      iconKey: "adProfitIcon",
-      children: [
-        {
-          id: "video-revenue",
-          label: "동영상 광고 수익 현황",
-          path: "/admin/revenue/video",
-          iconKey: "adVideoProfitIcon",
-        },
-      ],
-    },
-    {
-      id: "operator-management",
-      label: "운영자 관리",
-      iconKey: "adMangerListIcon",
-      children: [
-        {
-          id: "operator-register",
-          label: "운영자 등록",
-          path: "/admin/operators/register",
-          iconKey: "adMangerListIcon",
-        },
-        {
-          id: "operator-list",
-          label: "운영자 리스트",
-          path: "/admin/operators/list",
-          iconKey: "adUserListIcon",
-        },
-        {
-          id: "operator-monitoring",
-          label: "운영자 상태 모니터링",
-          path: "/admin/monitoring",
-          iconKey: "adManagerMonitoringIcon",
-        },
-      ],
-    },
-    {
-      id: "match-management",
-      label: "경기 관리",
-      path: "/admin/match-management",
-      iconKey: "adMatchIcon",
-    },
-    {
-      id: "members",
-      label: "회원 관리",
-      iconKey: "adMemberIcon",
-      children: [
-        {
-          id: "member-list",
-          label: "회원 리스트",
-          path: "/admin/members/list",
-          iconKey: "adUserListIcon",
-        },
-        {
-          id: "donation-rankings",
-          label: "사회공헌참여기록 관리",
-          path: "/admin/members/donation-rankings",
-          iconKey: "adDonationPointIcon",
-        },
-      ],
-    },
-    {
-      id: "notice-management",
-      label: "공지 사항",
-      path: "/admin/notices",
-      iconKey: "adNoticeIcon",
-    },
-    {
-      id: "customer-support",
-      label: "고객 지원 관리",
-      iconKey: "adCustomerIcon",
-      children: [
-        {
-          id: "support-center",
-          label: "고객 지원 센터",
-          path: "/admin/support",
-          iconKey: "adCustomerIcon",
-        },
-        {
-          id: "terms-management",
-          label: "약관 관리",
-          path: "/admin/terms",
-          iconKey: "adTermIcon",
-        },
-      ],
-    },
-  );
-
-  return items;
+  return sections.filter((section) => !section.superAdminOnly || isSuperAdmin);
 }
 
 export default function AdminSidebar({ onNavigate, className }: AdminSidebarProps) {
@@ -182,7 +207,11 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
 
   const isSuperAdmin = user?.userType === "슈퍼어드민";
 
-  const menuItems = useMemo(() => buildMenuItems(isSuperAdmin), [isSuperAdmin]);
+  const menuSections = useMemo(() => buildMenuSections(isSuperAdmin), [isSuperAdmin]);
+  const menuItems = useMemo(
+    () => menuSections.flatMap((section) => section.items),
+    [menuSections],
+  );
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
@@ -232,6 +261,113 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
   const isParentActive = (item: MenuItem) =>
     isActive(item.path) || item.children?.some((child) => isActive(child.path));
 
+  const renderMenuItem = (item: MenuItem) => {
+    if (item.children) {
+      return (
+        <div key={item.id} className="rounded transition-all duration-200">
+          <button
+            onClick={() => toggleExpanded(item.id)}
+            className="w-full flex items-center justify-between px-2 md:px-[14px] py-2 md:py-[10px] rounded hover:bg-[#FDF2F3] transition"
+            data-testid={`menu-${item.id}`}
+          >
+            <div className="flex items-center gap-1 md:gap-2 relative">
+              {item.iconKey && (
+                <img
+                  src={getIconSrc(item.iconKey, isParentActive(item))}
+                  alt=""
+                  className="w-4 h-4 md:w-5 md:h-5 object-contain flex-shrink-0"
+                />
+              )}
+              <span
+                className={`text-xs md:text-base font-medium ${
+                  isParentActive(item) ? "text-[#E11936]" : "text-[#4D4B4E]"
+                }`}
+              >
+                {item.label}
+              </span>
+            </div>
+
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className={`transform transition-transform flex-shrink-0 ${
+                expandedItems.includes(item.id) ? "rotate-90" : ""
+              }`}
+            >
+              <path
+                d="M7.5 5L12.5 10L7.5 15"
+                stroke={isParentActive(item) ? "#E11936" : "#4D4B4E"}
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+
+          <div
+            className={cn(
+              "overflow-hidden transition-[max-height] duration-300 ease-in-out",
+              expandedItems.includes(item.id) ? "max-h-96" : "max-h-0",
+            )}
+          >
+            {item.children.map((child) => (
+              <button
+                key={child.id}
+                onClick={() => handleMenuClick(child.path)}
+                className={`w-full flex items-center gap-1 md:gap-2 pl-4 md:pl-8 py-2 md:py-[9px] rounded transition ${
+                  isActive(child.path)
+                    ? "bg-[rgba(225,25,54,0.15)] text-[#E11936]"
+                    : "hover:bg-[#FDF2F3] text-[#4D4B4E]"
+                }`}
+                data-testid={`menu-${child.id}`}
+              >
+                <div className="w-4 h-4 md:w-5 md:h-5 flex items-center justify-center flex-shrink-0">
+                  {child.iconKey && (
+                    <img
+                      src={getIconSrc(child.iconKey, !!isActive(child.path))}
+                      alt=""
+                      className="w-full h-full object-contain"
+                    />
+                  )}
+                </div>
+                <span className="text-xs md:text-sm font-medium text-left">
+                  {child.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <button
+        key={item.id}
+        onClick={() => item.path && handleTopLevelClick(item.path)}
+        className={`w-full flex items-center gap-1 md:gap-2 px-2 md:px-[14px] py-2 md:py-[10px] rounded transition ${
+          isActive(item.path)
+            ? "bg-[rgba(225,25,54,0.15)] text-[#E11936]"
+            : "hover:bg-[#FDF2F3] text-[#4D4B4E]"
+        }`}
+        data-testid={`menu-${item.id}`}
+      >
+        <div className="w-4 h-4 md:w-5 md:h-5 flex items-center justify-center flex-shrink-0">
+          {item.iconKey && (
+            <img
+              src={getIconSrc(item.iconKey, !!isActive(item.path))}
+              alt=""
+              className="w-full h-full object-contain"
+            />
+          )}
+        </div>
+        <span className="text-xs md:text-base font-medium text-left">{item.label}</span>
+      </button>
+    );
+  };
+
   return (
     <div
       className={cn(
@@ -241,111 +377,18 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
       data-testid="admin-sidebar"
     >
       <div className="p-2 md:p-4 flex flex-col gap-1">
-        {menuItems.map((item) => (
-          <div key={item.id}>
-            {item.children ? (
-              <div className="rounded transition-all duration-200">
-                <button
-                  onClick={() => toggleExpanded(item.id)}
-                  className="w-full flex items-center justify-between px-2 md:px-[14px] py-2 md:py-[10px] rounded hover:bg-[#FDF2F3] transition"
-                  data-testid={`menu-${item.id}`}
-                >
-                  <div className="flex items-center gap-1 md:gap-2 relative">
-                    {item.iconKey && (
-                      <img
-                        src={getIconSrc(item.iconKey, isParentActive(item))}
-                        alt=""
-                        className="w-4 h-4 md:w-5 md:h-5 object-contain flex-shrink-0"
-                      />
-                    )}
-                    <span
-                      className={`text-xs md:text-base font-medium ${
-                        isParentActive(item) ? "text-[#E11936]" : "text-[#4D4B4E]"
-                      }`}
-                    >
-                      {item.label}
-                    </span>
-                  </div>
-
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className={`transform transition-transform flex-shrink-0 ${
-                      expandedItems.includes(item.id) ? "rotate-90" : ""
-                    }`}
-                  >
-                    <path
-                      d="M7.5 5L12.5 10L7.5 15"
-                      stroke={isParentActive(item) ? "#E11936" : "#4D4B4E"}
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-
-                <div
-                  className="overflow-hidden transition-[max-height] duration-300 ease-in-out"
-                  style={{
-                    maxHeight: expandedItems.includes(item.id)
-                      ? `${item.children.length * 60}px`
-                      : "0px",
-                  }}
-                >
-                  {item.children.map((child) => (
-                    <button
-                      key={child.id}
-                      onClick={() => handleMenuClick(child.path)}
-                      className={`w-full flex items-center gap-1 md:gap-2 pl-4 md:pl-8 py-2 md:py-[9px] rounded transition ${
-                        isActive(child.path)
-                          ? "bg-[rgba(225,25,54,0.15)] text-[#E11936]"
-                          : "hover:bg-[#FDF2F3] text-[#4D4B4E]"
-                      }`}
-                      data-testid={`menu-${child.id}`}
-                    >
-                      <div className="w-4 h-4 md:w-5 md:h-5 flex items-center justify-center flex-shrink-0">
-                        {child.iconKey && (
-                          <img
-                            src={getIconSrc(child.iconKey, !!isActive(child.path))}
-                            alt=""
-                            className="w-full h-full object-contain"
-                          />
-                        )}
-                      </div>
-                      <span className="text-xs md:text-sm font-medium text-left">
-                        {child.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => item.path && handleTopLevelClick(item.path)}
-                className={`w-full flex items-center gap-1 md:gap-2 px-2 md:px-[14px] py-2 md:py-[10px] rounded transition ${
-                  isActive(item.path)
-                    ? "bg-[rgba(225,25,54,0.15)] text-[#E11936]"
-                    : "hover:bg-[#FDF2F3] text-[#4D4B4E]"
-                }`}
-                data-testid={`menu-${item.id}`}
-              >
-                <div className="w-4 h-4 md:w-5 md:h-5 flex items-center justify-center flex-shrink-0">
-                  {item.iconKey && (
-                    <img
-                      src={getIconSrc(item.iconKey, !!isActive(item.path))}
-                      alt=""
-                      className="w-full h-full object-contain"
-                    />
-                  )}
-                </div>
-                <span className="text-xs md:text-base font-medium text-left">
-                  {item.label}
-                </span>
-              </button>
+        {menuSections.map((section, sectionIndex) => (
+          <div key={section.id}>
+            {sectionIndex > 0 && (
+              <div
+                className="my-2 md:my-3 border-t border-[#E9E9E9]"
+                role="separator"
+                aria-hidden="true"
+              />
             )}
+            <div className="flex flex-col gap-1">
+              {section.items.map((item) => renderMenuItem(item))}
+            </div>
           </div>
         ))}
       </div>

@@ -4,7 +4,6 @@ import AdminLayout from "../adminLayout";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
-import { getKstDateKey } from "@/lib/kstDate";
 
 interface OperatorAccount {
   id: string;
@@ -36,7 +35,6 @@ interface OperatorsResponse {
 export default function ManagerListPage() {
   const { assets } = useAdminAssets();
   const { toast } = useToast();
-  const todayLabel = getKstDateKey();
 
   const { data, isLoading, refetch } = useQuery<OperatorsResponse>({
     queryKey: ["/api/admin/operators"],
@@ -67,13 +65,14 @@ export default function ManagerListPage() {
   });
 
   const rotateMutation = useMutation({
-    mutationFn: async () => apiRequest("POST", "/api/admin/operators/rotate-passwords", {}),
+    mutationFn: async (operatorId: string) =>
+      apiRequest("POST", `/api/admin/operators/${operatorId}/rotate-password`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/operators"] });
-      toast({ description: "오늘 비밀번호가 재발급되었습니다." });
+      toast({ description: "비밀번호가 생성되었습니다." });
     },
     onError: (err: unknown) => {
-      const message = err instanceof Error ? err.message : "비밀번호 재발급에 실패했습니다.";
+      const message = err instanceof Error ? err.message : "비밀번호 생성에 실패했습니다.";
       toast({ variant: "destructive", description: message });
     },
   });
@@ -107,18 +106,10 @@ export default function ManagerListPage() {
               운영자 리스트
             </h1>
             <p className="text-sm text-[#666] mt-1">
-              경기 등록 순서 1~5 → op1~op5 자동 할당 · 비밀번호 매일 변경 ({todayLabel})
+              경기 등록 순서 1~5 → op1~op5 자동 할당 · 비밀번호는 행별 「생성」 버튼으로 발급
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              className="bg-[#E11936] hover:bg-[#B71C1C] text-white"
-              onClick={() => rotateMutation.mutate()}
-              disabled={rotateMutation.isPending}
-            >
-              오늘 비밀번호 재발급
-            </Button>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               새로고침
             </Button>
@@ -145,7 +136,7 @@ export default function ManagerListPage() {
             <div>아이디</div>
             <div>경기 할당</div>
             <div>담당 경기</div>
-            <div>오늘 비밀번호</div>
+            <div>비밀번호</div>
             <div>상태</div>
             <div>최근 로그인</div>
             <div>관리</div>
@@ -187,6 +178,14 @@ export default function ManagerListPage() {
                   {op.lastLogin ? new Date(op.lastLogin).toLocaleString("ko-KR") : "-"}
                 </div>
                 <div className="flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={() => rotateMutation.mutate(op.id)}
+                    disabled={rotateMutation.isPending}
+                    className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530] disabled:opacity-50"
+                  >
+                    생성
+                  </button>
                   <button
                     type="button"
                     onClick={() => copyCredentials(op)}

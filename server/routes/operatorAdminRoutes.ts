@@ -4,7 +4,7 @@ import { adminAuthMiddleware } from "../middleware/adminAuth";
 import {
   ensureOperatorsReady,
   listOperatorAccounts,
-  rotateAllOperatorPasswordsNow,
+  rotateOperatorPassword,
   setOperatorStatus,
 } from "../managerOperatorService";
 
@@ -43,14 +43,16 @@ export async function operatorAdminRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.post("/api/admin/operators/rotate-passwords", adminAuthMiddleware, async (_req, res) => {
+  app.post("/api/admin/operators/:id/rotate-password", adminAuthMiddleware, async (req, res) => {
     try {
-      await rotateAllOperatorPasswordsNow();
+      const { id } = req.params;
+      await rotateOperatorPassword(id);
       const data = await listOperatorAccounts();
-      res.json({ message: "오늘 비밀번호가 재발급되었습니다.", ...data });
-    } catch (error) {
-      console.error("운영자 비밀번호 재발급 실패:", error);
-      res.status(500).json({ message: "비밀번호 재발급에 실패했습니다." });
+      res.json({ message: "비밀번호가 생성되었습니다.", ...data });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "비밀번호 생성에 실패했습니다.";
+      console.error("운영자 비밀번호 생성 실패:", error);
+      res.status(400).json({ message });
     }
   });
 }
