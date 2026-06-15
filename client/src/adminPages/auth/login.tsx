@@ -136,6 +136,7 @@ export default function AdminLoginPage() {
                 <Input
                   id="email"
                   type="text"
+                  autoComplete="username"
                   data-testid="input-email"
                   placeholder="아이디를 입력해주세요"
                   value={email}
@@ -167,6 +168,7 @@ export default function AdminLoginPage() {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   data-testid="input-password"
                   placeholder="비밀번호를 입력하세요"
                   value={password}

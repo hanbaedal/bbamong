@@ -91,11 +91,11 @@ export async function adminRoutes(app: Express): Promise<void> {
         return res.status(403).json({ error: "계정이 거부되었습니다. 관리자에게 문의해주세요." });
       }
 
-      // 기존 세션이 있으면 새 로그인 차단 (기존 로그인 우선)
+      // 기존 세션이 있으면 새 로그인으로 교체 (모바일·PC 전환 지원)
       const hasSession = await hasActiveSession("admin", admin.id);
       if (hasSession) {
-        console.log(`[Admin Login] 기존 세션 존재로 로그인 거부: ${admin.id}`);
-        return res.status(409).json({ error: "이미 다른 기기에서 로그인 중입니다. 기존 세션을 먼저 로그아웃해주세요." });
+        console.log(`[Admin Login] 기존 세션 강제 교체: ${admin.id}`);
+        await deleteSession("admin", admin.id);
       }
 
       // JWT 토큰 생성
