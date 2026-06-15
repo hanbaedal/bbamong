@@ -7,6 +7,15 @@ import type { AdminUser } from "@shared/schema";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import debounce from "lodash.debounce";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -20,6 +29,28 @@ import AdminPagination from "../components/AdminPagination";
 import { useResponsivePageSize } from "@/hooks/useResponsivePageSize";
 
 type AdminUserWithoutPassword = Omit<AdminUser, "password">;
+
+interface StaffFormData {
+  username: string;
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  department: string;
+  position: string;
+  status: "활성화" | "비활성화";
+}
+
+const emptyForm: StaffFormData = {
+  username: "",
+  name: "",
+  email: "",
+  password: "",
+  phone: "",
+  department: "",
+  position: "",
+  status: "활성화",
+};
 
 interface StaffListResponse {
   admins: AdminUserWithoutPassword[];
@@ -61,6 +92,11 @@ export default function StaffListPage() {
   const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
   const [selectedAdminForDeactivate, setSelectedAdminForDeactivate] =
     useState<AdminUserWithoutPassword | null>(null);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [formData, setFormData] = useState<StaffFormData>(emptyForm);
+  const [editingAdmin, setEditingAdmin] = useState<AdminUserWithoutPassword | null>(null);
 
   const { toast } = useToast();
 
@@ -116,11 +152,61 @@ export default function StaffListPage() {
         queryKey: ["/api/admin/staff"],
       });
       setDeactivateConfirmOpen(false);
-      toast({ description: "직원이 삭제되었습니다. 해당 계정으로 재가입이 가능합니다." });
+      toast({ description: "관리자가 삭제되었습니다." });
     },
     onError: (err: any) => {
       setDeactivateConfirmOpen(false);
-      toast({ variant: "destructive", description: err?.message || "직원 삭제에 실패했습니다." });
+      toast({ variant: "destructive", description: err?.message || "삭제에 실패했습니다." });
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (payload: StaffFormData) => {
+      return await apiRequest("POST", "/api/admin/staff", {
+        username: payload.username,
+        name: payload.name,
+        email: payload.email,
+        password: payload.password,
+        phone: payload.phone,
+        department: payload.department || null,
+        position: payload.position || null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/staff"] });
+      setCreateOpen(false);
+      setFormData(emptyForm);
+      toast({ description: "관리자가 등록되었습니다." });
+    },
+    onError: (err: any) => {
+      toast({ variant: "destructive", description: err?.message || "등록에 실패했습니다." });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: Partial<StaffFormData> }) => {
+      const body: Record<string, string> = {
+        name: payload.name!,
+        email: payload.email!,
+        phone: payload.phone!,
+        department: payload.department || "",
+        position: payload.position || "",
+        status: payload.status!,
+      };
+      if (payload.password?.trim()) {
+        body.password = payload.password;
+      }
+      return await apiRequest("PATCH", `/api/admin/staff/${id}`, body);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/staff"] });
+      setEditOpen(false);
+      setEditingAdmin(null);
+      setFormData(emptyForm);
+      toast({ description: "관리자 정보가 수정되었습니다." });
+    },
+    onError: (err: any) => {
+      toast({ variant: "destructive", description: err?.message || "수정에 실패했습니다." });
     },
   });
 
@@ -182,6 +268,121 @@ export default function StaffListPage() {
     }
   };
 
+  const openCreate = () => {
+    setFormData(emptyForm);
+    setCreateOpen(true);
+  };
+
+  const openEdit = (admin: AdminUserWithoutPassword) => {
+    setEditingAdmin(admin);
+    setFormData({
+      username: admin.username,
+      name: admin.name,
+      email: admin.email,
+      password: "",
+      phone: admin.phone,
+      department: admin.department || "",
+      position: admin.position || "",
+      status: (admin.status as "활성화" | "비활성화") || "활성화",
+    });
+    setEditOpen(true);
+  };
+
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    createMutation.mutate(formData);
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAdmin) return;
+    updateMutation.mutate({ id: editingAdmin.id, payload: formData });
+  };
+
+  function StaffFormFields({ mode }: { mode: "create" | "edit" }) {
+    return (
+      <div className="grid gap-4 py-2">
+        {mode === "create" && (
+          <div className="space-y-2">
+            <Label>아이디</Label>
+            <Input
+              value={formData.username}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              placeholder="로그인 아이디"
+              required
+            />
+          </div>
+        )}
+        <div className="space-y-2">
+          <Label>이름</Label>
+          <Input
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>이메일</Label>
+          <Input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>{mode === "create" ? "비밀번호" : "비밀번호 (변경 시만 입력)"}</Label>
+          <Input
+            type="password"
+            value={formData.password}
+            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            required={mode === "create"}
+            minLength={6}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>전화번호</Label>
+          <Input
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>부서</Label>
+          <Input
+            value={formData.department}
+            onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>직책</Label>
+          <Input
+            value={formData.position}
+            onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+          />
+        </div>
+        {mode === "edit" && (
+          <div className="space-y-2">
+            <Label>상태</Label>
+            <Select
+              value={formData.status}
+              onValueChange={(v) => setFormData({ ...formData, status: v as "활성화" | "비활성화" })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="활성화">활성화</SelectItem>
+                <SelectItem value="비활성화">비활성화</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function SkeletonRow() {
     return (
       <div className="grid grid-cols-[16%_10%_16%_14%_14%_14%_16%] px-2 md:px-4 py-2 md:py-5 bg-white border-b border-[#E9E9E9] items-center h-16">
@@ -202,15 +403,24 @@ export default function StaffListPage() {
         <div className="flex items-center gap-2 mb-3 md:mb-4 lg:mb-6 shrink-0" data-testid="breadcrumb">
           <span className="text-xs md:text-sm text-[#BFBFBF]">운영자 관리</span>
           <span className="text-xs md:text-sm text-[#BFBFBF]">&gt;</span>
-          <span className="text-xs md:text-sm text-[#201E22]">직원 리스트</span>
+          <span className="text-xs md:text-sm text-[#201E22]">관리자 관리</span>
         </div>
 
-        <h1
-          className="text-lg md:text-xl lg:text-2xl font-semibold text-[#201E22] mb-3 md:mb-4 lg:mb-6 flex items-center gap-2 shrink-0"
-          data-testid="text-page-title"
-        >
-          <img src={assets.adListIcon} className="w-6 h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" alt="icon" /> 직원 리스트
-        </h1>
+        <div className="flex items-center justify-between mb-3 md:mb-4 lg:mb-6 shrink-0">
+          <h1
+            className="text-lg md:text-xl lg:text-2xl font-semibold text-[#201E22] flex items-center gap-2"
+            data-testid="text-page-title"
+          >
+            <img src={assets.adListIcon} className="w-6 h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" alt="icon" /> 관리자 관리
+          </h1>
+          <Button
+            onClick={openCreate}
+            className="bg-[#E11936] hover:bg-[#B71C1C] text-white"
+            data-testid="button-create-admin"
+          >
+            + 관리자 등록
+          </Button>
+        </div>
 
         <div className="flex justify-between border-b border-[#E9E9E9] mb-3 md:mb-4 lg:mb-6 shrink-0">
           {/* 왼쪽 탭 */}
@@ -271,7 +481,8 @@ export default function StaffListPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-[16%_10%_16%_14%_14%_14%_16%] px-2 md:px-4 py-2 md:py-3 bg-[#F9F9F9] text-xs md:text-sm font-medium text-[#4D4B4E] shrink-0">
+        <div className="overflow-x-auto shrink-0">
+        <div className="grid grid-cols-[14%_9%_15%_11%_11%_12%_28%] min-w-[720px] px-2 md:px-4 py-2 md:py-3 bg-[#F9F9F9] text-xs md:text-sm font-medium text-[#4D4B4E]">
           <div>아이디</div>
           <div>이름</div>
           <div>이메일</div>
@@ -280,9 +491,11 @@ export default function StaffListPage() {
           <div>전화번호</div>
           <div>관리</div>
         </div>
+        </div>
 
         {/* 테이블 바디 - 내부 스크롤 */}
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="flex-1 overflow-auto min-h-0">
+          <div className="overflow-x-auto min-w-0">
           {isLoading ? (
             <div className="space-y-0">
               {Array.from({ length: itemsPerPage }).map((_, index) => (
@@ -302,7 +515,7 @@ export default function StaffListPage() {
               {admins.map((admin, index) => (
                 <div
                   key={admin.id}
-                  className="grid grid-cols-[16%_10%_16%_14%_14%_14%_16%] px-2 md:px-4 py-2 md:py-5 bg-white border-b border-[#E9E9E9] text-xs md:text-sm text-[#201E22] items-center h-16"
+                  className="grid grid-cols-[14%_9%_15%_11%_11%_12%_28%] min-w-[720px] px-2 md:px-4 py-2 md:py-5 bg-white border-b border-[#E9E9E9] text-xs md:text-sm text-[#201E22] items-center min-h-16"
                   data-testid={`admin-row-${index}`}
                 >
                   <div className="truncate" title={admin.id}>
@@ -325,29 +538,39 @@ export default function StaffListPage() {
                   <div className="truncate" title={admin.phone}>
                     {admin.phone}
                   </div>
-                  <div>
+                  <div className="flex gap-1 flex-wrap">
                     {activeTab === "대기중" ? (
                       <button
                         onClick={() => handleApproveClick(admin)}
-                        className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-medium text-white bg-[#4285F4] rounded hover:bg-[#357AE8]"
+                        className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#4285F4] rounded hover:bg-[#357AE8]"
                         data-testid={`button-approve-${index}`}
                       >
                         승인
                       </button>
                     ) : (
-                      <button
-                        onClick={() => handleDeactivateClick(admin)}
-                        className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530]"
-                        data-testid={`button-deactivate-${index}`}
-                      >
-                        회원 삭제
-                      </button>
+                      <>
+                        <button
+                          onClick={() => openEdit(admin)}
+                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#4285F4] rounded hover:bg-[#357AE8]"
+                          data-testid={`button-edit-${index}`}
+                        >
+                          수정
+                        </button>
+                        <button
+                          onClick={() => handleDeactivateClick(admin)}
+                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530]"
+                          data-testid={`button-deactivate-${index}`}
+                        >
+                          삭제
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
               ))}
             </div>
           )}
+          </div>
         </div>
 
         <AdminPagination
@@ -370,13 +593,51 @@ export default function StaffListPage() {
 
       {deactivateConfirmOpen && selectedAdminForDeactivate && (
         <SimpleConfirmPopup
-          message={`${selectedAdminForDeactivate.name}님을 삭제하시겠습니까? 삭제 후 재가입이 가능합니다.`}
+          message={`${selectedAdminForDeactivate.name} 관리자를 삭제하시겠습니까?`}
           leftButtonText="취소"
           rightButtonText="삭제"
           onLeftClick={() => setDeactivateConfirmOpen(false)}
           onRightClick={handleDeactivateConfirm}
         />
       )}
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>관리자 등록</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateSubmit}>
+            <StaffFormFields mode="create" />
+            <div className="flex justify-end gap-2 mt-4">
+              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+                취소
+              </Button>
+              <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C]" disabled={createMutation.isPending}>
+                {createMutation.isPending ? "등록 중..." : "등록"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>관리자 수정 — {editingAdmin?.username}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit}>
+            <StaffFormFields mode="edit" />
+            <div className="flex justify-end gap-2 mt-4">
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+                취소
+              </Button>
+              <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C]" disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? "저장 중..." : "저장"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }

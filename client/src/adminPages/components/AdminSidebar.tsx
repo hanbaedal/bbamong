@@ -2,8 +2,14 @@ import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import { useUser } from "@/contexts/UserContext";
+import { cn } from "@/lib/utils";
 
-export default function AdminSidebar() {
+interface AdminSidebarProps {
+  onNavigate?: () => void;
+  className?: string;
+}
+
+export default function AdminSidebar({ onNavigate, className }: AdminSidebarProps) {
   const [location, setLocation] = useLocation();
   const { user } = useUser();
   
@@ -54,7 +60,7 @@ export default function AdminSidebar() {
       children: [
         {
           id: "staff-list",
-          label: "직원 리스트",
+          label: "관리자 관리",
           path: "/admin/staff",
           iconKey: "adEmployeeIcon",
         },
@@ -189,7 +195,12 @@ export default function AdminSidebar() {
 
   const handleMenuClick = (childPath?: string) => {
     if (childPath) setLocation(childPath);
-    // 부모 메뉴는 건드리지 않음
+    onNavigate?.();
+  };
+
+  const handleTopLevelClick = (path?: string) => {
+    if (path) setLocation(path);
+    onNavigate?.();
   };
 
   const isActive = (path?: string) => path === location;
@@ -198,7 +209,10 @@ export default function AdminSidebar() {
 
   return (
     <div
-      className="w-[180px] md:w-[220px] lg:w-[240px] h-full min-h-0 bg-[#FFF9FA] flex flex-col border-r border-[#E9E9E9] overflow-y-auto flex-shrink-0"
+      className={cn(
+        "w-[180px] md:w-[220px] lg:w-[240px] h-full min-h-0 bg-[#FFF9FA] flex flex-col border-r border-[#E9E9E9] overflow-y-auto flex-shrink-0",
+        className,
+      )}
       data-testid="admin-sidebar"
     >
       <div className="p-2 md:p-4 flex flex-col gap-1">
@@ -325,7 +339,7 @@ export default function AdminSidebar() {
               </div>
             ) : (
               <button
-                onClick={() => item.path && setLocation(item.path)}
+                onClick={() => item.path && handleTopLevelClick(item.path)}
                 className={`w-full flex items-center gap-1 md:gap-2 px-2 md:px-[14px] py-2 md:py-[10px] rounded transition ${
                   isActive(item.path)
                     ? "bg-[rgba(225,25,54,0.15)] text-[#E11936]"

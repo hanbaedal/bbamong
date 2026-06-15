@@ -54,11 +54,12 @@ export default function AdminLoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // 쿠키 기반 인증으로 변경 - localStorage 사용 안 함
-        // 사용자 정보 먼저 로드 후 페이지 이동 (슈퍼어드민 권한 인식을 위해)
         await refetchUser();
-        // 회원 리스트 페이지로 이동
-        setLocation("/admin/members/list");
+        if (data.userType === "슈퍼어드민") {
+          setLocation("/admin/staff");
+        } else {
+          setLocation("/admin/members/list");
+        }
       } else {
         // 승인 대기 중인 경우 waiting 페이지로 이동
         if (response.status === 403 && data.error?.includes("승인 대기")) {
@@ -204,17 +205,9 @@ export default function AdminLoginPage() {
               )}
             </div>
 
-            <div className="mt-6 text-start flex gap-[6px]">
-              <span className="text-[#666666] text-sm">직원이신가요? </span>
-              <button
-                type="button"
-                onClick={() => setLocation("/admin/signup")}
-                className="text-[#E11936] text-sm font-medium hover:underline"
-                data-testid="link-admin-signup"
-              >
-                직원으로 회원가입
-              </button>
-            </div>
+            <p className="mt-6 text-start text-[#666666] text-sm">
+              관리자 계정은 슈퍼바이저가 등록합니다.
+            </p>
 
             <Button
               type="submit"

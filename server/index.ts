@@ -15,6 +15,7 @@ import { startMatchAutoCloseBatch } from "./matchAutoCloseBatch";
 import { startSuspendedUserCleanupBatch } from "./suspendedUserCleanupBatch";
 import { getRedisClient } from "./redis";
 import { connectMongoDB } from "./UserStorage/db";
+import { ensureSuperAdmin } from "./bootstrapSuperAdmin";
 
 const execAsync = promisify(exec);
 
@@ -171,6 +172,7 @@ app.use((req, res, next) => {
   const redisProcess = await startRedis();
 
   await connectMongoDB();
+  await ensureSuperAdmin();
 
   process.on("SIGINT", () => {
     log("Shutting down gracefully...");

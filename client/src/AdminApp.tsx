@@ -1,8 +1,6 @@
-import { useState, useEffect } from "react";
 import { Switch, Route } from "wouter";
 import NotFound from "./pages/not-found";
 import { Toaster } from "@/components/ui/toaster";
-import ppadun9Logo from "@assets/image_1771563498161.webp";
 
 // Auth Pages
 import AdminLoginPage from "@/adminPages/auth/login";
@@ -101,41 +99,6 @@ function Router() {
 }
 
 export default function AdminApp() {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const checkDevice = () => {
-      setIsMobile(window.innerWidth < 1024);
-    };
-    checkDevice();
-    window.addEventListener("resize", checkDevice);
-    return () => window.removeEventListener("resize", checkDevice);
-  }, []);
-
-  if (isMobile) {
-    return (
-      <div style={{
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-        width: "100vw",
-        backgroundColor: "#111111",
-        color: "#ffffff",
-        textAlign: "center",
-        padding: "20px",
-        gap: "24px",
-      }}>
-        <img src={ppadun9Logo} alt="PPADUN9" style={{ width: "200px", height: "200px", objectFit: "contain" }} />
-        <div>
-          <p style={{ fontSize: "16px", fontWeight: 600, lineHeight: "1.6" }}>빠던나인 관리자 페이지는</p>
-          <p style={{ fontSize: "16px", fontWeight: 600, lineHeight: "1.6" }}>PC환경에서 접속해주세요</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <QueryClientProvider client={adminQueryClient}>
       <AdminAssetProvider>

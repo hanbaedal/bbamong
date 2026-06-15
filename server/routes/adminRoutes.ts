@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { z } from "zod";
 import { AdminStorage } from "../storage/adminStorage";
-import { insertAdminUserSchema } from "@shared/schema";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAccessToken } from "../utils/jwt";
 import { adminAuthMiddleware, superAdminAuthMiddleware } from "../middleware/adminAuth";
 import { broadcastManager } from "../liveMatch/broadcastManager";
@@ -35,58 +35,11 @@ export async function adminRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 관리자 회원가입
-  app.post("/api/admin/signup", async (req, res) => {
-    try {
-      const validatedData = insertAdminUserSchema.parse(req.body);
-
-      // 이메일 중복 확인 (승인된 계정만 체크)
-      const existingAdmin = await adminStorage.getAdminUserByEmail(validatedData.email, true);
-      if (existingAdmin) {
-        return res.status(400).json({ error: "이미 사용 중인 이메일입니다." });
-      }
-
-      // 전화번호 중복 확인 (승인된 계정만 체크)
-      if (validatedData.phone) {
-        const existingByPhone = await adminStorage.getAdminUserByPhone(validatedData.phone, true);
-        if (existingByPhone) {
-          return res.status(400).json({ error: "이미 사용 중인 전화번호입니다." });
-        }
-      }
-
-      // 비밀번호 해싱
-      const hashedPassword = await bcrypt.hash(validatedData.password, 10);
-
-      // 일반어드민은 자동으로 대기중 상태로 생성 (userType 서버에서 강제)
-      const newAdmin = await adminStorage.createAdminUser({
-        ...validatedData,
-        password: hashedPassword,
-        department: validatedData.department || null,
-        position: validatedData.position || null,
-        userType: "일반어드민",
-        approvalStatus: "대기중",
-      });
-
-      // 비밀번호 제외하고 반환
-      const { password, ...adminWithoutPassword } = newAdmin;
-
-      return res.status(201).json({
-        success: true,
-        message: "회원가입이 완료되었습니다. 관리자 승인을 기다려주세요.",
-        admin: adminWithoutPassword,
-      });
-    } catch (error: any) {
-      console.error("Admin signup error:", error);
-      
-      if (error.name === "ZodError") {
-        return res.status(400).json({ 
-          error: "입력 데이터가 올바르지 않습니다.",
-          details: error.errors,
-        });
-      }
-
-      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
-    }
+  // 관리자 공개 회원가입 비활성화 — 슈퍼바이저만 관리자 등록 가능
+  app.post("/api/admin/signup", async (_req, res) => {
+    return res.status(403).json({
+      error: "관리자 계정은 슈퍼바이저가 등록합니다. 슈퍼바이저에게 문의하세요.",
+    });
   });
 
   // 관리자 로그인
@@ -195,9 +148,13 @@ export async function adminRoutes(app: Express): Promise<void> {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7일
       });
 
+      const { password: _pw, ...adminWithoutPassword } = admin;
+
       return res.json({
         success: true,
         message: "로그인 성공",
+        userType: admin.userType,
+        admin: adminWithoutPassword,
       });
     } catch (error) {
       console.error("Admin login error:", error);
@@ -471,6 +428,10 @@ export async function adminRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "관리자를 찾을 수 없습니다." });
       }
 
+      if (targetUser.userType === "슈퍼어드민") {
+        return res.status(403).json({ error: "슈퍼바이저 계정은 삭제할 수 없습니다." });
+      }
+
       const sessionType: "manager" | "admin" = targetUser.userType === "매니저" ? "manager" : "admin";
 
       try {
@@ -557,6 +518,137 @@ export async function adminRoutes(app: Express): Promise<void> {
       });
     } catch (error) {
       console.error("Get staff list error:", error);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  const createStaffSchema = z.object({
+    username: z.string().min(2, "아이디는 2자 이상이어야 합니다."),
+    email: z.string().email("올바른 이메일 형식이 아닙니다."),
+    name: z.string().min(1, "이름을 입력해주세요."),
+    password: z.string().min(6, "비밀번호는 6자 이상이어야 합니다."),
+    phone: z.string().min(10, "전화번호를 입력해주세요."),
+    department: z.string().optional().nullable(),
+    position: z.string().optional().nullable(),
+  });
+
+  const updateStaffSchema = z.object({
+    name: z.string().min(1).optional(),
+    email: z.string().email().optional(),
+    phone: z.string().min(10).optional(),
+    department: z.string().optional().nullable(),
+    position: z.string().optional().nullable(),
+    password: z.string().min(6).optional(),
+    status: z.enum(["활성화", "비활성화"]).optional(),
+  });
+
+  // 슈퍼바이저 — 관리자 등록 (즉시 승인)
+  app.post("/api/admin/staff", superAdminAuthMiddleware, async (req, res) => {
+    try {
+      const data = createStaffSchema.parse(req.body);
+
+      const [byEmail, byUsername, byPhone] = await Promise.all([
+        adminStorage.getAdminUserByEmail(data.email),
+        adminStorage.getAdminUserByUsername(data.username),
+        adminStorage.getAdminUserByPhone(data.phone.replace(/-/g, "")),
+      ]);
+
+      if (byEmail) {
+        return res.status(400).json({ error: "이미 사용 중인 이메일입니다." });
+      }
+      if (byUsername) {
+        return res.status(400).json({ error: "이미 사용 중인 아이디입니다." });
+      }
+      if (byPhone) {
+        return res.status(400).json({ error: "이미 사용 중인 전화번호입니다." });
+      }
+
+      const hashedPassword = await bcrypt.hash(data.password, 10);
+      const newAdmin = await adminStorage.createAdminUser({
+        username: data.username.trim(),
+        email: data.email.trim(),
+        name: data.name.trim(),
+        password: hashedPassword,
+        phone: data.phone.replace(/-/g, ""),
+        department: data.department?.trim() || null,
+        position: data.position?.trim() || null,
+        userType: "일반어드민",
+        approvalStatus: "승인",
+        status: "활성화",
+      });
+
+      const { password: _pw, ...adminWithoutPassword } = newAdmin;
+      return res.status(201).json({
+        success: true,
+        message: "관리자가 등록되었습니다.",
+        admin: adminWithoutPassword,
+      });
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: error.errors[0]?.message || "입력값이 올바르지 않습니다." });
+      }
+      console.error("Create staff error:", error);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  // 슈퍼바이저 — 관리자 수정
+  app.patch("/api/admin/staff/:id", superAdminAuthMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = updateStaffSchema.parse(req.body);
+
+      const target = await adminStorage.getAdminUserById(id);
+      if (!target) {
+        return res.status(404).json({ error: "관리자를 찾을 수 없습니다." });
+      }
+      if (target.userType === "슈퍼어드민" && target.username === "ppamong") {
+        return res.status(403).json({ error: "슈퍼바이저 기본 계정은 이 화면에서 수정할 수 없습니다." });
+      }
+      if (target.userType === "매니저") {
+        return res.status(400).json({ error: "매니저 계정은 운영자 관리 메뉴에서 수정하세요." });
+      }
+
+      const updatePayload: Record<string, unknown> = {};
+      if (data.name !== undefined) updatePayload.name = data.name.trim();
+      if (data.department !== undefined) updatePayload.department = data.department?.trim() || null;
+      if (data.position !== undefined) updatePayload.position = data.position?.trim() || null;
+      if (data.status !== undefined) updatePayload.status = data.status;
+      if (data.phone !== undefined) {
+        const cleanPhone = data.phone.replace(/-/g, "");
+        const phoneTaken = await adminStorage.getAdminUserByPhone(cleanPhone);
+        if (phoneTaken && phoneTaken.id !== id) {
+          return res.status(400).json({ error: "이미 사용 중인 전화번호입니다." });
+        }
+        updatePayload.phone = cleanPhone;
+      }
+      if (data.email !== undefined) {
+        const emailTaken = await adminStorage.getAdminUserByEmail(data.email.trim());
+        if (emailTaken && emailTaken.id !== id) {
+          return res.status(400).json({ error: "이미 사용 중인 이메일입니다." });
+        }
+        updatePayload.email = data.email.trim();
+      }
+      if (data.password) {
+        updatePayload.password = await bcrypt.hash(data.password, 10);
+      }
+
+      const updated = await adminStorage.updateAdminUser(id, updatePayload);
+      if (!updated) {
+        return res.status(404).json({ error: "관리자를 찾을 수 없습니다." });
+      }
+
+      const { password: _pw, ...adminWithoutPassword } = updated;
+      return res.json({
+        success: true,
+        message: "관리자 정보가 수정되었습니다.",
+        admin: adminWithoutPassword,
+      });
+    } catch (error: any) {
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: error.errors[0]?.message || "입력값이 올바르지 않습니다." });
+      }
+      console.error("Update staff error:", error);
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   });
