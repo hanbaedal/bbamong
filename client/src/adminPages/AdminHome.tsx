@@ -8,7 +8,8 @@ const quickLinks = [
   { label: "회원 리스트", path: "/admin/members/list", roles: ["all"] },
   { label: "경기 관리", path: "/admin/match-management", roles: ["all"] },
   { label: "공지사항", path: "/admin/notices", roles: ["all"] },
-  { label: "관리자 관리", path: "/admin/staff", roles: ["super"] },
+  { label: "관리자 리스트", path: "/admin/staff/list", roles: ["super"] },
+  { label: "관리자 등록", path: "/admin/staff/register", roles: ["super"] },
   { label: "운영자 리스트", path: "/admin/managers", roles: ["all"] },
 ] as const;
 

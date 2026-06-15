@@ -93,7 +93,6 @@ export default function StaffListPage() {
   const [selectedAdminForDeactivate, setSelectedAdminForDeactivate] =
     useState<AdminUserWithoutPassword | null>(null);
 
-  const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [formData, setFormData] = useState<StaffFormData>(emptyForm);
   const [editingAdmin, setEditingAdmin] = useState<AdminUserWithoutPassword | null>(null);
@@ -157,29 +156,6 @@ export default function StaffListPage() {
     onError: (err: any) => {
       setDeactivateConfirmOpen(false);
       toast({ variant: "destructive", description: err?.message || "삭제에 실패했습니다." });
-    },
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async (payload: StaffFormData) => {
-      return await apiRequest("POST", "/api/admin/staff", {
-        username: payload.username,
-        name: payload.name,
-        email: payload.email,
-        password: payload.password,
-        phone: payload.phone,
-        department: payload.department || null,
-        position: payload.position || null,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/staff"] });
-      setCreateOpen(false);
-      setFormData(emptyForm);
-      toast({ description: "관리자가 등록되었습니다." });
-    },
-    onError: (err: any) => {
-      toast({ variant: "destructive", description: err?.message || "등록에 실패했습니다." });
     },
   });
 
@@ -268,11 +244,6 @@ export default function StaffListPage() {
     }
   };
 
-  const openCreate = () => {
-    setFormData(emptyForm);
-    setCreateOpen(true);
-  };
-
   const openEdit = (admin: AdminUserWithoutPassword) => {
     setEditingAdmin(admin);
     setFormData({
@@ -286,11 +257,6 @@ export default function StaffListPage() {
       status: (admin.status as "활성화" | "비활성화") || "활성화",
     });
     setEditOpen(true);
-  };
-
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    createMutation.mutate(formData);
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -401,25 +367,19 @@ export default function StaffListPage() {
     <AdminLayout>
       <div className="flex flex-col h-full min-h-0">
         <div className="flex items-center gap-2 mb-3 md:mb-4 lg:mb-6 shrink-0" data-testid="breadcrumb">
-          <span className="text-xs md:text-sm text-[#BFBFBF]">운영자 관리</span>
+          <span className="text-xs md:text-sm text-[#BFBFBF]">관리자 관리</span>
           <span className="text-xs md:text-sm text-[#BFBFBF]">&gt;</span>
-          <span className="text-xs md:text-sm text-[#201E22]">관리자 관리</span>
+          <span className="text-xs md:text-sm text-[#201E22]">관리자 리스트</span>
         </div>
 
-        <div className="flex items-center justify-between mb-3 md:mb-4 lg:mb-6 shrink-0">
+        <div className="mb-3 md:mb-4 lg:mb-6 shrink-0">
           <h1
             className="text-lg md:text-xl lg:text-2xl font-semibold text-[#201E22] flex items-center gap-2"
             data-testid="text-page-title"
           >
-            <img src={assets.adListIcon} className="w-6 h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" alt="icon" /> 관리자 관리
+            <img src={assets.adListIcon} className="w-6 h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" alt="icon" /> 관리자 리스트
           </h1>
-          <Button
-            onClick={openCreate}
-            className="bg-[#E11936] hover:bg-[#B71C1C] text-white"
-            data-testid="button-create-admin"
-          >
-            + 관리자 등록
-          </Button>
+          <p className="text-sm text-[#666] mt-1">승인된 관리자 수정·삭제 및 승인 대기 관리</p>
         </div>
 
         <div className="flex justify-between border-b border-[#E9E9E9] mb-3 md:mb-4 lg:mb-6 shrink-0">
@@ -600,25 +560,6 @@ export default function StaffListPage() {
           onRightClick={handleDeactivateConfirm}
         />
       )}
-
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>관리자 등록</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreateSubmit}>
-            <StaffFormFields mode="create" />
-            <div className="flex justify-end gap-2 mt-4">
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                취소
-              </Button>
-              <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C]" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "등록 중..." : "등록"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-md">

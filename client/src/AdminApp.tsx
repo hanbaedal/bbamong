@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import NotFound from "./pages/not-found";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -16,6 +16,7 @@ import VictoryRankingPage from "@/adminPages/members/VictoryRanking";
 import PointsRankingPage from "@/adminPages/members/PointsRanking";
 // Admin Management Pages
 import StaffListPage from "@/adminPages/admins/StaffList";
+import StaffRegisterPage from "@/adminPages/admins/StaffRegister";
 import ManagerListPage from "@/adminPages/admins/ManagerList";
 import MatchAssignmentPage from "@/adminPages/admins/ManagerMatchAssignment";
 import InviteManagementPage from "@/adminPages/members/InviteManagement";
@@ -72,8 +73,10 @@ function Router() {
         component={PointsRankingPage}
       />
 
-      {/* 관리자 관리 */}
-      <Route path="/admin/staff" component={StaffListPage} />
+      {/* 관리자 관리 (슈퍼바이저) */}
+      <Route path="/admin/staff">{() => <Redirect to="/admin/staff/list" />}</Route>
+      <Route path="/admin/staff/list" component={StaffListPage} />
+      <Route path="/admin/staff/register" component={StaffRegisterPage} />
       <Route path="/admin/managers" component={ManagerListPage} />
       <Route path="/admin/match-assignment" component={MatchAssignmentPage} />
       <Route path="/admin/monitoring" component={MonitoringPage} />

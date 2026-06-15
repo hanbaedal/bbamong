@@ -38,8 +38,21 @@ function buildMenuItems(isSuperAdmin: boolean): MenuItem[] {
     items.push({
       id: "staff-management",
       label: "관리자 관리",
-      path: "/admin/staff",
       iconKey: "adEmployeeIcon",
+      children: [
+        {
+          id: "staff-register",
+          label: "관리자 등록",
+          path: "/admin/staff/register",
+          iconKey: "adEmployeeIcon",
+        },
+        {
+          id: "staff-list",
+          label: "관리자 리스트",
+          path: "/admin/staff/list",
+          iconKey: "adUserListIcon",
+        },
+      ],
     });
     items.push({
       id: "ops-management",
