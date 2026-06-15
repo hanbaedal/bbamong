@@ -9,11 +9,48 @@ interface AdminSidebarProps {
   className?: string;
 }
 
+interface MenuItem {
+  id: string;
+  label: string;
+  iconKey?: string;
+  path?: string;
+  children?: MenuItem[];
+  superAdminOnly?: boolean;
+}
+
 export default function AdminSidebar({ onNavigate, className }: AdminSidebarProps) {
   const [location, setLocation] = useLocation();
   const { user } = useUser();
   
   const isSuperAdmin = user?.userType === "슈퍼어드민";
+
+  const superAdminOnlyMenuItems: MenuItem[] = [
+    {
+      id: "ops-management",
+      label: "업무관리",
+      iconKey: "adCustomerIcon",
+      children: [
+        {
+          id: "db-backup",
+          label: "디비 백업하기",
+          path: "/admin/ops/db-backup",
+          iconKey: "adTermIcon",
+        },
+        {
+          id: "admin-login-status",
+          label: "관리자 로그인 현황",
+          path: "/admin/ops/admin-login-status",
+          iconKey: "adEmployeeIcon",
+        },
+        {
+          id: "manager-login-status",
+          label: "운영자 로그인 현황",
+          path: "/admin/ops/manager-login-status",
+          iconKey: "adMangerListIcon",
+        },
+      ],
+    },
+  ];
   
   const baseMenuItems: MenuItem[] = [
     {
@@ -140,33 +177,30 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
       iconKey: "adTermIcon",
     },
   ];
-  
-  const { assets } = useAdminAssets();
 
-  interface MenuItem {
-    id: string;
-    label: string;
-    iconKey?: keyof typeof assets;
-    path?: string;
-    children?: MenuItem[];
-    superAdminOnly?: boolean;
-  }
+  const { assets } = useAdminAssets();
   
   const menuItems: MenuItem[] = useMemo(() => {
-    return baseMenuItems.map(item => {
+    const adminMenus = baseMenuItems.map((item) => {
       if (item.id === "admin-management" && item.children) {
         return {
           ...item,
-          children: item.children.filter(child => {
+          children: item.children.filter((child) => {
             if (child.id === "staff-list") {
               return isSuperAdmin;
             }
             return true;
-          })
+          }),
         };
       }
       return item;
     });
+
+    if (isSuperAdmin) {
+      return [...adminMenus, ...superAdminOnlyMenuItems];
+    }
+
+    return adminMenus;
   }, [isSuperAdmin]);
 
   const [expandedItems, setExpandedItems] = useState<string[]>([]);

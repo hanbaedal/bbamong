@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { termStorage as storage } from "../UserStorage/termStorage";
 import { insertTermSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
+import { adminAuthMiddleware } from "../middleware/adminAuth";
 
 export async function termRoutes(app: Express): Promise<void> {
   // 타입별 약관 조회 (단일)
@@ -21,8 +22,8 @@ export async function termRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 타입별 약관 저장/업데이트
-  app.put("/api/terms/type/:type", async (req, res) => {
+  // 타입별 약관 저장/업데이트 (관리자 전용)
+  app.put("/api/terms/type/:type", adminAuthMiddleware, async (req, res) => {
     try {
       const type = req.params.type;
       const result = insertTermSchema.safeParse({ ...req.body, type });
@@ -76,8 +77,8 @@ export async function termRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 약관 생성
-  app.post("/api/terms", async (req, res) => {
+  // 약관 생성 (관리자 전용)
+  app.post("/api/terms", adminAuthMiddleware, async (req, res) => {
     try {
       const result = insertTermSchema.safeParse(req.body);
 
@@ -94,8 +95,8 @@ export async function termRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 약관 수정
-  app.patch("/api/terms/:id", async (req, res) => {
+  // 약관 수정 (관리자 전용)
+  app.patch("/api/terms/:id", adminAuthMiddleware, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -120,8 +121,8 @@ export async function termRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 약관 삭제
-  app.delete("/api/terms/:id", async (req, res) => {
+  // 약관 삭제 (관리자 전용)
+  app.delete("/api/terms/:id", adminAuthMiddleware, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
