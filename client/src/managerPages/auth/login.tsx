@@ -101,10 +101,10 @@ export default function ManagerLoginPage() {
             className="flex justify-center mb-16"
             data-testid="logo-container"
           >
-            <div className="w-[120px] h-[120px] flex items-center justify-center">
+            <div className="w-[140px] h-[220px] flex items-center justify-center">
               <img
-                src={assets.loginLogo}
-                alt="로그인 로고"
+                src={assets.managerLogo}
+                alt="운영자 로고"
                 className="w-full h-full object-contain"
                 data-testid="img-login-logo"
               />

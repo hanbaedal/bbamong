@@ -103,9 +103,9 @@ export default function AdminLoginPage() {
             className="flex justify-center mb-12"
             data-testid="admin-logo-container"
           >
-            <div className="w-[100px] h-[100px] flex items-center justify-center">
+            <div className="w-[140px] h-[220px] flex items-center justify-center">
               <img
-                src={assets.loginLogo}
+                src={assets.adminLogo}
                 alt="관리자 로고"
                 className="w-full h-full object-contain"
                 data-testid="img-admin-logo"

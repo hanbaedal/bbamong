@@ -10,11 +10,11 @@ export default function AdminWaitingPage() {
       <div className="w-full max-w-[343px] flex flex-col items-center gap-[40px]">
         {/* 로고 */}
         <div
-          className="w-[149px] h-[110px] flex items-center justify-center"
+          className="w-[140px] h-[220px] flex items-center justify-center"
           data-testid="admin-waiting-logo-container"
         >
           <img
-            src={assets.loginLogo}
+            src={assets.adminLogo}
             alt="관리자 로고"
             className="w-full h-full object-contain"
             data-testid="img-admin-waiting-logo"

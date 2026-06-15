@@ -41,6 +41,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { AdminAssetProvider } from "@/contexts/AdminAssetContext";
 import { SessionExpiredPopup } from "@/components/SessionExpiredPopup";
 import { UserProvider } from "./contexts/UserContext";
+import { useEffect } from "react";
+import adminFavicon from "@assets/admin/admin-mascot-favicon.png";
 
 function Router() {
   return (
@@ -109,6 +111,25 @@ function Router() {
 }
 
 export default function AdminApp() {
+  useEffect(() => {
+    const iconLink =
+      document.querySelector<HTMLLinkElement>("link[rel='icon']") ??
+      (() => {
+        const link = document.createElement("link");
+        link.rel = "icon";
+        link.type = "image/png";
+        document.head.appendChild(link);
+        return link;
+      })();
+
+    const previousHref = iconLink.href;
+    iconLink.href = adminFavicon;
+
+    return () => {
+      iconLink.href = previousHref;
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={adminQueryClient}>
       <AdminAssetProvider>

@@ -473,10 +473,10 @@ export default function LoginPage() {
           className="flex justify-center mt-6 mb-12"
           data-testid="logo-container"
         >
-          <div className="w-28 h-28 flex items-center justify-center">
+          <div className="w-[140px] h-[220px] flex items-center justify-center">
             <img
-              src={assets.loginLogo}
-              alt="로그인 로고"
+              src={assets.userMascot}
+              alt="PPAMONG 로고"
               className="w-full h-full object-contain"
               data-testid="img-login-logo"
             />

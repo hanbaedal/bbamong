@@ -52,8 +52,8 @@ export default function PageHeader({
         >
           <img
             src={assets.headerLogo}
-            alt=""
-            className="w-[65px] h-[48px] object-contain"
+            alt="PPAMONG"
+            className="h-11 w-auto max-w-[72px] object-contain"
           />
         </button>
 

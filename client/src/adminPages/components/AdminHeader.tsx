@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getFullUrl } from "@/lib/queryClient";
+import { useAdminAssets } from "@/contexts/AdminAssetContext";
 
 interface AdminHeaderProps {
   onOpenMenu?: () => void;
@@ -11,6 +12,7 @@ interface AdminHeaderProps {
 export default function AdminHeader({ onOpenMenu }: AdminHeaderProps) {
   const [, setLocation] = useLocation();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { assets } = useAdminAssets();
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -46,12 +48,25 @@ export default function AdminHeader({ onOpenMenu }: AdminHeaderProps) {
         >
           <Menu className="w-5 h-5" />
         </Button>
-        <h1
-          className="text-base sm:text-lg md:text-2xl font-bold text-[#201E22] truncate"
-          data-testid="text-logo"
+        <button
+          type="button"
+          onClick={() => setLocation("/admin/home")}
+          className="flex items-center gap-2 min-w-0"
+          aria-label="관리자 홈"
         >
-          PPAMONG Admin
-        </h1>
+          <img
+            src={assets.adminLogo}
+            alt="PPAMONG Admin"
+            className="h-9 sm:h-10 w-auto object-contain shrink-0"
+            data-testid="img-admin-header-logo"
+          />
+          <span
+            className="text-base sm:text-lg md:text-xl font-bold text-[#201E22] truncate hidden sm:inline"
+            data-testid="text-logo"
+          >
+            PPAMONG Admin
+          </span>
+        </button>
       </div>
       <Button
         variant="ghost"

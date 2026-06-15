@@ -1,5 +1,5 @@
 // Admin Assets - 정적 import로 변경
-import loginLogo from "@assets/user/로그인로고.svg";
+import adminLogo from "@assets/admin/admin-mascot.png";
 import adEmailIcon from "@assets/admin/adEmail.svg";
 import adPasswordIcon from "@assets/admin/ad비번.svg";
 import adNameIcon from "@assets/admin/ad이름.svg";
@@ -55,7 +55,8 @@ import adFlagIcon from "@assets/admin/ad깃발.svg";
 // Admin 전용 assets - 정적으로 export
 export const ADMIN_ASSETS = {
   // Login/Auth pages
-  loginLogo,
+  loginLogo: adminLogo,
+  adminLogo,
   adEmailIcon,
   adPasswordIcon,
   adNameIcon,

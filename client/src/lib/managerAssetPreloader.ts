@@ -1,5 +1,5 @@
 // Manager Assets - 정적 import로 변경
-import loginLogo from "@assets/user/로그인로고.svg";
+import managerLogo from "@assets/manager/manager-mascot.png";
 import iconUsername from "@assets/user/아이디.svg";
 import iconName from "@assets/user/이름아이콘.svg";
 import iconPassword from "@assets/user/비번.svg";
@@ -13,7 +13,8 @@ import stadiumIcon from "@assets/manager/ma경기장.svg";
 // Manager 전용 assets - 정적으로 export
 export const MANAGER_ASSETS = {
   // Login/Auth pages
-  loginLogo,
+  loginLogo: managerLogo,
+  managerLogo,
   iconUsername,
   iconName,
   iconPassword,

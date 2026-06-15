@@ -94,11 +94,11 @@ export default function HomePage() {
             )}
           </div>
 
-          <div className="w-[110px] h-[140px] mb-6 flex items-center justify-center">
+          <div className="w-[130px] h-[200px] mb-6 flex items-center justify-center">
             <img
               src={assets.mainLogo}
               alt=""
-              className="w-[110px] h-[140px] object-contain"
+              className="w-full h-full object-contain"
             />
           </div>
 

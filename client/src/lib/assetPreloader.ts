@@ -1,15 +1,13 @@
 // User Assets - 정적 import로 변경 (WebView suspend 시에도 유지됨)
 
 // Home page
-import mainLogo from "@assets/user/홈예측대기사진.svg";
+import userMascot from "@assets/user/user-mascot.png";
 import baseballLogo from "@assets/user/검은야구공.svg";
-import headerLogo from "@assets/user/홈상단로고.svg";
 import settingLogo from "@assets/user/설정.svg";
 import predictionActiveLogo from "@assets/user/예측하기.svg";
 import predictionLogo from "@assets/user/예측하기비활.svg";
 
 // Login page
-import loginLogo from "@assets/user/로그인로고.svg";
 import kakaoIcon from "@assets/user/카카오.svg";
 import googleIcon from "@assets/user/구글.svg";
 import appleIcon from "@assets/user/애플.svg";
@@ -117,15 +115,16 @@ import adAdvertisementIcon_active from "@assets/admin/ad동영상광고관리_ac
 // User 전용 assets - 정적으로 export
 export const ASSETS = {
   // Home page
-  mainLogo,
+  mainLogo: userMascot,
+  userMascot,
   baseballLogo,
-  headerLogo,
+  headerLogo: userMascot,
   settingLogo,
   predictionActiveLogo,
   predictionLogo,
 
   // Login page
-  loginLogo,
+  loginLogo: userMascot,
   kakaoIcon,
   googleIcon,
   appleIcon,
@@ -237,10 +236,9 @@ const PRELOAD_IMAGES = [
   successImg,
   failImg,
   pendingGif,
-  mainLogo,
+  userMascot,
   mascotImg,
   coinImg,
-  loginLogo,
 ];
 
 export async function preloadAssets(): Promise<void> {

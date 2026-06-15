@@ -9,7 +9,8 @@ import { UserAssetProvider } from "@/contexts/UserAssetContext";
 import { getRefreshToken, setAccessToken, saveRefreshToken, clearTokens } from "@/lib/tokenManager";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
-import splashIcon from "@assets/user/스플래시-logo.webp";
+import splashIcon from "@assets/user/user-mascot.png";
+import userFavicon from "@assets/user/user-mascot-favicon.png";
 import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
 import { preloadUserAssets } from "@/lib/userAssetPreloader";
 import LoginPage from "@/pages/auth/login";
@@ -112,12 +113,12 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col items-center">
           <img 
             src={splashIcon} 
-            alt="Splash" 
-            className="w-44 h-44 object-contain"
+            alt="PPAMONG" 
+            className="w-36 h-auto object-contain"
           />
           
           <p className="text-[#BFFF00] text-[16px] font-normal text-center leading-[1.5] mt-8">
-            실시간 야구 진루 예측게임<br />빠던나인에 오신걸 환영합니다.
+            실시간 야구 진루 예측게임<br />PPAMONG에 오신 걸 환영합니다.
           </p>
         </div>
         
@@ -272,6 +273,25 @@ function AppStateManager({ children }: { children: React.ReactNode }) {
 }
 
 function UserApp() {
+  useEffect(() => {
+    const iconLink =
+      document.querySelector<HTMLLinkElement>("link[rel='icon']") ??
+      (() => {
+        const link = document.createElement("link");
+        link.rel = "icon";
+        link.type = "image/png";
+        document.head.appendChild(link);
+        return link;
+      })();
+
+    const previousHref = iconLink.href;
+    iconLink.href = userFavicon;
+
+    return () => {
+      iconLink.href = previousHref;
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <UserAssetProvider>

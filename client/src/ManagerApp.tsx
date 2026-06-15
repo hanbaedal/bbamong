@@ -57,7 +57,8 @@ import ManagerHomePage from "./managerPages/home";
 import MatchDetailPage from "./managerPages/matchDetail";
 import NotFound from "./pages/not-found";
 import { SessionExpiredPopup } from "./components/SessionExpiredPopup";
-import splashIcon from "@assets/user/스플래시.svg";
+import splashIcon from "@assets/manager/manager-mascot.png";
+import managerFavicon from "@assets/manager/manager-mascot-favicon.png";
 
 function AppStateManager({ children }: { children: React.ReactNode }) {
   const [, forceUpdate] = useState(0);
@@ -213,8 +214,8 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
   if (isChecking) {
     return (
       <div className="fixed inset-0 bg-[#111111] flex flex-col items-center justify-center px-8">
-        <img src={splashIcon} alt="빠던9 매니저" className="w-32 h-32 mb-4" />
-        <p className="text-[#E9E9E9] text-lg font-semibold">매니저 앱 로딩 중...</p>
+        <img src={splashIcon} alt="PPAMONG 운영자" className="w-28 h-auto mb-4 object-contain" />
+        <p className="text-[#E9E9E9] text-lg font-semibold">운영자 앱 로딩 중...</p>
       </div>
     );
   }
@@ -239,6 +240,25 @@ function Router() {
 }
 
 export default function ManagerApp() {
+  useEffect(() => {
+    const iconLink =
+      document.querySelector<HTMLLinkElement>("link[rel='icon']") ??
+      (() => {
+        const link = document.createElement("link");
+        link.rel = "icon";
+        link.type = "image/png";
+        document.head.appendChild(link);
+        return link;
+      })();
+
+    const previousHref = iconLink.href;
+    iconLink.href = managerFavicon;
+
+    return () => {
+      iconLink.href = previousHref;
+    };
+  }, []);
+
   return (
     <ManagerErrorBoundary>
       <QueryClientProvider client={managerQueryClient}>
