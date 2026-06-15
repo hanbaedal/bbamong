@@ -58,7 +58,6 @@ interface StaffListResponse {
   page: number;
   limit: number;
   totalPages: number;
-  pendingCount: number;
   approvedCount: number;
 }
 
@@ -74,7 +73,6 @@ export default function StaffListPage() {
     }
   }, [isUserLoaded, isSuperAdmin, setLocation]);
   
-  const [activeTab, setActiveTab] = useState<"대기중" | "승인">("승인");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = useResponsivePageSize();
   useEffect(() => { setCurrentPage(1); }, [itemsPerPage]);
@@ -84,10 +82,6 @@ export default function StaffListPage() {
     "전체",
   );
   const [tempSearchQuery, setTempSearchQuery] = useState("");
-
-  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
-  const [selectedAdminForApprove, setSelectedAdminForApprove] =
-    useState<AdminUserWithoutPassword | null>(null);
 
   const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
   const [selectedAdminForDeactivate, setSelectedAdminForDeactivate] =
@@ -99,14 +93,14 @@ export default function StaffListPage() {
 
   const { toast } = useToast();
 
-  const { data, isLoading, refetch } = useQuery<StaffListResponse>({
+  const { data, isLoading } = useQuery<StaffListResponse>({
     queryKey: [
       "/api/admin/staff",
-      { status: activeTab, page: currentPage, limit: itemsPerPage, search: searchQuery, filterType },
+      { page: currentPage, limit: itemsPerPage, search: searchQuery, filterType },
     ],
     queryFn: async () => {
       const response = await adminFetch(
-        `/api/admin/staff?status=${activeTab}&page=${currentPage}&limit=${itemsPerPage}&search=${searchQuery}&filterType=${filterType}`
+        `/api/admin/staff?status=승인&page=${currentPage}&limit=${itemsPerPage}&search=${searchQuery}&filterType=${filterType}`
       );
       if (!response.ok) {
         throw new Error("Failed to fetch staff list");
@@ -116,27 +110,6 @@ export default function StaffListPage() {
     enabled: isUserLoaded && isSuperAdmin,
     refetchOnMount: true,
     placeholderData: (previousData) => previousData,
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return await apiRequest(
-        "PATCH",
-        `/api/admin/users/${id}/approve`,
-        { approvalStatus: "승인" },
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["/api/admin/staff"],
-      });
-      setApproveConfirmOpen(false);
-      toast({ description: "관리자가 승인되었습니다." });
-    },
-    onError: (err: any) => {
-      setApproveConfirmOpen(false);
-      toast({ variant: "destructive", description: err?.message || "승인 요청에 실패했습니다." });
-    },
   });
 
   const deactivateMutation = useMutation({
@@ -214,28 +187,11 @@ export default function StaffListPage() {
 
   const admins = data?.admins || [];
   const totalPages = data?.totalPages || 1;
-  const pendingCount = data?.pendingCount || 0;
   const approvedCount = data?.approvedCount || 0;
-
-  const handleTabChange = (tab: "대기중" | "승인") => {
-    setActiveTab(tab);
-    setCurrentPage(1);
-  };
-
-  const handleApproveClick = (admin: AdminUserWithoutPassword) => {
-    setSelectedAdminForApprove(admin);
-    setApproveConfirmOpen(true);
-  };
 
   const handleDeactivateClick = (admin: AdminUserWithoutPassword) => {
     setSelectedAdminForDeactivate(admin);
     setDeactivateConfirmOpen(true);
-  };
-
-  const handleApproveConfirm = () => {
-    if (selectedAdminForApprove) {
-      approveMutation.mutate(selectedAdminForApprove.id);
-    }
   };
 
   const handleDeactivateConfirm = () => {
@@ -265,20 +221,9 @@ export default function StaffListPage() {
     updateMutation.mutate({ id: editingAdmin.id, payload: formData });
   };
 
-  function StaffFormFields({ mode }: { mode: "create" | "edit" }) {
+  function StaffFormFields() {
     return (
       <div className="grid gap-4 py-2">
-        {mode === "create" && (
-          <div className="space-y-2">
-            <Label>아이디</Label>
-            <Input
-              value={formData.username}
-              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-              placeholder="로그인 아이디"
-              required
-            />
-          </div>
-        )}
         <div className="space-y-2">
           <Label>이름</Label>
           <Input
@@ -297,12 +242,11 @@ export default function StaffListPage() {
           />
         </div>
         <div className="space-y-2">
-          <Label>{mode === "create" ? "비밀번호" : "비밀번호 (변경 시만 입력)"}</Label>
+          <Label>비밀번호 (변경 시만 입력)</Label>
           <Input
             type="password"
             value={formData.password}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            required={mode === "create"}
             minLength={6}
           />
         </div>
@@ -328,23 +272,21 @@ export default function StaffListPage() {
             onChange={(e) => setFormData({ ...formData, position: e.target.value })}
           />
         </div>
-        {mode === "edit" && (
-          <div className="space-y-2">
-            <Label>상태</Label>
-            <Select
-              value={formData.status}
-              onValueChange={(v) => setFormData({ ...formData, status: v as "활성화" | "비활성화" })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="활성화">활성화</SelectItem>
-                <SelectItem value="비활성화">비활성화</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        <div className="space-y-2">
+          <Label>상태</Label>
+          <Select
+            value={formData.status}
+            onValueChange={(v) => setFormData({ ...formData, status: v as "활성화" | "비활성화" })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="활성화">활성화</SelectItem>
+              <SelectItem value="비활성화">비활성화</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     );
   }
@@ -379,38 +321,13 @@ export default function StaffListPage() {
           >
             <img src={assets.adListIcon} className="w-6 h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" alt="icon" /> 관리자 리스트
           </h1>
-          <p className="text-sm text-[#666] mt-1">승인된 관리자 수정·삭제 및 승인 대기 관리</p>
+          <p className="text-sm text-[#666] mt-1">
+            슈퍼바이저가 등록한 관리자 목록 · 수정·삭제 (총 {approvedCount}명)
+          </p>
         </div>
 
-        <div className="flex justify-between border-b border-[#E9E9E9] mb-3 md:mb-4 lg:mb-6 shrink-0">
-          {/* 왼쪽 탭 */}
-          <div className="flex gap-2 md:gap-4">
-            <button
-              onClick={() => handleTabChange("승인")}
-              className={`pb-2 md:pb-3 px-4 md:px-8 text-sm md:text-base font-medium hover:border-b-2 hover:border-[#E11936] hover:text-[#E11936] ${
-                activeTab === "승인"
-                  ? "border-b-2 border-[#E11936] text-[#E11936]"
-                  : "text-[#BFBFBF] border-transparent"
-              }`}
-              data-testid="tab-approved"
-            >
-              직원 {approvedCount}
-            </button>
-            <button
-              onClick={() => handleTabChange("대기중")}
-              className={`pb-2 md:pb-3 px-4 md:px-8 text-sm md:text-base font-medium hover:border-b-2 hover:border-[#E11936] hover:text-[#E11936] ${
-                activeTab === "대기중"
-                  ? "border-b-2 border-[#E11936] text-[#E11936]"
-                  : "text-[#BFBFBF] border-transparent"
-              }`}
-              data-testid="tab-pending"
-            >
-              대기 {pendingCount}
-            </button>
-          </div>
-
-          {/* 오른쪽 필터 + 검색 */}
-          <div className="flex gap-3 items-center pb-3">
+        <div className="flex justify-end border-b border-[#E9E9E9] mb-3 md:mb-4 lg:mb-6 shrink-0 pb-3">
+          <div className="flex gap-3 items-center w-full sm:w-auto">
             <Select
               value={filterType}
               onValueChange={(value) =>
@@ -465,9 +382,7 @@ export default function StaffListPage() {
           ) : admins.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 md:py-24 lg:py-32">
               <p className="text-sm md:text-base text-[#BFBFBF]">
-                {activeTab === "대기중"
-                  ? "대기 중인 관리자가 없습니다."
-                  : "승인된 직원이 없습니다."}
+                등록된 관리자가 없습니다.
               </p>
             </div>
           ) : (
@@ -499,32 +414,20 @@ export default function StaffListPage() {
                     {admin.phone}
                   </div>
                   <div className="flex gap-1 flex-wrap">
-                    {activeTab === "대기중" ? (
-                      <button
-                        onClick={() => handleApproveClick(admin)}
-                        className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#4285F4] rounded hover:bg-[#357AE8]"
-                        data-testid={`button-approve-${index}`}
-                      >
-                        승인
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => openEdit(admin)}
-                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#4285F4] rounded hover:bg-[#357AE8]"
-                          data-testid={`button-edit-${index}`}
-                        >
-                          수정
-                        </button>
-                        <button
-                          onClick={() => handleDeactivateClick(admin)}
-                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530]"
-                          data-testid={`button-deactivate-${index}`}
-                        >
-                          삭제
-                        </button>
-                      </>
-                    )}
+                    <button
+                      onClick={() => openEdit(admin)}
+                      className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#4285F4] rounded hover:bg-[#357AE8]"
+                      data-testid={`button-edit-${index}`}
+                    >
+                      수정
+                    </button>
+                    <button
+                      onClick={() => handleDeactivateClick(admin)}
+                      className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530]"
+                      data-testid={`button-deactivate-${index}`}
+                    >
+                      삭제
+                    </button>
                   </div>
                 </div>
               ))}
@@ -539,17 +442,6 @@ export default function StaffListPage() {
           onPageChange={setCurrentPage}
         />
       </div>
-
-      {/* 승인 확인 팝업 */}
-      {approveConfirmOpen && selectedAdminForApprove && (
-        <SimpleConfirmPopup
-          message={`${selectedAdminForApprove.name}님을 승인하시겠습니까?`}
-          leftButtonText="취소"
-          rightButtonText="승인"
-          onLeftClick={() => setApproveConfirmOpen(false)}
-          onRightClick={handleApproveConfirm}
-        />
-      )}
 
       {deactivateConfirmOpen && selectedAdminForDeactivate && (
         <SimpleConfirmPopup
@@ -567,7 +459,7 @@ export default function StaffListPage() {
             <DialogTitle>관리자 수정 — {editingAdmin?.username}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEditSubmit}>
-            <StaffFormFields mode="edit" />
+            <StaffFormFields />
             <div className="flex justify-end gap-2 mt-4">
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
                 취소
