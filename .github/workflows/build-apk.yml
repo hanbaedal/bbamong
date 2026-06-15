@@ -1,1 +1,83 @@
+name: Build APKs
 
+on:
+  workflow_dispatch:
+
+jobs:
+  user-apk:
+    name: user-app
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install dependencies
+        run: npm ci
+      - name: Create placeholder web assets
+        run: |
+          mkdir -p dist/public
+          printf '<!doctype html><html><head><meta charset="utf-8"><title>bbamong</title></head><body></body></html>' > dist/public/index.html
+      - name: Add Android platform
+        run: npx cap add android
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk bbamong-user.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bbamong-user-apk
+          path: bbamong-user.apk
+
+  manager-apk:
+    name: manager-app
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install dependencies
+        run: npm ci
+      - name: Use manager Capacitor config
+        run: cp capacitor.config.manager.ts capacitor.config.ts
+      - name: Create placeholder web assets
+        run: |
+          mkdir -p dist-manager/public
+          printf '<!doctype html><html><head><meta charset="utf-8"><title>bbamong manager</title></head><body></body></html>' > dist-manager/public/index.html
+      - name: Sync Android
+        run: npx cap sync android
+      - name: Build debug APK
+        run: |
+          cd android-manager
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Rename APK
+        run: cp android-manager/app/build/outputs/apk/debug/app-debug.apk bbamong-manager.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bbamong-manager-apk
+          path: bbamong-manager.apk
