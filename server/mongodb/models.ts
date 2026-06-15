@@ -210,6 +210,7 @@ const adminUserSchema = new Schema(
     operatorSlot: { type: Number, default: null },
     dailyPasswordPlain: { type: String, default: "" },
     dailyPasswordDate: { type: String, default: "" },
+    passwordPlain: { type: String, default: "" },
   },
   { versionKey: false },
 );

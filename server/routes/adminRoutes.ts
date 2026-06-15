@@ -11,6 +11,26 @@ import { hasActiveSession, createSession, deleteSession } from "../sessionManage
 
 const adminStorage = new AdminStorage();
 
+function resolveStaffPasswordPlain(admin: {
+  password?: string;
+  passwordPlain?: string | null;
+}): string {
+  if (admin.passwordPlain) return admin.passwordPlain;
+  const pw = admin.password ?? "";
+  if (pw && !pw.startsWith("$2")) return pw;
+  return "";
+}
+
+function toStaffAdminView<T extends { password?: string; passwordPlain?: string | null }>(
+  admin: T,
+) {
+  const { password: _pw, ...rest } = admin;
+  return {
+    ...rest,
+    passwordPlain: resolveStaffPasswordPlain(admin),
+  };
+}
+
 export async function adminRoutes(app: Express): Promise<void> {
   // 관리자 전화번호 중복 확인
   app.post("/api/admin/check-phone", async (req, res) => {
@@ -69,7 +89,10 @@ export async function adminRoutes(app: Express): Promise<void> {
         passwordMatch = password === admin.password;
         if (passwordMatch) {
           const hashedPassword = await bcrypt.hash(password, 10);
-          await adminStorage.updateAdminUser(admin.id, { password: hashedPassword });
+          await adminStorage.updateAdminUser(admin.id, {
+            password: hashedPassword,
+            passwordPlain: password,
+          } as Parameters<AdminStorage["updateAdminUser"]>[1]);
           console.log(`[Admin Login] 평문 비밀번호를 bcrypt로 자동 변환: ${admin.email}`);
         }
       }
@@ -504,8 +527,8 @@ export async function adminRoutes(app: Express): Promise<void> {
         approvedCount = result.approvedCount;
       }
 
-      // 비밀번호 제외하고 반환
-      const adminsWithoutPassword = admins.map(({ password, ...admin }) => admin);
+      // 비밀번호 제외하고 반환 (슈퍼바이저 staff 목록 — passwordPlain 포함)
+      const adminsWithoutPassword = admins.map((admin) => toStaffAdminView(admin));
 
       return res.json({
         admins: adminsWithoutPassword,
@@ -576,12 +599,16 @@ export async function adminRoutes(app: Express): Promise<void> {
         approvalStatus: "승인",
         status: "활성화",
       });
+      await adminStorage.updateAdminUser(newAdmin.id, {
+        passwordPlain: data.password,
+      } as Parameters<AdminStorage["updateAdminUser"]>[1]);
+      const adminWithPlain = await adminStorage.getAdminUserById(newAdmin.id);
 
-      const { password: _pw, ...adminWithoutPassword } = newAdmin;
+      const { password: _pw, ...adminWithoutPassword } = adminWithPlain ?? newAdmin;
       return res.status(201).json({
         success: true,
         message: "관리자가 등록되었습니다.",
-        admin: adminWithoutPassword,
+        admin: toStaffAdminView(adminWithoutPassword as typeof newAdmin),
       });
     } catch (error: any) {
       if (error.name === "ZodError") {
@@ -631,6 +658,7 @@ export async function adminRoutes(app: Express): Promise<void> {
       }
       if (data.password) {
         updatePayload.password = await bcrypt.hash(data.password, 10);
+        updatePayload.passwordPlain = data.password;
       }
 
       const updated = await adminStorage.updateAdminUser(id, updatePayload);
@@ -642,7 +670,7 @@ export async function adminRoutes(app: Express): Promise<void> {
       return res.json({
         success: true,
         message: "관리자 정보가 수정되었습니다.",
-        admin: adminWithoutPassword,
+        admin: toStaffAdminView(adminWithoutPassword as typeof updated),
       });
     } catch (error: any) {
       if (error.name === "ZodError") {

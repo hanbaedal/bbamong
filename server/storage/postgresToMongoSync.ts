@@ -39,7 +39,7 @@ const SYNC_TABLES: SyncTableDef[] = [
     pgTable: "admin_users",
     label: "관리자/운영자",
     model: AdminUserModel,
-    preserveOnUpdate: ["operatorSlot", "dailyPasswordPlain", "dailyPasswordDate"],
+    preserveOnUpdate: ["operatorSlot", "dailyPasswordPlain", "dailyPasswordDate", "passwordPlain"],
     insertDefaults: { operatorSlot: null, dailyPasswordPlain: "", dailyPasswordDate: "", logoutAllowed: false },
   },
   {

@@ -28,7 +28,9 @@ import { useUser } from "@/contexts/UserContext";
 import AdminPagination from "../components/AdminPagination";
 import { useResponsivePageSize } from "@/hooks/useResponsivePageSize";
 
-type AdminUserWithoutPassword = Omit<AdminUser, "password">;
+type AdminUserWithoutPassword = Omit<AdminUser, "password"> & {
+  passwordPlain?: string;
+};
 
 interface StaffFormData {
   username: string;
@@ -90,6 +92,7 @@ export default function StaffListPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [formData, setFormData] = useState<StaffFormData>(emptyForm);
   const [editingAdmin, setEditingAdmin] = useState<AdminUserWithoutPassword | null>(null);
+  const [originalPasswordPlain, setOriginalPasswordPlain] = useState("");
 
   const { toast } = useToast();
 
@@ -142,7 +145,7 @@ export default function StaffListPage() {
         position: payload.position || "",
         status: payload.status!,
       };
-      if (payload.password?.trim()) {
+      if (payload.password?.trim() && payload.password !== originalPasswordPlain) {
         body.password = payload.password;
       }
       return await apiRequest("PATCH", `/api/admin/staff/${id}`, body);
@@ -151,6 +154,7 @@ export default function StaffListPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/staff"] });
       setEditOpen(false);
       setEditingAdmin(null);
+      setOriginalPasswordPlain("");
       setFormData(emptyForm);
       toast({ description: "관리자 정보가 수정되었습니다." });
     },
@@ -201,12 +205,14 @@ export default function StaffListPage() {
   };
 
   const openEdit = (admin: AdminUserWithoutPassword) => {
+    const plain = admin.passwordPlain ?? "";
     setEditingAdmin(admin);
+    setOriginalPasswordPlain(plain);
     setFormData({
       username: admin.username,
       name: admin.name,
       email: admin.email,
-      password: "",
+      password: plain,
       phone: admin.phone,
       department: admin.department || "",
       position: admin.position || "",
@@ -242,13 +248,17 @@ export default function StaffListPage() {
           />
         </div>
         <div className="space-y-2">
-          <Label>비밀번호 (변경 시만 입력)</Label>
+          <Label>비밀번호</Label>
           <Input
-            type="password"
+            type="text"
             value={formData.password}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             minLength={6}
+            className="font-mono tracking-wide"
+            autoComplete="off"
+            data-testid="input-staff-password"
           />
+          <p className="text-[10px] text-[#888]">슈퍼바이저 확인용 평문 표시 · 변경 후 저장 시 갱신됩니다.</p>
         </div>
         <div className="space-y-2">
           <Label>전화번호</Label>
