@@ -3,110 +3,35 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { AdminStorage } from "../storage/adminStorage";
 import { adminMatchStorage } from "../storage/adminMatchStorage";
-import { insertAdminUserSchema } from "@shared/schema";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAccessToken } from "../utils/jwt";
 import { broadcastManager } from "../liveMatch/broadcastManager";
 import { startRound, stopRound, updateRoundPredictionResult, nextRound, getMatchOverallStatistics } from "../liveMatch/predictionStorage";
 import { hasActiveSession, createSession, deleteSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
+import { ensureOperatorsReady } from "../managerOperatorService";
 
 const adminStorage = new AdminStorage();
 
-// Authorization 헤더 또는 쿠키에서 매니저 액세스 토큰 추출
 function getManagerAccessToken(req: Request): string | null {
-  // Authorization 헤더 우선 확인 (Bearer token)
   const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
     return authHeader.substring(7);
   }
-  // 쿠키에서 확인 (웹 브라우저 호환)
   return req.cookies?.managerAccessToken || null;
 }
 
 export async function managerRoutes(app: Express): Promise<void> {
-  // 매니저 회원가입
-  app.post("/api/manager/signup", async (req, res) => {
-    try {
-      const requestData = {
-        ...req.body,
-        department: req.body.department || null,
-        position: req.body.position || null,
-      };
-
-      const validatedData = insertAdminUserSchema.parse(requestData);
-
-      // 이메일 중복 확인 (승인된 계정만 체크)
-      const existingAdmin = await adminStorage.getAdminUserByEmail(validatedData.email, true);
-      if (existingAdmin) {
-        if (existingAdmin.status === "비활성화") {
-          const hashedPassword = await bcrypt.hash(validatedData.password, 10);
-          const reactivated = await adminStorage.updateAdminUser(existingAdmin.id, {
-            ...validatedData,
-            password: hashedPassword,
-            status: "활성화",
-            approvalStatus: "대기중",
-          });
-          const { password, ...managerWithoutPassword } = reactivated!;
-          return res.status(201).json({
-            success: true,
-            message: "계정이 재활성화되었습니다. 관리자 승인 후 로그인 가능합니다.",
-            manager: managerWithoutPassword,
-          });
-        }
-        return res.status(400).json({ error: "이미 사용 중인 이메일입니다." });
-      }
-
-      // 전화번호 중복 확인 (승인된 계정만 체크)
-      if (validatedData.phone) {
-        const existingByPhone = await adminStorage.getAdminUserByPhone(validatedData.phone, true);
-        if (existingByPhone) {
-          return res.status(400).json({ error: "이미 사용 중인 전화번호입니다." });
-        }
-      }
-
-      // 아이디 중복 확인 (승인된 계정만 체크)
-      if (validatedData.username) {
-        const existingByUsername = await adminStorage.getAdminUserByUsername(validatedData.username, true);
-        if (existingByUsername) {
-          return res.status(400).json({ error: "이미 사용 중인 아이디입니다." });
-        }
-      }
-
-      // 비밀번호 해싱
-      const hashedPassword = await bcrypt.hash(validatedData.password, 10);
-
-      // 매니저는 수동 승인으로 생성 (userType 서버에서 강제)
-      const newManager = await adminStorage.createAdminUser({
-        ...validatedData,
-        password: hashedPassword,
-        userType: "매니저",
-        approvalStatus: "대기중",
-      });
-
-      // 비밀번호 제외하고 반환
-      const { password, ...managerWithoutPassword } = newManager;
-
-      return res.status(201).json({
-        success: true,
-        message: "회원가입이 완료되었습니다.",
-        manager: managerWithoutPassword,
-      });
-    } catch (error: any) {
-      console.error("Manager signup error:", error);
-      
-      if (error.name === "ZodError") {
-        return res.status(400).json({ 
-          error: "입력 데이터가 올바르지 않습니다.",
-          details: error.errors,
-        });
-      }
-
-      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
-    }
+  // 운영자 회원가입 — 관리자 발급 계정만 사용
+  app.post("/api/manager/signup", async (_req, res) => {
+    return res.status(403).json({
+      error: "운영자 계정은 관리자가 발급합니다. 발급받은 아이디와 오늘 비밀번호로 로그인하세요.",
+    });
   });
 
   // 매니저 로그인
   app.post("/api/manager/login", async (req, res) => {
     try {
+      await ensureOperatorsReady();
+
       const { email, password } = req.body;
 
       if (!email || !password) {

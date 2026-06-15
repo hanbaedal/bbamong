@@ -205,6 +205,9 @@ const adminUserSchema = new Schema(
     createdAt: { type: Date, default: Date.now },
     username: { type: String, required: true, unique: true },
     assignedMatchNumber: { type: String, default: null },
+    operatorSlot: { type: Number, default: null },
+    dailyPasswordPlain: { type: String, default: "" },
+    dailyPasswordDate: { type: String, default: "" },
   },
   { versionKey: false },
 );

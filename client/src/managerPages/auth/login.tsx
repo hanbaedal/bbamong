@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -214,18 +214,10 @@ export default function ManagerLoginPage() {
                 )}
               </div>
             </div>
+            <p className="text-[#888] text-xs text-center mb-4">
+              관리자가 발급한 아이디와 오늘 비밀번호로 로그인하세요.
+            </p>
             <div className="flex flex-col">
-              <div className="mt-6 text-center">
-                <span className="text-gray-600 text-sm">
-                  계정이 없으신가요?
-                </span>
-                <Link
-                  href="/manager/signup"
-                  className="text-[#E11936] text-sm font-medium hover:underline"
-                >
-                  회원가입
-                </Link>
-              </div>
               <Button
                 type="submit"
                 disabled={isLoading}

@@ -16,6 +16,8 @@ import { startSuspendedUserCleanupBatch } from "./suspendedUserCleanupBatch";
 import { getRedisClient } from "./redis";
 import { connectMongoDB } from "./UserStorage/db";
 import { ensureSuperAdmin } from "./bootstrapSuperAdmin";
+import { ensureOperatorsReady, syncOperatorMatchAssignments } from "./managerOperatorService";
+import { startManagerDailyPasswordBatch } from "./managerDailyPasswordBatch";
 
 const execAsync = promisify(exec);
 
@@ -173,6 +175,8 @@ app.use((req, res, next) => {
 
   await connectMongoDB();
   await ensureSuperAdmin();
+  await ensureOperatorsReady();
+  await syncOperatorMatchAssignments();
 
   process.on("SIGINT", () => {
     log("Shutting down gracefully...");
@@ -231,6 +235,7 @@ app.use((req, res, next) => {
     startInactiveLogoutBatch();
     startMatchAutoCloseBatch();
     startSuspendedUserCleanupBatch();
+    startManagerDailyPasswordBatch();
     
     (async () => {
       try {

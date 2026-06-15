@@ -18,6 +18,7 @@ import {adminUserRoutes} from "./routes/adminUserRoutes"
 import {adminDonationRoutes} from "./routes/adminDonationRoutes"
 import {adminRankingRoutes} from "./routes/adminRankingRoutes"
 import {adminManagerRoutes} from "./routes/adminManagerRoutes"
+import { operatorAdminRoutes } from "./routes/operatorAdminRoutes"
 
 import {adminStadiumRoutes} from "./routes/adminStadiumRoutes"
 import {adminMatchRoutes} from "./routes/adminMatchRoutes"
@@ -58,6 +59,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   await adminDonationRoutes(app)
   await adminRankingRoutes(app)
   await adminManagerRoutes(app)
+  await operatorAdminRoutes(app)
   await adminStadiumRoutes(app)
   await adminMatchRoutes(app)
   await managerMatchAssignmentRoutes(app)
