@@ -3,6 +3,7 @@ import { adminMatchStorage } from "../storage/adminMatchStorage";
 import { insertMatchSchema } from "@shared/schema";
 import { z } from "zod";
 import { adminAuthMiddleware } from "../middleware/adminAuth";
+import { syncOperatorMatchAssignments } from "../managerOperatorService";
 
 const uuidSchema = z.string().uuid();
 
@@ -25,6 +26,7 @@ export function adminMatchRoutes(app: Express) {
       const data = bodySchema.parse(req.body);
 
       const match = await adminMatchStorage.createMatch(data);
+      await syncOperatorMatchAssignments();
       res.json({ message: "경기가 추가되었습니다.", match });
     } catch (error) {
       console.error("경기 생성 실패:", error);
@@ -63,6 +65,7 @@ export function adminMatchRoutes(app: Express) {
       // 중복 검증은 storage layer의 트랜잭션에서 수행 (UPSERT 로직)
       // matchDate와 함께 storage에 전달
       const createdMatches = await adminMatchStorage.createMatchBatch(matchesData, selectedDate);
+      await syncOperatorMatchAssignments();
       res.json({ message: "경기가 등록되었습니다.", matches: createdMatches });
     } catch (error) {
       console.error("경기 일괄 생성 실패:", error);
@@ -89,6 +92,7 @@ export function adminMatchRoutes(app: Express) {
         return res.status(404).json({ message: "경기를 찾을 수 없습니다." });
       }
 
+      await syncOperatorMatchAssignments();
       res.json({ message: "경기가 수정되었습니다.", match });
     } catch (error) {
       console.error("경기 수정 실패:", error);
@@ -105,6 +109,7 @@ export function adminMatchRoutes(app: Express) {
       const id = uuidSchema.parse(req.params.id);
 
       await adminMatchStorage.deleteMatch(id);
+      await syncOperatorMatchAssignments();
       res.json({ message: "경기가 삭제되었습니다." });
     } catch (error) {
       console.error("경기 삭제 실패:", error);

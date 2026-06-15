@@ -1,7 +1,8 @@
 import { randomBytes, randomUUID } from "crypto";
 import bcrypt from "bcrypt";
-import { AdminUserModel, MatchModel } from "./UserStorage/db";
+import { AdminUserModel, MatchModel, StadiumModel } from "./UserStorage/db";
 import { deleteSession } from "./sessionManager";
+import { getKstDateString } from "./utils/dateUtils";
 
 export const OPERATOR_USERNAMES = ["op1", "op2", "op3", "op4", "op5"] as const;
 const OPERATOR_COUNT = 5;
@@ -20,10 +21,52 @@ export function generateDailyPassword(length = 8): string {
   return result;
 }
 
-export async function getMatchNameForSlot(slot: number): Promise<string> {
-  const matches = await MatchModel.find().sort({ startTime: 1 }).limit(OPERATOR_COUNT).lean();
-  const match = matches[slot - 1];
-  return match?.name ?? `${slot}경기`;
+function todayRange() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return { today, tomorrow };
+}
+
+function todayMatchFilter() {
+  const kstToday = getKstDateString();
+  const { today, tomorrow } = todayRange();
+  return {
+    $or: [
+      { matchDate: kstToday },
+      { matchDate: null, startTime: { $gte: today, $lt: tomorrow } },
+    ],
+  };
+}
+
+export interface OrderedTodayMatch {
+  id: string;
+  name: string;
+  startTime: Date;
+  stadiumName: string;
+  registrationOrder: number;
+}
+
+export async function getTodayMatchesByRegistrationOrder(): Promise<OrderedTodayMatch[]> {
+  const docs = await MatchModel.find(todayMatchFilter())
+    .sort({ registrationOrder: 1, createdAt: 1, _id: 1 })
+    .limit(OPERATOR_COUNT)
+    .lean();
+
+  const result: OrderedTodayMatch[] = [];
+  for (let i = 0; i < docs.length; i++) {
+    const row = docs[i]!;
+    const stadium = await StadiumModel.findOne({ id: row.stadiumId }).select("name").lean();
+    result.push({
+      id: row.id,
+      name: row.name,
+      startTime: row.startTime,
+      stadiumName: stadium?.name ?? "",
+      registrationOrder: (row as { registrationOrder?: number }).registrationOrder ?? i + 1,
+    });
+  }
+  return result;
 }
 
 async function applyDailyPasswordIfNeeded(
@@ -48,13 +91,30 @@ async function applyDailyPasswordIfNeeded(
   return { plain, rotated: true };
 }
 
+/** 오늘 경기 등록 순서 1~5 → op1~op5 자동 할당 */
 export async function syncOperatorMatchAssignments(): Promise<void> {
+  const matches = await getTodayMatchesByRegistrationOrder();
+
   for (let slot = 1; slot <= OPERATOR_COUNT; slot++) {
-    const matchName = await getMatchNameForSlot(slot);
-    await AdminUserModel.updateOne(
-      { username: `op${slot}`, userType: "매니저" },
-      { assignedMatchNumber: matchName, name: `${matchName} 운영자` },
-    );
+    const match = matches[slot - 1];
+    const username = `op${slot}`;
+    if (match) {
+      await AdminUserModel.updateOne(
+        { username, userType: "매니저" },
+        {
+          assignedMatchNumber: match.name,
+          name: `${match.name} 운영자`,
+        },
+      );
+    } else {
+      await AdminUserModel.updateOne(
+        { username, userType: "매니저" },
+        {
+          assignedMatchNumber: null,
+          name: `${slot}번 운영자 (경기 미등록)`,
+        },
+      );
+    }
   }
 }
 
@@ -63,7 +123,6 @@ export async function ensureOperatorsReady(): Promise<void> {
 
   for (let slot = 1; slot <= OPERATOR_COUNT; slot++) {
     const username = `op${slot}`;
-    const matchName = await getMatchNameForSlot(slot);
     const existing = await AdminUserModel.findOne({ username }).lean();
 
     if (!existing) {
@@ -73,7 +132,7 @@ export async function ensureOperatorsReady(): Promise<void> {
         id: randomUUID(),
         username,
         email: `${username}@operators.ppamong.local`,
-        name: `${matchName} 운영자`,
+        name: `${slot}번 운영자`,
         password: hash,
         phone: `010000000${slot}0`,
         department: "현장운영",
@@ -81,12 +140,12 @@ export async function ensureOperatorsReady(): Promise<void> {
         userType: "매니저",
         approvalStatus: "승인",
         status: "활성화",
-        assignedMatchNumber: matchName,
+        assignedMatchNumber: null,
         operatorSlot: slot,
         dailyPasswordPlain: plain,
         dailyPasswordDate: today,
       });
-      console.log(`[Operators] 계정 생성: ${username} → ${matchName}`);
+      console.log(`[Operators] 계정 생성: ${username}`);
       continue;
     }
 
@@ -94,8 +153,6 @@ export async function ensureOperatorsReady(): Promise<void> {
       userType: "매니저",
       approvalStatus: "승인",
       operatorSlot: slot,
-      assignedMatchNumber: matchName,
-      name: `${matchName} 운영자`,
     };
 
     if (existing.dailyPasswordDate !== today) {
@@ -107,6 +164,8 @@ export async function ensureOperatorsReady(): Promise<void> {
 
     await AdminUserModel.updateOne({ id: existing.id }, updates);
   }
+
+  await syncOperatorMatchAssignments();
 }
 
 export interface OperatorAccountView {
@@ -114,6 +173,8 @@ export interface OperatorAccountView {
   username: string;
   name: string;
   assignedMatchNumber: string | null;
+  assignedMatchDetail: string | null;
+  assignmentLabel: string;
   status: string;
   dailyPasswordPlain: string;
   dailyPasswordDate: string;
@@ -121,8 +182,13 @@ export interface OperatorAccountView {
   operatorSlot: number;
 }
 
-export async function listOperatorAccounts(): Promise<OperatorAccountView[]> {
+export async function listOperatorAccounts(): Promise<{
+  operators: OperatorAccountView[];
+  todayMatches: OrderedTodayMatch[];
+}> {
   await ensureOperatorsReady();
+
+  const todayMatches = await getTodayMatchesByRegistrationOrder();
 
   const docs = await AdminUserModel.find({
     username: { $in: [...OPERATOR_USERNAMES] },
@@ -135,9 +201,10 @@ export async function listOperatorAccounts(): Promise<OperatorAccountView[]> {
     .lean();
 
   const today = getKstDateKey();
-  const result: OperatorAccountView[] = [];
+  const operators: OperatorAccountView[] = [];
 
   for (const doc of docs) {
+    const slot = (doc as { operatorSlot?: number }).operatorSlot ?? 0;
     let plain = (doc as { dailyPasswordPlain?: string }).dailyPasswordPlain ?? "";
     const dateKey = (doc as { dailyPasswordDate?: string }).dailyPasswordDate;
 
@@ -146,26 +213,40 @@ export async function listOperatorAccounts(): Promise<OperatorAccountView[]> {
       plain = rotated.plain ?? plain;
       if (!plain) {
         const refreshed = await AdminUserModel.findOne({ id: doc.id })
-          .select("dailyPasswordPlain dailyPasswordDate")
+          .select("dailyPasswordPlain")
           .lean();
         plain = (refreshed as { dailyPasswordPlain?: string })?.dailyPasswordPlain ?? "";
       }
     }
 
-    result.push({
+    const match = todayMatches[slot - 1];
+    const assignmentLabel = match
+      ? `등록순 ${slot} → ${doc.username} · ${match.name}`
+      : `등록순 ${slot} → ${doc.username} · (오늘 경기 없음)`;
+
+    const assignedMatchDetail = match
+      ? `${match.stadiumName} · ${new Date(match.startTime).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}`
+      : null;
+
+    operators.push({
       id: doc.id,
       username: doc.username,
       name: doc.name,
       assignedMatchNumber: doc.assignedMatchNumber ?? null,
+      assignedMatchDetail,
+      assignmentLabel,
       status: doc.status,
       dailyPasswordPlain: plain,
       dailyPasswordDate: today,
       lastLogin: doc.lastLogin ?? null,
-      operatorSlot: (doc as { operatorSlot?: number }).operatorSlot ?? 0,
+      operatorSlot: slot,
     });
   }
 
-  return result.sort((a, b) => a.operatorSlot - b.operatorSlot);
+  return {
+    operators: operators.sort((a, b) => a.operatorSlot - b.operatorSlot),
+    todayMatches,
+  };
 }
 
 export async function setOperatorStatus(

@@ -18,7 +18,7 @@ import PointsRankingPage from "@/adminPages/members/PointsRanking";
 import StaffListPage from "@/adminPages/admins/StaffList";
 import StaffRegisterPage from "@/adminPages/admins/StaffRegister";
 import ManagerListPage from "@/adminPages/admins/ManagerList";
-import MatchAssignmentPage from "@/adminPages/admins/ManagerMatchAssignment";
+import OperatorRegisterPage from "@/adminPages/admins/OperatorRegister";
 import InviteManagementPage from "@/adminPages/members/InviteManagement";
 import MonitoringPage from "@/adminPages/admins/OperatorMonitoring";
 import MatchManagementPage from "@/adminPages/admins/MatchManagement";
@@ -77,8 +77,10 @@ function Router() {
       <Route path="/admin/staff">{() => <Redirect to="/admin/staff/list" />}</Route>
       <Route path="/admin/staff/list" component={StaffListPage} />
       <Route path="/admin/staff/register" component={StaffRegisterPage} />
-      <Route path="/admin/managers" component={ManagerListPage} />
-      <Route path="/admin/match-assignment" component={MatchAssignmentPage} />
+      <Route path="/admin/managers">{() => <Redirect to="/admin/operators/list" />}</Route>
+      <Route path="/admin/operators/list" component={ManagerListPage} />
+      <Route path="/admin/operators/register" component={OperatorRegisterPage} />
+      <Route path="/admin/match-assignment">{() => <Redirect to="/admin/operators/list" />}</Route>
       <Route path="/admin/monitoring" component={MonitoringPage} />
       <Route path="/admin/match-management" component={MatchManagementPage} />
       <Route

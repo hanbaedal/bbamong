@@ -57,6 +57,8 @@ const matchSchema = new Schema(
     matchStatus: { type: String, default: "scheduled" },
     currentRound: { type: Number, default: 1 },
     predictionEnabled: { type: Boolean, default: false },
+    registrationOrder: { type: Number, default: null },
+    createdAt: { type: Date, default: Date.now },
   },
   { versionKey: false },
 );

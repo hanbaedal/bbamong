@@ -10,7 +10,7 @@ const quickLinks = [
   { label: "공지사항", path: "/admin/notices", roles: ["all"] },
   { label: "관리자 리스트", path: "/admin/staff/list", roles: ["super"] },
   { label: "관리자 등록", path: "/admin/staff/register", roles: ["super"] },
-  { label: "운영자 리스트", path: "/admin/managers", roles: ["all"] },
+  { label: "운영자 리스트", path: "/admin/operators/list", roles: ["all"] },
 ] as const;
 
 export default function AdminHomePage() {

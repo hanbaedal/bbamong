@@ -11,6 +11,8 @@ interface OperatorAccount {
   username: string;
   name: string;
   assignedMatchNumber: string | null;
+  assignedMatchDetail: string | null;
+  assignmentLabel: string;
   status: string;
   dailyPasswordPlain: string;
   dailyPasswordDate: string;
@@ -18,8 +20,17 @@ interface OperatorAccount {
   operatorSlot: number;
 }
 
+interface TodayMatch {
+  id: string;
+  name: string;
+  startTime: string;
+  stadiumName: string;
+  registrationOrder: number;
+}
+
 interface OperatorsResponse {
   operators: OperatorAccount[];
+  todayMatches: TodayMatch[];
 }
 
 export default function ManagerListPage() {
@@ -39,6 +50,7 @@ export default function ManagerListPage() {
   });
 
   const operators = data?.operators ?? [];
+  const todayMatches = data?.todayMatches ?? [];
 
   const statusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: "활성화" | "비활성화" }) => {
@@ -66,20 +78,8 @@ export default function ManagerListPage() {
     },
   });
 
-  const syncMutation = useMutation({
-    mutationFn: async () => apiRequest("POST", "/api/admin/operators/sync-matches", {}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/operators"] });
-      toast({ description: "DB 경기 순서로 할당을 동기화했습니다." });
-    },
-    onError: (err: unknown) => {
-      const message = err instanceof Error ? err.message : "동기화에 실패했습니다.";
-      toast({ variant: "destructive", description: message });
-    },
-  });
-
   const copyCredentials = async (op: OperatorAccount) => {
-    const text = `아이디: ${op.username}\n비밀번호: ${op.dailyPasswordPlain}\n담당: ${op.assignedMatchNumber ?? "-"}`;
+    const text = `아이디: ${op.username}\n비밀번호: ${op.dailyPasswordPlain}\n담당 경기: ${op.assignedMatchNumber ?? "없음"}`;
     try {
       await navigator.clipboard.writeText(text);
       toast({ description: `${op.username} 로그인 정보를 복사했습니다.` });
@@ -107,13 +107,10 @@ export default function ManagerListPage() {
               운영자 리스트
             </h1>
             <p className="text-sm text-[#666] mt-1">
-              고정 5명(op1~op5) · DB 경기 시작순 자동 할당 · 비밀번호 매일 자동 변경 ({todayLabel})
+              경기 등록 순서 1~5 → op1~op5 자동 할당 · 비밀번호 매일 변경 ({todayLabel})
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
-              경기 할당 동기화
-            </Button>
             <Button
               size="sm"
               className="bg-[#E11936] hover:bg-[#B71C1C] text-white"
@@ -128,11 +125,26 @@ export default function ManagerListPage() {
           </div>
         </div>
 
+        {todayMatches.length > 0 && (
+          <div className="mb-4 p-3 rounded-lg bg-[#FFF9FA] border border-[#F5D0D6] text-xs md:text-sm shrink-0">
+            <p className="font-semibold text-[#201E22] mb-2">오늘 등록된 경기 (할당 순서)</p>
+            <ol className="list-decimal pl-5 space-y-1 text-[#4D4B4E]">
+              {todayMatches.map((m, idx) => (
+                <li key={m.id}>
+                  {m.name} — {m.stadiumName} (
+                  {new Date(m.startTime).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })})
+                  → <span className="text-[#E11936] font-medium">op{idx + 1}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
         <div className="overflow-x-auto shrink-0">
-          <div className="grid grid-cols-[10%_14%_12%_18%_12%_14%_20%] min-w-[880px] px-2 md:px-4 py-2 md:py-3 bg-[#F5F5F5] border-y border-[#E9E9E9] text-xs md:text-sm font-semibold text-[#201E22]">
+          <div className="grid grid-cols-[9%_22%_12%_14%_12%_12%_19%] min-w-[960px] px-2 md:px-4 py-2 md:py-3 bg-[#F5F5F5] border-y border-[#E9E9E9] text-xs md:text-sm font-semibold text-[#201E22]">
             <div>아이디</div>
+            <div>경기 할당</div>
             <div>담당 경기</div>
-            <div>이름</div>
             <div>오늘 비밀번호</div>
             <div>상태</div>
             <div>최근 로그인</div>
@@ -144,23 +156,29 @@ export default function ManagerListPage() {
           {isLoading ? (
             <div className="py-16 text-center text-[#BFBFBF]">불러오는 중...</div>
           ) : operators.length === 0 ? (
-            <div className="py-16 text-center text-[#BFBFBF]">운영자 계정을 준비 중입니다.</div>
+            <div className="py-16 text-center text-[#BFBFBF]">
+              운영자 계정이 없습니다. 운영자 등록 메뉴에서 계정을 생성하세요.
+            </div>
           ) : (
             operators.map((op, index) => (
               <div
                 key={op.id}
-                className="grid grid-cols-[10%_14%_12%_18%_12%_14%_20%] min-w-[880px] px-2 md:px-4 py-3 bg-white border-b border-[#E9E9E9] items-center text-xs md:text-sm text-[#201E22]"
+                className="grid grid-cols-[9%_22%_12%_14%_12%_12%_19%] min-w-[960px] px-2 md:px-4 py-3 bg-white border-b border-[#E9E9E9] items-center text-xs md:text-sm text-[#201E22]"
                 data-testid={`manager-row-${index}`}
               >
                 <div className="font-medium">{op.username}</div>
-                <div>{op.assignedMatchNumber ?? "-"}</div>
-                <div className="truncate" title={op.name}>
-                  {op.name}
+                <div className="text-[#666] pr-2" title={op.assignmentLabel}>
+                  {op.assignmentLabel}
+                </div>
+                <div>
+                  <div>{op.assignedMatchNumber ?? "—"}</div>
+                  {op.assignedMatchDetail && (
+                    <div className="text-[10px] text-[#888] mt-0.5">{op.assignedMatchDetail}</div>
+                  )}
                 </div>
                 <div
                   className="font-mono text-[#E11936] font-bold tracking-wider select-all"
                   data-testid={`operator-password-${index}`}
-                  title="운영자에게 전달할 오늘 비밀번호"
                 >
                   {op.dailyPasswordPlain || "—"}
                 </div>
@@ -181,7 +199,6 @@ export default function ManagerListPage() {
                       type="button"
                       onClick={() => statusMutation.mutate({ id: op.id, status: "비활성화" })}
                       className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530]"
-                      data-testid={`button-deactivate-${index}`}
                     >
                       비활성화
                     </button>
@@ -190,7 +207,6 @@ export default function ManagerListPage() {
                       type="button"
                       onClick={() => statusMutation.mutate({ id: op.id, status: "활성화" })}
                       className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#34A853] rounded hover:bg-[#2D8E47]"
-                      data-testid={`button-activate-${index}`}
                     >
                       활성화
                     </button>

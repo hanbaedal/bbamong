@@ -155,7 +155,23 @@ export class AdminMatchStorage implements IAdminMatchStorage {
 
   async createMatch(match: InsertMatch): Promise<Match> {
     const id = match.id || randomUUID();
-    const doc = await MatchModel.create({ ...match, id });
+    const kstToday = (match as InsertMatch & { matchDate?: string }).matchDate ?? getKstDateString();
+    const dateObj = new Date(`${kstToday}T12:00:00`);
+    const startOfDay = new Date(dateObj);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(dateObj);
+    endOfDay.setHours(23, 59, 59, 999);
+    const existingCount = await MatchModel.countDocuments({
+      $or: [
+        { matchDate: kstToday },
+        { matchDate: null, startTime: { $gte: startOfDay, $lte: endOfDay } },
+      ],
+    });
+    const doc = await MatchModel.create({
+      ...match,
+      id,
+      registrationOrder: existingCount + 1,
+    });
     return doc.toObject() as Match;
   }
 
@@ -288,7 +304,25 @@ export class AdminMatchStorage implements IAdminMatchStorage {
       for (const insertData of toInsert) {
         const { id: _omit, ...rest } = insertData as InsertMatch & { id?: string };
         const newId = randomUUID();
-        await MatchModel.create([{ ...rest, id: newId }], { session });
+        const orderIndex = matchList.findIndex(
+          (m) => !m.id && m.name === insertData.name && m.stadiumId === insertData.stadiumId,
+        );
+        await MatchModel.create(
+          [{ ...rest, id: newId, registrationOrder: orderIndex >= 0 ? orderIndex + 1 : matchList.length }],
+          { session },
+        );
+      }
+
+      for (let i = 0; i < matchList.length; i++) {
+        const item = matchList[i]!;
+        let targetId = item.id;
+        if (!targetId) {
+          const found = existingByName.get(item.name);
+          targetId = found?.id;
+        }
+        if (targetId) {
+          await MatchModel.updateOne({ id: targetId }, { registrationOrder: i + 1 }, { session });
+        }
       }
 
       const finalMatches = await MatchModel.find({

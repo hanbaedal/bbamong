@@ -101,16 +101,16 @@ function buildMenuItems(isSuperAdmin: boolean): MenuItem[] {
       iconKey: "adMangerListIcon",
       children: [
         {
-          id: "operator-list",
-          label: "운영자 리스트",
-          path: "/admin/managers",
+          id: "operator-register",
+          label: "운영자 등록",
+          path: "/admin/operators/register",
           iconKey: "adMangerListIcon",
         },
         {
-          id: "operator-match",
-          label: "운영자 경기 할당 관리",
-          path: "/admin/match-assignment",
-          iconKey: "adManagerMatchIcon",
+          id: "operator-list",
+          label: "운영자 리스트",
+          path: "/admin/operators/list",
+          iconKey: "adUserListIcon",
         },
         {
           id: "operator-monitoring",
