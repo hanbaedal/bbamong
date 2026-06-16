@@ -20,6 +20,7 @@ import {
   WaitingScreenModel,
   AdvertisementModel,
   AdViewHistoryModel,
+  CounterModel,
 } from "../mongodb/models";
 
 /** PostgreSQL → MongoDB 동기화 순서 (FK 의존성) */
@@ -27,14 +28,18 @@ interface SyncTableDef {
   pgTable: string;
   label: string;
   model: any;
+  /** upsert 필터 키 (기본 id) */
+  upsertKey?: string;
   /** upsert 시 Mongo 전용 필드 유지 */
   preserveOnUpdate?: string[];
   /** 신규 문서 기본값 */
   insertDefaults?: Record<string, unknown>;
+  /** 동기화 후 Mongo 시퀀스 카운터 이름 */
+  counterName?: string;
 }
 
 const SYNC_TABLES: SyncTableDef[] = [
-  { pgTable: "stadiums", label: "경기장", model: StadiumModel },
+  { pgTable: "stadiums", label: "경기장", model: StadiumModel, counterName: "stadium" },
   { pgTable: "users", label: "회원", model: UserModel, insertDefaults: { provider: "local" } },
   {
     pgTable: "admin_users",
@@ -50,21 +55,57 @@ const SYNC_TABLES: SyncTableDef[] = [
     preserveOnUpdate: ["registrationOrder", "createdAt"],
     insertDefaults: { registrationOrder: null, createdAt: new Date() },
   },
-  { pgTable: "attendance_records", label: "출석 기록", model: AttendanceRecordModel },
-  { pgTable: "posts", label: "게시글", model: PostModel },
-  { pgTable: "ebooks", label: "전자책", model: EbookModel },
-  { pgTable: "advertisements", label: "광고", model: AdvertisementModel },
-  { pgTable: "waiting_screens", label: "대기 화면", model: WaitingScreenModel },
-  { pgTable: "notices", label: "공지사항", model: NoticeModel },
-  { pgTable: "terms", label: "약관", model: TermModel },
-  { pgTable: "faqs", label: "FAQ", model: FaqModel },
-  { pgTable: "inquiries", label: "문의", model: InquiryModel },
-  { pgTable: "comments", label: "댓글", model: CommentModel },
-  { pgTable: "ebook_purchases", label: "전자책 구매", model: EbookPurchaseModel },
-  { pgTable: "point_transactions", label: "포인트 내역", model: PointTransactionModel },
-  { pgTable: "predictions", label: "예측", model: PredictionModel },
-  { pgTable: "round_statistics", label: "라운드 통계", model: RoundStatisticsModel },
-  { pgTable: "ad_view_history", label: "광고 시청 기록", model: AdViewHistoryModel },
+  {
+    pgTable: "attendance_records",
+    label: "출석 기록",
+    model: AttendanceRecordModel,
+    counterName: "attendanceRecord",
+  },
+  { pgTable: "posts", label: "게시글", model: PostModel, counterName: "post" },
+  { pgTable: "ebooks", label: "전자책", model: EbookModel, counterName: "ebook" },
+  {
+    pgTable: "advertisements",
+    label: "광고",
+    model: AdvertisementModel,
+    counterName: "advertisement",
+  },
+  {
+    pgTable: "waiting_screens",
+    label: "대기 화면",
+    model: WaitingScreenModel,
+    counterName: "waitingScreen",
+  },
+  { pgTable: "notices", label: "공지사항", model: NoticeModel, counterName: "notice" },
+  { pgTable: "terms", label: "약관", model: TermModel, counterName: "term" },
+  { pgTable: "faqs", label: "FAQ", model: FaqModel, counterName: "faq" },
+  { pgTable: "inquiries", label: "문의", model: InquiryModel, counterName: "inquiry" },
+  { pgTable: "comments", label: "댓글", model: CommentModel, counterName: "comment" },
+  {
+    pgTable: "ebook_purchases",
+    label: "전자책 구매",
+    model: EbookPurchaseModel,
+    counterName: "ebookPurchase",
+  },
+  {
+    pgTable: "point_transactions",
+    label: "포인트 내역",
+    model: PointTransactionModel,
+    counterName: "pointTransaction",
+  },
+  { pgTable: "predictions", label: "예측", model: PredictionModel, counterName: "prediction" },
+  {
+    pgTable: "round_statistics",
+    label: "라운드 통계",
+    model: RoundStatisticsModel,
+    counterName: "roundStatistics",
+  },
+  {
+    pgTable: "ad_view_history",
+    label: "광고 시청 기록",
+    model: AdViewHistoryModel,
+    counterName: "adViewHistory",
+  },
+  { pgTable: "counters", label: "시퀀스 카운터", model: CounterModel, upsertKey: "name" },
 ];
 
 const PG_FIELD_MAP: Record<string, string> = {
@@ -129,8 +170,30 @@ function snakeToCamel(key: string): string {
   return key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 
-function normalizePgValue(value: unknown): unknown {
+function formatDateOnly(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function normalizePgValue(value: unknown, mongoKey: string): unknown {
+  if (value === null || value === undefined) return value;
   if (typeof value === "bigint") return Number(value);
+  if (value instanceof Date) {
+    if (mongoKey === "matchDate") return formatDateOnly(value);
+    return value;
+  }
+  if (typeof value === "string" && mongoKey === "matchDate" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+  if (
+    typeof value === "string" &&
+    /^(true|false)$/i.test(value) &&
+    (mongoKey.startsWith("is") || mongoKey === "predictionEnabled" || mongoKey === "logoutAllowed")
+  ) {
+    return value.toLowerCase() === "true";
+  }
+  if (typeof value === "number" && (mongoKey.startsWith("is") && mongoKey !== "isSuspended" && mongoKey !== "isOnline")) {
+    return value !== 0;
+  }
   return value;
 }
 
@@ -139,7 +202,7 @@ function mapPgRow(row: Record<string, unknown>): Record<string, unknown> {
   for (const [pgKey, value] of Object.entries(row)) {
     if (value === undefined) continue;
     const mongoKey = PG_FIELD_MAP[pgKey] ?? snakeToCamel(pgKey);
-    mapped[mongoKey] = normalizePgValue(value);
+    mapped[mongoKey] = normalizePgValue(value, mongoKey);
   }
   return mapped;
 }
@@ -173,6 +236,15 @@ export interface SyncRunResult {
   pgDatabase?: string | null;
   totalRead?: number;
   totalWritten?: number;
+  countParity?: CountParityRow[];
+}
+
+export interface CountParityRow {
+  pgTable: string;
+  label: string;
+  postgresCount: number;
+  mongoCount: number;
+  match: boolean;
 }
 
 let lastSyncResult: SyncRunResult | null = null;
@@ -198,6 +270,8 @@ async function syncTable(
     modified: 0,
   };
 
+  const upsertKey = def.upsertKey ?? "id";
+
   let rows: Record<string, unknown>[];
   try {
     rows = (await pg.unsafe(`SELECT * FROM "${def.pgTable}"`)) as Record<string, unknown>[];
@@ -216,7 +290,7 @@ async function syncTable(
 
   const preserve = new Set(def.preserveOnUpdate ?? []);
   const CHUNK = 200;
-  let droppedNoId = 0;
+  let droppedNoKey = 0;
 
   for (let i = 0; i < rows.length; i += CHUNK) {
     const chunk = rows.slice(i, i + CHUNK);
@@ -224,8 +298,9 @@ async function syncTable(
 
     for (const row of chunk) {
       const doc = mapPgRow(row);
-      if (doc.id == null || doc.id === "") {
-        droppedNoId += 1;
+      const keyVal = doc[upsertKey];
+      if (keyVal == null || keyVal === "") {
+        droppedNoKey += 1;
         continue;
       }
       docs.push(doc);
@@ -233,27 +308,27 @@ async function syncTable(
 
     if (docs.length === 0) continue;
 
-    const ids = docs.map((d) => d.id);
+    const keyValues = docs.map((d) => d[upsertKey]);
     const needsExisting = preserve.size > 0 || !!def.insertDefaults;
-    const existingById = new Map<string, Record<string, unknown>>();
+    const existingByKey = new Map<string, Record<string, unknown>>();
 
     if (needsExisting) {
       const selectFields =
-        preserve.size > 0 ? ["id", ...Array.from(preserve)].join(" ") : "id";
+        preserve.size > 0 ? [upsertKey, ...Array.from(preserve)].join(" ") : upsertKey;
       const existingDocs = await def.model
-        .find({ id: { $in: ids } })
+        .find({ [upsertKey]: { $in: keyValues } })
         .select(selectFields)
         .lean();
       for (const ex of existingDocs) {
-        existingById.set(String((ex as { id: string }).id), ex as Record<string, unknown>);
+        existingByKey.set(String((ex as Record<string, unknown>)[upsertKey]), ex as Record<string, unknown>);
       }
     }
 
     const ops = docs.map((doc) => {
-      const existing = existingById.get(String(doc.id));
+      const existing = existingByKey.get(String(doc[upsertKey]));
 
       if (existing && preserve.size > 0) {
-        for (const key of preserve) {
+        for (const key of Array.from(preserve)) {
           const val = existing[key];
           if (val !== undefined && val !== null && val !== "") {
             doc[key] = val;
@@ -265,7 +340,7 @@ async function syncTable(
 
       return {
         updateOne: {
-          filter: { id: doc.id },
+          filter: { [upsertKey]: doc[upsertKey] },
           update: { $set: doc },
           upsert: true,
         },
@@ -273,7 +348,10 @@ async function syncTable(
     });
 
     try {
-      const bulk = await def.model.bulkWrite(ops, { ordered: false });
+      const bulk = await def.model.bulkWrite(ops, {
+        ordered: false,
+        bypassDocumentValidation: true,
+      });
       result.upserted += bulk.upsertedCount ?? 0;
       result.modified += bulk.modifiedCount ?? 0;
     } catch (error: unknown) {
@@ -281,14 +359,56 @@ async function syncTable(
     }
   }
 
-  if (droppedNoId > 0) {
-    result.droppedNoId = droppedNoId;
+  if (droppedNoKey > 0) {
+    result.droppedNoId = droppedNoKey;
     if (result.upserted === 0 && result.modified === 0) {
-      result.error = `id 없는 행 ${droppedNoId}건 — MongoDB에 저장하지 못했습니다.`;
+      result.error = `${upsertKey} 없는 행 ${droppedNoKey}건 — MongoDB에 저장하지 못했습니다.`;
     }
   }
 
   return result;
+}
+
+/** PG와 동일한 시퀀스 값을 Mongo counters에 반영 */
+async function rebuildMongoCounters(defs: SyncTableDef[]): Promise<void> {
+  for (const def of defs) {
+    if (!def.counterName) continue;
+    const latest = await def.model.findOne().sort({ id: -1 }).select("id").lean();
+    const maxId = (latest as { id?: number } | null)?.id;
+    if (typeof maxId !== "number" || maxId < 1) continue;
+    await CounterModel.updateOne(
+      { name: def.counterName },
+      { $set: { name: def.counterName, value: maxId } },
+      { upsert: true },
+    );
+  }
+}
+
+async function buildCountParity(
+  pg: postgres.Sql,
+  defs: SyncTableDef[],
+): Promise<CountParityRow[]> {
+  const rows: CountParityRow[] = [];
+  for (const def of defs) {
+    let postgresCount = 0;
+    try {
+      const countRows = await pg.unsafe(
+        `SELECT COUNT(*)::int AS count FROM "${def.pgTable}"`,
+      );
+      postgresCount = (countRows[0] as { count?: number })?.count ?? 0;
+    } catch {
+      continue;
+    }
+    const mongoCount = await def.model.countDocuments();
+    rows.push({
+      pgTable: def.pgTable,
+      label: def.label,
+      postgresCount,
+      mongoCount,
+      match: postgresCount === mongoCount,
+    });
+  }
+  return rows;
 }
 
 export function getSyncablePgTables(): string[] {
@@ -330,6 +450,7 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
   }
 
   let pgDatabase: string | null = null;
+  let countParity: CountParityRow[] = [];
 
   try {
     pgDatabase = await getPostgresDatabaseName(pg);
@@ -349,6 +470,11 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
           error: message,
         });
       }
+    }
+
+    if (!tables.some((t) => t.error && !t.skipped)) {
+      await rebuildMongoCounters(defs);
+      countParity = await buildCountParity(pg, defs);
     }
   } finally {
     await pg.end();
@@ -378,7 +504,11 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
     message =
       `PostgreSQL에서 ${totalRead}건을 읽었으나 MongoDB에 저장된 건이 0입니다. id 컬럼·스키마 검증 오류를 확인하세요.`;
   } else if (!hasErrors && totalWritten > 0) {
+    const mismatched = countParity.filter((r) => !r.match && r.postgresCount > 0);
     message = `${scopeLabel} (읽음 ${totalRead}건, 신규 ${tables.reduce((s, t) => s + t.upserted, 0)}, 갱신 ${tables.reduce((s, t) => s + t.modified, 0)})`;
+    if (mismatched.length > 0) {
+      message += ` — 건수 불일치: ${mismatched.map((r) => r.pgTable).join(", ")}`;
+    }
   }
 
   lastSyncResult = {
@@ -390,6 +520,7 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
     pgDatabase,
     totalRead,
     totalWritten,
+    countParity,
   };
 
   console.log(

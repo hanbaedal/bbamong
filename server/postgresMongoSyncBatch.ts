@@ -29,6 +29,9 @@ export function startPostgresMongoSyncBatch(): void {
   };
 
   console.log(`[PgMongoSync] 자동 동기화 시작 (간격 ${Math.round(safeInterval / 60000)}분)`);
+  if (process.env.PG_DATABASE_NAME?.trim()) {
+    console.log(`[PgMongoSync] PG_DATABASE_NAME=${process.env.PG_DATABASE_NAME.trim()}`);
+  }
   void run();
   intervalId = setInterval(run, safeInterval);
 }

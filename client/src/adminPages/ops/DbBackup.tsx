@@ -260,6 +260,10 @@ export default function DbBackupPage() {
                 <br />
                 · Neon 등 콘솔의 <strong>Connection string</strong> 전체를 복사해 넣으세요.
                 <br />
+                · URI가 <code className="bg-white px-1">/neondb</code> 인데 데이터는{" "}
+                <code className="bg-white px-1">ppadun9</code>에 있으면 Secret{" "}
+                <code className="bg-white px-1">PG_DATABASE_NAME=ppadun9</code> 추가.
+                <br />
                 · 저장 후 <strong>Repl 재시작</strong> 또는 <strong>Deploy 다시 실행</strong> 후 이 페이지를 새로고침하세요.
                 <br />
                 · <code className="bg-white px-1">MONGODB_URI</code>와는 별개입니다 (MongoDB는 이미 운영 중일 수 있음).

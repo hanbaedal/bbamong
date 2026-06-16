@@ -18,4 +18,6 @@ git log -3 --oneline
 
 echo ""
 echo "완료. Replit이면 Stop → Run 으로 서버를 재시작하세요."
+echo "PostgreSQL→MongoDB 전체 미러: npm run sync:pg-to-mongo"
+echo "  (Secrets에 PG_DATABASE_NAME=ppadun9 가 있으면 URI DB 이름을 덮어씁니다)"
 echo "브라우저에서 Ctrl+Shift+R (강력 새로고침)도 해 주세요."
