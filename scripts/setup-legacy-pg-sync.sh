@@ -1,7 +1,8 @@
 #!/bin/bash
 # 빠던9 PostgreSQL → PPAMONG MongoDB 연결·동기화 원스텝 가이드
 set -e
-cd "$(dirname "$0")"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
 
 echo "=== 1/3: GitHub 동기화 ==="
 git fetch origin main

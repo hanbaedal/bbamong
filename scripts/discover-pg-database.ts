@@ -80,9 +80,15 @@ async function main() {
   const source = getPostgresConnectionSource();
   const candidates = Array.from(
     new Set(
-      [current, "ppadun9", "neondb", "postgres", process.env.PG_DATABASE_NAME?.trim()].filter(
-        (v): v is string => !!v,
-      ),
+      [
+        current,
+        process.env.PGDATABASE?.trim(),
+        process.env.PG_DATABASE_NAME?.trim(),
+        "heliumdb",
+        "ppadun9",
+        "neondb",
+        "postgres",
+      ].filter((v): v is string => !!v),
     ),
   );
 
@@ -115,7 +121,9 @@ async function main() {
   if (!best) {
     console.log("users 테이블이 있는 DB를 찾지 못했습니다.");
     console.log("- Neon 콘솔에서 실제 데이터가 있는 프로젝트/DB인지 확인하세요.");
-    console.log("- DATABASE_URL 전체를 그 DB의 Connection string으로 바꿔 넣으세요.");
+    console.log("- 빠던9 Replit Shell에서: printenv DATABASE_URL  (다른 Neon URI일 수 있음)");
+    console.log("- PGHOST=helium 은 Replit 내부 DB로, PPAMONG Repl에서는 접근 불가합니다.");
+    console.log("- Secrets에 PG_DATABASE_NAME=heliumdb 후 다시 discover 해보세요.");
     process.exit(1);
   }
 
