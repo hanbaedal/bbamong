@@ -58,8 +58,8 @@ C:\PPADUN9\
 
 | 대상 | Android | iOS | App ID (현재) | 앱 시작 URL |
 |------|---------|-----|---------------|-------------|
-| **사용자** | `C:\PPADUN9\android` | `C:\PPADUN9\ios` | `com.bbanden.nine` | `https://ppamong.com/login` |
-| **매니저** | `web\android-manager` | `web\ios-manager-standalone` | `com.ppadun9.manager` | `https://ppamong.com/manager` |
+| **사용자** | `web\android` | (iOS 별도) | `com.ppamong.app` | `https://ppamong.com/login` |
+| **매니저** | `web\android-manager` | `web\ios-manager-standalone` | `com.ppamong.manager` | `https://ppamong.com/manager` |
 | **관리자** | 없음 | 없음 | — | 브라우저 `https://ppamong.com/admin` |
 
 Capacitor **원격 URL 모드**: 앱은 WebView로 `ppamong.com`을 연다.  
@@ -177,7 +177,7 @@ OAuth·SOLAPI는 로그인/문자 테스트 전에 추가.
 
 | 구분 | 사용자 앱 | 매ni저 앱 |
 |------|-----------|-----------|
-| App ID | `com.bbanden.nine` | `com.ppadun9.manager` |
+| App ID | `com.ppamong.app` | `com.ppamong.manager` |
 | Vite | `vite.config.ts` | `vite.manager.config.ts` |
 | Capacitor | `capacitor.config.ts` | `capacitor.config.manager.ts` |
 | 빌드 출력 | `dist/public` | `dist-manager/public` |

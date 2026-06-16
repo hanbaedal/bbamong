@@ -96,7 +96,7 @@ export default function CustomerCenterPage() {
         {activeTab === "inquiry" && (
           <div className="mt-5 mb-5 bg-[#0C0C0C] py-[10px] px-[20px]">
             <p className="text-[#D5D5D5] text-sm">
-              고객센터 문의는 ppadun923@gmail.com 입니다.
+              고객센터 문의는 PPAMONG 앱 내 문의하기를 이용해 주세요.
             </p>
           </div>
         )}

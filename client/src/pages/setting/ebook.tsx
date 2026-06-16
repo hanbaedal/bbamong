@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -16,6 +17,7 @@ interface DonatedPointsData {
 
 export default function EbookPage() {
   const { user, setUser } = useUser();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"available" | "owned">(
     "available",
@@ -117,10 +119,9 @@ export default function EbookPage() {
   };
 
   const handleConfirmOpen = () => {
-    // 팝업 확인 후 네이버 카페로 이동
     setShowConfirm(false);
     setSelectedEbook(null);
-    window.open("https://m.cafe.naver.com/ca-fe/ppadun9.cafe?tc=cafe_home", "_blank");
+    setLocation("/customer-center");
   };
   // 구매한 전자책 ID 목록
   const purchasedEbookIds = purchases.map((p) => p.ebookId);
@@ -264,7 +265,7 @@ export default function EbookPage() {
               <p className="text-center text-[#E9E9E9] font-[Pretendard] font-normal text-[16px] leading-[140%] tracking-[-0.025em] whitespace-pre-line">
                 {activeTab === "available"
                   ? `참여 기록으로 전자책을 교환하시겠어요?\n누적 참여 기록에서 ${selectedEbook.price.toLocaleString()}가 차감됩니다.`
-                  : `전자책 교환 서비스를 진행하기 위해\n빠던9 네이버 카페로 연결됩니다.\n이동하시겠습니까?`}
+                  : `전자책 교환 문의는 PPAMONG 고객센터로 이동합니다.\n이동하시겠습니까?`}
               </p>
             </div>
             <div className="w-full flex flex-row justify-center items-center gap-2 px-2">

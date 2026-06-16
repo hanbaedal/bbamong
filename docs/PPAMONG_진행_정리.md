@@ -83,8 +83,8 @@ C:\PPADUN9\
 
 **미변경 (선택 리브랜딩)**
 
-- 앱 ID `com.bbanden.nine`, `com.ppadun9.manager`
-- 딥링크 `ppadun9://`, `ppadun9manager://`
+- 앱 ID `com.ppamong.app`, `com.ppamong.manager` (레거시 빠던9 `com.bbanden.nine` / `com.ppadun9.manager` 와 **분리**)
+- 딥링크 `ppamong://`, `ppamongmanager://`
 
 ### 4-3. PostgreSQL 데이터
 

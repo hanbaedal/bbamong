@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">빠던9 매니저</string>
-    <string name="title_activity_main">빠던9 매니저</string>
-    <string name="package_name">com.ppadun9.manager</string>
-    <string name="custom_url_scheme">com.ppadun9.manager</string>
+    <string name="app_name">PPAMONG 매니저</string>
+    <string name="title_activity_main">PPAMONG 매니저</string>
+    <string name="package_name">com.ppamong.manager</string>
+    <string name="custom_url_scheme">ppamongmanager</string>
 </resources>

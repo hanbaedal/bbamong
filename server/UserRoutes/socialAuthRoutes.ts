@@ -8,6 +8,11 @@ import { createSession, hasActiveSession, deleteSession } from "../sessionManage
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { UserModel } from "../UserStorage/db";
+import {
+  PPAMONG_USER_APP_ID,
+  PPAMONG_USER_DEEPLINK_PREFIX,
+  PPAMONG_USER_DEEPLINK_SCHEME,
+} from "../../shared/appIdentity";
 import { getRedisClient } from "../redis";
 
 const AUTH_CODE_PREFIX = "authcode:";
@@ -161,7 +166,7 @@ function parseAppleUserInfo(idToken: string, userName?: { firstName?: string; la
 }
 
 function sendAuthResponse(res: Response, deeplink: string, provider: string, isCapacitor: boolean, isIOS: boolean = false): void {
-  const deeplinkUrl = new URL(deeplink.replace('ppadun9://', 'https://dummy/'));
+  const deeplinkUrl = new URL(deeplink.replace(PPAMONG_USER_DEEPLINK_PREFIX, 'https://dummy/'));
   const webFallbackUrl = '/login?' + deeplinkUrl.searchParams.toString();
   
   if (!isCapacitor) {
@@ -182,11 +187,11 @@ function sendAuthResponse(res: Response, deeplink: string, provider: string, isC
 
 // 딥링크 리다이렉트 HTML 페이지 생성 (iOS: 커스텀 스킴, Android: intent://)
 function generateDeeplinkRedirectHtml(deeplink: string, provider: string): string {
-  const deeplinkUrl = new URL(deeplink.replace('ppadun9://', 'https://dummy/'));
+  const deeplinkUrl = new URL(deeplink.replace(PPAMONG_USER_DEEPLINK_PREFIX, 'https://dummy/'));
   const webFallbackUrl = '/login?' + deeplinkUrl.searchParams.toString();
   
-  const intentPath = deeplink.replace('ppadun9://', '');
-  const intentUrl = `intent://${intentPath}#Intent;scheme=ppadun9;package=com.bbanden.nine;S.browser_fallback_url=${encodeURIComponent(webFallbackUrl)};end`;
+  const intentPath = deeplink.replace(PPAMONG_USER_DEEPLINK_PREFIX, '');
+  const intentUrl = `intent://${intentPath}#Intent;scheme=${PPAMONG_USER_DEEPLINK_SCHEME};package=${PPAMONG_USER_APP_ID};S.browser_fallback_url=${encodeURIComponent(webFallbackUrl)};end`;
   
   return `
 <!DOCTYPE html>
@@ -341,7 +346,7 @@ export function registerSocialAuthRoutes(app: Express) {
       
       if (!code || typeof code !== 'string') {
         console.error('[카카오] 인증 코드 없음');
-        return sendAuthResponse(res, 'ppadun9://auth?error=no_code', 'kakao', isCapacitor, isIOS);
+        return sendAuthResponse(res, 'ppamong://auth?error=no_code', 'kakao', isCapacitor, isIOS);
       }
 
       const config = getOAuthConfig('kakao');
@@ -363,7 +368,7 @@ export function registerSocialAuthRoutes(app: Express) {
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.text();
         console.error('[카카오] 토큰 교환 실패:', errorData);
-        return sendAuthResponse(res, 'ppadun9://auth?error=token_exchange_failed', 'kakao', isCapacitor, isIOS);
+        return sendAuthResponse(res, 'ppamong://auth?error=token_exchange_failed', 'kakao', isCapacitor, isIOS);
       }
 
       const tokenData = await tokenResponse.json();
@@ -378,7 +383,7 @@ export function registerSocialAuthRoutes(app: Express) {
       if (!userInfoResponse.ok) {
         const errorText = await userInfoResponse.text();
         console.error('[카카오] 사용자 정보 조회 실패:', errorText);
-        return sendAuthResponse(res, 'ppadun9://auth?error=user_info_failed', 'kakao', isCapacitor, isIOS);
+        return sendAuthResponse(res, 'ppamong://auth?error=user_info_failed', 'kakao', isCapacitor, isIOS);
       }
 
       const userInfo = await userInfoResponse.json();
@@ -401,12 +406,12 @@ export function registerSocialAuthRoutes(app: Express) {
           phone: parsedInfo.phone || null,
         });
         console.log('[카카오] 신규 사용자 - 임시 데이터 저장, 추가정보 입력 필요');
-        return sendAuthResponse(res, `ppadun9://auth?kakao_login=success&code=${pendingCode}&needs_onboarding=true`, 'kakao', isCapacitor, isIOS);
+        return sendAuthResponse(res, `ppamong://auth?kakao_login=success&code=${pendingCode}&needs_onboarding=true`, 'kakao', isCapacitor, isIOS);
       }
 
       // 기존 사용자 재로그인
       if (user.isSuspended === 1) {
-        return sendAuthResponse(res, 'ppadun9://auth?error=suspended', 'kakao', isCapacitor, isIOS);
+        return sendAuthResponse(res, 'ppamong://auth?error=suspended', 'kakao', isCapacitor, isIOS);
       }
 
       const hasSession = await hasActiveSession("user", user.id);
@@ -436,10 +441,10 @@ export function registerSocialAuthRoutes(app: Express) {
         refreshToken: jwtRefreshToken,
       });
       
-      sendAuthResponse(res, `ppadun9://auth?kakao_login=success&code=${authCode}`, 'kakao', isCapacitor, isIOS);
+      sendAuthResponse(res, `ppamong://auth?kakao_login=success&code=${authCode}`, 'kakao', isCapacitor, isIOS);
     } catch (error) {
       console.error('카카오 로그인 에러:', error);
-      sendAuthResponse(res, 'ppadun9://auth?error=login_failed', 'kakao', isCapacitor, isIOS);
+      sendAuthResponse(res, 'ppamong://auth?error=login_failed', 'kakao', isCapacitor, isIOS);
     }
   });
 
@@ -503,7 +508,7 @@ export function registerSocialAuthRoutes(app: Express) {
       
       if (!code || typeof code !== 'string') {
         console.error('[구글] 인증 코드 없음');
-        return sendAuthResponse(res, 'ppadun9://auth?error=no_code', 'google', isCapacitor, isIOS);
+        return sendAuthResponse(res, 'ppamong://auth?error=no_code', 'google', isCapacitor, isIOS);
       }
 
       const config = getOAuthConfig('google');
@@ -524,7 +529,7 @@ export function registerSocialAuthRoutes(app: Express) {
       if (!tokenResponse.ok) {
         const errorData = await tokenResponse.text();
         console.error('[구글] 토큰 교환 실패:', errorData);
-        return sendAuthResponse(res, 'ppadun9://auth?error=token_exchange_failed', 'google', isCapacitor, isIOS);
+        return sendAuthResponse(res, 'ppamong://auth?error=token_exchange_failed', 'google', isCapacitor, isIOS);
       }
 
       const tokenData = await tokenResponse.json();
@@ -539,7 +544,7 @@ export function registerSocialAuthRoutes(app: Express) {
       if (!userInfoResponse.ok) {
         const errorText = await userInfoResponse.text();
         console.error('[구글] 사용자 정보 조회 실패:', errorText);
-        return sendAuthResponse(res, 'ppadun9://auth?error=user_info_failed', 'google', isCapacitor, isIOS);
+        return sendAuthResponse(res, 'ppamong://auth?error=user_info_failed', 'google', isCapacitor, isIOS);
       }
 
       const userInfo = await userInfoResponse.json();
@@ -559,12 +564,12 @@ export function registerSocialAuthRoutes(app: Express) {
           phone: parsedInfo.phone || null,
         });
         console.log('[구글] 신규 사용자 - 임시 데이터 저장, 추가정보 입력 필요');
-        return sendAuthResponse(res, `ppadun9://auth?google_login=success&code=${pendingCode}&needs_onboarding=true`, 'google', isCapacitor, isIOS);
+        return sendAuthResponse(res, `ppamong://auth?google_login=success&code=${pendingCode}&needs_onboarding=true`, 'google', isCapacitor, isIOS);
       }
 
       // 기존 사용자 재로그인
       if (user.isSuspended === 1) {
-        return sendAuthResponse(res, 'ppadun9://auth?error=suspended', 'google', isCapacitor, isIOS);
+        return sendAuthResponse(res, 'ppamong://auth?error=suspended', 'google', isCapacitor, isIOS);
       }
 
       const hasSession = await hasActiveSession("user", user.id);
@@ -594,10 +599,10 @@ export function registerSocialAuthRoutes(app: Express) {
         refreshToken: jwtRefreshToken,
       });
       
-      sendAuthResponse(res, `ppadun9://auth?google_login=success&code=${authCode}`, 'google', isCapacitor, isIOS);
+      sendAuthResponse(res, `ppamong://auth?google_login=success&code=${authCode}`, 'google', isCapacitor, isIOS);
     } catch (error) {
       console.error('구글 로그인 에러:', error);
-      sendAuthResponse(res, 'ppadun9://auth?error=login_failed', 'google', isCapacitor, isIOS);
+      sendAuthResponse(res, 'ppamong://auth?error=login_failed', 'google', isCapacitor, isIOS);
     }
   });
 
@@ -661,7 +666,7 @@ export function registerSocialAuthRoutes(app: Express) {
       
       if (!id_token) {
         console.error('[애플] ID 토큰 없음');
-        return sendAuthResponse(res, 'ppadun9://auth?error=no_token', 'apple', isCapacitor, isIOS);
+        return sendAuthResponse(res, 'ppamong://auth?error=no_token', 'apple', isCapacitor, isIOS);
       }
 
       // 애플은 첫 로그인 시에만 user 정보를 전달
@@ -691,12 +696,12 @@ export function registerSocialAuthRoutes(app: Express) {
           phone: parsedInfo.phone || null,
         });
         console.log('[애플] 신규 사용자 - 임시 데이터 저장, 추가정보 입력 필요');
-        return sendAuthResponse(res, `ppadun9://auth?apple_login=success&code=${pendingCode}&needs_onboarding=true`, 'apple', isCapacitor, isIOS);
+        return sendAuthResponse(res, `ppamong://auth?apple_login=success&code=${pendingCode}&needs_onboarding=true`, 'apple', isCapacitor, isIOS);
       }
 
       // 기존 사용자 재로그인
       if (user.isSuspended === 1) {
-        return sendAuthResponse(res, 'ppadun9://auth?error=suspended', 'apple', isCapacitor, isIOS);
+        return sendAuthResponse(res, 'ppamong://auth?error=suspended', 'apple', isCapacitor, isIOS);
       }
 
       const hasSession = await hasActiveSession("user", user.id);
@@ -726,10 +731,10 @@ export function registerSocialAuthRoutes(app: Express) {
         refreshToken: jwtRefreshToken,
       });
       
-      sendAuthResponse(res, `ppadun9://auth?apple_login=success&code=${authCode}`, 'apple', isCapacitor, isIOS);
+      sendAuthResponse(res, `ppamong://auth?apple_login=success&code=${authCode}`, 'apple', isCapacitor, isIOS);
     } catch (error) {
       console.error('애플 로그인 에러:', error);
-      sendAuthResponse(res, 'ppadun9://auth?error=login_failed', 'apple', isCapacitor, isIOS);
+      sendAuthResponse(res, 'ppamong://auth?error=login_failed', 'apple', isCapacitor, isIOS);
     }
   });
 

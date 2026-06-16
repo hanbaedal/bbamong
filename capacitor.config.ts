@@ -1,11 +1,11 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.bbanden.nine",
-  appName: "빠던9",
-  webDir: "dist/public",
+  appId: "com.ppamong.manager",
+  appName: "PPAMONG 매니저",
+  webDir: "dist-manager/public",
   server: {
-    url: "https://ppamong.com/login",
+    url: "https://ppamong.com/manager",
     allowNavigation: [
       "https://ppamong.com",
       "https://kauth.kakao.com",
@@ -19,23 +19,17 @@ const config: CapacitorConfig = {
     App: {},
     Keyboard: {
       resize: "none",
-      style: "dark",
-    },
-    SplashScreen: {
-      launchShowDuration: 0,
-      launchAutoHide: true,
-      backgroundColor: "#111111",
-      showSpinner: false,
-      launchFadeOutDuration: 0,
+      style: "light",
     },
   },
   android: {
     allowMixedContent: true,
-    path: "android",
+    path: "android-manager",
   },
   ios: {
     contentInset: "never",
-    backgroundColor: "#111111",
+    backgroundColor: "#FFFFFF",
+    path: "ios-manager-standalone",
   },
 };
 

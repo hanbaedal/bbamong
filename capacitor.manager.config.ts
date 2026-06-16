@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.ppadun9.manager",
-  appName: "빠던9 매니저",
+  appId: "com.ppamong.manager",
+  appName: "PPAMONG 매니저",
   webDir: "dist-manager/public",
   server: {
     url: "https://ppamong.com/manager",

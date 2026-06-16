@@ -1,4 +1,4 @@
-package com.ppadun9.manager;
+package com.ppamong.app;
 
 import android.os.Bundle;
 import android.webkit.WebSettings;

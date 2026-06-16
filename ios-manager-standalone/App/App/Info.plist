@@ -5,7 +5,7 @@
         <key>CFBundleDevelopmentRegion</key>
         <string>en</string>
         <key>CFBundleDisplayName</key>
-        <string>빠던9 매니저</string>
+        <string>PPAMONG 매니저</string>
         <key>CFBundleExecutable</key>
         <string>$(EXECUTABLE_NAME)</string>
         <key>CFBundleIdentifier</key>
@@ -58,10 +58,10 @@
         <array>
                 <dict>
                         <key>CFBundleURLName</key>
-                        <string>com.ppadun9.manager</string>
+                        <string>com.ppamong.manager</string>
                         <key>CFBundleURLSchemes</key>
                         <array>
-                                <string>ppadun9manager</string>
+                                <string>ppamongmanager</string>
                         </array>
                 </dict>
         </array>
