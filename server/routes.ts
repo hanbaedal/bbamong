@@ -31,9 +31,11 @@ import {adminAdmobRoutes} from "./routes/adminAdmobRoutes"
 import { managerRoutes } from "./routes/managerRoutes"
 import predictionRoutes from "./liveMatch/predictionRoutes"
 import matchControlRoutes from "./liveMatch/matchControlRoutes"
+import { healthRoutes } from "./routes/healthRoutes"
 
 export async function registerRoutes(app: Express): Promise<void> {
 
+  await healthRoutes(app)
   await userRoutes(app)
   await pointRoutes(app)
   await stadiumRoutes(app)

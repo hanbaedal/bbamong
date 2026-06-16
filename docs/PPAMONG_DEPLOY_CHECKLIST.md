@@ -134,9 +134,21 @@ Replit Repl에 내장 Redis(`127.0.0.1:6379`)를 쓰는 경우 **추가 Secrets 
 |--------|
 | `ADMOB_REFRESH_TOKEN`, `ADMOB_CLIENT_ID`, `ADMOB_CLIENT_SECRET`, `ADMOB_PUBLISHER_ID` |
 
-### 더 이상 사용하지 않음
+### 공통 PostgreSQL → MongoDB 「받기」(선택)
 
-- ~~`DATABASE_URL`~~ → PostgreSQL/Drizzle 제거됨. **`MONGODB_URI` 사용**
+관리자 **업무 관리 → 디비 백업하기** 에서 다른 프로그램과 공유하는 PostgreSQL 데이터를 MongoDB로 가져올 때만 필요합니다.
+
+| Secret | 설명 |
+|--------|------|
+| `DATABASE_URL` | `postgresql://USER:PASSWORD@HOST:5432/DBNAME?sslmode=require` **전체 URI** (비밀번호만 넣지 말 것) |
+| `PG_MONGO_SYNC_ENABLED` | `true` 일 때만 백그라운드 자동 가져오기 (기본 꺼짐) |
+| `PG_MONGO_SYNC_INTERVAL_MS` | 자동 간격 ms (기본 1800000 = 30분) |
+
+Neon 사용 시: Dashboard → Connection string → **URI** 복사 → Replit Secrets에 `DATABASE_URL` 로 붙여넣기.
+
+### 더 이상 주 DB로 사용하지 않음
+
+- PPAMONG **운영 DB**는 **`MONGODB_URI`** (Atlas) 입니다. `DATABASE_URL` 없이도 사이트·앱은 동작합니다.
 
 ---
 

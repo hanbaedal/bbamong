@@ -209,8 +209,24 @@ export default function DbBackupPage() {
           「받기」를 누르면 해당 테이블 데이터를 PPAMONG 운영 DB인 <strong>MongoDB</strong>에
           저장(upsert)합니다. PostgreSQL에는 쓰지 않습니다.
           {!data?.postgresConfigured && (
-            <span className="block mt-2 text-[#E11936]">
-              DATABASE_URL(공통 PostgreSQL)이 설정되지 않았습니다.
+            <span className="block mt-3 p-3 rounded-lg border border-[#F5C6CB] bg-[#FFF5F5] text-[#201E22]">
+              <strong className="text-[#E11936]">DATABASE_URL(공통 PostgreSQL)이 설정되지 않았습니다.</strong>
+              <span className="block mt-2 text-xs leading-relaxed text-[#555]">
+                Replit <strong>Tools → Secrets</strong>에 아래처럼 등록해야 「받기」가 동작합니다.
+                <br />
+                · Secret 이름: <code className="bg-white px-1">DATABASE_URL</code> (비밀번호만 따로 넣으면 안 됩니다)
+                <br />
+                · 값 형식:{" "}
+                <code className="bg-white px-1 break-all">
+                  postgresql://사용자:비밀번호@호스트:5432/DB이름?sslmode=require
+                </code>
+                <br />
+                · Neon 등 콘솔의 <strong>Connection string</strong> 전체를 복사해 넣으세요.
+                <br />
+                · 저장 후 <strong>Repl 재시작</strong> 또는 <strong>Deploy 다시 실행</strong> 후 이 페이지를 새로고침하세요.
+                <br />
+                · <code className="bg-white px-1">MONGODB_URI</code>와는 별개입니다 (MongoDB는 이미 운영 중일 수 있음).
+              </span>
             </span>
           )}
         </p>
