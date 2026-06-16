@@ -29,9 +29,9 @@ const config: CapacitorConfig = {
       launchFadeOutDuration: 0,
     },
   },
-  // Android 딥링크 설정 (androidScheme)
   android: {
     allowMixedContent: true,
+    path: "android",
   },
   ios: {
     contentInset: "never",

@@ -27,8 +27,8 @@ jobs:
         run: |
           mkdir -p dist/public
           printf '<!doctype html><html><head><meta charset="utf-8"><title>bbamong</title></head><body></body></html>' > dist/public/index.html
-      - name: Add Android platform
-        run: npx cap add android
+      - name: Sync Android
+        run: npx cap sync android
       - name: Build debug APK
         run: |
           cd android
