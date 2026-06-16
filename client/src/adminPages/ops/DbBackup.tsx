@@ -251,7 +251,13 @@ export default function DbBackupPage() {
               <span className="block mt-2 text-xs leading-relaxed text-[#555]">
                 Replit <strong>Tools → Secrets</strong>에 아래처럼 등록해야 「받기」가 동작합니다.
                 <br />
-                · Secret 이름: <code className="bg-white px-1">DATABASE_URL</code> (비밀번호만 따로 넣으면 안 됩니다)
+                · 방법 A (빠던9와 동일):{" "}
+                <code className="bg-white px-1">PGHOST</code>,{" "}
+                <code className="bg-white px-1">PGUSER</code>,{" "}
+                <code className="bg-white px-1">PGPASSWORD</code>,{" "}
+                <code className="bg-white px-1">PGDATABASE=ppadun9</code>
+                <br />
+                · 방법 B: Secret 이름 <code className="bg-white px-1">DATABASE_URL</code> (전체 URI)
                 <br />
                 · 값 형식:{" "}
                 <code className="bg-white px-1 break-all">

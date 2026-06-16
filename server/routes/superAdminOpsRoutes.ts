@@ -9,6 +9,7 @@ import {
   syncPostgresTablesToMongo,
   syncPostgresToMongo,
 } from "../storage/postgresToMongoSync";
+import { isPostgresConfigured } from "../storage/postgresClient";
 
 export async function superAdminOpsRoutes(app: Express): Promise<void> {
   app.get("/api/admin/ops/db-tables", superAdminAuthMiddleware, async (_req, res) => {
@@ -17,8 +18,8 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
       res.json({
         tables,
         primarySource: "mongodb",
-        postgresConfigured: !!process.env.DATABASE_URL,
-        syncIntervalMinutes: process.env.DATABASE_URL && process.env.PG_MONGO_SYNC_ENABLED === "true"
+        postgresConfigured: isPostgresConfigured(),
+        syncIntervalMinutes: isPostgresConfigured() && process.env.PG_MONGO_SYNC_ENABLED === "true"
           ? Math.round(
               parseInt(process.env.PG_MONGO_SYNC_INTERVAL_MS || "1800000", 10) / 60000,
             ) || 30
@@ -64,7 +65,7 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
 
   app.get("/api/admin/ops/sync-postgres-to-mongo/status", superAdminAuthMiddleware, async (_req, res) => {
     res.json({
-      postgresConfigured: !!process.env.DATABASE_URL,
+      postgresConfigured: isPostgresConfigured(),
       syncRunning: isPostgresMongoSyncRunning(),
       lastSync: getLastPostgresMongoSyncResult(),
     });

@@ -4,11 +4,18 @@
  */
 import { connectMongoDB, disconnectMongoDB } from "../server/UserStorage/db";
 import { syncPostgresToMongo } from "../server/storage/postgresToMongoSync";
-import { normalizeDatabaseUrl } from "../server/storage/postgresClient";
+import {
+  getPostgresConnectionSource,
+  getPostgresDatabaseName,
+  getPostgresClient,
+  isPostgresConfigured,
+} from "../server/storage/postgresClient";
 
 async function main() {
-  if (!process.env.DATABASE_URL?.trim()) {
-    console.error("DATABASE_URL이 없습니다. Replit Secrets 또는 .env를 확인하세요.");
+  if (!isPostgresConfigured()) {
+    console.error("PostgreSQL Secrets가 없습니다.");
+    console.error("빠던9 Replit과 동일하게 PGHOST·PGUSER·PGPASSWORD·PGDATABASE=ppadun9");
+    console.error("또는 DATABASE_URL 전체 URI를 설정하세요.");
     process.exit(1);
   }
   if (!process.env.MONGODB_URI?.trim()) {
@@ -16,9 +23,13 @@ async function main() {
     process.exit(1);
   }
 
-  const effectiveUrl = normalizeDatabaseUrl(process.env.DATABASE_URL);
-  const dbHint = process.env.PG_DATABASE_NAME?.trim() || "(URI 경로)";
-  console.log(`PostgreSQL 대상 DB: ${dbHint}`);
+  const source = getPostgresConnectionSource();
+  const pg = getPostgresClient();
+  const dbName = pg ? await getPostgresDatabaseName(pg) : null;
+  if (pg) await pg.end();
+
+  console.log(`PostgreSQL 연결: ${source === "pg-parts" ? "PGHOST·PGUSER·… (빠던9)" : "DATABASE_URL"}`);
+  console.log(`PostgreSQL DB: ${dbName ?? process.env.PGDATABASE ?? process.env.PG_DATABASE_NAME ?? "?"}`);
   console.log(`MongoDB: ${process.env.MONGODB_DB_NAME || "ppamong"}\n`);
 
   await connectMongoDB();

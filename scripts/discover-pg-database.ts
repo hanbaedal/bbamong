@@ -2,7 +2,11 @@
  * Neon/PostgreSQL — 어느 DB에 레거시 테이블·데이터가 있는지 탐색
  * 실행: npx tsx scripts/discover-pg-database.ts
  */
-import { normalizeDatabaseUrl } from "../server/storage/postgresClient";
+import {
+  getPostgresConnectionSource,
+  isPostgresConfigured,
+  resolveDatabaseUrl,
+} from "../server/storage/postgresClient";
 
 function replaceDbName(url: string, dbName: string): string {
   return url.replace(/^(postgresql:\/\/[^/]+)\/[^?]*/i, `$1/${encodeURIComponent(dbName)}`);
@@ -14,7 +18,7 @@ function dbNameFromUrl(url: string): string | null {
 }
 
 async function probeDatabase(baseUrl: string, dbName: string) {
-  const url = replaceDbName(normalizeDatabaseUrl(baseUrl), dbName);
+  const url = replaceDbName(baseUrl, dbName);
   const postgres = (await import("postgres")).default;
   const pg = postgres(url, { max: 1, connect_timeout: 8 });
 
@@ -65,13 +69,15 @@ async function probeDatabase(baseUrl: string, dbName: string) {
 }
 
 async function main() {
-  const baseUrl = process.env.DATABASE_URL?.trim();
-  if (!baseUrl) {
-    console.error("DATABASE_URL이 없습니다. Replit Secrets를 확인하세요.");
+  const baseUrl = resolveDatabaseUrl();
+  if (!baseUrl || !isPostgresConfigured()) {
+    console.error("PostgreSQL Secrets가 없습니다.");
+    console.error("DATABASE_URL 또는 PGHOST·PGUSER·PGPASSWORD·PGDATABASE(ppadun9)를 설정하세요.");
     process.exit(1);
   }
 
   const current = dbNameFromUrl(baseUrl);
+  const source = getPostgresConnectionSource();
   const candidates = Array.from(
     new Set(
       [current, "ppadun9", "neondb", "postgres", process.env.PG_DATABASE_NAME?.trim()].filter(
@@ -81,7 +87,8 @@ async function main() {
   );
 
   console.log("=== PostgreSQL DB 탐색 ===\n");
-  console.log(`URI 기본 DB: ${current ?? "(없음)"}`);
+  console.log(`연결 방식: ${source === "pg-parts" ? "PGHOST·PGUSER·… (빠던9)" : "DATABASE_URL"}`);
+  console.log(`대상 DB: ${current ?? "(없음)"}`);
   console.log(`PG_DATABASE_NAME: ${process.env.PG_DATABASE_NAME?.trim() || "(미설정)"}\n`);
 
   const results = [];

@@ -1,12 +1,13 @@
 import { syncPostgresToMongo } from "./storage/postgresToMongoSync";
+import { isPostgresConfigured } from "./storage/postgresClient";
 
 const DEFAULT_INTERVAL_MS = 30 * 60 * 1000;
 
 let intervalId: NodeJS.Timeout | null = null;
 
 export function startPostgresMongoSyncBatch(): void {
-  if (!process.env.DATABASE_URL) {
-    console.log("[PgMongoSync] DATABASE_URL 미설정 — PostgreSQL→MongoDB 자동 동기화 비활성");
+  if (!isPostgresConfigured()) {
+    console.log("[PgMongoSync] PostgreSQL 미설정 — PostgreSQL→MongoDB 자동 동기화 비활성");
     return;
   }
 
@@ -31,6 +32,8 @@ export function startPostgresMongoSyncBatch(): void {
   console.log(`[PgMongoSync] 자동 동기화 시작 (간격 ${Math.round(safeInterval / 60000)}분)`);
   if (process.env.PG_DATABASE_NAME?.trim()) {
     console.log(`[PgMongoSync] PG_DATABASE_NAME=${process.env.PG_DATABASE_NAME.trim()}`);
+  } else if (process.env.PGDATABASE?.trim()) {
+    console.log(`[PgMongoSync] PGDATABASE=${process.env.PGDATABASE.trim()}`);
   }
   void run();
   intervalId = setInterval(run, safeInterval);

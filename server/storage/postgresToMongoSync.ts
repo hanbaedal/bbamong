@@ -1,5 +1,5 @@
 import type postgres from "postgres";
-import { getPostgresClient, getPostgresDatabaseName } from "./postgresClient";
+import { getPostgresClient, getPostgresDatabaseName, isPostgresConfigured } from "./postgresClient";
 import {
   UserModel,
   AdminUserModel,
@@ -432,8 +432,10 @@ function resolveSyncDefs(pgTables?: string[]): SyncTableDef[] {
 }
 
 async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL이 설정되지 않았습니다.");
+  if (!isPostgresConfigured()) {
+    throw new Error(
+      "PostgreSQL이 설정되지 않았습니다. DATABASE_URL 또는 PGHOST·PGUSER·PGPASSWORD·PGDATABASE를 확인하세요.",
+    );
   }
   if (syncInProgress) {
     throw new Error("동기화가 이미 실행 중입니다.");

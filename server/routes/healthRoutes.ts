@@ -2,8 +2,10 @@ import type { Express } from "express";
 import pgDriver from "postgres";
 import { mongoose } from "../UserStorage/db";
 import {
+  getPostgresConnectionSource,
   getPostgresDatabaseName,
-  normalizeDatabaseUrl,
+  isPostgresConfigured,
+  resolveDatabaseUrl,
 } from "../storage/postgresClient";
 
 export async function healthRoutes(app: Express): Promise<void> {
@@ -16,20 +18,22 @@ export async function healthRoutes(app: Express): Promise<void> {
       label: string;
       hint: string;
       database?: string | null;
+      connectionSource?: "pg-parts" | "database-url";
       sampleCounts?: { users: number | null; stadiums: number | null };
     };
 
-    if (!process.env.DATABASE_URL?.trim()) {
+    if (!isPostgresConfigured()) {
       postgresql = {
         secretSet: false,
         connected: false,
         label: "미설정",
-        hint: "Replit Secrets에 DATABASE_URL(전체 postgresql:// URI)을 추가한 뒤 Repl을 재시작하세요.",
+        hint: "Replit Secrets에 DATABASE_URL 또는 PGHOST·PGUSER·PGPASSWORD·PGDATABASE(ppadun9)를 추가하세요.",
       };
     } else {
       let pg: ReturnType<typeof pgDriver> | null = null;
+      const connectionUrl = resolveDatabaseUrl()!;
       try {
-        pg = pgDriver(normalizeDatabaseUrl(process.env.DATABASE_URL), {
+        pg = pgDriver(connectionUrl, {
           max: 1,
           connect_timeout: 8,
         });
@@ -55,9 +59,10 @@ export async function healthRoutes(app: Express): Promise<void> {
           label: "연결됨",
           hint:
             users === 0 && stadiums === 0
-              ? `DB「${database ?? "?"}」에 users/stadiums 데이터가 0건입니다. URI의 DB 이름이 맞는지 확인하세요.`
+              ? `DB「${database ?? "?"}」에 users/stadiums 데이터가 0건입니다. 빠던9 Replit의 PGHOST·PGDATABASE(ppadun9)를 확인하세요.`
               : "디비 백업하기에서 「받기」를 사용할 수 있습니다.",
           database,
+          connectionSource: getPostgresConnectionSource() ?? undefined,
           sampleCounts: { users, stadiums },
         };
       } catch {
