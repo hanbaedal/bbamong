@@ -60,23 +60,34 @@ function normalizeDatabaseUrl(url) {
   return trimmed;
 }
 
-function resolveDatabaseUrl() {
+function isExternalPgHost(host) {
+  return host.includes(".") && !/^\d+$/.test(host);
+}
+
+function buildUrlFromParts() {
   const host = process.env.PGHOST?.trim();
   const user = process.env.PGUSER?.trim();
   const password = process.env.PGPASSWORD;
-  if (host && user && password !== undefined && password !== "") {
-    const port = process.env.PGPORT?.trim() || "5432";
-    const database =
-      process.env.PGDATABASE?.trim() ||
-      process.env.PG_DATABASE_NAME?.trim() ||
-      "ppadun9";
-    return {
-      source: "pg-parts",
-      url: `postgresql://${encode(user)}:${encode(password)}@${host}:${port}/${encode(database)}?sslmode=require`,
-      database,
-      host,
-    };
-  }
+  if (!host || !user || password === undefined || password === "") return null;
+  if (!isExternalPgHost(host)) return null;
+
+  const port = process.env.PGPORT?.trim() || "5432";
+  const database =
+    process.env.PGDATABASE?.trim() ||
+    process.env.PG_DATABASE_NAME?.trim() ||
+    "ppadun9";
+  return {
+    source: "pg-parts",
+    url: `postgresql://${encode(user)}:${encode(password)}@${host}:${port}/${encode(database)}?sslmode=require`,
+    database,
+    host,
+  };
+}
+
+function resolveDatabaseUrl() {
+  const fromParts = buildUrlFromParts();
+  if (fromParts) return fromParts;
+
   const url = process.env.DATABASE_URL?.trim();
   if (!url) return null;
   const normalized = normalizeDatabaseUrl(url);
@@ -87,6 +98,17 @@ function resolveDatabaseUrl() {
     database: m?.[1] ? decodeURIComponent(m[1]) : "?",
     host: maskPgUrl(normalized).split("/")[0],
   };
+}
+
+function hostFromDatabaseUrl() {
+  const url = process.env.DATABASE_URL?.trim();
+  if (!url) return null;
+  try {
+    const u = new URL(url.replace(/^postgresql:\/\//, "http://"));
+    return u.hostname;
+  } catch {
+    return null;
+  }
 }
 
 loadDotEnv();
@@ -109,7 +131,19 @@ for (const [key, hint] of pgParts) {
   let extra = "";
   if (key === "PGHOST" && ok) extra = ` → ${process.env.PGHOST.trim()}`;
   if (key === "PGDATABASE" && ok) extra = ` → ${process.env.PGDATABASE.trim()}`;
-  console.log(`  ${ok ? "✓" : "✗"} ${key.padEnd(14)} ${ok ? "설정됨" : "미설정"}  ${hint}${extra}`);
+  const mark = ok && key === "PGHOST" && !isExternalPgHost(process.env.PGHOST.trim()) ? "!" : ok ? "✓" : "✗";
+  console.log(`  ${mark} ${key.padEnd(14)} ${ok ? "설정됨" : "미설정"}  ${hint}${extra}`);
+}
+
+const pgHost = process.env.PGHOST?.trim();
+const neonHost = hostFromDatabaseUrl();
+if (pgHost && !isExternalPgHost(pgHost)) {
+  console.log("\n  ⚠ PGHOST가「" + pgHost + "」입니다 — Replit 내부 DB명이며 PPAMONG Repl에서 TLS 연결 실패합니다.");
+  if (neonHost) {
+    console.log("    → PGHOST를 DATABASE_URL 호스트로 바꾸세요:");
+    console.log("      " + neonHost);
+  }
+  console.log("    → 또는 PGHOST Secret 삭제 후 PG_DATABASE_NAME=heliumdb 로 DATABASE_URL만 사용");
 }
 
 console.log("\n【또는 DATABASE_URL】");
@@ -169,5 +203,8 @@ try {
   process.exit(0);
 } catch (err) {
   console.log(`  ✗ 연결 실패: ${err.message}`);
+  if (pgHost && !isExternalPgHost(pgHost)) {
+    console.log("\n  → PGHOST를 ep-....neon.tech 형식으로 수정하거나 Secret을 삭제하세요.");
+  }
   process.exit(1);
 }

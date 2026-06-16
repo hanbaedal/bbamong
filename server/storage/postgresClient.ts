@@ -22,12 +22,20 @@ export function normalizeDatabaseUrl(url: string): string {
   return trimmed;
 }
 
+/** Replit 내부 DB명(helium) 등 — Neon 호스트(ep-....neon.tech)가 아니면 무시 */
+function isExternalPgHost(host: string): boolean {
+  return host.includes(".") && !/^\d+$/.test(host);
+}
+
 /** 빠던9 Replit 방식: PGHOST, PGUSER, PGPASSWORD, PGDATABASE */
 function buildDatabaseUrlFromPgParts(): string | null {
   const host = process.env.PGHOST?.trim();
   const user = process.env.PGUSER?.trim();
   const password = process.env.PGPASSWORD;
   if (!host || !user || password === undefined || password === "") {
+    return null;
+  }
+  if (!isExternalPgHost(host)) {
     return null;
   }
 
