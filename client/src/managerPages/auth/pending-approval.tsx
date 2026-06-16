@@ -1,7 +1,6 @@
 import { useLocation } from "wouter";
 import { ArrowLeft } from "lucide-react";
-import Lottie from "lottie-react";
-import waitingAnimation from "../../../../attached_assets/Baseball_(1)_1767749776727.json";
+import managerMascot from "@assets/manager/manager-mascot.png";
 
 export default function ManagerPendingApprovalPage() {
   const [, setLocation] = useLocation();
@@ -26,10 +25,10 @@ export default function ManagerPendingApprovalPage() {
           className="w-[120px] h-[120px] flex items-center justify-center mb-6"
           data-testid="manager-pending-icon-container"
         >
-          <Lottie
-            animationData={waitingAnimation}
-            loop={true}
-            className="w-full h-full"
+          <img
+            src={managerMascot}
+            alt="PPAMONG 매니저"
+            className="w-full h-full object-contain"
           />
         </div>
 
