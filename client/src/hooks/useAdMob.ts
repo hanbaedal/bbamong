@@ -15,12 +15,17 @@ const AD_ID_IOS =
   import.meta.env.VITE_ADMOB_AD_ID_IOS ||
   "ca-app-pub-3940256099942544/4411468910";
 
-if (!IS_TESTING) {
+function warnIfProductionAdIdsMissing() {
+  if (import.meta.env.DEV || !Capacitor.isNativePlatform()) return;
   if (!import.meta.env.VITE_ADMOB_AD_ID_ANDROID) {
-    console.warn("[AdMob] WARNING: VITE_ADMOB_AD_ID_ANDROID is not set — using test ad ID in production build!");
+    console.warn(
+      "[AdMob] VITE_ADMOB_AD_ID_ANDROID 미설정 — 테스트 광고 ID 사용 중. 앱 빌드 전 Replit Secrets에 등록 후 npm run build 하세요.",
+    );
   }
   if (!import.meta.env.VITE_ADMOB_AD_ID_IOS) {
-    console.warn("[AdMob] WARNING: VITE_ADMOB_AD_ID_IOS is not set — using test ad ID in production build!");
+    console.warn(
+      "[AdMob] VITE_ADMOB_AD_ID_IOS 미설정 — 테스트 광고 ID 사용 중. 앱 빌드 전 Replit Secrets에 등록 후 npm run build 하세요.",
+    );
   }
 }
 
@@ -74,6 +79,7 @@ export function useAdMob(): UseAdMobResult {
         initializeForTesting: IS_TESTING,
       });
       isInitialized.current = true;
+      warnIfProductionAdIdsMissing();
       console.log("[AdMob] Initialized successfully");
     } catch (error) {
       console.error("[AdMob] Initialization error:", error);
