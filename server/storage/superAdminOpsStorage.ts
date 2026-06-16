@@ -1,4 +1,6 @@
-import postgres from "postgres";
+import {
+  getPostgresClient,
+} from "./postgresClient";
 import {
   UserModel,
   AdminUserModel,
@@ -104,15 +106,13 @@ async function buildSessionDuration(
   return "--";
 }
 
-function getPostgresClient() {
-  const url = process.env.DATABASE_URL;
-  if (!url) return null;
-  return postgres(url, { max: 1 });
+function getPostgresClientForOps() {
+  return getPostgresClient();
 }
 
 export class SuperAdminOpsStorage {
   async listBackupTables(): Promise<BackupTableInfo[]> {
-    const pg = getPostgresClient();
+    const pg = getPostgresClientForOps();
 
     const results = await Promise.all(
       BACKUP_TABLES.map(async (table) => {
@@ -164,7 +164,7 @@ export class SuperAdminOpsStorage {
     if (!ALLOWED_PG_TABLES.has(pgTable)) {
       throw new Error("허용되지 않은 테이블입니다.");
     }
-    const pg = getPostgresClient();
+    const pg = getPostgresClientForOps();
     if (!pg) {
       throw new Error("PostgreSQL(DATABASE_URL)이 설정되지 않았습니다.");
     }

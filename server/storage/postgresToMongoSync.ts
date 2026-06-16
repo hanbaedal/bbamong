@@ -1,4 +1,5 @@
-import postgres from "postgres";
+import type postgres from "postgres";
+import { getPostgresClient, getPostgresDatabaseName } from "./postgresClient";
 import {
   UserModel,
   AdminUserModel,
@@ -128,20 +129,28 @@ function snakeToCamel(key: string): string {
   return key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 }
 
+function normalizePgValue(value: unknown): unknown {
+  if (typeof value === "bigint") return Number(value);
+  return value;
+}
+
 function mapPgRow(row: Record<string, unknown>): Record<string, unknown> {
   const mapped: Record<string, unknown> = {};
   for (const [pgKey, value] of Object.entries(row)) {
     if (value === undefined) continue;
     const mongoKey = PG_FIELD_MAP[pgKey] ?? snakeToCamel(pgKey);
-    mapped[mongoKey] = value;
+    mapped[mongoKey] = normalizePgValue(value);
   }
   return mapped;
 }
 
-function getPostgresClient() {
-  const url = process.env.DATABASE_URL;
-  if (!url) return null;
-  return postgres(url, { max: 1 });
+function bulkWriteErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "writeErrors" in error) {
+    const writeErrors = (error as { writeErrors?: { errmsg?: string }[] }).writeErrors;
+    const first = writeErrors?.[0]?.errmsg;
+    if (first) return first;
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 export interface SyncTableResult {
@@ -150,6 +159,7 @@ export interface SyncTableResult {
   read: number;
   upserted: number;
   modified: number;
+  droppedNoId?: number;
   skipped?: boolean;
   error?: string;
 }
@@ -160,6 +170,9 @@ export interface SyncRunResult {
   success: boolean;
   tables: SyncTableResult[];
   message?: string;
+  pgDatabase?: string | null;
+  totalRead?: number;
+  totalWritten?: number;
 }
 
 let lastSyncResult: SyncRunResult | null = null;
@@ -203,6 +216,7 @@ async function syncTable(
 
   const preserve = new Set(def.preserveOnUpdate ?? []);
   const CHUNK = 200;
+  let droppedNoId = 0;
 
   for (let i = 0; i < rows.length; i += CHUNK) {
     const chunk = rows.slice(i, i + CHUNK);
@@ -210,7 +224,10 @@ async function syncTable(
 
     for (const row of chunk) {
       const doc = mapPgRow(row);
-      if (doc.id == null) continue;
+      if (doc.id == null || doc.id === "") {
+        droppedNoId += 1;
+        continue;
+      }
       docs.push(doc);
     }
 
@@ -255,9 +272,20 @@ async function syncTable(
       };
     });
 
-    const bulk = await def.model.bulkWrite(ops, { ordered: false });
-    result.upserted += bulk.upsertedCount ?? 0;
-    result.modified += bulk.modifiedCount ?? 0;
+    try {
+      const bulk = await def.model.bulkWrite(ops, { ordered: false });
+      result.upserted += bulk.upsertedCount ?? 0;
+      result.modified += bulk.modifiedCount ?? 0;
+    } catch (error: unknown) {
+      throw new Error(bulkWriteErrorMessage(error));
+    }
+  }
+
+  if (droppedNoId > 0) {
+    result.droppedNoId = droppedNoId;
+    if (result.upserted === 0 && result.modified === 0) {
+      result.error = `id 없는 행 ${droppedNoId}건 — MongoDB에 저장하지 못했습니다.`;
+    }
   }
 
   return result;
@@ -301,7 +329,12 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
     throw new Error("PostgreSQL 연결을 열 수 없습니다.");
   }
 
+  let pgDatabase: string | null = null;
+
   try {
+    pgDatabase = await getPostgresDatabaseName(pg);
+    console.log(`[PgMongoSync] PostgreSQL database=${pgDatabase ?? "?"}`);
+
     for (const def of defs) {
       try {
         tables.push(await syncTable(pg, def));
@@ -322,6 +355,8 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
     syncInProgress = false;
   }
 
+  const totalRead = tables.reduce((s, t) => s + t.read, 0);
+  const totalWritten = tables.reduce((s, t) => s + t.upserted + t.modified, 0);
   const hasErrors = tables.some((t) => t.error && !t.skipped);
   const finishedAt = new Date().toISOString();
   const scopeLabel =
@@ -329,16 +364,36 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
       ? "PostgreSQL → MongoDB 전체 동기화가 완료되었습니다."
       : `${defs.length}개 테이블을 MongoDB에 저장했습니다.`;
 
+  let success = !hasErrors;
+  let message = hasErrors ? "일부 테이블 저장에 실패했습니다." : scopeLabel;
+
+  if (!hasErrors && totalRead === 0) {
+    success = false;
+    message =
+      pgDatabase != null
+        ? `PostgreSQL DB「${pgDatabase}」에서 읽은 데이터가 0건입니다. DATABASE_URL의 DB 이름(예: ppadun9)이 맞는지 Neon에서 확인하세요.`
+        : "PostgreSQL에서 읽은 데이터가 0건입니다. DATABASE_URL의 DB 이름이 맞는지 확인하세요.";
+  } else if (!hasErrors && totalRead > 0 && totalWritten === 0) {
+    success = false;
+    message =
+      `PostgreSQL에서 ${totalRead}건을 읽었으나 MongoDB에 저장된 건이 0입니다. id 컬럼·스키마 검증 오류를 확인하세요.`;
+  } else if (!hasErrors && totalWritten > 0) {
+    message = `${scopeLabel} (읽음 ${totalRead}건, 신규 ${tables.reduce((s, t) => s + t.upserted, 0)}, 갱신 ${tables.reduce((s, t) => s + t.modified, 0)})`;
+  }
+
   lastSyncResult = {
     startedAt,
     finishedAt,
-    success: !hasErrors,
+    success,
     tables,
-    message: hasErrors ? "일부 테이블 저장에 실패했습니다." : scopeLabel,
+    message,
+    pgDatabase,
+    totalRead,
+    totalWritten,
   };
 
   console.log(
-    `[PgMongoSync] ${defs.map((d) => d.pgTable).join(",")} upsert=${tables.reduce((s, t) => s + t.upserted, 0)} modified=${tables.reduce((s, t) => s + t.modified, 0)}`,
+    `[PgMongoSync] db=${pgDatabase ?? "?"} read=${totalRead} upsert=${tables.reduce((s, t) => s + t.upserted, 0)} modified=${tables.reduce((s, t) => s + t.modified, 0)} success=${success}`,
   );
 
   return lastSyncResult;

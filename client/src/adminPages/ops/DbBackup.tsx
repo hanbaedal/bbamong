@@ -44,6 +44,9 @@ interface SyncRunResult {
   success: boolean;
   tables: SyncTableResult[];
   message?: string;
+  pgDatabase?: string | null;
+  totalRead?: number;
+  totalWritten?: number;
 }
 
 function formatSyncSummary(result: SyncRunResult, pgTable?: string): string {
@@ -53,6 +56,30 @@ function formatSyncSummary(result: SyncRunResult, pgTable?: string): string {
   if (!row) return result.message ?? "저장 완료";
   if (row.error && !row.skipped) return `${row.label}: ${row.error}`;
   return `${row.label}: PostgreSQL ${row.read}건 → MongoDB 저장 (신규 ${row.upserted}, 갱신 ${row.modified})`;
+}
+
+function summarizeLastSync(lastSync: SyncRunResult): {
+  totalRead: number;
+  totalUpserted: number;
+  totalModified: number;
+  skippedTables: string[];
+  failedTables: string[];
+} {
+  let totalRead = 0;
+  let totalUpserted = 0;
+  let totalModified = 0;
+  const skippedTables: string[] = [];
+  const failedTables: string[] = [];
+
+  for (const row of lastSync.tables) {
+    totalRead += row.read;
+    totalUpserted += row.upserted;
+    totalModified += row.modified;
+    if (row.skipped) skippedTables.push(row.pgTable);
+    else if (row.error) failedTables.push(row.pgTable);
+  }
+
+  return { totalRead, totalUpserted, totalModified, skippedTables, failedTables };
 }
 
 export default function DbBackupPage() {
@@ -93,7 +120,17 @@ export default function DbBackupPage() {
     },
     onSuccess: (result) => {
       void refetch();
-      toast({ description: result.message ?? "전체 동기화가 완료되었습니다." });
+      const summary = summarizeLastSync(result);
+      const detail =
+        summary.totalRead > 0
+          ? `PostgreSQL ${summary.totalRead}건 → 신규 ${summary.totalUpserted}, 갱신 ${summary.totalModified}`
+          : result.pgDatabase
+            ? `DB「${result.pgDatabase}」에서 읽은 데이터 0건 — DATABASE_URL DB 이름 확인`
+            : "PostgreSQL에서 읽은 데이터가 0건입니다. DATABASE_URL의 DB 이름을 확인하세요.";
+      toast({
+        variant: result.success ? "default" : "destructive",
+        description: `${result.message ?? "전체 동기화 완료"} (${detail})`,
+      });
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : "동기화에 실패했습니다.";
@@ -241,12 +278,55 @@ export default function DbBackupPage() {
                     ? `백그라운드: ${data.syncIntervalMinutes}분마다 PostgreSQL → MongoDB`
                     : "백그라운드 자동 동기화 사용 중"}
                 </p>
-                {data.lastSync && (
-                  <p className="text-xs text-[#888] mt-1">
-                    마지막 실행: {new Date(data.lastSync.finishedAt).toLocaleString("ko-KR")}
-                    {data.lastSync.success ? " (성공)" : " (일부 실패)"}
-                  </p>
-                )}
+                {data.lastSync && (() => {
+                  const summary = summarizeLastSync(data.lastSync);
+                  const pgTotal =
+                    tables.reduce((sum, t) => sum + (t.postgresCount ?? 0), 0) ?? 0;
+                  return (
+                    <div className="text-xs text-[#888] mt-1 space-y-1">
+                      <p>
+                        마지막 실행:{" "}
+                        {new Date(data.lastSync.finishedAt).toLocaleString("ko-KR")}
+                        {data.lastSync.success ? " (성공)" : " (실패)"}
+                        {data.lastSync.pgDatabase ? ` · PG DB: ${data.lastSync.pgDatabase}` : ""}
+                        {" · "}
+                        PostgreSQL {summary.totalRead.toLocaleString()}건 읽음 → 신규{" "}
+                        {summary.totalUpserted.toLocaleString()}, 갱신{" "}
+                        {summary.totalModified.toLocaleString()}
+                      </p>
+                      {!data.lastSync.success && data.lastSync.message && (
+                        <p className="text-red-600 leading-relaxed">{data.lastSync.message}</p>
+                      )}
+                      {!data.lastSync.success && summary.totalRead === 0 && (
+                        <p className="text-amber-700 leading-relaxed">
+                          연결은 됐지만 PostgreSQL에서 읽은 행이 0건입니다. 아래 표의
+                          PostgreSQL 열이 모두 0이면{" "}
+                          <code className="bg-white px-1">DATABASE_URL</code>의 DB 이름이
+                          비어 있거나 다른 DB를 가리키는 경우가 많습니다 (예:{" "}
+                          <code className="bg-white px-1">/neondb</code> 대신 실제 데이터가
+                          있는 <code className="bg-white px-1">/ppadun9</code>). Neon 콘솔에서
+                          올바른 Connection string을 다시 넣고 Repl을 재시작하세요.
+                        </p>
+                      )}
+                      {summary.skippedTables.length > 0 && (
+                        <p className="text-[#999]">
+                          PG 테이블 없음(건너뜀): {summary.skippedTables.join(", ")}
+                        </p>
+                      )}
+                      {summary.failedTables.length > 0 && (
+                        <p className="text-red-600">
+                          실패: {summary.failedTables.join(", ")}
+                        </p>
+                      )}
+                      {pgTotal > 0 && summary.totalRead === 0 && data.lastSync.success && (
+                        <p className="text-amber-700">
+                          표에는 PostgreSQL 데이터가 보이는데 마지막 동기화는 0건입니다. 「전체
+                          받기」를 한 번 눌러 보세요.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
               <Button
                 className="bg-[#E11936] hover:bg-[#B71C1C] shrink-0"
