@@ -1,6 +1,6 @@
 /**
  * DB 환경변수 설정·연결 확인 (비밀번호 출력 없음)
- * 실행: node scripts/verify-db-config.mjs
+ * 실행: npm run check:db  또는 node scripts/verify-db-config.mjs
  */
 import fs from "fs";
 import path from "path";
@@ -28,14 +28,24 @@ function loadDotEnv() {
   }
 }
 
-function maskUrl(url) {
+function maskMongoUrl(url) {
   try {
     const u = new URL(url.replace(/^mongodb(\+srv)?:\/\//, "http://"));
     const host = u.hostname || "(unknown)";
     const db = u.pathname?.replace(/^\//, "") || "";
     return `${host}${db ? "/" + db.split("?")[0] : ""}`;
   } catch {
-    return "(invalid URL format)";
+    return "(invalid)";
+  }
+}
+
+function maskPgUrl(url) {
+  try {
+    const u = new URL(url.replace(/^postgresql:\/\//, "http://"));
+    const db = u.pathname?.replace(/^\//, "").split("?")[0] || "";
+    return `${u.hostname}${db ? "/" + db : ""}`;
+  } catch {
+    return "(invalid)";
   }
 }
 
@@ -45,6 +55,25 @@ function status(name, value) {
   return set;
 }
 
+function encode(v) {
+  return encodeURIComponent(v);
+}
+
+function resolvePgUrl() {
+  const host = process.env.PGHOST?.trim();
+  const user = process.env.PGUSER?.trim();
+  const password = process.env.PGPASSWORD;
+  if (host && user && password !== undefined && password !== "") {
+    const port = process.env.PGPORT?.trim() || "5432";
+    const db =
+      process.env.PGDATABASE?.trim() ||
+      process.env.PG_DATABASE_NAME?.trim() ||
+      "ppadun9";
+    return `postgresql://${encode(user)}:${encode(password)}@${host}:${port}/${encode(db)}?sslmode=require`;
+  }
+  return process.env.DATABASE_URL?.trim() || null;
+}
+
 loadDotEnv();
 
 console.log("=== PPAMONG DB 설정 확인 ===\n");
@@ -52,14 +81,20 @@ console.log(`환경: ${process.env.NODE_ENV || "development"}`);
 console.log(`로컬 .env 파일: ${fs.existsSync(envPath) ? "있음" : "없음"}\n`);
 
 const hasMongo = status("MONGODB_URI", process.env.MONGODB_URI);
-const hasPg = status("DATABASE_URL", process.env.DATABASE_URL);
+const hasPgParts =
+  status("PGHOST", process.env.PGHOST) &&
+  status("PGUSER", process.env.PGUSER) &&
+  status("PGPASSWORD", process.env.PGPASSWORD);
+status("PGDATABASE", process.env.PGDATABASE);
+const hasPgUrl = status("DATABASE_URL", process.env.DATABASE_URL);
 status("JWT_SECRET", process.env.JWT_SECRET);
 status("JWT_REFRESH_SECRET", process.env.JWT_REFRESH_SECRET);
 
 console.log("");
+console.log("PostgreSQL 상세 점검: npm run check:pg-secrets\n");
 
 if (hasMongo) {
-  console.log(`MongoDB 대상: ${maskUrl(process.env.MONGODB_URI)}`);
+  console.log(`MongoDB 대상: ${maskMongoUrl(process.env.MONGODB_URI)}`);
   try {
     const mongoose = (await import("mongoose")).default;
     await mongoose.connect(process.env.MONGODB_URI, {
@@ -74,39 +109,36 @@ if (hasMongo) {
     console.log(`  ✗ MongoDB 연결 실패: ${err.message}`);
   }
 } else {
-  console.log("MongoDB: MONGODB_URI 미설정 — Replit Secrets 또는 .env에 추가 필요");
+  console.log("MongoDB: MONGODB_URI 미설정");
 }
 
 console.log("");
 
-if (hasPg) {
-  console.log(`PostgreSQL 대상: ${maskUrl(process.env.DATABASE_URL)}`);
+const pgUrl = resolvePgUrl();
+if (pgUrl) {
+  console.log(`PostgreSQL 대상: ${maskPgUrl(pgUrl)}`);
   try {
     const postgres = (await import("postgres")).default;
-    const sql = postgres(process.env.DATABASE_URL, { max: 1, connect_timeout: 8 });
+    const sql = postgres(pgUrl, { max: 1, connect_timeout: 8 });
     const rows = await sql`SELECT current_database() AS db, current_user AS usr`;
     const count = await sql`SELECT COUNT(*)::int AS n FROM information_schema.tables WHERE table_schema = 'public'`;
+    let users = "?";
+    try {
+      const u = await sql`SELECT COUNT(*)::int AS n FROM users`;
+      users = String(u[0]?.n ?? 0);
+    } catch {
+      users = "테이블 없음";
+    }
     console.log(
-      `  ✓ PostgreSQL 연결 성공 (DB: ${rows[0]?.db}, 사용자: ${rows[0]?.usr}, public 테이블 ${count[0]?.n}개)`,
+      `  ✓ PostgreSQL 연결 (DB: ${rows[0]?.db}, public ${count[0]?.n}개, users: ${users})`,
     );
     await sql.end();
   } catch (err) {
     console.log(`  ✗ PostgreSQL 연결 실패: ${err.message}`);
-    if (/password authentication failed/i.test(err.message)) {
-      console.log("    → 비밀번호가 틀렸거나 URI의 USER/PASSWORD를 확인하세요.");
-    }
-    if (/ENOTFOUND|ECONNREFUSED|timeout/i.test(err.message)) {
-      console.log("    → 호스트·포트·네트워크(Neon SSL)를 확인하세요.");
-    }
   }
-} else {
-  console.log(
-    "PostgreSQL: DATABASE_URL 미설정 — 관리자 [디비 백업하기]에서 「미설정」으로 표시됩니다.",
-  );
+} else if (!hasPgParts && !hasPgUrl) {
+  console.log("PostgreSQL: PGHOST 또는 DATABASE_URL 미설정");
 }
 
-console.log("\n=== 운영 서버(Replit) 확인 방법 ===");
-console.log("1. Replit → Tools → Secrets 에 MONGODB_URI, DATABASE_URL 존재 여부 확인");
-console.log("2. Secrets 변경 후 Deploy/Repl 재시작 필수");
-console.log("3. 관리자 웹 → 업무 관리 → 디비 백업하기");
-console.log("   - 빨간 「미설정」 문구가 사라지고 PostgreSQL 건수 열이 보이면 연결 성공");
+console.log("\n=== 빠던9 → MongoDB 가져오기 ===");
+console.log("npm run setup:legacy-pg");
