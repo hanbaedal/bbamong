@@ -203,7 +203,9 @@ export default function DbBackupPage() {
         </h1>
 
         <p className="text-sm text-[#666] mb-4 leading-relaxed">
-          다른 프로그램과 공유하는 <strong>PostgreSQL</strong>은 <strong>읽기만</strong> 합니다.
+          다른 프로그램과 공유하는 <strong>PostgreSQL</strong>은 <strong>읽기만</strong> 합니다 (선택 기능).
+          PPAMONG은 빠던9와 별도 서비스이며, 자동 가져오기는 기본 꺼짐(
+          <code>PG_MONGO_SYNC_ENABLED=true</code> 시에만 백그라운드 동기화).
           「받기」를 누르면 해당 테이블 데이터를 PPAMONG 운영 DB인 <strong>MongoDB</strong>에
           저장(upsert)합니다. PostgreSQL에는 쓰지 않습니다.
           {!data?.postgresConfigured && (

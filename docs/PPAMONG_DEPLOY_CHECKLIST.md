@@ -184,8 +184,8 @@ cd c:\PPADUN9\web
 npm run build
 ```
 
-- Android: `C:\PPADUN9\android`
-- iOS: `C:\PPADUN9\ios\App`
+- Android: `web\android`
+- iOS: (별도 프로젝트 — `web\android`와 동일 App ID `com.ppamong.app`)
 - Capacitor 서버 URL: `https://ppamong.com`
 
 ---

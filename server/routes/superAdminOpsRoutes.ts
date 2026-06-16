@@ -18,7 +18,7 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
         tables,
         primarySource: "mongodb",
         postgresConfigured: !!process.env.DATABASE_URL,
-        syncIntervalMinutes: process.env.DATABASE_URL
+        syncIntervalMinutes: process.env.DATABASE_URL && process.env.PG_MONGO_SYNC_ENABLED === "true"
           ? Math.round(
               parseInt(process.env.PG_MONGO_SYNC_INTERVAL_MS || "1800000", 10) / 60000,
             ) || 30

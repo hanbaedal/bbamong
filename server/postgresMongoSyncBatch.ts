@@ -10,6 +10,11 @@ export function startPostgresMongoSyncBatch(): void {
     return;
   }
 
+  if (process.env.PG_MONGO_SYNC_ENABLED !== "true") {
+    console.log("[PgMongoSync] PG_MONGO_SYNC_ENABLED≠true — 자동 동기화 비활성 (PPAMONG 독립 운영)");
+    return;
+  }
+
   if (intervalId) return;
 
   const intervalMs = parseInt(process.env.PG_MONGO_SYNC_INTERVAL_MS || String(DEFAULT_INTERVAL_MS), 10);

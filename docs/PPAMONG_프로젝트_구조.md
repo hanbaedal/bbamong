@@ -72,7 +72,7 @@ Capacitor **원격 URL 모드**: 앱은 WebView로 `ppamong.com`을 연다.
 | 항목 | 위치 | GitHub | Replit |
 |------|------|--------|--------|
 | 서버 + 3종 UI | `web` | ✅ `hanbaedal/bbamong` | ✅ Deploy 대상 |
-| 사용자 Android/iOS | `PPADUN9\android`, `ios` | ❌ (로컬만) | ❌ |
+| 사용자 Android/iOS | `web\android` | ✅ web repo | ❌ |
 | 매ni저 Android/iOS | `web\android-manager` 등 | ✅ web repo 안 | ❌ |
 
 ---
@@ -151,16 +151,16 @@ OAuth·SOLAPI는 로그인/문자 테스트 전에 추가.
 - `https://ppamong.com` Deploy 완료
 - Node.js, Android Studio (Android) / Mac + Xcode (iOS)
 
-### Android (`C:\PPADUN9\android`)
+### Android (`web\android`)
 
-1. (선택) `web`에서 웹 빌드 후 Capacitor sync — **원격 URL 모드**면 필수는 아님
-2. Android Studio → **`C:\PPADUN9\android`** 폴더 열기
-3. `capacitor.config.json`의 `server.url`이 `https://ppamong.com` 인지 확인
+1. (선택) `web`에서 웹 빌드 후 `npx cap sync android` — **원격 URL 모드**면 필수는 아님
+2. Android Studio → **`web\android`** 폴더 열기
+3. `capacitor.config.json`의 `server.url`이 `https://ppamong.com/login` 인지 확인
 4. **Build → Generate Signed Bundle / APK**
 
-### iOS (`C:\PPADUN9\ios`)
+### iOS
 
-1. Xcode → **`C:\PPADUN9\ios\App`** 열기
+1. Xcode → 사용자 iOS 프로젝트 열기 (Bundle ID: `com.ppamong.app`)
 2. Signing & Capabilities 설정
 3. **Product → Archive** → App Store Connect
 
@@ -181,7 +181,7 @@ OAuth·SOLAPI는 로그인/문자 테스트 전에 추가.
 | Vite | `vite.config.ts` | `vite.manager.config.ts` |
 | Capacitor | `capacitor.config.ts` | `capacitor.config.manager.ts` |
 | 빌드 출력 | `dist/public` | `dist-manager/public` |
-| Android 폴더 | `C:\PPADUN9\android` | `web\android-manager` |
+| Android 폴더 | `web\android` | `web\android-manager` |
 | 시작 URL | `/login` | `/manager` |
 
 ### Android 매ni저 — 요약

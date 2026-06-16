@@ -242,7 +242,7 @@ erDiagram
 관리자 및 매니저 계정 (같은 테이블, `user_type`으로 구분).  
 - `일반어드민`: 일반 관리자 기능  
 - `슈퍼어드민`: 최상위 권한  
-- `매니저`: 경기 현장 운영 (앱: com.ppadun9.manager)  
+- `매니저`: 경기 현장 운영 (앱: com.ppamong.manager)  
 - `assigned_match_number`: 담당 경기 번호 (`1경기`, `2경기` 등)  
 - 중복 로그인 시 **first-login-priority 차단** (409 반환)
 

@@ -121,7 +121,7 @@ const doc = new Document({
         p(
           "다른 프로그램이 Neon PostgreSQL에 데이터를 기록하면, 슈퍼바이저는 관리자 웹 [업무 관리 → 디비 백업하기]에서 「받기」를 눌러 MongoDB로 upsert합니다. PostgreSQL에는 쓰지 않습니다.",
         ),
-        bullet("자동 동기화: PG_MONGO_SYNC_INTERVAL_MS (기본 30분)"),
+        bullet("자동 동기화: PG_MONGO_SYNC_ENABLED=true 일 때만 (기본 꺼짐)"),
         bullet("수동: 테이블별 「받기」 / 「선택 항목 받기」 / 「전체 받기」"),
         blank(),
         h2("2.3 URL 분기 (client/src/main.tsx)"),

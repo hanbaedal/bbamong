@@ -8,13 +8,13 @@
 
 | 구분 | 유저 앱 | 매니저 앱 |
 |------|---------|-----------|
-| App ID | `com.bbanden.nine` | `com.bbanden.nine.manager` |
-| App Name | 빠던9 | 빠던9 매니저 |
+| App ID | `com.ppamong.app` | `com.ppamong.manager` |
+| App Name | PPAMONG | PPAMONG 매니저 |
 | Vite Config | `vite.config.ts` | `vite.manager.config.ts` |
 | Capacitor Config | `capacitor.config.ts` | `capacitor.manager.config.ts` |
 | Build Output | `dist/public` | `dist-manager/public` |
 | Android Folder | `android/` | `android-manager/` |
-| Deep Link Scheme | `ppadun9://auth` | `ppadun9manager://auth` |
+| Deep Link Scheme | `ppamong://auth` | `ppamongmanager://auth` |
 
 ## 빌드 명령어
 
@@ -56,7 +56,7 @@ cp android-manager/app/src/main/assets/public/manager.html android-manager/app/s
 
 1. **유저 앱과 충돌 방지**: 각각 다른 `appId`를 사용하므로 같은 기기에 두 앱 모두 설치 가능
 2. **별도 Android 폴더**: `android/`는 유저 앱, `android-manager/`는 매니저 앱
-3. **딥링크 스킴 분리**: 유저 앱은 `ppadun9://`, 매니저 앱은 `ppadun9manager://`
+3. **딥링크 스킴 분리**: 유저 앱은 `ppamong://`, 매니저 앱은 `ppamongmanager://`
 
 ## WebView 호환성 (핵심)
 
@@ -84,14 +84,14 @@ cp android-manager/app/src/main/assets/public/manager.html android-manager/app/s
 ```
 android-manager/
 ├── app/
-│   ├── build.gradle                 # appId: com.bbanden.nine.manager
+│   ├── build.gradle                 # appId: com.ppamong.manager
 │   └── src/main/
-│       ├── AndroidManifest.xml      # 딥링크: ppadun9manager://auth
+│       ├── AndroidManifest.xml      # 딥링크: ppamongmanager://
 │       ├── assets/public/           # 빌드된 웹 에셋
-│       ├── java/com/bbanden/nine/manager/
+│       ├── java/com/ppamong/manager/
 │       │   ├── MainActivity.java
 │       │   └── LogoutPlugin.java
-│       └── res/values/strings.xml   # app_name: 빠던9 매니저
+│       └── res/values/strings.xml   # app_name: PPAMONG 매니저
 ├── capacitor-plugins/               # Capacitor 플러그인 (임베디드)
 │   ├── capacitor-android/
 │   ├── capacitor-app/

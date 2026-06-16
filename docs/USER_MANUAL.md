@@ -206,5 +206,5 @@ npx cap open ios
 
 ### 3.7 딥링크 스킴
 
-- **스킴**: `ppadun9://`
-- **소셜 로그인 콜백**: `ppadun9://auth?code={one-time-code}`
+- **스킴**: `ppamong://`
+- **소셜 로그인 콜백**: `ppamong://auth?code={one-time-code}`
