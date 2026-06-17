@@ -22,6 +22,8 @@ interface DbTablesResponse {
   tables: BackupTableInfo[];
   primarySource: string;
   postgresConfigured: boolean;
+  syncMode?: "replace" | "merge";
+  syncScheduleKst?: string | null;
   syncIntervalMinutes: number | null;
   lastSync: SyncRunResult | null;
   syncRunning: boolean;
@@ -34,14 +36,17 @@ interface SyncTableResult {
   read: number;
   upserted: number;
   modified: number;
+  deleted?: number;
   skipped?: boolean;
   error?: string;
+  mode?: "replace" | "merge";
 }
 
 interface SyncRunResult {
   startedAt: string;
   finishedAt: string;
   success: boolean;
+  syncMode?: "replace" | "merge";
   tables: SyncTableResult[];
   message?: string;
   pgDatabase?: string | null;
@@ -55,6 +60,9 @@ function formatSyncSummary(result: SyncRunResult, pgTable?: string): string {
     : result.tables[0];
   if (!row) return result.message ?? "저장 완료";
   if (row.error && !row.skipped) return `${row.label}: ${row.error}`;
+  if (row.mode === "replace" || result.syncMode === "replace") {
+    return `${row.label}: PostgreSQL ${row.read}건 → MongoDB 교체 (삭제 ${row.deleted ?? 0}, 삽입 ${row.upserted})`;
+  }
   return `${row.label}: PostgreSQL ${row.read}건 → MongoDB 저장 (신규 ${row.upserted}, 갱신 ${row.modified})`;
 }
 
@@ -62,12 +70,14 @@ function summarizeLastSync(lastSync: SyncRunResult): {
   totalRead: number;
   totalUpserted: number;
   totalModified: number;
+  totalDeleted: number;
   skippedTables: string[];
   failedTables: string[];
 } {
   let totalRead = 0;
   let totalUpserted = 0;
   let totalModified = 0;
+  let totalDeleted = 0;
   const skippedTables: string[] = [];
   const failedTables: string[] = [];
 
@@ -75,11 +85,12 @@ function summarizeLastSync(lastSync: SyncRunResult): {
     totalRead += row.read;
     totalUpserted += row.upserted;
     totalModified += row.modified;
+    totalDeleted += row.deleted ?? 0;
     if (row.skipped) skippedTables.push(row.pgTable);
     else if (row.error) failedTables.push(row.pgTable);
   }
 
-  return { totalRead, totalUpserted, totalModified, skippedTables, failedTables };
+  return { totalRead, totalUpserted, totalModified, totalDeleted, skippedTables, failedTables };
 }
 
 export default function DbBackupPage() {
@@ -244,7 +255,8 @@ export default function DbBackupPage() {
           PPAMONG은 빠던9와 별도 서비스이며, 자동 가져오기는 기본 꺼짐(
           <code>PG_MONGO_SYNC_ENABLED=true</code> 시에만 백그라운드 동기화).
           「받기」를 누르면 해당 테이블 데이터를 PPAMONG 운영 DB인 <strong>MongoDB</strong>에
-          저장(upsert)합니다. PostgreSQL에는 쓰지 않습니다.
+          저장합니다. 모드는 Secret <code>PG_MONGO_SYNC_MODE</code>로 결정됩니다 (
+          <code>replace</code>=기존 삭제 후 재저장, <code>merge</code>=upsert). PostgreSQL에는 쓰지 않습니다.
           {!data?.postgresConfigured && (
             <span className="block mt-3 p-3 rounded-lg border border-[#F5C6CB] bg-[#FFF5F5] text-[#201E22]">
               <strong className="text-[#E11936]">DATABASE_URL(공통 PostgreSQL)이 설정되지 않았습니다.</strong>
@@ -284,9 +296,13 @@ export default function DbBackupPage() {
               <div>
                 <p className="text-sm font-semibold text-[#201E22]">전체 테이블 자동 가져오기</p>
                 <p className="text-xs text-[#666] mt-1">
-                  {data.syncIntervalMinutes
-                    ? `백그라운드: ${data.syncIntervalMinutes}분마다 PostgreSQL → MongoDB`
-                    : "백그라운드 자동 동기화 사용 중"}
+                  모드:{" "}
+                  <code className="bg-white px-1">
+                    {data.syncMode === "replace" ? "replace (전체 교체)" : "merge (upsert)"}
+                  </code>
+                  {data.syncScheduleKst
+                    ? ` · 백그라운드: 매일 KST ${data.syncScheduleKst} PostgreSQL → MongoDB`
+                    : " · 백그라운드 자동 동기화 꺼짐"}
                 </p>
                 {data.lastSync && (() => {
                   const summary = summarizeLastSync(data.lastSync);
@@ -299,10 +315,21 @@ export default function DbBackupPage() {
                         {new Date(data.lastSync.finishedAt).toLocaleString("ko-KR")}
                         {data.lastSync.success ? " (성공)" : " (실패)"}
                         {data.lastSync.pgDatabase ? ` · PG DB: ${data.lastSync.pgDatabase}` : ""}
+                        {data.lastSync.syncMode ? ` · 모드: ${data.lastSync.syncMode}` : ""}
                         {" · "}
-                        PostgreSQL {summary.totalRead.toLocaleString()}건 읽음 → 신규{" "}
-                        {summary.totalUpserted.toLocaleString()}, 갱신{" "}
-                        {summary.totalModified.toLocaleString()}
+                        {data.lastSync.syncMode === "replace" ? (
+                          <>
+                            PostgreSQL {summary.totalRead.toLocaleString()}건 읽음 → 삭제{" "}
+                            {summary.totalDeleted.toLocaleString()}, 삽입{" "}
+                            {summary.totalUpserted.toLocaleString()}
+                          </>
+                        ) : (
+                          <>
+                            PostgreSQL {summary.totalRead.toLocaleString()}건 읽음 → 신규{" "}
+                            {summary.totalUpserted.toLocaleString()}, 갱신{" "}
+                            {summary.totalModified.toLocaleString()}
+                          </>
+                        )}
                       </p>
                       {!data.lastSync.success && data.lastSync.message && (
                         <p className="text-red-600 leading-relaxed">{data.lastSync.message}</p>

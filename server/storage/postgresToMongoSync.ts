@@ -24,6 +24,8 @@ import {
   CounterModel,
 } from "../mongodb/models";
 
+export type PgMongoSyncMode = "replace" | "merge";
+
 /** PostgreSQL → MongoDB 동기화 순서 (FK 의존성) */
 interface SyncTableDef {
   pgTable: string;
@@ -31,7 +33,7 @@ interface SyncTableDef {
   model: any;
   /** upsert 필터 키 (기본 id) */
   upsertKey?: string;
-  /** upsert 시 Mongo 전용 필드 유지 */
+  /** upsert/replace 시 Mongo 전용 필드 유지 */
   preserveOnUpdate?: string[];
   /** 신규 문서 기본값 */
   insertDefaults?: Record<string, unknown>;
@@ -45,7 +47,14 @@ interface SyncTableDef {
 
 const SYNC_TABLES: SyncTableDef[] = [
   { pgTable: "stadiums", label: "경기장", model: StadiumModel, counterName: "stadium" },
-  { pgTable: "users", label: "회원", model: UserModel, insertDefaults: { provider: "local" }, omitNullFields: ["phone", "inviteCode"], storePasswordPlain: true, preserveOnUpdate: [] },
+  {
+    pgTable: "users",
+    label: "회원",
+    model: UserModel,
+    insertDefaults: { provider: "local" },
+    omitNullFields: ["phone", "inviteCode"],
+    storePasswordPlain: true,
+  },
   {
     pgTable: "admin_users",
     label: "관리자/운영자",
@@ -268,21 +277,146 @@ function bulkWriteErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+interface PreparedDoc {
+  doc: Record<string, unknown>;
+  unset: string[];
+}
+
+function finalizeDoc(doc: Record<string, unknown>, omitNullFields?: string[]): PreparedDoc {
+  const setDoc = { ...doc };
+  const unset: string[] = [];
+  for (const key of omitNullFields ?? []) {
+    const val = setDoc[key];
+    if (val === null || val === undefined || val === "") {
+      delete setDoc[key];
+      unset.push(key);
+    }
+  }
+  return { doc: setDoc, unset };
+}
+
+function applyPreserveAndDefaults(
+  doc: Record<string, unknown>,
+  def: SyncTableDef,
+  existing: Record<string, unknown> | undefined,
+): void {
+  const preserve = new Set(def.preserveOnUpdate ?? []);
+
+  if (existing && preserve.size > 0) {
+    for (const key of Array.from(preserve)) {
+      const val = existing[key];
+      if (val !== undefined && val !== null && val !== "") {
+        doc[key] = val;
+      }
+    }
+  } else if (!existing && def.insertDefaults) {
+    Object.assign(doc, def.insertDefaults);
+  }
+
+  if (def.storePasswordPlain) {
+    mergePasswordPlainFromPgOrMongo(doc, existing);
+  }
+}
+
+async function loadExistingByKey(
+  def: SyncTableDef,
+  upsertKey: string,
+  keyValues: unknown[],
+): Promise<Map<string, Record<string, unknown>>> {
+  const preserve = new Set(def.preserveOnUpdate ?? []);
+  const needsExisting = preserve.size > 0 || !!def.insertDefaults || !!def.storePasswordPlain;
+  const existingByKey = new Map<string, Record<string, unknown>>();
+
+  if (!needsExisting || keyValues.length === 0) {
+    return existingByKey;
+  }
+
+  const selectFields = [
+    upsertKey,
+    ...Array.from(preserve),
+    ...(def.storePasswordPlain ? ["passwordPlain"] : []),
+  ].join(" ");
+
+  const existingDocs = await def.model
+    .find({ [upsertKey]: { $in: keyValues } })
+    .select(selectFields)
+    .lean();
+
+  for (const ex of existingDocs) {
+    existingByKey.set(String((ex as Record<string, unknown>)[upsertKey]), ex as Record<string, unknown>);
+  }
+
+  return existingByKey;
+}
+
+async function loadAllExistingForPreserve(
+  def: SyncTableDef,
+  upsertKey: string,
+): Promise<Map<string, Record<string, unknown>>> {
+  const preserve = new Set(def.preserveOnUpdate ?? []);
+  if (preserve.size === 0 && !def.storePasswordPlain) {
+    return new Map();
+  }
+
+  const selectFields = [
+    upsertKey,
+    ...Array.from(preserve),
+    ...(def.storePasswordPlain ? ["passwordPlain"] : []),
+  ].join(" ");
+
+  const existingDocs = await def.model.find({}).select(selectFields).lean();
+  const existingByKey = new Map<string, Record<string, unknown>>();
+  for (const ex of existingDocs) {
+    existingByKey.set(String((ex as Record<string, unknown>)[upsertKey]), ex as Record<string, unknown>);
+  }
+  return existingByKey;
+}
+
+async function prepareDocsFromPgRows(
+  rows: Record<string, unknown>[],
+  def: SyncTableDef,
+  upsertKey: string,
+  existingByKey: Map<string, Record<string, unknown>>,
+): Promise<{ docs: PreparedDoc[]; droppedNoKey: number }> {
+  const docs: PreparedDoc[] = [];
+  let droppedNoKey = 0;
+
+  for (const row of rows) {
+    const doc = mapPgRow(row);
+    const keyVal = doc[upsertKey];
+    if (keyVal == null || keyVal === "") {
+      droppedNoKey += 1;
+      continue;
+    }
+    if (def.storePasswordPlain) {
+      await normalizePasswordFields(doc);
+    }
+    const existing = existingByKey.get(String(keyVal));
+    applyPreserveAndDefaults(doc, def, existing);
+    docs.push(finalizeDoc(doc, def.omitNullFields));
+  }
+
+  return { docs, droppedNoKey };
+}
+
 export interface SyncTableResult {
   pgTable: string;
   label: string;
   read: number;
   upserted: number;
   modified: number;
+  deleted?: number;
   droppedNoId?: number;
   skipped?: boolean;
   error?: string;
+  mode?: PgMongoSyncMode;
 }
 
 export interface SyncRunResult {
   startedAt: string;
   finishedAt: string;
   success: boolean;
+  syncMode: PgMongoSyncMode;
   tables: SyncTableResult[];
   message?: string;
   pgDatabase?: string | null;
@@ -302,6 +436,11 @@ export interface CountParityRow {
 let lastSyncResult: SyncRunResult | null = null;
 let syncInProgress = false;
 
+export function getPgMongoSyncMode(): PgMongoSyncMode {
+  const raw = (process.env.PG_MONGO_SYNC_MODE || "merge").trim().toLowerCase();
+  return raw === "replace" ? "replace" : "merge";
+}
+
 export function getLastPostgresMongoSyncResult(): SyncRunResult | null {
   return lastSyncResult;
 }
@@ -310,7 +449,25 @@ export function isPostgresMongoSyncRunning(): boolean {
   return syncInProgress;
 }
 
-async function syncTable(
+async function readPgTableRows(
+  pg: postgres.Sql,
+  def: SyncTableDef,
+  result: SyncTableResult,
+): Promise<Record<string, unknown>[] | null> {
+  try {
+    return (await pg.unsafe(`SELECT * FROM "${def.pgTable}"`)) as Record<string, unknown>[];
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("does not exist")) {
+      result.skipped = true;
+      result.error = "PostgreSQL 테이블 없음";
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function syncTableMerge(
   pg: postgres.Sql,
   def: SyncTableDef,
 ): Promise<SyncTableResult> {
@@ -320,94 +477,35 @@ async function syncTable(
     read: 0,
     upserted: 0,
     modified: 0,
+    mode: "merge",
   };
 
   const upsertKey = def.upsertKey ?? "id";
-
-  let rows: Record<string, unknown>[];
-  try {
-    rows = (await pg.unsafe(`SELECT * FROM "${def.pgTable}"`)) as Record<string, unknown>[];
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("does not exist")) {
-      result.skipped = true;
-      result.error = "PostgreSQL 테이블 없음";
-      return result;
-    }
-    throw error;
-  }
+  const rows = await readPgTableRows(pg, def, result);
+  if (!rows) return result;
 
   result.read = rows.length;
   if (rows.length === 0) return result;
 
-  const preserve = new Set(def.preserveOnUpdate ?? []);
   const CHUNK = 200;
   let droppedNoKey = 0;
 
   for (let i = 0; i < rows.length; i += CHUNK) {
     const chunk = rows.slice(i, i + CHUNK);
-    const docs: Record<string, unknown>[] = [];
+    const keyValues = chunk
+      .map((row) => mapPgRow(row)[upsertKey])
+      .filter((keyVal) => keyVal != null && keyVal !== "");
 
-    for (const row of chunk) {
-      const doc = mapPgRow(row);
-      const keyVal = doc[upsertKey];
-      if (keyVal == null || keyVal === "") {
-        droppedNoKey += 1;
-        continue;
-      }
-      if (def.storePasswordPlain) {
-        await normalizePasswordFields(doc);
-      }
-      docs.push(doc);
-    }
+    const existingByKey = await loadExistingByKey(def, upsertKey, keyValues);
+    const { docs, droppedNoKey: dropped } = await prepareDocsFromPgRows(chunk, def, upsertKey, existingByKey);
+    droppedNoKey += dropped;
 
     if (docs.length === 0) continue;
 
-    const keyValues = docs.map((d) => d[upsertKey]);
-    const needsExisting = preserve.size > 0 || !!def.insertDefaults || !!def.storePasswordPlain;
-    const existingByKey = new Map<string, Record<string, unknown>>();
-
-    if (needsExisting) {
-      const selectFields = [
-        upsertKey,
-        ...Array.from(preserve),
-        ...(def.storePasswordPlain ? ["passwordPlain"] : []),
-      ].join(" ");
-      const existingDocs = await def.model
-        .find({ [upsertKey]: { $in: keyValues } })
-        .select(selectFields)
-        .lean();
-      for (const ex of existingDocs) {
-        existingByKey.set(String((ex as Record<string, unknown>)[upsertKey]), ex as Record<string, unknown>);
-      }
-    }
-
-    const ops = docs.map((doc) => {
-      const existing = existingByKey.get(String(doc[upsertKey]));
-
-      if (existing && preserve.size > 0) {
-        for (const key of Array.from(preserve)) {
-          const val = existing[key];
-          if (val !== undefined && val !== null && val !== "") {
-            doc[key] = val;
-          }
-        }
-      } else if (!existing && def.insertDefaults) {
-        Object.assign(doc, def.insertDefaults);
-      }
-
-      if (def.storePasswordPlain) {
-        mergePasswordPlainFromPgOrMongo(doc, existing);
-      }
-
-      const setDoc = { ...doc };
+    const ops = docs.map(({ doc: setDoc, unset }) => {
       const unsetDoc: Record<string, ""> = {};
-      for (const key of def.omitNullFields ?? []) {
-        const val = setDoc[key];
-        if (val === null || val === undefined || val === "") {
-          delete setDoc[key];
-          unsetDoc[key] = "";
-        }
+      for (const key of unset) {
+        unsetDoc[key] = "";
       }
 
       const update: Record<string, unknown> = { $set: setDoc };
@@ -417,7 +515,7 @@ async function syncTable(
 
       return {
         updateOne: {
-          filter: { [upsertKey]: doc[upsertKey] },
+          filter: { [upsertKey]: setDoc[upsertKey] },
           update,
           upsert: true,
         },
@@ -442,6 +540,67 @@ async function syncTable(
   }
 
   return result;
+}
+
+async function syncTableReplace(
+  pg: postgres.Sql,
+  def: SyncTableDef,
+): Promise<SyncTableResult> {
+  const result: SyncTableResult = {
+    pgTable: def.pgTable,
+    label: def.label,
+    read: 0,
+    upserted: 0,
+    modified: 0,
+    deleted: 0,
+    mode: "replace",
+  };
+
+  const upsertKey = def.upsertKey ?? "id";
+  const rows = await readPgTableRows(pg, def, result);
+  if (!rows) return result;
+
+  result.read = rows.length;
+
+  const existingByKey = await loadAllExistingForPreserve(def, upsertKey);
+  const { docs, droppedNoKey } = await prepareDocsFromPgRows(rows, def, upsertKey, existingByKey);
+
+  if (droppedNoKey > 0) {
+    result.droppedNoId = droppedNoKey;
+  }
+
+  const deleted = await def.model.deleteMany({});
+  result.deleted = deleted.deletedCount ?? 0;
+
+  if (docs.length === 0) {
+    if (droppedNoKey > 0 && result.read > 0) {
+      result.error = `${upsertKey} 없는 행 ${droppedNoKey}건 — MongoDB에 저장하지 못했습니다.`;
+    }
+    return result;
+  }
+
+  const plainDocs = docs.map((item) => item.doc);
+  const CHUNK = 200;
+  for (let i = 0; i < plainDocs.length; i += CHUNK) {
+    const chunk = plainDocs.slice(i, i + CHUNK);
+    try {
+      const inserted = await def.model.insertMany(chunk, { ordered: false });
+      result.upserted += inserted.length;
+    } catch (error: unknown) {
+      result.error = bulkWriteErrorMessage(error);
+      return result;
+    }
+  }
+
+  return result;
+}
+
+async function syncTable(
+  pg: postgres.Sql,
+  def: SyncTableDef,
+  mode: PgMongoSyncMode,
+): Promise<SyncTableResult> {
+  return mode === "replace" ? syncTableReplace(pg, def) : syncTableMerge(pg, def);
 }
 
 /** PG와 동일한 시퀀스 값을 Mongo counters에 반영 */
@@ -506,6 +665,14 @@ function resolveSyncDefs(pgTables?: string[]): SyncTableDef[] {
   return defs;
 }
 
+function buildScopeLabel(defs: SyncTableDef[], mode: PgMongoSyncMode): string {
+  const modeLabel = mode === "replace" ? "전체 교체" : "병합";
+  if (defs.length === SYNC_TABLES.length) {
+    return `PostgreSQL → MongoDB 전체 동기화(${modeLabel})가 완료되었습니다.`;
+  }
+  return `${defs.length}개 테이블을 MongoDB에 저장했습니다(${modeLabel}).`;
+}
+
 async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
   if (!isPostgresConfigured()) {
     throw new Error(
@@ -516,6 +683,7 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
     throw new Error("동기화가 이미 실행 중입니다.");
   }
 
+  const syncMode = getPgMongoSyncMode();
   syncInProgress = true;
   const startedAt = new Date().toISOString();
   const tables: SyncTableResult[] = [];
@@ -531,11 +699,11 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
 
   try {
     pgDatabase = await getPostgresDatabaseName(pg);
-    console.log(`[PgMongoSync] PostgreSQL database=${pgDatabase ?? "?"}`);
+    console.log(`[PgMongoSync] PostgreSQL database=${pgDatabase ?? "?"} mode=${syncMode}`);
 
     for (const def of defs) {
       try {
-        tables.push(await syncTable(pg, def));
+        tables.push(await syncTable(pg, def, syncMode));
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         tables.push({
@@ -544,6 +712,7 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
           read: 0,
           upserted: 0,
           modified: 0,
+          mode: syncMode,
           error: message,
         });
       }
@@ -559,30 +728,35 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
   }
 
   const totalRead = tables.reduce((s, t) => s + t.read, 0);
+  const totalDeleted = tables.reduce((s, t) => s + (t.deleted ?? 0), 0);
   const totalWritten = tables.reduce((s, t) => s + t.upserted + t.modified, 0);
   const hasErrors = tables.some((t) => t.error && !t.skipped);
   const finishedAt = new Date().toISOString();
-  const scopeLabel =
-    defs.length === SYNC_TABLES.length
-      ? "PostgreSQL → MongoDB 전체 동기화가 완료되었습니다."
-      : `${defs.length}개 테이블을 MongoDB에 저장했습니다.`;
+  const scopeLabel = buildScopeLabel(defs, syncMode);
 
   let success = !hasErrors;
   let message = hasErrors ? "일부 테이블 저장에 실패했습니다." : scopeLabel;
 
-  if (!hasErrors && totalRead === 0) {
-    success = false;
-    message =
-      pgDatabase != null
-        ? `PostgreSQL DB「${pgDatabase}」에서 읽은 데이터가 0건입니다. DATABASE_URL의 DB 이름(예: ppadun9)이 맞는지 Neon에서 확인하세요.`
-        : "PostgreSQL에서 읽은 데이터가 0건입니다. DATABASE_URL의 DB 이름이 맞는지 확인하세요.";
-  } else if (!hasErrors && totalRead > 0 && totalWritten === 0) {
+  if (!hasErrors && totalRead === 0 && totalDeleted === 0) {
+    const allEmptyReplace = syncMode === "replace" && tables.every((t) => t.deleted === 0 || t.skipped);
+    if (!allEmptyReplace) {
+      success = false;
+      message =
+        pgDatabase != null
+          ? `PostgreSQL DB「${pgDatabase}」에서 읽은 데이터가 0건입니다. DATABASE_URL의 DB 이름(예: ppadun9)이 맞는지 Neon에서 확인하세요.`
+          : "PostgreSQL에서 읽은 데이터가 0건입니다. DATABASE_URL의 DB 이름이 맞는지 확인하세요.";
+    }
+  } else if (!hasErrors && totalRead > 0 && totalWritten === 0 && syncMode === "merge") {
     success = false;
     message =
       `PostgreSQL에서 ${totalRead}건을 읽었으나 MongoDB에 저장된 건이 0입니다. id 컬럼·스키마 검증 오류를 확인하세요.`;
-  } else if (!hasErrors && totalWritten > 0) {
+  } else if (!hasErrors && (totalWritten > 0 || totalDeleted > 0)) {
     const mismatched = countParity.filter((r) => !r.match && r.postgresCount > 0);
-    message = `${scopeLabel} (읽음 ${totalRead}건, 신규 ${tables.reduce((s, t) => s + t.upserted, 0)}, 갱신 ${tables.reduce((s, t) => s + t.modified, 0)})`;
+    if (syncMode === "replace") {
+      message = `${scopeLabel} (읽음 ${totalRead}건, 삭제 ${totalDeleted}건, 삽입 ${tables.reduce((s, t) => s + t.upserted, 0)}건)`;
+    } else {
+      message = `${scopeLabel} (읽음 ${totalRead}건, 신규 ${tables.reduce((s, t) => s + t.upserted, 0)}, 갱신 ${tables.reduce((s, t) => s + t.modified, 0)})`;
+    }
     if (mismatched.length > 0) {
       message += ` — 건수 불일치: ${mismatched.map((r) => r.pgTable).join(", ")}`;
     }
@@ -592,6 +766,7 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
     startedAt,
     finishedAt,
     success,
+    syncMode,
     tables,
     message,
     pgDatabase,
@@ -601,23 +776,23 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
   };
 
   console.log(
-    `[PgMongoSync] db=${pgDatabase ?? "?"} read=${totalRead} upsert=${tables.reduce((s, t) => s + t.upserted, 0)} modified=${tables.reduce((s, t) => s + t.modified, 0)} success=${success}`,
+    `[PgMongoSync] db=${pgDatabase ?? "?"} mode=${syncMode} read=${totalRead} deleted=${totalDeleted} upsert=${tables.reduce((s, t) => s + t.upserted, 0)} modified=${tables.reduce((s, t) => s + t.modified, 0)} success=${success}`,
   );
 
   return lastSyncResult;
 }
 
-/** PostgreSQL(읽기 전용) → MongoDB upsert — 단일 테이블 */
+/** PostgreSQL(읽기 전용) → MongoDB — 단일 테이블 */
 export async function syncPostgresTableToMongo(pgTable: string): Promise<SyncRunResult> {
   return runSync(resolveSyncDefs([pgTable]));
 }
 
-/** PostgreSQL(읽기 전용) → MongoDB upsert — 선택 테이블 (FK 순서 유지) */
+/** PostgreSQL(읽기 전용) → MongoDB — 선택 테이블 (FK 순서 유지) */
 export async function syncPostgresTablesToMongo(pgTables: string[]): Promise<SyncRunResult> {
   return runSync(resolveSyncDefs(pgTables));
 }
 
-/** PostgreSQL(읽기 전용) → MongoDB upsert — 전체 테이블 */
+/** PostgreSQL(읽기 전용) → MongoDB — 전체 테이블 */
 export async function syncPostgresToMongo(): Promise<SyncRunResult> {
   return runSync(SYNC_TABLES);
 }

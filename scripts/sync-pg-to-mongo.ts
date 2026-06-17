@@ -43,8 +43,9 @@ async function main() {
     for (const row of result.tables) {
       const err = row.error ? ` | ${row.error}` : "";
       const skip = row.skipped ? " (건너뜀)" : "";
+      const deleted = row.deleted != null ? ` | 삭제 ${row.deleted}` : "";
       console.log(
-        `${row.pgTable.padEnd(22)} 읽음 ${String(row.read).padStart(6)} | 신규 ${String(row.upserted).padStart(6)} | 갱신 ${String(row.modified).padStart(6)}${skip}${err}`,
+        `${row.pgTable.padEnd(22)} 읽음 ${String(row.read).padStart(6)} | 신규 ${String(row.upserted).padStart(6)} | 갱신 ${String(row.modified).padStart(6)}${deleted}${skip}${err}`,
       );
     }
 

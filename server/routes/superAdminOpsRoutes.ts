@@ -3,6 +3,7 @@ import { superAdminAuthMiddleware } from "../middleware/adminAuth";
 import { superAdminOpsStorage } from "../storage/superAdminOpsStorage";
 import {
   getLastPostgresMongoSyncResult,
+  getPgMongoSyncMode,
   getSyncablePgTables,
   isPostgresMongoSyncRunning,
   syncPostgresTableToMongo,
@@ -19,11 +20,12 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
         tables,
         primarySource: "mongodb",
         postgresConfigured: isPostgresConfigured(),
-        syncIntervalMinutes: isPostgresConfigured() && process.env.PG_MONGO_SYNC_ENABLED === "true"
-          ? Math.round(
-              parseInt(process.env.PG_MONGO_SYNC_INTERVAL_MS || "1800000", 10) / 60000,
-            ) || 30
-          : null,
+        syncMode: getPgMongoSyncMode(),
+        syncScheduleKst:
+          isPostgresConfigured() && process.env.PG_MONGO_SYNC_ENABLED === "true"
+            ? `${String(parseInt(process.env.PG_MONGO_SYNC_HOUR_KST || "1", 10) || 1).padStart(2, "0")}:${String(parseInt(process.env.PG_MONGO_SYNC_MINUTE_KST || "0", 10) || 0).padStart(2, "0")}`
+            : null,
+        syncIntervalMinutes: null,
         lastSync: getLastPostgresMongoSyncResult(),
         syncRunning: isPostgresMongoSyncRunning(),
         syncableTables: getSyncablePgTables(),
