@@ -34,13 +34,15 @@ interface SyncTableDef {
   preserveOnUpdate?: string[];
   /** 신규 문서 기본값 */
   insertDefaults?: Record<string, unknown>;
+  /** upsert 시 null/빈 값이면 필드 제거 ($unset) — sparse unique 인덱스 충돌 방지 */
+  omitNullFields?: string[];
   /** 동기화 후 Mongo 시퀀스 카운터 이름 */
   counterName?: string;
 }
 
 const SYNC_TABLES: SyncTableDef[] = [
   { pgTable: "stadiums", label: "경기장", model: StadiumModel, counterName: "stadium" },
-  { pgTable: "users", label: "회원", model: UserModel, insertDefaults: { provider: "local" } },
+  { pgTable: "users", label: "회원", model: UserModel, insertDefaults: { provider: "local" }, omitNullFields: ["phone", "inviteCode"] },
   {
     pgTable: "admin_users",
     label: "관리자/운영자",
@@ -334,14 +336,29 @@ async function syncTable(
             doc[key] = val;
           }
         }
-      } else if (!existing && def.insertDefaults) {
+      } else       if (!existing && def.insertDefaults) {
         Object.assign(doc, def.insertDefaults);
+      }
+
+      const setDoc = { ...doc };
+      const unsetDoc: Record<string, ""> = {};
+      for (const key of def.omitNullFields ?? []) {
+        const val = setDoc[key];
+        if (val === null || val === undefined || val === "") {
+          delete setDoc[key];
+          unsetDoc[key] = "";
+        }
+      }
+
+      const update: Record<string, unknown> = { $set: setDoc };
+      if (Object.keys(unsetDoc).length > 0) {
+        update.$unset = unsetDoc;
       }
 
       return {
         updateOne: {
           filter: { [upsertKey]: doc[upsertKey] },
-          update: { $set: doc },
+          update,
           upsert: true,
         },
       };
