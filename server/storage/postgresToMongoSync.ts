@@ -43,6 +43,8 @@ interface SyncTableDef {
   counterName?: string;
   /** password(평문) → bcrypt + passwordPlain 저장 */
   storePasswordPlain?: boolean;
+  /** PG 행 → Mongo 문서 변환 후 보정 */
+  normalizeDoc?: (doc: Record<string, unknown>) => void | Promise<void>;
 }
 
 const SYNC_TABLES: SyncTableDef[] = [
@@ -54,6 +56,7 @@ const SYNC_TABLES: SyncTableDef[] = [
     insertDefaults: { provider: "local" },
     omitNullFields: ["phone", "inviteCode"],
     storePasswordPlain: true,
+    normalizeDoc: normalizeUserDoc,
   },
   {
     pgTable: "admin_users",
@@ -182,6 +185,16 @@ const PG_FIELD_MAP: Record<string, string> = {
   password_plain: "passwordPlain",
 };
 
+/** sparse unique {provider, providerId} — null providerId 중복 방지 */
+async function normalizeUserDoc(doc: Record<string, unknown>): Promise<void> {
+  const provider = typeof doc.provider === "string" && doc.provider ? doc.provider : "local";
+  doc.provider = provider;
+  const providerId = doc.providerId;
+  if (providerId == null || providerId === "") {
+    doc.providerId = String(doc.id);
+  }
+}
+
 function isBcryptHash(value: unknown): boolean {
   return (
     typeof value === "string" &&
@@ -266,6 +279,25 @@ function mapPgRow(row: Record<string, unknown>): Record<string, unknown> {
     mapped[mongoKey] = normalizePgValue(value, mongoKey);
   }
   return mapped;
+}
+
+function insertManyErrorMessage(error: unknown): string {
+  if (error && typeof error === "object") {
+    const bulk = error as {
+      writeErrors?: { errmsg?: string }[];
+      insertedDocs?: unknown[];
+      result?: { nInserted?: number };
+    };
+    const first = bulk.writeErrors?.[0]?.errmsg;
+    const inserted =
+      bulk.insertedDocs?.length ??
+      bulk.result?.nInserted ??
+      (error as { insertedCount?: number }).insertedCount;
+    if (first) {
+      return inserted ? `${first} (일부 ${inserted}건 저장됨)` : first;
+    }
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 function bulkWriteErrorMessage(error: unknown): string {
@@ -390,6 +422,9 @@ async function prepareDocsFromPgRows(
     }
     if (def.storePasswordPlain) {
       await normalizePasswordFields(doc);
+    }
+    if (def.normalizeDoc) {
+      await def.normalizeDoc(doc);
     }
     const existing = existingByKey.get(String(keyVal));
     applyPreserveAndDefaults(doc, def, existing);
@@ -587,7 +622,7 @@ async function syncTableReplace(
       const inserted = await def.model.insertMany(chunk, { ordered: false });
       result.upserted += inserted.length;
     } catch (error: unknown) {
-      result.error = bulkWriteErrorMessage(error);
+      result.error = insertManyErrorMessage(error);
       return result;
     }
   }

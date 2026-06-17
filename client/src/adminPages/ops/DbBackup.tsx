@@ -73,6 +73,7 @@ function summarizeLastSync(lastSync: SyncRunResult): {
   totalDeleted: number;
   skippedTables: string[];
   failedTables: string[];
+  failedDetails: { pgTable: string; error: string }[];
 } {
   let totalRead = 0;
   let totalUpserted = 0;
@@ -80,6 +81,7 @@ function summarizeLastSync(lastSync: SyncRunResult): {
   let totalDeleted = 0;
   const skippedTables: string[] = [];
   const failedTables: string[] = [];
+  const failedDetails: { pgTable: string; error: string }[] = [];
 
   for (const row of lastSync.tables) {
     totalRead += row.read;
@@ -87,10 +89,13 @@ function summarizeLastSync(lastSync: SyncRunResult): {
     totalModified += row.modified;
     totalDeleted += row.deleted ?? 0;
     if (row.skipped) skippedTables.push(row.pgTable);
-    else if (row.error) failedTables.push(row.pgTable);
+    else if (row.error) {
+      failedTables.push(row.pgTable);
+      failedDetails.push({ pgTable: row.pgTable, error: row.error });
+    }
   }
 
-  return { totalRead, totalUpserted, totalModified, totalDeleted, skippedTables, failedTables };
+  return { totalRead, totalUpserted, totalModified, totalDeleted, skippedTables, failedTables, failedDetails };
 }
 
 export default function DbBackupPage() {
@@ -351,9 +356,14 @@ export default function DbBackupPage() {
                         </p>
                       )}
                       {summary.failedTables.length > 0 && (
-                        <p className="text-red-600">
-                          실패: {summary.failedTables.join(", ")}
-                        </p>
+                        <div className="text-red-600 space-y-1">
+                          <p>실패: {summary.failedTables.join(", ")}</p>
+                          {summary.failedDetails.map((item) => (
+                            <p key={item.pgTable} className="break-all text-[11px]">
+                              {item.pgTable}: {item.error}
+                            </p>
+                          ))}
+                        </div>
                       )}
                       {pgTotal > 0 && summary.totalRead === 0 && data.lastSync.success && (
                         <p className="text-amber-700">
