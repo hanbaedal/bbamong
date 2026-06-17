@@ -45,12 +45,12 @@ interface SyncTableDef {
 
 const SYNC_TABLES: SyncTableDef[] = [
   { pgTable: "stadiums", label: "경기장", model: StadiumModel, counterName: "stadium" },
-  { pgTable: "users", label: "회원", model: UserModel, insertDefaults: { provider: "local" }, omitNullFields: ["phone", "inviteCode"], storePasswordPlain: true, preserveOnUpdate: ["passwordPlain"] },
+  { pgTable: "users", label: "회원", model: UserModel, insertDefaults: { provider: "local" }, omitNullFields: ["phone", "inviteCode"], storePasswordPlain: true, preserveOnUpdate: [] },
   {
     pgTable: "admin_users",
     label: "관리자/운영자",
     model: AdminUserModel,
-    preserveOnUpdate: ["operatorSlot", "dailyPasswordPlain", "dailyPasswordDate", "passwordPlain"],
+    preserveOnUpdate: ["operatorSlot", "dailyPasswordPlain", "dailyPasswordDate"],
     insertDefaults: { operatorSlot: null, dailyPasswordPlain: "", dailyPasswordDate: "", logoutAllowed: false },
     storePasswordPlain: true,
   },
@@ -180,13 +180,15 @@ function isBcryptHash(value: unknown): boolean {
   );
 }
 
-/** PG password(평문 또는 bcrypt) → Mongo: password=bcrypt, passwordPlain=평문(가능할 때만) */
+/** PG → Mongo: passwordPlain에 평문 저장, password는 로그인용 bcrypt */
 async function normalizePasswordFields(doc: Record<string, unknown>): Promise<void> {
   const explicitPlain = doc.passwordPlain ?? doc.password_plain;
   if (typeof explicitPlain === "string" && explicitPlain && !isBcryptHash(explicitPlain)) {
     doc.passwordPlain = explicitPlain;
     if (typeof doc.password === "string" && doc.password && !isBcryptHash(doc.password)) {
       doc.password = await bcrypt.hash(doc.password, 10);
+    } else if (typeof doc.password !== "string" || !isBcryptHash(doc.password)) {
+      doc.password = await bcrypt.hash(explicitPlain, 10);
     }
     delete doc.password_plain;
     return;
@@ -201,6 +203,19 @@ async function normalizePasswordFields(doc: Record<string, unknown>): Promise<vo
 
   doc.passwordPlain = pw;
   doc.password = await bcrypt.hash(pw, 10);
+}
+
+function mergePasswordPlainFromPgOrMongo(
+  doc: Record<string, unknown>,
+  existing: Record<string, unknown> | undefined,
+): void {
+  const fromPg = doc.passwordPlain;
+  if (typeof fromPg === "string" && fromPg) return;
+
+  const fromMongo = existing?.passwordPlain;
+  if (typeof fromMongo === "string" && fromMongo) {
+    doc.passwordPlain = fromMongo;
+  }
 }
 
 function snakeToCamel(key: string): string {
@@ -349,12 +364,15 @@ async function syncTable(
     if (docs.length === 0) continue;
 
     const keyValues = docs.map((d) => d[upsertKey]);
-    const needsExisting = preserve.size > 0 || !!def.insertDefaults;
+    const needsExisting = preserve.size > 0 || !!def.insertDefaults || !!def.storePasswordPlain;
     const existingByKey = new Map<string, Record<string, unknown>>();
 
     if (needsExisting) {
-      const selectFields =
-        preserve.size > 0 ? [upsertKey, ...Array.from(preserve)].join(" ") : upsertKey;
+      const selectFields = [
+        upsertKey,
+        ...Array.from(preserve),
+        ...(def.storePasswordPlain ? ["passwordPlain"] : []),
+      ].join(" ");
       const existingDocs = await def.model
         .find({ [upsertKey]: { $in: keyValues } })
         .select(selectFields)
@@ -376,6 +394,10 @@ async function syncTable(
         }
       } else if (!existing && def.insertDefaults) {
         Object.assign(doc, def.insertDefaults);
+      }
+
+      if (def.storePasswordPlain) {
+        mergePasswordPlainFromPgOrMongo(doc, existing);
       }
 
       const setDoc = { ...doc };

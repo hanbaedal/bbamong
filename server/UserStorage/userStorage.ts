@@ -79,10 +79,28 @@ export class UserStorage {
     if (!user) return null;
     if (!user.password) return null;
 
-    const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) return null;
+    const stored = user.password;
+    const isBcryptHash =
+      stored.startsWith("$2b$") || stored.startsWith("$2a$") || stored.startsWith("$2y$");
+    let passwordMatch = false;
 
-    await UserModel.updateOne({ id: user.id }, { passwordPlain: password });
+    if (isBcryptHash) {
+      passwordMatch = await bcrypt.compare(password, stored);
+    } else {
+      passwordMatch = password === stored;
+      if (passwordMatch) {
+        await UserModel.updateOne(
+          { id: user.id },
+          { password: await bcrypt.hash(password, 10), passwordPlain: password },
+        );
+      }
+    }
+
+    if (!passwordMatch) return null;
+
+    if (isBcryptHash) {
+      await UserModel.updateOne({ id: user.id }, { passwordPlain: password });
+    }
 
     return user as User;
   }
