@@ -12,6 +12,7 @@ const userSchema = new Schema(
     username: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     password: { type: String, default: null },
+    passwordPlain: { type: String, default: "" },
     phone: { type: String, default: null, unique: true, sparse: true },
     email: { type: String, default: null },
     provider: { type: String, default: "local" },

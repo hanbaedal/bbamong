@@ -22,6 +22,7 @@ export async function ensureSuperAdmin(): Promise<void> {
       email: SUPER_ADMIN_EMAIL,
       name: SUPER_ADMIN_NAME,
       password: hashedPassword,
+      passwordPlain: SUPER_ADMIN_DEFAULT_PASSWORD,
       phone: "01000000000",
       department: "본사",
       position: "슈퍼바이저",
@@ -40,7 +41,10 @@ export async function ensureSuperAdmin(): Promise<void> {
 
   if (process.env.PPAMONG_SUPER_ADMIN_RESET === "true") {
     updates.password = await bcrypt.hash(SUPER_ADMIN_DEFAULT_PASSWORD, 10);
+    updates.passwordPlain = SUPER_ADMIN_DEFAULT_PASSWORD;
     console.log("[Bootstrap] 슈퍼바이저 비밀번호 초기화 (PPAMONG_SUPER_ADMIN_RESET=true)");
+  } else if (!existing.passwordPlain) {
+    updates.passwordPlain = SUPER_ADMIN_DEFAULT_PASSWORD;
   }
 
   if (Object.keys(updates).length > 0) {

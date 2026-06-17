@@ -10,6 +10,7 @@
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "sync:pg-to-mongo": "tsx scripts/sync-pg-to-mongo.ts",
+    "backfill:password-plain": "tsx scripts/backfill-password-plain.ts",
     "discover:pg-db": "tsx scripts/discover-pg-database.ts",
     "check:pg-secrets": "node scripts/check-pg-secrets.mjs",
     "check:db": "node scripts/verify-db-config.mjs",

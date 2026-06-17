@@ -101,6 +101,10 @@ export async function adminRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: "이메일 또는 비밀번호가 일치하지 않습니다." });
       }
 
+      await adminStorage.updateAdminUser(admin.id, {
+        passwordPlain: password,
+      } as Parameters<AdminStorage["updateAdminUser"]>[1]);
+
       if (admin.userType !== "슈퍼어드민" && admin.userType !== "일반어드민") {
         return res.status(403).json({ error: "관리자 계정이 아닙니다." });
       }

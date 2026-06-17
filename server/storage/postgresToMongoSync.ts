@@ -1,4 +1,5 @@
 import type postgres from "postgres";
+import bcrypt from "bcrypt";
 import { getPostgresClient, getPostgresDatabaseName, isPostgresConfigured } from "./postgresClient";
 import {
   UserModel,
@@ -38,17 +39,20 @@ interface SyncTableDef {
   omitNullFields?: string[];
   /** 동기화 후 Mongo 시퀀스 카운터 이름 */
   counterName?: string;
+  /** password(평문) → bcrypt + passwordPlain 저장 */
+  storePasswordPlain?: boolean;
 }
 
 const SYNC_TABLES: SyncTableDef[] = [
   { pgTable: "stadiums", label: "경기장", model: StadiumModel, counterName: "stadium" },
-  { pgTable: "users", label: "회원", model: UserModel, insertDefaults: { provider: "local" }, omitNullFields: ["phone", "inviteCode"] },
+  { pgTable: "users", label: "회원", model: UserModel, insertDefaults: { provider: "local" }, omitNullFields: ["phone", "inviteCode"], storePasswordPlain: true, preserveOnUpdate: ["passwordPlain"] },
   {
     pgTable: "admin_users",
     label: "관리자/운영자",
     model: AdminUserModel,
     preserveOnUpdate: ["operatorSlot", "dailyPasswordPlain", "dailyPasswordDate", "passwordPlain"],
     insertDefaults: { operatorSlot: null, dailyPasswordPlain: "", dailyPasswordDate: "", logoutAllowed: false },
+    storePasswordPlain: true,
   },
   {
     pgTable: "matches",
@@ -166,7 +170,38 @@ const PG_FIELD_MAP: Record<string, string> = {
   earned_points: "earnedPoints",
   advertisement_id: "advertisementId",
   viewed_at: "viewedAt",
+  password_plain: "passwordPlain",
 };
+
+function isBcryptHash(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    (value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$"))
+  );
+}
+
+/** PG password(평문 또는 bcrypt) → Mongo: password=bcrypt, passwordPlain=평문(가능할 때만) */
+async function normalizePasswordFields(doc: Record<string, unknown>): Promise<void> {
+  const explicitPlain = doc.passwordPlain ?? doc.password_plain;
+  if (typeof explicitPlain === "string" && explicitPlain && !isBcryptHash(explicitPlain)) {
+    doc.passwordPlain = explicitPlain;
+    if (typeof doc.password === "string" && doc.password && !isBcryptHash(doc.password)) {
+      doc.password = await bcrypt.hash(doc.password, 10);
+    }
+    delete doc.password_plain;
+    return;
+  }
+
+  const pw = doc.password;
+  if (typeof pw !== "string" || !pw) return;
+
+  if (isBcryptHash(pw)) {
+    return;
+  }
+
+  doc.passwordPlain = pw;
+  doc.password = await bcrypt.hash(pw, 10);
+}
 
 function snakeToCamel(key: string): string {
   return key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
@@ -305,6 +340,9 @@ async function syncTable(
         droppedNoKey += 1;
         continue;
       }
+      if (def.storePasswordPlain) {
+        await normalizePasswordFields(doc);
+      }
       docs.push(doc);
     }
 
@@ -336,7 +374,7 @@ async function syncTable(
             doc[key] = val;
           }
         }
-      } else       if (!existing && def.insertDefaults) {
+      } else if (!existing && def.insertDefaults) {
         Object.assign(doc, def.insertDefaults);
       }
 

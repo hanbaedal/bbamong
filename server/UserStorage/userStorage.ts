@@ -82,6 +82,8 @@ export class UserStorage {
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) return null;
 
+    await UserModel.updateOne({ id: user.id }, { passwordPlain: password });
+
     return user as User;
   }
 
@@ -105,6 +107,7 @@ export class UserStorage {
       ...user,
       phone: cleanPhone,
       password: hashedPassword,
+      passwordPlain: user.password ?? "",
       inviteCode,
       referralCode: validReferralCode,
     });
@@ -140,7 +143,12 @@ export class UserStorage {
 
     await UserModel.updateOne(
       { phone: cleanPhone },
-      { password: hashedPassword, verificationCode: null, verificationCodeExpiry: null },
+      {
+        password: hashedPassword,
+        passwordPlain: newPassword,
+        verificationCode: null,
+        verificationCodeExpiry: null,
+      },
     );
   }
 
@@ -155,6 +163,7 @@ export class UserStorage {
     if (updates.email !== undefined) setData.email = updates.email;
     if (updates.password !== undefined && updates.password !== null) {
       setData.password = await bcrypt.hash(updates.password, 10);
+      setData.passwordPlain = updates.password;
     }
 
     if (Object.keys(setData).length === 0) return null;
