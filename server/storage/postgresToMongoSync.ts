@@ -185,13 +185,19 @@ const PG_FIELD_MAP: Record<string, string> = {
   password_plain: "passwordPlain",
 };
 
-/** sparse unique {provider, providerId} — null providerId 중복 방지 */
+/** sparse unique 인덱스 충돌 방지 (phone:null, providerId:null 등) */
 async function normalizeUserDoc(doc: Record<string, unknown>): Promise<void> {
   const provider = typeof doc.provider === "string" && doc.provider ? doc.provider : "local";
   doc.provider = provider;
   const providerId = doc.providerId;
   if (providerId == null || providerId === "") {
     doc.providerId = String(doc.id);
+  }
+  for (const key of ["phone", "inviteCode", "email", "referralCode"] as const) {
+    const val = doc[key];
+    if (val === null || val === undefined || val === "") {
+      delete doc[key];
+    }
   }
 }
 
@@ -286,13 +292,11 @@ function insertManyErrorMessage(error: unknown): string {
     const bulk = error as {
       writeErrors?: { errmsg?: string }[];
       insertedDocs?: unknown[];
+      insertedCount?: number;
       result?: { nInserted?: number };
     };
     const first = bulk.writeErrors?.[0]?.errmsg;
-    const inserted =
-      bulk.insertedDocs?.length ??
-      bulk.result?.nInserted ??
-      (error as { insertedCount?: number }).insertedCount;
+    const inserted = bulk.insertedCount ?? bulk.insertedDocs?.length ?? bulk.result?.nInserted;
     if (first) {
       return inserted ? `${first} (일부 ${inserted}건 저장됨)` : first;
     }
@@ -619,9 +623,15 @@ async function syncTableReplace(
   for (let i = 0; i < plainDocs.length; i += CHUNK) {
     const chunk = plainDocs.slice(i, i + CHUNK);
     try {
-      const inserted = await def.model.insertMany(chunk, { ordered: false });
-      result.upserted += inserted.length;
+      // Mongoose default:null 이 sparse unique 필드에 null을 넣지 않도록 native insert 사용
+      const inserted = await def.model.collection.insertMany(chunk, { ordered: false });
+      result.upserted += inserted.insertedCount;
     } catch (error: unknown) {
+      const partial =
+        error && typeof error === "object" && "insertedCount" in error
+          ? (error as { insertedCount?: number }).insertedCount
+          : undefined;
+      if (partial) result.upserted += partial;
       result.error = insertManyErrorMessage(error);
       return result;
     }
