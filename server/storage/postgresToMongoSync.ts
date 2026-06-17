@@ -348,14 +348,12 @@ async function syncTable(
     });
 
     try {
-      const bulk = await def.model.bulkWrite(ops, {
-        ordered: false,
-        bypassDocumentValidation: true,
-      });
+      const bulk = await def.model.bulkWrite(ops, { ordered: false });
       result.upserted += bulk.upsertedCount ?? 0;
       result.modified += bulk.modifiedCount ?? 0;
     } catch (error: unknown) {
-      throw new Error(bulkWriteErrorMessage(error));
+      result.error = bulkWriteErrorMessage(error);
+      return result;
     }
   }
 

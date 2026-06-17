@@ -143,7 +143,7 @@ if (pgHost && !isExternalPgHost(pgHost)) {
     console.log("    → PGHOST를 DATABASE_URL 호스트로 바꾸세요:");
     console.log("      " + neonHost);
   }
-  console.log("    → 또는 PGHOST Secret 삭제 후 PG_DATABASE_NAME=heliumdb 로 DATABASE_URL만 사용");
+  console.log("    → 또는 PGHOST Secret 삭제 후 npm run discover:pg-db 로 올바른 PG_DATABASE_NAME 확인");
 }
 
 console.log("\n【또는 DATABASE_URL】");
