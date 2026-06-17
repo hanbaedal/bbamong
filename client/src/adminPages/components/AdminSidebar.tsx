@@ -3,201 +3,14 @@ import { useLocation } from "wouter";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import { useUser } from "@/contexts/UserContext";
 import { cn } from "@/lib/utils";
+import {
+  buildAdminMenuSections,
+  type AdminMenuItem,
+} from "../adminMenuConfig";
 
 interface AdminSidebarProps {
   onNavigate?: () => void;
   className?: string;
-}
-
-interface MenuItem {
-  id: string;
-  label: string;
-  iconKey?: string;
-  path?: string;
-  children?: MenuItem[];
-}
-
-interface MenuSection {
-  id: string;
-  items: MenuItem[];
-  superAdminOnly?: boolean;
-}
-
-function buildMenuSections(isSuperAdmin: boolean): MenuSection[] {
-  const sections: MenuSection[] = [
-    {
-      id: "main",
-      items: [
-        {
-          id: "admin-home",
-          label: "홈 페이지",
-          path: "/admin/home",
-          iconKey: "adListIcon",
-        },
-        {
-          id: "homepage-management",
-          label: "홈페이지 관리",
-          path: "/admin/homepage-management",
-          iconKey: "adMatchCharaterIcon",
-        },
-      ],
-    },
-    {
-      id: "staff-ops",
-      superAdminOnly: true,
-      items: [
-        {
-          id: "staff-management",
-          label: "관리자 관리",
-          iconKey: "adEmployeeIcon",
-          children: [
-            {
-              id: "staff-register",
-              label: "관리자 등록",
-              path: "/admin/staff/register",
-              iconKey: "adEmployeeIcon",
-            },
-            {
-              id: "staff-list",
-              label: "관리자 리스트",
-              path: "/admin/staff/list",
-              iconKey: "adUserListIcon",
-            },
-          ],
-        },
-        {
-          id: "ops-management",
-          label: "업무 관리",
-          iconKey: "adTermIcon",
-          children: [
-            {
-              id: "db-backup",
-              label: "디비 백업하기",
-              path: "/admin/ops/db-backup",
-              iconKey: "adTermIcon",
-            },
-            {
-              id: "admin-login-status",
-              label: "관리자 로그인 현황",
-              path: "/admin/ops/admin-login-status",
-              iconKey: "adEmployeeIcon",
-            },
-            {
-              id: "manager-login-status",
-              label: "운영자 로그인 현황",
-              path: "/admin/ops/manager-login-status",
-              iconKey: "adMangerListIcon",
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: "revenue-operator",
-      items: [
-        {
-          id: "revenue-management",
-          label: "수익 관리",
-          iconKey: "adProfitIcon",
-          children: [
-            {
-              id: "video-revenue",
-              label: "동영상 광고 수익 현황",
-              path: "/admin/revenue/video",
-              iconKey: "adVideoProfitIcon",
-            },
-          ],
-        },
-        {
-          id: "operator-management",
-          label: "운영자 관리",
-          iconKey: "adMangerListIcon",
-          children: [
-            {
-              id: "operator-register",
-              label: "운영자 등록",
-              path: "/admin/operators/register",
-              iconKey: "adMangerListIcon",
-            },
-            {
-              id: "operator-list",
-              label: "운영자 리스트",
-              path: "/admin/operators/list",
-              iconKey: "adUserListIcon",
-            },
-            {
-              id: "operator-monitoring",
-              label: "운영자 상태 모니터링",
-              path: "/admin/monitoring",
-              iconKey: "adManagerMonitoringIcon",
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: "match-members",
-      items: [
-        {
-          id: "match-management",
-          label: "경기 관리",
-          path: "/admin/match-management",
-          iconKey: "adMatchIcon",
-        },
-        {
-          id: "members",
-          label: "회원 관리",
-          iconKey: "adMemberIcon",
-          children: [
-            {
-              id: "member-list",
-              label: "회원 리스트",
-              path: "/admin/members/list",
-              iconKey: "adUserListIcon",
-            },
-            {
-              id: "donation-rankings",
-              label: "사회공헌참여기록 관리",
-              path: "/admin/members/donation-rankings",
-              iconKey: "adDonationPointIcon",
-            },
-          ],
-        },
-      ],
-    },
-    {
-      id: "notice-support",
-      items: [
-        {
-          id: "notice-management",
-          label: "공지 사항",
-          path: "/admin/notices",
-          iconKey: "adNoticeIcon",
-        },
-        {
-          id: "customer-support",
-          label: "고객 지원 관리",
-          iconKey: "adCustomerIcon",
-          children: [
-            {
-              id: "support-center",
-              label: "고객 지원 센터",
-              path: "/admin/support",
-              iconKey: "adCustomerIcon",
-            },
-            {
-              id: "terms-management",
-              label: "약관 관리",
-              path: "/admin/terms",
-              iconKey: "adTermIcon",
-            },
-          ],
-        },
-      ],
-    },
-  ];
-
-  return sections.filter((section) => !section.superAdminOnly || isSuperAdmin);
 }
 
 export default function AdminSidebar({ onNavigate, className }: AdminSidebarProps) {
@@ -207,7 +20,7 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
 
   const isSuperAdmin = user?.userType === "슈퍼어드민";
 
-  const menuSections = useMemo(() => buildMenuSections(isSuperAdmin), [isSuperAdmin]);
+  const menuSections = useMemo(() => buildAdminMenuSections(isSuperAdmin), [isSuperAdmin]);
   const menuItems = useMemo(
     () => menuSections.flatMap((section) => section.items),
     [menuSections],
@@ -258,10 +71,10 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
   };
 
   const isActive = (path?: string) => path === location;
-  const isParentActive = (item: MenuItem) =>
-    isActive(item.path) || item.children?.some((child) => isActive(child.path));
+  const isParentActive = (item: AdminMenuItem) =>
+    isActive(item.path) || !!item.children?.some((child) => isActive(child.path));
 
-  const renderMenuItem = (item: MenuItem) => {
+  const renderMenuItem = (item: AdminMenuItem) => {
     if (item.children) {
       return (
         <div key={item.id} className="rounded transition-all duration-200">
@@ -371,7 +184,7 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
   return (
     <div
       className={cn(
-        "w-[180px] md:w-[220px] lg:w-[240px] h-full min-h-0 bg-[#FFF9FA] flex flex-col border-r border-[#E9E9E9] overflow-y-auto flex-shrink-0",
+        "w-[180px] md:w-[220px] lg:w-[240px] h-full min-h-0 bg-[#FFF9FA] flex flex-col border-r border-[#E0E0E0] overflow-y-auto flex-shrink-0",
         className,
       )}
       data-testid="admin-sidebar"
@@ -381,10 +194,15 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
           <div key={section.id}>
             {sectionIndex > 0 && (
               <div
-                className="my-2 md:my-3 border-t border-[#E9E9E9]"
+                className="my-3 h-px bg-[#D1D5DB] w-full"
                 role="separator"
                 aria-hidden="true"
               />
+            )}
+            {section.title && (
+              <p className="px-2 md:px-[14px] pb-1.5 text-[10px] md:text-xs font-semibold uppercase tracking-wide text-[#9CA3AF]">
+                {section.title}
+              </p>
             )}
             <div className="flex flex-col gap-1">
               {section.items.map((item) => renderMenuItem(item))}
