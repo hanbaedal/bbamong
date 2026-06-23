@@ -5,34 +5,74 @@ import {
   AdOptions,
   InterstitialAdPluginEvents,
 } from "@capacitor-community/admob";
+import { getFullUrl } from "@/lib/queryClient";
 
 const IS_TESTING = import.meta.env.DEV;
 
-const AD_ID_ANDROID =
+const FALLBACK_AD_ID_ANDROID =
   import.meta.env.VITE_ADMOB_AD_ID_ANDROID ||
   "ca-app-pub-3940256099942544/1033173712";
-const AD_ID_IOS =
+const FALLBACK_AD_ID_IOS =
   import.meta.env.VITE_ADMOB_AD_ID_IOS ||
   "ca-app-pub-3940256099942544/4411468910";
 
+interface RuntimeAdConfig {
+  androidInterstitialAdUnitId: string;
+  iosInterstitialAdUnitId: string;
+}
+
+let runtimeAdConfig: RuntimeAdConfig | null = null;
+let runtimeAdConfigPromise: Promise<void> | null = null;
+
+async function loadRuntimeAdConfig(): Promise<void> {
+  if (runtimeAdConfig) return;
+  if (runtimeAdConfigPromise) {
+    await runtimeAdConfigPromise;
+    return;
+  }
+  runtimeAdConfigPromise = (async () => {
+    try {
+      const res = await fetch(getFullUrl("/api/config/admob"));
+      if (res.ok) {
+        runtimeAdConfig = await res.json();
+      }
+    } catch (error) {
+      console.warn("[AdMob] Runtime config load failed:", error);
+    }
+  })();
+  await runtimeAdConfigPromise;
+}
+
 function warnIfProductionAdIdsMissing() {
   if (import.meta.env.DEV || !Capacitor.isNativePlatform()) return;
-  if (!import.meta.env.VITE_ADMOB_AD_ID_ANDROID) {
+  const platform = Capacitor.getPlatform();
+  const fromRuntime =
+    platform === "ios"
+      ? runtimeAdConfig?.iosInterstitialAdUnitId
+      : runtimeAdConfig?.androidInterstitialAdUnitId;
+  const fromEnv =
+    platform === "ios"
+      ? import.meta.env.VITE_ADMOB_AD_ID_IOS
+      : import.meta.env.VITE_ADMOB_AD_ID_ANDROID;
+  if (!fromRuntime?.trim() && !fromEnv) {
     console.warn(
-      "[AdMob] VITE_ADMOB_AD_ID_ANDROID 미설정 — 테스트 광고 ID 사용 중. 앱 빌드 전 Replit Secrets에 등록 후 npm run build 하세요.",
-    );
-  }
-  if (!import.meta.env.VITE_ADMOB_AD_ID_IOS) {
-    console.warn(
-      "[AdMob] VITE_ADMOB_AD_ID_IOS 미설정 — 테스트 광고 ID 사용 중. 앱 빌드 전 Replit Secrets에 등록 후 npm run build 하세요.",
+      "[AdMob] 광고 단위 ID 미설정 — 테스트 ID 사용 중. 관리자 → 동영상 광고 수익 현황에서 앱 광고 단위를 선택하세요.",
     );
   }
 }
 
 function getAdId(): string {
   const platform = Capacitor.getPlatform();
-  if (platform === "ios") return AD_ID_IOS;
-  return AD_ID_ANDROID;
+  const fromRuntime =
+    platform === "ios"
+      ? runtimeAdConfig?.iosInterstitialAdUnitId?.trim()
+      : runtimeAdConfig?.androidInterstitialAdUnitId?.trim();
+  if (fromRuntime) return fromRuntime;
+
+  if (platform === "ios") {
+    return import.meta.env.VITE_ADMOB_AD_ID_IOS?.trim() || FALLBACK_AD_ID_IOS;
+  }
+  return import.meta.env.VITE_ADMOB_AD_ID_ANDROID?.trim() || FALLBACK_AD_ID_ANDROID;
 }
 
 export type AdSessionState = "idle" | "preparing" | "showing" | "overlay";
@@ -75,12 +115,13 @@ export function useAdMob(): UseAdMobResult {
     if (!isNativePlatform || isInitialized.current) return;
 
     try {
+      await loadRuntimeAdConfig();
       await AdMob.initialize({
         initializeForTesting: IS_TESTING,
       });
       isInitialized.current = true;
       warnIfProductionAdIdsMissing();
-      console.log("[AdMob] Initialized successfully");
+      console.log("[AdMob] Initialized successfully, adId:", getAdId().slice(0, 20) + "...");
     } catch (error) {
       console.error("[AdMob] Initialization error:", error);
     }

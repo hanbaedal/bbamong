@@ -350,4 +350,33 @@ const goodsProductSchema = new Schema(
 goodsProductSchema.index({ categoryId: 1, displayOrder: 1 });
 export const GoodsProductModel = mongoose.model("GoodsProduct", goodsProductSchema);
 
+const appAdmobConfigSchema = new Schema(
+  {
+    id: { type: String, required: true, unique: true, default: "default" },
+    androidInterstitialAdUnitId: { type: String, default: "" },
+    iosInterstitialAdUnitId: { type: String, default: "" },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+export const AppAdmobConfigModel = mongoose.model("AppAdmobConfig", appAdmobConfigSchema);
+
+const shopInquirySchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true },
+    productId: { type: Number, required: true },
+    productName: { type: String, required: true },
+    customerName: { type: String, required: true },
+    phone: { type: String, default: "" },
+    email: { type: String, default: "" },
+    message: { type: String, default: "" },
+    status: { type: String, enum: ["pending", "done"], default: "pending" },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+shopInquirySchema.index({ status: 1, createdAt: -1 });
+export const ShopInquiryModel = mongoose.model("ShopInquiry", shopInquirySchema);
+
 export type MongoUser = InferSchemaType<typeof userSchema>;

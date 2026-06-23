@@ -5,6 +5,7 @@ import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import PublicSiteHeader from "@/components/public/PublicSiteHeader";
 import GoodsPurchaseActions from "@/components/goods/GoodsPurchaseActions";
+import ShopInquiryForm from "@/components/goods/ShopInquiryForm";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
 import { getFullUrl } from "@/lib/queryClient";
 
@@ -97,6 +98,9 @@ export default function GoodsDetailPage() {
             shopSettings={shopSettings}
             isPublic={isPublic}
           />
+          {!product.purchaseUrl?.trim() && (
+            <ShopInquiryForm productId={product.id} productName={product.name} />
+          )}
         </>
       )}
     </>

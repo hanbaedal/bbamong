@@ -28,6 +28,7 @@ import { superAdminOpsRoutes } from "./routes/superAdminOpsRoutes"
 import {adminWaitingScreenRoutes} from "./routes/adminWaitingScreenRoutes"
 import {adminAdvertisementRoutes} from "./routes/adminAdvertisementRoutes"
 import {adminAdmobRoutes} from "./routes/adminAdmobRoutes"
+import { shopRoutes } from "./UserRoutes/shopRoutes"
 import { managerRoutes } from "./routes/managerRoutes"
 import predictionRoutes from "./liveMatch/predictionRoutes"
 import matchControlRoutes from "./liveMatch/matchControlRoutes"
@@ -46,6 +47,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   await noticeRoutes(app)
   await termRoutes(app)
   await homePageRoutes(app)
+  await shopRoutes(app)
   await faqRoutes(app)
   await ebookRoutes(app)
   

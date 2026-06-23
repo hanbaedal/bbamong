@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type Tab = "basic" | "game" | "categories" | "products";
+type Tab = "basic" | "game" | "categories" | "products" | "inquiries";
 
 interface HomePageSettings {
   greetingPrefix: string;
@@ -58,6 +58,18 @@ interface GoodsProduct {
   purchaseUrl?: string;
   displayOrder: number;
   isActive: boolean;
+}
+
+interface ShopInquiry {
+  id: number;
+  productId: number;
+  productName: string;
+  customerName: string;
+  phone: string;
+  email: string;
+  message: string;
+  status: "pending" | "done";
+  createdAt: string;
 }
 
 interface AdminHomepageData {
@@ -175,11 +187,26 @@ export default function HomePageManagementPage() {
     },
   });
 
+  const { data: inquiriesData, refetch: refetchInquiries } = useQuery<{ inquiries: ShopInquiry[] }>({
+    queryKey: ["/api/admin/shop/inquiries"],
+    enabled: activeTab === "inquiries",
+  });
+
+  const updateInquiryMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: "pending" | "done" }) =>
+      apiRequest("PATCH", `/api/admin/shop/inquiries/${id}`, { status }),
+    onSuccess: () => {
+      refetchInquiries();
+      toast({ description: "처리 상태가 변경되었습니다." });
+    },
+  });
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "basic", label: "기본 설정" },
     { id: "game", label: "예측 게임 설명" },
     { id: "categories", label: "굿즈 분류" },
     { id: "products", label: "굿즈 상품" },
+    { id: "inquiries", label: "구매 문의" },
   ];
 
   if (isLoading || !settingsForm) {
@@ -694,6 +721,62 @@ export default function HomePageManagementPage() {
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {activeTab === "inquiries" && (
+            <div className="space-y-4">
+              <p className="text-sm text-[#666]">
+                쇼핑몰 상품 상세에서 접수된 구매 문의입니다.
+              </p>
+              {(inquiriesData?.inquiries ?? []).length === 0 ? (
+                <p className="text-sm text-[#888] py-8 text-center">접수된 문의가 없습니다.</p>
+              ) : (
+                <div className="space-y-3">
+                  {inquiriesData?.inquiries.map((inq) => (
+                    <div
+                      key={inq.id}
+                      className="border border-[#E9E9E9] rounded-lg p-4 bg-white"
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div>
+                          <p className="font-medium text-sm text-[#201E22]">{inq.productName}</p>
+                          <p className="text-xs text-[#888]">
+                            {inq.customerName}
+                            {inq.phone ? ` · ${inq.phone}` : ""}
+                            {inq.email ? ` · ${inq.email}` : ""}
+                          </p>
+                          <p className="text-xs text-[#BFBFBF] mt-1">
+                            {new Date(inq.createdAt).toLocaleString("ko-KR")}
+                          </p>
+                        </div>
+                        <span
+                          className={`text-xs px-2 py-1 rounded ${
+                            inq.status === "done"
+                              ? "bg-[#E8F5E9] text-[#2E7D32]"
+                              : "bg-[#FFF3E0] text-[#E65100]"
+                          }`}
+                        >
+                          {inq.status === "done" ? "처리완료" : "대기"}
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#4D4B4E] whitespace-pre-wrap mb-3">{inq.message}</p>
+                      {inq.status === "pending" && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            updateInquiryMutation.mutate({ id: inq.id, status: "done" })
+                          }
+                        >
+                          처리완료
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
