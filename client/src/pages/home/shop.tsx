@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
+import PublicSiteHeader from "@/components/public/PublicSiteHeader";
+import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
 import { getFullUrl } from "@/lib/queryClient";
 import { getShopCategoryIcon } from "@/lib/shopCategoryIcons";
 
@@ -26,12 +28,19 @@ interface HomePageContent {
 
 const DEFAULT_INTRO_VIDEO = "/videos/company-intro.mp4";
 
-export default function HomeShopPage() {
-  const [location, setLocation] = useLocation();
-  const isAdminPreview = location.startsWith("/admin/");
-  const backPath = isAdminPreview ? "/admin/home" : "/home";
+interface HomeShopPageProps {
+  /** /shop 등에서 영상 없이 바로 카테고리 그리드 */
+  startAtShop?: boolean;
+}
+
+export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps) {
+  const [, setLocation] = useLocation();
+  const siteMode = useSiteMode();
+  const routes = useShopRoutes();
+  const isPublic = siteMode === "public";
+  const isAdminPreview = siteMode === "admin";
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [showShop, setShowShop] = useState(false);
+  const [showShop, setShowShop] = useState(startAtShop);
 
   const { data: content, isLoading } = useQuery<HomePageContent>({
     queryKey: ["/api/homepage/content"],
@@ -49,20 +58,59 @@ export default function HomeShopPage() {
   const shopTitle = settings?.goodsSectionTitle?.trim() || "홈페이지";
 
   useEffect(() => {
-    if (!introVideoUrl) {
+    if (!introVideoUrl || startAtShop) {
       setShowShop(true);
     }
-  }, [introVideoUrl]);
+  }, [introVideoUrl, startAtShop]);
 
   const openShop = () => setShowShop(true);
 
+  const navigateCategory = (categoryId: number) => {
+    const goodsPath = routes.category(categoryId);
+    if (isAdminPreview) {
+      window.open(goodsPath, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setLocation(goodsPath);
+  };
+
   if (!showShop) {
+    if (isPublic) {
+      return (
+        <div className="h-app-screen bg-black flex flex-col">
+          <PublicSiteHeader
+            title={shopTitle}
+            rightAction={
+              <button
+                type="button"
+                onClick={openShop}
+                className="text-[#CDFF00] text-xs whitespace-nowrap"
+              >
+                건너뛰기
+              </button>
+            }
+          />
+          <div className="flex-1 flex items-center justify-center px-2 pb-4 min-h-0">
+            <video
+              ref={videoRef}
+              src={introVideoUrl}
+              className="w-full max-h-full object-contain"
+              playsInline
+              autoPlay
+              controls
+              onEnded={openShop}
+            />
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="h-app-screen bg-black flex flex-col">
         <div className="flex-shrink-0 flex items-center justify-between px-4 h-12">
           <button
             type="button"
-            onClick={() => setLocation(backPath)}
+            onClick={() => setLocation(routes.home)}
             className="p-1 text-white"
             aria-label="뒤로"
           >
@@ -93,6 +141,65 @@ export default function HomeShopPage() {
     );
   }
 
+  if (isPublic) {
+    return (
+      <div className="h-app-screen bg-[#111111] flex flex-col">
+        <PublicSiteHeader title={shopTitle} />
+
+        <div className="flex-1 overflow-y-scroll-touch px-4 pb-8">
+          <p className="text-[#888] text-[11px] text-center pt-2 pb-4">
+            카테고리를 선택하세요
+          </p>
+
+          {isLoading ? (
+            <p className="text-[#666] text-sm text-center py-12">불러오는 중...</p>
+          ) : categories.length === 0 ? (
+            <p className="text-[#888] text-sm text-center py-12">준비 중입니다.</p>
+          ) : (
+            <div className="grid grid-cols-4 gap-x-2 gap-y-5 pb-6">
+              {categories.map((cat) => {
+                const Icon = getShopCategoryIcon(cat.name);
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => navigateCategory(cat.id)}
+                    className="flex flex-col items-center gap-1.5 min-w-0"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-[#1A1A1A] border border-[#333] flex items-center justify-center">
+                      {cat.imageUrl ? (
+                        <img
+                          src={cat.imageUrl}
+                          alt=""
+                          className="w-7 h-7 object-contain"
+                        />
+                      ) : (
+                        <Icon className="w-6 h-6 text-[#CDFF00]" strokeWidth={1.5} />
+                      )}
+                    </div>
+                    <span className="text-[#D5D5D5] text-[10px] leading-tight text-center line-clamp-2 w-full">
+                      {cat.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="border-t border-[#333] pt-4 mt-2 text-center">
+            <button
+              type="button"
+              onClick={() => setLocation("/login")}
+              className="text-[#CDFF00] text-xs underline"
+            >
+              야구 예측 게임 참여하기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-app-screen bg-[#111111] flex flex-col">
       <PageHeader
@@ -100,7 +207,7 @@ export default function HomeShopPage() {
         leftAction={
           <button
             type="button"
-            onClick={() => setLocation(backPath)}
+            onClick={() => setLocation(routes.home)}
             className="p-1"
             aria-label="뒤로"
           >
@@ -129,14 +236,7 @@ export default function HomeShopPage() {
                 <button
                   key={cat.id}
                   type="button"
-                  onClick={() => {
-                    const goodsPath = `/home/goods/${cat.id}`;
-                    if (isAdminPreview) {
-                      window.open(goodsPath, "_blank", "noopener,noreferrer");
-                      return;
-                    }
-                    setLocation(goodsPath);
-                  }}
+                  onClick={() => navigateCategory(cat.id)}
                   className="flex flex-col items-center gap-1.5 min-w-0"
                 >
                   <div className="w-12 h-12 rounded-xl bg-[#1A1A1A] border border-[#333] flex items-center justify-center">

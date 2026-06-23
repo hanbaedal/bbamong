@@ -42,6 +42,7 @@ import { adminQueryClient } from "./lib/adminQueryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { AdminAssetProvider } from "@/contexts/AdminAssetContext";
 import { UserAssetProvider } from "@/contexts/UserAssetContext";
+import { SiteModeProvider } from "@/contexts/SiteModeContext";
 import { SessionExpiredPopup } from "@/components/SessionExpiredPopup";
 import { UserProvider } from "./contexts/UserContext";
 import { useEffect } from "react";
@@ -49,18 +50,18 @@ import adminFavicon from "@assets/admin/admin-mascot-favicon.png";
 
 function AdminHomepageShopPage() {
   return (
-    <UserAssetProvider>
-      <HomeShopPage />
-    </UserAssetProvider>
+    <SiteModeProvider mode="admin">
+      <UserAssetProvider>
+        <HomeShopPage />
+      </UserAssetProvider>
+    </SiteModeProvider>
   );
 }
 
 function Router() {
   return (
     <Switch>
-      {/* 루트 도메인 → 어드민 로그인 */}
-      <Route path="/" component={AdminLoginPage} />
-      {/* 로그인 / 회원가입 / 대기 페이지 */}
+      {/* 관리자 로그인: /admin/login (루트 / 는 공개 홈페이지 PublicApp) */}
       <Route path="/admin/login" component={AdminLoginPage} />
       <Route path="/admin/signup" component={AdminSignupPage} />
       <Route path="/admin/waiting" component={AdminWaitingPage} />

@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
+import PublicSiteHeader from "@/components/public/PublicSiteHeader";
+import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
 import { getFullUrl } from "@/lib/queryClient";
 
 interface GoodsCategory {
@@ -22,7 +24,14 @@ interface GoodsProduct {
 
 export default function GoodsCategoryPage() {
   const [, setLocation] = useLocation();
-  const [, params] = useRoute("/home/goods/:categoryId");
+  const siteMode = useSiteMode();
+  const routes = useShopRoutes();
+  const isPublic = siteMode === "public";
+  const categoryRoute =
+    siteMode === "public"
+      ? "/shop/category/:categoryId"
+      : "/home/goods/:categoryId";
+  const [, params] = useRoute(categoryRoute);
   const categoryId = parseInt(params?.categoryId ?? "", 10);
 
   const { data, isLoading } = useQuery({
@@ -40,60 +49,90 @@ export default function GoodsCategoryPage() {
   const category = data?.category;
   const products = data?.products ?? [];
 
+  const content = (
+  <>
+      {category?.description && (
+        <p className="text-[#888] text-sm mb-4">{category.description}</p>
+      )}
+
+      {isLoading ? (
+        <p className="text-[#888] text-sm">불러오는 중...</p>
+      ) : products.length === 0 ? (
+        <p className="text-[#888] text-sm text-center py-12">등록된 상품이 없습니다.</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {products.map((product) => (
+            <button
+              key={product.id}
+              type="button"
+              onClick={() => setLocation(routes.product(product.id))}
+              className="text-left bg-[#1A1A1A] rounded-lg overflow-hidden border border-[#333]"
+            >
+              <div className="aspect-square bg-[#252525]">
+                {product.imageUrl ? (
+                  <img
+                    src={product.imageUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-[#666] text-xs">
+                    이미지 없음
+                  </div>
+                )}
+              </div>
+              <div className="p-3">
+                <p className="text-white text-sm font-medium line-clamp-2">{product.name}</p>
+                {product.priceLabel && (
+                  <p className="text-[#CDFF00] text-xs mt-1">{product.priceLabel}</p>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+  </>
+  );
+
+  if (isPublic) {
+    return (
+      <div className="h-app-screen bg-[#111111] flex flex-col">
+        <PublicSiteHeader
+          title={category?.name ?? "굿즈"}
+          leftAction={
+            <button
+              type="button"
+              onClick={() => setLocation(routes.shop)}
+              className="p-1"
+              aria-label="뒤로"
+            >
+              <ChevronLeft className="w-6 h-6 text-white" />
+            </button>
+          }
+        />
+        <div className="flex-1 overflow-y-scroll-touch px-5 pb-8 pt-2">{content}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-app-screen bg-[#111111] flex flex-col">
       <PageHeader
         title={category?.name ?? "굿즈"}
         showSettings={false}
         leftAction={
-          <button type="button" onClick={() => setLocation("/home")} className="p-1">
+          <button
+            type="button"
+            onClick={() => setLocation(routes.home)}
+            className="p-1"
+            aria-label="뒤로"
+          >
             <ChevronLeft className="w-6 h-6 text-white" />
           </button>
         }
       />
 
-      <div className="flex-1 overflow-y-scroll-touch px-5 pb-bottom-nav pt-2">
-        {category?.description && (
-          <p className="text-[#888] text-sm mb-4">{category.description}</p>
-        )}
-
-        {isLoading ? (
-          <p className="text-[#888] text-sm">불러오는 중...</p>
-        ) : products.length === 0 ? (
-          <p className="text-[#888] text-sm text-center py-12">등록된 상품이 없습니다.</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {products.map((product) => (
-              <button
-                key={product.id}
-                type="button"
-                onClick={() => setLocation(`/home/goods/item/${product.id}`)}
-                className="text-left bg-[#1A1A1A] rounded-lg overflow-hidden border border-[#333]"
-              >
-                <div className="aspect-square bg-[#252525]">
-                  {product.imageUrl ? (
-                    <img
-                      src={product.imageUrl}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-[#666] text-xs">
-                      이미지 없음
-                    </div>
-                  )}
-                </div>
-                <div className="p-3">
-                  <p className="text-white text-sm font-medium line-clamp-2">{product.name}</p>
-                  {product.priceLabel && (
-                    <p className="text-[#CDFF00] text-xs mt-1">{product.priceLabel}</p>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <div className="flex-1 overflow-y-scroll-touch px-5 pb-bottom-nav pt-2">{content}</div>
 
       <BottomNavigation />
     </div>

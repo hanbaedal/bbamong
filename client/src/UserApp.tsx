@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UserProvider, useUser } from "@/contexts/UserContext";
+import { SiteModeProvider } from "@/contexts/SiteModeContext";
 import { UserAssetProvider } from "@/contexts/UserAssetContext";
 import { getRefreshToken, setAccessToken, saveRefreshToken, clearTokens } from "@/lib/tokenManager";
 import { App } from "@capacitor/app";
@@ -297,16 +298,18 @@ function UserApp() {
   return (
     <QueryClientProvider client={queryClient}>
       <UserAssetProvider>
-        <UserProvider>
-          <TooltipProvider>
-            <AppStateManager>
-              <AutoLoginWrapper>
-                <Toaster />
-                <Router />
-              </AutoLoginWrapper>
-            </AppStateManager>
-          </TooltipProvider>
-        </UserProvider>
+        <SiteModeProvider mode="user">
+          <UserProvider>
+            <TooltipProvider>
+              <AppStateManager>
+                <AutoLoginWrapper>
+                  <Toaster />
+                  <Router />
+                </AutoLoginWrapper>
+              </AppStateManager>
+            </TooltipProvider>
+          </UserProvider>
+        </SiteModeProvider>
       </UserAssetProvider>
     </QueryClientProvider>
   );
