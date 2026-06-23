@@ -31,34 +31,48 @@ export interface GoodsProduct {
   categoryName?: string;
 }
 
-const DEFAULT_CATEGORIES = [
-  { name: "모자", description: "야구 모자 · 캡", displayOrder: 1 },
-  { name: "유니폼", description: "팀 유니폼 · 저지", displayOrder: 2 },
-  { name: "글러브", description: "야구 글러브", displayOrder: 3 },
-  { name: "배트", description: "야구 배트", displayOrder: 4 },
-  { name: "야구공", description: "공식구 · 연습구", displayOrder: 5 },
-  { name: "응원용품", description: "응원 도구 · 굿즈", displayOrder: 6 },
+const SHOP_CATEGORIES = [
+  { name: "팀의류", description: "팀 유니폼 · 저지", displayOrder: 1 },
+  { name: "패션의류", description: "패션 의류", displayOrder: 2 },
+  { name: "마킹키트", description: "마킹 · 네임텍", displayOrder: 3 },
+  { name: "모자", description: "야구 모자 · 캡", displayOrder: 4 },
+  { name: "야구용품", description: "글러브 · 배트 · 공", displayOrder: 5 },
+  { name: "응원용품", description: "응원 도구", displayOrder: 6 },
+  { name: "잡화", description: "기타 잡화", displayOrder: 7 },
+  { name: "기획상품", description: "한정 기획", displayOrder: 8 },
+  { name: "빠몽이 친구들", description: "캐릭터 굿즈", displayOrder: 9 },
+  { name: "아울렛", description: "할인 · 아울렛", displayOrder: 10 },
 ];
+
+const SHOP_CATEGORY_NAMES = SHOP_CATEGORIES.map((c) => c.name);
 
 export class GoodsStorage {
   async ensureDefaultCategories(): Promise<void> {
-    const count = await GoodsCategoryModel.countDocuments();
-    if (count > 0) return;
-
-    for (const cat of DEFAULT_CATEGORIES) {
-      const id = await getNextSequence("goodsCategory");
-      await GoodsCategoryModel.create({
-        id,
-        ...cat,
-        imageUrl: "",
-        isActive: true,
-      });
+    for (const cat of SHOP_CATEGORIES) {
+      const existing = await GoodsCategoryModel.findOne({ name: cat.name }).lean();
+      if (!existing) {
+        const id = await getNextSequence("goodsCategory");
+        await GoodsCategoryModel.create({
+          id,
+          ...cat,
+          imageUrl: "",
+          isActive: true,
+        });
+        continue;
+      }
+      if (existing.displayOrder !== cat.displayOrder) {
+        await GoodsCategoryModel.updateOne(
+          { id: existing.id },
+          { displayOrder: cat.displayOrder, updatedAt: new Date() },
+        );
+      }
     }
   }
 
   async listCategories(activeOnly = false): Promise<GoodsCategory[]> {
     await this.ensureDefaultCategories();
-    const filter = activeOnly ? { isActive: true } : {};
+    const filter: Record<string, unknown> = { name: { $in: SHOP_CATEGORY_NAMES } };
+    if (activeOnly) filter.isActive = true;
     const categories = await GoodsCategoryModel.find(filter)
       .sort({ displayOrder: 1, id: 1 })
       .lean();

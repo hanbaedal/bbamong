@@ -19,18 +19,11 @@ interface HomePageSettings {
   gameGuideEnabled: boolean;
   goodsSectionTitle: string;
   goodsSectionEnabled: boolean;
-}
-
-interface GoodsCategory {
-  id: number;
-  name: string;
-  description: string;
-  imageUrl: string;
+  introVideoUrl?: string;
 }
 
 interface HomePageContent {
   settings: HomePageSettings;
-  categories: GoodsCategory[];
 }
 
 export default function HomePage() {
@@ -50,7 +43,6 @@ export default function HomePage() {
   });
 
   const settings = content?.settings;
-  const categories = content?.categories ?? [];
 
   const greetingPrefix = settings?.greetingPrefix ?? "안녕하세요";
   const subGreeting = settings?.subGreeting ?? "";
@@ -142,50 +134,31 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* 굿즈 쇼핑몰 */}
+        {/* 홈페이지 쇼핑몰 (회사소개 영상 → 카테고리) */}
         {settings?.goodsSectionEnabled && (
           <section className="mb-6">
-            <h2 className="text-white text-base font-bold mb-3">
-              {settings.goodsSectionTitle}
-            </h2>
-            {categories.length === 0 ? (
-              <p className="text-[#888] text-sm text-center py-8">
-                준비 중인 굿즈입니다.
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setLocation(`/home/goods/${cat.id}`)}
-                    className="text-left rounded-lg overflow-hidden bg-[#1A1A1A] border border-[#333]"
-                  >
-                    <div className="aspect-[4/3] bg-[#252525]">
-                      {cat.imageUrl ? (
-                        <img
-                          src={cat.imageUrl}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[#CDFF00] text-lg font-bold">
-                          {cat.name}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <p className="text-white text-sm font-medium">{cat.name}</p>
-                      {cat.description && (
-                        <p className="text-[#888] text-xs mt-0.5 line-clamp-1">
-                          {cat.description}
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                ))}
+            <button
+              type="button"
+              onClick={() => setLocation("/home/shop")}
+              className="w-full text-left rounded-lg overflow-hidden bg-[#1A1A1A] border border-[#333] flex items-center gap-3 p-4"
+            >
+              <div className="w-12 h-12 rounded-xl bg-[#252525] border border-[#333] flex items-center justify-center flex-shrink-0">
+                <img
+                  src={assets.mainLogo}
+                  alt=""
+                  className="w-8 h-8 object-contain"
+                />
               </div>
-            )}
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-bold">
+                  {settings.goodsSectionTitle || "홈페이지"}
+                </p>
+                <p className="text-[#888] text-[11px] mt-1">
+                  회사소개 영상 후 쇼핑몰 카테고리
+                </p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
+            </button>
           </section>
         )}
       </div>

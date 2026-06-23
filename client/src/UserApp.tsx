@@ -20,6 +20,7 @@ import HomePage from "@/pages/home";
 import GameGuidePage from "@/pages/home/game-guide";
 import GoodsCategoryPage from "@/pages/home/goods-category";
 import GoodsDetailPage from "@/pages/home/goods-detail";
+import HomeShopPage from "@/pages/home/shop";
 import PredictionPage from "@/pages/prediction";
 import AttendancePage from "@/pages/attendance";
 import BoardPage from "@/pages/board";
@@ -164,6 +165,7 @@ function Router() {
       <Route path="/social-onboarding" component={SocialOnboardingPage} />
       <Route path="/home">{() => <ProtectedRoute component={HomePage} />}</Route>
       <Route path="/home/game-guide">{() => <ProtectedRoute component={GameGuidePage} />}</Route>
+      <Route path="/home/shop">{() => <ProtectedRoute component={HomeShopPage} />}</Route>
       <Route path="/home/goods/item/:productId">
         {() => <ProtectedRoute component={GoodsDetailPage} />}
       </Route>

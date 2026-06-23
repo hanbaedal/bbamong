@@ -15,6 +15,7 @@ export interface HomePageSettings {
   gameGuideImageUrl: string;
   goodsSectionTitle: string;
   goodsSectionEnabled: boolean;
+  introVideoUrl: string;
   updatedAt: Date;
 }
 
@@ -35,8 +36,9 @@ const DEFAULT_SETTINGS: Omit<HomePageSettings, "updatedAt"> = {
   gameGuideContent: "",
   gameGuideEnabled: true,
   gameGuideImageUrl: "",
-  goodsSectionTitle: "PPAMONG 굿즈",
+  goodsSectionTitle: "홈페이지",
   goodsSectionEnabled: true,
+  introVideoUrl: "/videos/company-intro.mp4",
 };
 
 export class HomePageStorage {
