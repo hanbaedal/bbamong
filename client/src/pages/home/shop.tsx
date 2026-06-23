@@ -189,7 +189,9 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
           <div className="border-t border-[#333] pt-4 mt-2 text-center">
             <button
               type="button"
-              onClick={() => setLocation("/login")}
+              onClick={() => {
+                window.location.assign("/login");
+              }}
               className="text-[#CDFF00] text-xs underline"
             >
               야구 예측 게임 참여하기

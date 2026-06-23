@@ -19,7 +19,9 @@ export default function PublicSiteHeader({
   const defaultRight = (
     <button
       type="button"
-      onClick={() => setLocation("/admin/login")}
+      onClick={() => {
+        window.location.assign("/admin/login");
+      }}
       data-testid="button-admin-login"
       className="text-[#CDFF00] text-xs font-semibold whitespace-nowrap px-2 py-1 rounded border border-[#CDFF00]/40 hover:bg-[#CDFF00]/10 focus:outline-none"
     >
