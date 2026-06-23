@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from "react";
+import { useLocation } from "wouter";
 import { getFullUrl, getOrRefreshAccessToken, queryClient } from "@/lib/queryClient";
 import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clearTokens } from "@/lib/tokenManager";
 import { sendLogoutToNative, isNativePlatform } from "@/lib/logoutPlugin";
@@ -36,7 +37,36 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+const PUBLIC_PATHS = [
+  "/",
+  "/login",
+  "/signup",
+  "/social-onboarding",
+  "/forgot-password",
+  "/admin/login",
+  "/admin/signup",
+  "/admin/waiting",
+  "/manager/login",
+  "/manager/signup",
+  "/manager/pending-approval",
+];
+
+export function mapSessionUserFromAdmin(admin: Record<string, unknown>): User {
+  return {
+    id: String(admin.id ?? ""),
+    username: String(admin.username ?? admin.email ?? ""),
+    name: String(admin.name ?? ""),
+    email: String(admin.email ?? ""),
+    phone: String(admin.phone ?? ""),
+    points: Number(admin.points ?? 0),
+    userType: typeof admin.userType === "string" ? admin.userType : undefined,
+    approvalStatus: typeof admin.approvalStatus === "string" ? admin.approvalStatus : undefined,
+    attendanceRecords: [],
+  };
+}
+
 export function UserProvider({ children }: { children: ReactNode }) {
+  const [location] = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [isUserLoaded, setIsUserLoaded] = useState(false);
   const isLoggedOutRef = useRef(false);
@@ -195,33 +225,23 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Public 페이지에서는 fetchUser 호출 안 함
-    const publicPaths = [
-      // 일반 유저
-      "/",
-      "/login",
-      "/signup",
-      "/social-onboarding",
-      "/forgot-password",
-      // 어드민
-      "/admin/login",
-      "/admin/signup",
-      "/admin/waiting",
-      // 매니저
-      "/manager/login",
-      "/manager/signup",
-      "/manager/pending-approval"
-    ];
-    const currentPath = window.location.pathname;
-    
-    if (!publicPaths.includes(currentPath)) {
-      // 인증이 필요한 페이지에서만 사용자 정보 조회
-      fetchUser();
-    } else {
-      // Public 페이지에서는 로딩만 완료 처리
+    if (PUBLIC_PATHS.includes(location)) {
       setIsUserLoaded(true);
+      return;
     }
-  }, []);
+
+    if (isLoggedOutRef.current) {
+      setIsUserLoaded(true);
+      return;
+    }
+
+    if (!userRef.current) {
+      void fetchUser();
+      return;
+    }
+
+    setIsUserLoaded(true);
+  }, [location, fetchUser]);
 
   const handleSetUser = useCallback((newUser: User | null) => {
     if (newUser) {

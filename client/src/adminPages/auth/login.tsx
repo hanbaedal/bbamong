@@ -6,12 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, User, Lock } from "lucide-react";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import { getFullUrl } from "@/lib/adminQueryClient";
-import { useUser } from "@/contexts/UserContext";
+import { useUser, mapSessionUserFromAdmin } from "@/contexts/UserContext";
 
 export default function AdminLoginPage() {
   const [, setLocation] = useLocation();
   const { assets } = useAdminAssets();
-  const { refetchUser } = useUser();
+  const { refetchUser, setUser } = useUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -54,7 +54,11 @@ export default function AdminLoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        await refetchUser();
+        if (data.admin) {
+          setUser(mapSessionUserFromAdmin(data.admin as Record<string, unknown>));
+        } else {
+          await refetchUser();
+        }
         setLocation("/admin/home");
       } else {
         // 승인 대기 중인 경우 waiting 페이지로 이동
