@@ -1,24 +1,33 @@
 /**
  * AdMob OAuth 리프레시 토큰 발급 도우미
  *
- * 사전 준비 (Google Cloud Console):
- * 1. AdMob API 활성화
- * 2. OAuth 클라이언트 유형: 「데스크톱 앱」 또는 「웹 애플리케이션」
- * 3. 웹 앱인 경우 승인된 리디렉션 URI에 http://localhost 추가
- * 4. Replit Secrets에 ADMOB_CLIENT_ID, ADMOB_CLIENT_SECRET 설정
+ * Replit Secrets (키 4개, 값에는 = 뒤만):
+ *   ADMOB_CLIENT_ID, ADMOB_CLIENT_SECRET, ADMOB_PUBLISHER_ID (선택)
  *
+ * Google Cloud: OAuth 클라이언트 + 리디렉션 URI http://localhost
  * 실행: npm run admob:auth
  */
 import "dotenv/config";
 import readline from "readline";
 import { google } from "googleapis";
+import { getAdmobEnv, getAdmobEnvMisconfigurationHint } from "./lib/admob-env.mjs";
 
-const clientId = process.env.ADMOB_CLIENT_ID?.trim();
-const clientSecret = process.env.ADMOB_CLIENT_SECRET?.trim();
+const misconfig = getAdmobEnvMisconfigurationHint();
+if (misconfig) {
+  console.error(misconfig);
+  process.exit(1);
+}
+
+const { clientId, clientSecret } = getAdmobEnv();
 const redirectUri = "http://localhost";
 
 if (!clientId || !clientSecret) {
-  console.error("ADMOB_CLIENT_ID, ADMOB_CLIENT_SECRET을 Secrets에 먼저 설정하세요.");
+  console.error("ADMOB_CLIENT_ID, ADMOB_CLIENT_SECRET을 Secrets에 각각 따로 설정하세요.");
+  process.exit(1);
+}
+
+if (clientId.includes(" ") || clientId.includes("ADMOB_")) {
+  console.error("ADMOB_CLIENT_ID 값이 잘못되었습니다. = 앞 키 이름 없이 ID만 넣으세요.");
   process.exit(1);
 }
 
@@ -32,6 +41,7 @@ const authUrl = oauth2Client.generateAuthUrl({
 });
 
 console.log("=== AdMob 리프레시 토큰 발급 ===\n");
+console.log(`CLIENT_ID: ${clientId.slice(0, 12)}...${clientId.slice(-20)}\n`);
 console.log("1. 아래 URL을 브라우저에서 열고 AdMob 계정으로 로그인·승인하세요.\n");
 console.log(authUrl);
 console.log("\n2. 승인 후 주소창이 http://localhost/?code=... 로 바뀝니다.");
@@ -63,25 +73,17 @@ rl.question("인증 코드 또는 리디렉션 URL: ", async (input) => {
   try {
     const { tokens } = await oauth2Client.getToken(code);
     if (!tokens.refresh_token) {
-      console.error("리프레시 토큰이 없습니다. Google 계정 연결을 해제한 뒤 prompt=consent로 다시 시도하세요.");
+      console.error("리프레시 토큰이 없습니다. Google 계정 연결 해제 후 다시 시도하세요.");
       process.exit(1);
     }
 
     console.log("\n=== 성공 ===\n");
-    console.log("Replit Secrets에 아래를 저장하세요:\n");
-    console.log(`ADMOB_REFRESH_TOKEN=${tokens.refresh_token}`);
-    if (process.env.ADMOB_PUBLISHER_ID) {
-      console.log(`ADMOB_PUBLISHER_ID=${process.env.ADMOB_PUBLISHER_ID} (기존 유지)`);
-    } else {
-      console.log("ADMOB_PUBLISHER_ID=pub-xxxxxxxx (AdMob → 설정에서 확인)");
-    }
-    console.log("\n저장 후: npm run check:admob");
+    console.log("Replit Secrets → ADMOB_REFRESH_TOKEN 키에 아래 값만 저장:\n");
+    console.log(tokens.refresh_token);
+    console.log("\n저장 후 Stop → Run, npm run check:admob");
   } catch (error) {
     const message = error?.response?.data?.error || error?.message || String(error);
     console.error("토큰 교환 실패:", message);
-    if (message === "invalid_client") {
-      console.error("CLIENT_ID/SECRET 확인 및 OAuth 클라이언트 리디렉션 URI에 http://localhost 등록");
-    }
     process.exit(1);
   }
 });

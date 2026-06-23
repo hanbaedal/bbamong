@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { google } from "googleapis";
 import { adminAuthMiddleware } from "../middleware/adminAuth";
+import { getAdmobEnv } from "../utils/admobEnv";
 
 interface ReportRow {
   dimensionValues?: {
@@ -22,10 +23,7 @@ interface ReportResponseItem {
 export async function adminAdmobRoutes(app: Express): Promise<void> {
   app.get("/api/admin/admob/revenue-report", adminAuthMiddleware, async (req, res) => {
     try {
-      const refreshToken = process.env.ADMOB_REFRESH_TOKEN?.trim();
-      const clientId = process.env.ADMOB_CLIENT_ID?.trim();
-      const clientSecret = process.env.ADMOB_CLIENT_SECRET?.trim();
-      const publisherId = process.env.ADMOB_PUBLISHER_ID?.trim();
+      const { clientId, clientSecret, refreshToken, publisherId } = getAdmobEnv();
 
       if (!refreshToken || !clientId || !clientSecret || !publisherId) {
         return res.status(200).json({
