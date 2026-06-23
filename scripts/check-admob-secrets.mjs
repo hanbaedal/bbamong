@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { google } from "googleapis";
-import { getAdmobEnv, getAdmobEnvMisconfigurationHint } from "./lib/admob-env.mjs";
+import { getAdmobEnv, getAdmobEnvMisconfigurationHint, validateAdmobEnv } from "./lib/admob-env.mjs";
 
 function mask(value) {
   if (!value) return "(없음)";
@@ -15,6 +15,16 @@ if (misconfig) {
 }
 
 const { clientId, clientSecret, refreshToken, publisherId } = getAdmobEnv();
+
+const validationErrors = validateAdmobEnv({ clientId, clientSecret, refreshToken, publisherId });
+if (validationErrors.length > 0) {
+  console.error("환경 변수 형식 오류:\n");
+  for (const err of validationErrors) {
+    console.error(`  • ${err}`);
+  }
+  console.error("\nReplit Secrets를 키 4개로 나눠 다시 등록한 뒤 Stop → Run 하세요.");
+  process.exit(1);
+}
 
 const missing = [];
 if (!clientId) missing.push("ADMOB_CLIENT_ID");
@@ -33,6 +43,7 @@ if (clientId.includes(" ") || clientSecret.includes(" ")) {
 }
 
 console.log("환경 변수 로드됨:");
+console.log(`  (CLIENT_ID 시작: ${clientId.slice(0, 6)}... 형식 검증 통과)`);
 console.log(
   `  ADMOB_CLIENT_ID: ${mask(clientId)} (${clientId.endsWith(".apps.googleusercontent.com") ? "형식 OK" : "형식 확인 필요"})`,
 );
