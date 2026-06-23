@@ -14,6 +14,7 @@
     "check:pg-secrets": "node scripts/check-pg-secrets.mjs",
     "check:db": "node scripts/verify-db-config.mjs",
     "check:admob": "node scripts/check-admob-secrets.mjs",
+    "admob:auth": "node scripts/generate-admob-refresh-token.mjs",
     "setup:legacy-pg": "bash scripts/setup-legacy-pg-sync.sh"
   },
   "dependencies": {
