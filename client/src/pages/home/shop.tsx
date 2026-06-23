@@ -222,9 +222,9 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
       <div
         className={`flex-1 overflow-y-scroll-touch px-4 ${isAdminPreview ? "pb-6" : "pb-bottom-nav"}`}
       >
-        <p className="text-[#888] text-[11px] text-center pt-2 pb-4">
-          카테고리를 선택하세요 (상품 상세는 추후 제공)
-        </p>
+          <p className="text-[#888] text-[11px] text-center pt-2 pb-4">
+            카테고리를 선택하세요
+          </p>
 
         {isLoading ? (
           <p className="text-[#666] text-sm text-center py-12">불러오는 중...</p>

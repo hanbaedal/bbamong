@@ -16,6 +16,8 @@ export interface HomePageSettings {
   goodsSectionTitle: string;
   goodsSectionEnabled: boolean;
   introVideoUrl: string;
+  shopInquiryEmail: string;
+  shopInquiryPhone: string;
   updatedAt: Date;
 }
 
@@ -39,6 +41,8 @@ const DEFAULT_SETTINGS: Omit<HomePageSettings, "updatedAt"> = {
   goodsSectionTitle: "홈페이지",
   goodsSectionEnabled: true,
   introVideoUrl: "/videos/company-intro.mp4",
+  shopInquiryEmail: "",
+  shopInquiryPhone: "",
 };
 
 export class HomePageStorage {

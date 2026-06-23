@@ -18,6 +18,9 @@ const updateHomePageSchema = z.object({
   gameGuideImageUrl: z.string().max(2000).optional().default(""),
   goodsSectionTitle: z.string().min(1).max(100),
   goodsSectionEnabled: z.boolean(),
+  introVideoUrl: z.string().max(2000).optional().default("/videos/company-intro.mp4"),
+  shopInquiryEmail: z.string().max(200).optional().default(""),
+  shopInquiryPhone: z.string().max(50).optional().default(""),
 });
 
 const categorySchema = z.object({
@@ -35,6 +38,7 @@ const productSchema = z.object({
   detailContent: z.string().max(20000).optional().default(""),
   imageUrl: z.string().max(2000).optional().default(""),
   priceLabel: z.string().max(50).optional().default(""),
+  purchaseUrl: z.string().max(2000).optional().default(""),
   displayOrder: z.number().int().optional(),
   isActive: z.boolean().optional().default(true),
 });

@@ -24,6 +24,7 @@ export interface GoodsProduct {
   detailContent: string;
   imageUrl: string;
   priceLabel: string;
+  purchaseUrl: string;
   displayOrder: number;
   isActive: boolean;
   createdAt: Date;
@@ -69,8 +70,33 @@ export class GoodsStorage {
     }
   }
 
+  /** 카테고리별 상품이 없으면 관리자 수정용 예시 상품 1개 생성 */
+  async ensureSampleProducts(): Promise<void> {
+    await this.ensureDefaultCategories();
+    const categories = await GoodsCategoryModel.find({
+      name: { $in: SHOP_CATEGORY_NAMES },
+    }).lean();
+
+    for (const cat of categories) {
+      const count = await GoodsProductModel.countDocuments({ categoryId: cat.id });
+      if (count > 0) continue;
+
+      await this.createProduct({
+        categoryId: cat.id,
+        name: `${cat.name} 상품 (등록 예정)`,
+        summary: "관리자 홈페이지 관리에서 상품 정보를 수정하세요.",
+        detailContent:
+          "이 상품은 자동 생성된 예시입니다.\n관리자 → 홈페이지 관리 → 굿즈 상품 탭에서 수정·삭제할 수 있습니다.",
+        priceLabel: "가격 문의",
+        purchaseUrl: "",
+        isActive: true,
+      });
+    }
+  }
+
   async listCategories(activeOnly = false): Promise<GoodsCategory[]> {
     await this.ensureDefaultCategories();
+    await this.ensureSampleProducts();
     const filter: Record<string, unknown> = { name: { $in: SHOP_CATEGORY_NAMES } };
     if (activeOnly) filter.isActive = true;
     const categories = await GoodsCategoryModel.find(filter)
@@ -133,6 +159,7 @@ export class GoodsStorage {
   }
 
   async listProductsByCategory(categoryId: number, activeOnly = false): Promise<GoodsProduct[]> {
+    await this.ensureSampleProducts();
     const filter: Record<string, unknown> = { categoryId };
     if (activeOnly) filter.isActive = true;
     const docs = await GoodsProductModel.find(filter)
@@ -167,6 +194,7 @@ export class GoodsStorage {
     detailContent?: string;
     imageUrl?: string;
     priceLabel?: string;
+    purchaseUrl?: string;
     displayOrder?: number;
     isActive?: boolean;
   }): Promise<GoodsProduct> {
@@ -179,6 +207,7 @@ export class GoodsStorage {
       detailContent: data.detailContent ?? "",
       imageUrl: data.imageUrl ?? "",
       priceLabel: data.priceLabel ?? "",
+      purchaseUrl: data.purchaseUrl ?? "",
       displayOrder: data.displayOrder ?? id,
       isActive: data.isActive ?? true,
     });
@@ -190,7 +219,7 @@ export class GoodsStorage {
     data: Partial<
       Pick<
         GoodsProduct,
-        "categoryId" | "name" | "summary" | "detailContent" | "imageUrl" | "priceLabel" | "displayOrder" | "isActive"
+        "categoryId" | "name" | "summary" | "detailContent" | "imageUrl" | "priceLabel" | "purchaseUrl" | "displayOrder" | "isActive"
       >
     >,
   ): Promise<GoodsProduct | undefined> {

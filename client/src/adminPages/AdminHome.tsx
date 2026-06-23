@@ -47,6 +47,15 @@ export default function AdminHomePage() {
 
         <button
           type="button"
+          onClick={() => setLocation("/admin/homepage-management")}
+          className="mb-4 w-full text-left p-4 rounded-lg border border-[#E0E0E0] bg-white hover:border-[#E11936] transition"
+        >
+          <span className="text-sm font-medium text-[#201E22]">홈페이지 관리 · 상품 등록</span>
+          <p className="text-xs text-[#888] mt-1">굿즈 상품·구매 링크·문의 이메일 설정</p>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setLocation("/admin/homepage-shop")}
           className="mb-6 w-full text-left p-5 rounded-xl border-2 border-[#E11936] bg-gradient-to-r from-[#FFF9FA] to-white hover:from-[#FFF0F2] transition shadow-sm"
         >

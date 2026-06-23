@@ -32,6 +32,9 @@ interface HomePageSettings {
   gameGuideImageUrl: string;
   goodsSectionTitle: string;
   goodsSectionEnabled: boolean;
+  introVideoUrl?: string;
+  shopInquiryEmail?: string;
+  shopInquiryPhone?: string;
 }
 
 interface GoodsCategory {
@@ -52,6 +55,7 @@ interface GoodsProduct {
   detailContent: string;
   imageUrl: string;
   priceLabel: string;
+  purchaseUrl?: string;
   displayOrder: number;
   isActive: boolean;
 }
@@ -77,6 +81,7 @@ const emptyProduct = (categoryId?: number): Partial<GoodsProduct> => ({
   detailContent: "",
   imageUrl: "",
   priceLabel: "",
+  purchaseUrl: "",
   displayOrder: 0,
   isActive: true,
 });
@@ -301,6 +306,45 @@ export default function HomePageManagementPage() {
                 />
                 <span className="text-sm">굿즈 섹션 표시</span>
               </label>
+
+              <div className="border-t border-[#E9E9E9] pt-4 mt-2 space-y-4">
+                <p className="text-sm font-medium text-[#201E22]">공개 쇼핑몰 (ppamong.com)</p>
+                <div className="space-y-2">
+                  <Label>회사소개 영상 URL</Label>
+                  <Input
+                    value={settingsForm.introVideoUrl ?? "/videos/company-intro.mp4"}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, introVideoUrl: e.target.value })
+                    }
+                    placeholder="/videos/company-intro.mp4"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>구매 문의 이메일</Label>
+                  <Input
+                    type="email"
+                    value={settingsForm.shopInquiryEmail ?? ""}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, shopInquiryEmail: e.target.value })
+                    }
+                    placeholder="shop@ppamong.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>구매 문의 전화 (선택)</Label>
+                  <Input
+                    value={settingsForm.shopInquiryPhone ?? ""}
+                    onChange={(e) =>
+                      setSettingsForm({ ...settingsForm, shopInquiryPhone: e.target.value })
+                    }
+                    placeholder="02-0000-0000"
+                  />
+                </div>
+                <p className="text-xs text-[#888]">
+                  상품에 구매 링크가 없으면 이메일·전화 문의 버튼이 표시됩니다.
+                </p>
+              </div>
+
               <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C]">
                 저장
               </Button>
@@ -498,7 +542,9 @@ export default function HomePageManagementPage() {
           {activeTab === "products" && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <p className="text-sm text-[#666]">분류별 굿즈 상품 (상세보기만, 결제 없음)</p>
+                <p className="text-sm text-[#666]">
+                  분류별 굿즈 상품 · 구매 링크(스마트스토어 등) 또는 문의 버튼
+                </p>
                 <Button
                   type="button"
                   size="sm"
@@ -546,10 +592,17 @@ export default function HomePageManagementPage() {
                     }
                   />
                   <Input
-                    placeholder="가격 표시 (예: 29,000원) — 참고용"
+                    placeholder="가격 표시 (예: 29,000원)"
                     value={editingProduct.priceLabel ?? ""}
                     onChange={(e) =>
                       setEditingProduct({ ...editingProduct, priceLabel: e.target.value })
+                    }
+                  />
+                  <Input
+                    placeholder="구매 링크 URL (스마트스토어·자사몰, 선택)"
+                    value={editingProduct.purchaseUrl ?? ""}
+                    onChange={(e) =>
+                      setEditingProduct({ ...editingProduct, purchaseUrl: e.target.value })
                     }
                   />
                   <Input

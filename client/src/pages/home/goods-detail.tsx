@@ -4,6 +4,7 @@ import { ChevronLeft } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import PublicSiteHeader from "@/components/public/PublicSiteHeader";
+import GoodsPurchaseActions from "@/components/goods/GoodsPurchaseActions";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
 import { getFullUrl } from "@/lib/queryClient";
 
@@ -15,7 +16,13 @@ interface GoodsProduct {
   detailContent: string;
   imageUrl: string;
   priceLabel: string;
+  purchaseUrl?: string;
   categoryName?: string;
+}
+
+interface HomePageSettings {
+  shopInquiryEmail?: string;
+  shopInquiryPhone?: string;
 }
 
 export default function GoodsDetailPage() {
@@ -38,6 +45,15 @@ export default function GoodsDetailPage() {
       return res.json() as Promise<{ product: GoodsProduct }>;
     },
     enabled: !isNaN(productId),
+  });
+
+  const { data: shopSettings } = useQuery<HomePageSettings>({
+    queryKey: ["/api/homepage-settings"],
+    queryFn: async () => {
+      const res = await fetch(getFullUrl("/api/homepage-settings"));
+      if (!res.ok) throw new Error("settings failed");
+      return res.json();
+    },
   });
 
   const product = data?.product;
@@ -76,9 +92,11 @@ export default function GoodsDetailPage() {
           <div className="text-[#D5D5D5] text-sm leading-relaxed whitespace-pre-wrap border-t border-[#333] pt-4">
             {product.detailContent?.trim() || "상세 설명이 없습니다."}
           </div>
-          <p className="text-[#666] text-xs mt-6 text-center">
-            ※ 현재는 상품 안내만 제공됩니다. (결제 기능 없음)
-          </p>
+          <GoodsPurchaseActions
+            product={product}
+            shopSettings={shopSettings}
+            isPublic={isPublic}
+          />
         </>
       )}
     </>
@@ -115,6 +133,7 @@ export default function GoodsDetailPage() {
             type="button"
             onClick={() => setLocation(backPath)}
             className="p-1"
+            aria-label="뒤로"
           >
             <ChevronLeft className="w-6 h-6 text-white" />
           </button>
