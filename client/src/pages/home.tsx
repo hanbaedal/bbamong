@@ -43,12 +43,14 @@ export default function HomePage() {
   });
 
   const settings = content?.settings;
-
+  const goodsSectionEnabled = settings?.goodsSectionEnabled ?? true;
+  const goodsSectionTitle = settings?.goodsSectionTitle ?? "홈페이지";
   const greetingPrefix = settings?.greetingPrefix ?? "안녕하세요";
   const subGreeting = settings?.subGreeting ?? "";
   const buttonText = settings?.buttonText ?? "경기 참여하기";
   const buttonEnabled = settings?.buttonEnabled ?? true;
   const showDate = settings?.showDate ?? true;
+  const gameGuideEnabled = settings?.gameGuideEnabled ?? true;
 
   useEffect(() => {
     const now = new Date();
@@ -106,11 +108,40 @@ export default function HomePage() {
           )}
         </div>
 
+        {/* 홈페이지 쇼핑몰 (회사소개 영상 → 카테고리) */}
+        {goodsSectionEnabled && (
+          <section className="mb-6">
+            <button
+              type="button"
+              onClick={() => setLocation("/home/shop")}
+              data-testid="button-homepage-shop"
+              className="w-full text-left rounded-lg overflow-hidden bg-[#1A1A1A] border border-[#333] flex items-center gap-3 p-4"
+            >
+              <div className="w-12 h-12 rounded-xl bg-[#252525] border border-[#333] flex items-center justify-center flex-shrink-0">
+                <img
+                  src={assets.mainLogo}
+                  alt=""
+                  className="w-8 h-8 object-contain"
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-bold">
+                  {goodsSectionTitle}
+                </p>
+                <p className="text-[#888] text-[11px] mt-1">
+                  회사소개 영상 후 쇼핑몰 카테고리
+                </p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
+            </button>
+          </section>
+        )}
+
         {/* 야구 예측 게임 소개 */}
-        {settings?.gameGuideEnabled && (
+        {gameGuideEnabled && (
           <section className="mb-8">
             <h2 className="text-white text-base font-bold mb-3">
-              {settings.gameGuideTitle}
+              {settings?.gameGuideTitle ?? "야구 예측 게임이란?"}
             </h2>
             <button
               type="button"
@@ -124,38 +155,10 @@ export default function HomePage() {
               />
               <div className="flex-1 min-w-0">
                 <p className="text-[#D5D5D5] text-sm line-clamp-2">
-                  {settings.gameGuideSummary ||
+                  {settings?.gameGuideSummary ||
                     "실시간 야구 경기를 예측하고 포인트를 획득하세요."}
                 </p>
                 <p className="text-[#CDFF00] text-xs mt-2">자세히 보기</p>
-              </div>
-              <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
-            </button>
-          </section>
-        )}
-
-        {/* 홈페이지 쇼핑몰 (회사소개 영상 → 카테고리) */}
-        {settings?.goodsSectionEnabled && (
-          <section className="mb-6">
-            <button
-              type="button"
-              onClick={() => setLocation("/home/shop")}
-              className="w-full text-left rounded-lg overflow-hidden bg-[#1A1A1A] border border-[#333] flex items-center gap-3 p-4"
-            >
-              <div className="w-12 h-12 rounded-xl bg-[#252525] border border-[#333] flex items-center justify-center flex-shrink-0">
-                <img
-                  src={assets.mainLogo}
-                  alt=""
-                  className="w-8 h-8 object-contain"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-sm font-bold">
-                  {settings.goodsSectionTitle || "홈페이지"}
-                </p>
-                <p className="text-[#888] text-[11px] mt-1">
-                  회사소개 영상 후 쇼핑몰 카테고리
-                </p>
               </div>
               <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
             </button>

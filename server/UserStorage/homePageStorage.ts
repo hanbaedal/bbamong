@@ -52,7 +52,11 @@ export class HomePageStorage {
         })
       ).toObject();
     }
-    return doc as HomePageSettings;
+    return {
+      ...DEFAULT_SETTINGS,
+      ...doc,
+      updatedAt: doc.updatedAt ?? new Date(),
+    } as HomePageSettings;
   }
 
   async getPublicContent(): Promise<HomePageContent> {
