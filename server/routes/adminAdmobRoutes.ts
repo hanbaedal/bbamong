@@ -49,7 +49,11 @@ export async function adminAdmobRoutes(app: Express): Promise<void> {
       });
 
       const admob = google.admob({ version: "v1", auth: oauth2Client });
-      const accountName = `accounts/${publisherId}`;
+      const accountName = publisherId.trim().startsWith("accounts/")
+        ? publisherId.trim()
+        : publisherId.trim().startsWith("pub-")
+          ? `accounts/${publisherId.trim()}`
+          : `accounts/pub-${publisherId.trim()}`;
 
       const today = new Date();
       const thirtyDaysAgo = new Date();

@@ -13,6 +13,7 @@
     "discover:pg-db": "tsx scripts/discover-pg-database.ts",
     "check:pg-secrets": "node scripts/check-pg-secrets.mjs",
     "check:db": "node scripts/verify-db-config.mjs",
+    "check:admob": "node scripts/check-admob-secrets.mjs",
     "setup:legacy-pg": "bash scripts/setup-legacy-pg-sync.sh"
   },
   "dependencies": {
@@ -80,6 +81,7 @@
     "connect-pg-simple": "^10.0.0",
     "cookie-parser": "^1.4.7",
     "date-fns": "^3.6.0",
+    "dotenv": "^17.4.2",
     "drizzle-orm": "^0.39.1",
     "drizzle-zod": "^0.7.0",
     "embla-carousel-react": "^8.6.0",
