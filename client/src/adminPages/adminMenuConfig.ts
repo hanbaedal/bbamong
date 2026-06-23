@@ -20,16 +20,22 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
       title: "기본",
       items: [
         {
-          id: "admin-home",
-          label: "홈 페이지",
-          path: "/admin/home",
-          iconKey: "adListIcon",
+          id: "homepage-shop",
+          label: "홈페이지 쇼핑몰",
+          path: "/admin/homepage-shop",
+          iconKey: "adMatchCharaterIcon",
         },
         {
           id: "homepage-management",
           label: "홈페이지 관리",
           path: "/admin/homepage-management",
           iconKey: "adMatchCharaterIcon",
+        },
+        {
+          id: "admin-home",
+          label: "관리자 대시보드",
+          path: "/admin/home",
+          iconKey: "adListIcon",
         },
       ],
     },

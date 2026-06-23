@@ -37,13 +37,23 @@ import TermsManagementPage from "@/adminPages/TermsManagement";
 import DbBackupPage from "@/adminPages/ops/DbBackup";
 import AdminLoginStatusPage from "@/adminPages/ops/AdminLoginStatus";
 import ManagerLoginStatusPage from "@/adminPages/ops/ManagerLoginStatus";
+import HomeShopPage from "@/pages/home/shop";
 import { adminQueryClient } from "./lib/adminQueryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { AdminAssetProvider } from "@/contexts/AdminAssetContext";
+import { UserAssetProvider } from "@/contexts/UserAssetContext";
 import { SessionExpiredPopup } from "@/components/SessionExpiredPopup";
 import { UserProvider } from "./contexts/UserContext";
 import { useEffect } from "react";
 import adminFavicon from "@assets/admin/admin-mascot-favicon.png";
+
+function AdminHomepageShopPage() {
+  return (
+    <UserAssetProvider>
+      <HomeShopPage />
+    </UserAssetProvider>
+  );
+}
 
 function Router() {
   return (
@@ -55,6 +65,7 @@ function Router() {
       <Route path="/admin/signup" component={AdminSignupPage} />
       <Route path="/admin/waiting" component={AdminWaitingPage} />
       <Route path="/admin/home" component={AdminHomePage} />
+      <Route path="/admin/homepage-shop" component={AdminHomepageShopPage} />
       <Route path="/admin/homepage-management" component={HomePageManagementPage} />
 
       {/* 회원 관리 */}

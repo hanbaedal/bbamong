@@ -38,12 +38,23 @@ export default function AdminHomePage() {
           data-testid="text-page-title"
         >
           <img src={assets.adListIcon} className="w-8 h-8" alt="" />
-          홈 페이지
+          관리자 대시보드
         </h1>
         <p className="text-sm text-[#666] mb-6 md:mb-8">
           {user?.name ?? "관리자"}님, PPAMONG 관리자 페이지에 오신 것을 환영합니다.
           {isSuperAdmin ? " (슈퍼바이저)" : ""}
         </p>
+
+        <button
+          type="button"
+          onClick={() => setLocation("/admin/homepage-shop")}
+          className="mb-6 w-full text-left p-5 rounded-xl border-2 border-[#E11936] bg-gradient-to-r from-[#FFF9FA] to-white hover:from-[#FFF0F2] transition shadow-sm"
+        >
+          <p className="text-base font-bold text-[#E11936] mb-1">홈페이지 쇼핑몰</p>
+          <p className="text-sm text-[#666]">
+            회사소개 동영상 재생 후 카테고리 아이콘 쇼핑몰 화면으로 이동합니다.
+          </p>
+        </button>
 
         <div className="flex flex-col gap-6">
           {dashboardSections.map((section, index) => (

@@ -197,10 +197,20 @@ export default function HomePageManagementPage() {
           <span className="text-xs text-[#201E22]">홈페이지 관리</span>
         </div>
 
-        <h1 className="text-xl md:text-2xl font-semibold text-[#201E22] mb-4 flex items-center gap-2">
-          <img src={assets.adMatchCharaterIcon} className="w-8 h-8" alt="" />
-          홈페이지 관리
-        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
+          <h1 className="text-xl md:text-2xl font-semibold text-[#201E22] flex items-center gap-2">
+            <img src={assets.adMatchCharaterIcon} className="w-8 h-8" alt="" />
+            홈페이지 관리
+          </h1>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-[#E11936] text-[#E11936] hover:bg-[#FFF9FA]"
+            onClick={() => window.location.assign("/admin/homepage-shop")}
+          >
+            쇼핑몰 화면 보기
+          </Button>
+        </div>
 
         <div className="flex gap-2 border-b border-[#E9E9E9] mb-4 overflow-x-auto shrink-0">
           {tabs.map((tab) => (

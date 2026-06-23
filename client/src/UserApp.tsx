@@ -193,7 +193,7 @@ function Router() {
       <Route path="/ebook">{() => <ProtectedRoute component={EbookPage} />}</Route>
       <Route path="/victory-history">{() => <ProtectedRoute component={VictoryHistoryPage} />}</Route>
       <Route path="/invitation">{() => <ProtectedRoute component={InvitePage} />}</Route>
-      <Route path="/shop">{() => <ProtectedRoute component={NotFound} />}</Route>
+      <Route path="/shop">{() => <ProtectedRoute component={HomeShopPage} />}</Route>
       <Route path="/mypage">{() => <ProtectedRoute component={NotFound} />}</Route>
       <Route component={NotFound} />
     </Switch>

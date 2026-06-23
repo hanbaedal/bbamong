@@ -27,7 +27,9 @@ interface HomePageContent {
 const DEFAULT_INTRO_VIDEO = "/videos/company-intro.mp4";
 
 export default function HomeShopPage() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const isAdminPreview = location.startsWith("/admin/");
+  const backPath = isAdminPreview ? "/admin/home" : "/home";
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showShop, setShowShop] = useState(false);
 
@@ -60,7 +62,7 @@ export default function HomeShopPage() {
         <div className="flex-shrink-0 flex items-center justify-between px-4 h-12">
           <button
             type="button"
-            onClick={() => setLocation("/home")}
+            onClick={() => setLocation(backPath)}
             className="p-1 text-white"
             aria-label="뒤로"
           >
@@ -98,16 +100,19 @@ export default function HomeShopPage() {
         leftAction={
           <button
             type="button"
-            onClick={() => setLocation("/home")}
+            onClick={() => setLocation(backPath)}
             className="p-1"
             aria-label="뒤로"
           >
             <ChevronLeft className="w-6 h-6 text-white" />
           </button>
         }
+        showSettings={!isAdminPreview}
       />
 
-      <div className="flex-1 overflow-y-scroll-touch px-4 pb-bottom-nav">
+      <div
+        className={`flex-1 overflow-y-scroll-touch px-4 ${isAdminPreview ? "pb-6" : "pb-bottom-nav"}`}
+      >
         <p className="text-[#888] text-[11px] text-center pt-2 pb-4">
           카테고리를 선택하세요 (상품 상세는 추후 제공)
         </p>
@@ -124,7 +129,14 @@ export default function HomeShopPage() {
                 <button
                   key={cat.id}
                   type="button"
-                  onClick={() => setLocation(`/home/goods/${cat.id}`)}
+                  onClick={() => {
+                    const goodsPath = `/home/goods/${cat.id}`;
+                    if (isAdminPreview) {
+                      window.open(goodsPath, "_blank", "noopener,noreferrer");
+                      return;
+                    }
+                    setLocation(goodsPath);
+                  }}
                   className="flex flex-col items-center gap-1.5 min-w-0"
                 >
                   <div className="w-12 h-12 rounded-xl bg-[#1A1A1A] border border-[#333] flex items-center justify-center">
@@ -148,7 +160,7 @@ export default function HomeShopPage() {
         )}
       </div>
 
-      <BottomNavigation />
+      {!isAdminPreview && <BottomNavigation />}
     </div>
   );
 }
