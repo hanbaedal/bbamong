@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { LogIn } from "lucide-react";
 import { useLocation } from "wouter";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 
@@ -22,10 +21,9 @@ export default function PublicSiteHeader({
       type="button"
       onClick={() => setLocation("/admin/login")}
       data-testid="button-admin-login"
-      aria-label="관리자 로그인"
-      className="p-1 focus:outline-none"
+      className="text-[#CDFF00] text-xs font-semibold whitespace-nowrap px-2 py-1 rounded border border-[#CDFF00]/40 hover:bg-[#CDFF00]/10 focus:outline-none"
     >
-      <LogIn className="w-6 h-6 text-[#959595]" />
+      로그인
     </button>
   );
 
@@ -35,7 +33,7 @@ export default function PublicSiteHeader({
       className="flex-shrink-0 sticky top-0 z-[65] bg-[#111111] border-b border-[#333]"
     >
       <div className="h-12 flex items-center justify-between gap-3 px-4">
-        {leftAction ?? <div className="w-8 flex-shrink-0" />}
+        {leftAction ?? <div className="w-10 flex-shrink-0" />}
 
         <button
           type="button"
@@ -50,7 +48,7 @@ export default function PublicSiteHeader({
           />
         </button>
 
-        <div className="w-8 flex-shrink-0 flex justify-end">
+        <div className="flex-shrink-0 flex justify-end min-w-[52px]">
           {rightAction ?? defaultRight}
         </div>
       </div>
