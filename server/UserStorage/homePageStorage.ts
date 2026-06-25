@@ -1,5 +1,6 @@
 import { HomePageSettingsModel } from "./db";
 import { goodsStorage } from "./goodsStorage";
+import { resolveShopSectionTitle } from "@shared/shopBranding";
 
 export interface HomePageSettings {
   id: string;
@@ -38,7 +39,7 @@ const DEFAULT_SETTINGS: Omit<HomePageSettings, "updatedAt"> = {
   gameGuideContent: "",
   gameGuideEnabled: true,
   gameGuideImageUrl: "",
-  goodsSectionTitle: "홈페이지",
+  goodsSectionTitle: "빠몽이의 보물창고",
   goodsSectionEnabled: true,
   introVideoUrl: "/videos/company-intro.mp4",
   shopInquiryEmail: "",
@@ -64,10 +65,14 @@ export class HomePageStorage {
   }
 
   async getPublicContent(): Promise<HomePageContent> {
-    const [settings, categories] = await Promise.all([
+    const [rawSettings, categories] = await Promise.all([
       this.getSettings(),
       goodsStorage.listCategories(true),
     ]);
+    const settings = {
+      ...rawSettings,
+      goodsSectionTitle: resolveShopSectionTitle(rawSettings.goodsSectionTitle),
+    };
     return { settings, categories };
   }
 

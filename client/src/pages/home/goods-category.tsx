@@ -1,11 +1,11 @@
 import { useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
-import PageHeader from "@/components/PageHeader";
+import ShopSiteHeader from "@/components/public/ShopSiteHeader";
 import BottomNavigation from "@/components/BottomNavigation";
-import PublicSiteHeader from "@/components/public/PublicSiteHeader";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
 import { shopGridPath } from "@/lib/shopRoutes";
+import { resolveShopSectionTitle } from "@/lib/shopBranding";
 import { getFullUrl } from "@/lib/queryClient";
 
 interface GoodsCategory {
@@ -98,13 +98,14 @@ export default function GoodsCategoryPage() {
   if (isPublic) {
     return (
       <div className="h-app-screen bg-[#111111] flex flex-col">
-        <PublicSiteHeader
-          title={category?.name ?? "굿즈"}
+        <ShopSiteHeader
+          title={category?.name ?? resolveShopSectionTitle()}
+          variant="public"
           leftAction={
             <button
               type="button"
               onClick={() => setLocation(routes.shop)}
-              className="p-1"
+              className="p-1 flex-shrink-0"
               aria-label="뒤로"
             >
               <ChevronLeft className="w-6 h-6 text-white" />
@@ -118,15 +119,14 @@ export default function GoodsCategoryPage() {
 
   return (
     <div className="h-app-screen bg-[#111111] flex flex-col">
-      <PageHeader
-        title={category?.name ?? "굿즈"}
-        showSettings={false}
-        logoDestination="game"
+      <ShopSiteHeader
+        title={category?.name ?? resolveShopSectionTitle()}
+        variant="member"
         leftAction={
           <button
             type="button"
             onClick={() => setLocation(shopGridPath(siteMode))}
-            className="p-1"
+            className="p-1 flex-shrink-0"
             aria-label="뒤로"
           >
             <ChevronLeft className="w-6 h-6 text-white" />

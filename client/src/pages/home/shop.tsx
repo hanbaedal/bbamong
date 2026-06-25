@@ -2,15 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
-import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
-import PublicSiteHeader from "@/components/public/PublicSiteHeader";
+import ShopSiteHeader from "@/components/public/ShopSiteHeader";
+import ShopAuthButton from "@/components/public/ShopAuthButton";
+import ShopCategoryGrid from "@/components/goods/ShopCategoryGrid";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
 import { navigateToGame } from "@/lib/appNavigation";
-import { useUserAssets } from "@/contexts/UserAssetContext";
+import { resolveShopSectionTitle } from "@/lib/shopBranding";
 import { getFullUrl } from "@/lib/queryClient";
-import { getShopCategoryIcon } from "@/lib/shopCategoryIcons";
-import { navigateToGame } from "@/lib/appNavigation";
 
 interface HomePageSettings {
   goodsSectionTitle: string;
@@ -40,7 +39,6 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
   const [location, setLocation] = useLocation();
   const siteMode = useSiteMode();
   const routes = useShopRoutes();
-  const { assets } = useUserAssets();
   const isPublic = siteMode === "public";
   const isAdminPreview = siteMode === "admin";
   const isMainShopHome = location === routes.home || location === routes.shop;
@@ -60,7 +58,7 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
   const settings = content?.settings;
   const categories = content?.categories ?? [];
   const introVideoUrl = settings?.introVideoUrl?.trim() || DEFAULT_INTRO_VIDEO;
-  const shopTitle = settings?.goodsSectionTitle?.trim() || "홈페이지";
+  const shopTitle = resolveShopSectionTitle(settings?.goodsSectionTitle);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -71,6 +69,7 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
   }, [introVideoUrl, startAtShop, location]);
 
   const openShop = () => setShowShop(true);
+  const headerVariant = isPublic ? "public" : "member";
 
   const navigateCategory = (categoryId: number) => {
     const goodsPath = routes.category(categoryId);
@@ -85,73 +84,57 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
     window.location.assign(goodsPath);
   };
 
+  const backAction = !isMainShopHome ? (
+    <button
+      type="button"
+      onClick={() => setLocation(routes.home)}
+      className="p-1 text-white flex-shrink-0"
+      aria-label="뒤로"
+    >
+      <ChevronLeft className="w-6 h-6" />
+    </button>
+  ) : undefined;
+
+  const shopBackAction = isMainShopHome ? (
+    <button
+      type="button"
+      onClick={() => setShowShop(false)}
+      className="p-1 text-white flex-shrink-0"
+      aria-label="뒤로"
+    >
+      <ChevronLeft className="w-6 h-6" />
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={() => setLocation(routes.home)}
+      className="p-1 text-white flex-shrink-0"
+      aria-label="뒤로"
+    >
+      <ChevronLeft className="w-6 h-6" />
+    </button>
+  );
+
   if (!showShop) {
-    if (isPublic) {
-      return (
-        <div className="h-app-screen bg-black flex flex-col">
-          <PublicSiteHeader
-            title={shopTitle}
-            rightAction={
+    return (
+      <div className="h-app-screen bg-black flex flex-col">
+        <ShopSiteHeader
+          title={shopTitle}
+          variant={headerVariant}
+          showAuthButton={false}
+          rightAction={
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={openShop}
-                className="text-[#CDFF00] text-xs whitespace-nowrap"
+                className="text-[#CDFF00] text-xs whitespace-nowrap px-2 py-1"
               >
                 건너뛰기
               </button>
-            }
-          />
-          <div className="flex-1 flex items-center justify-center px-2 pb-4 min-h-0">
-            <video
-              ref={videoRef}
-              src={introVideoUrl}
-              className="w-full max-h-full object-contain"
-              playsInline
-              autoPlay
-              controls
-              onEnded={openShop}
-            />
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="h-app-screen bg-black flex flex-col">
-        <div className="flex-shrink-0 flex items-center justify-between px-4 h-12">
-          {isMainShopHome ? (
-            <div className="w-10" />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setLocation(routes.home)}
-              className="p-1 text-white"
-              aria-label="뒤로"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => navigateToGame()}
-            aria-label="게임으로 돌아가기"
-            className="flex-1 flex justify-center"
-          >
-            <img
-              src={assets.headerLogo}
-              alt="PPAMONG"
-              className="h-9 w-auto max-w-[72px] object-contain"
-            />
-          </button>
-          <button
-            type="button"
-            onClick={openShop}
-            className="text-[#CDFF00] text-xs px-2 py-1 w-10 text-right"
-          >
-            건너뛰기
-          </button>
-        </div>
-
+              {!isAdminPreview && <ShopAuthButton variant={headerVariant} />}
+            </div>
+          }
+        />
         <div className="flex-1 flex items-center justify-center px-2 pb-4 min-h-0">
           <video
             ref={videoRef}
@@ -170,47 +153,18 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
   if (isPublic) {
     return (
       <div className="h-app-screen bg-[#111111] flex flex-col">
-        <PublicSiteHeader title={shopTitle} />
+        <ShopSiteHeader title={shopTitle} variant="public" leftAction={backAction} />
 
         <div className="flex-1 overflow-y-scroll-touch px-4 pb-8">
           <p className="text-[#888] text-[11px] text-center pt-2 pb-4">
             카테고리를 선택하세요
           </p>
 
-          {isLoading ? (
-            <p className="text-[#666] text-sm text-center py-12">불러오는 중...</p>
-          ) : categories.length === 0 ? (
-            <p className="text-[#888] text-sm text-center py-12">준비 중입니다.</p>
-          ) : (
-            <div className="grid grid-cols-4 gap-x-2 gap-y-5 pb-6">
-              {categories.map((cat) => {
-                const Icon = getShopCategoryIcon(cat.name);
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => navigateCategory(cat.id)}
-                    className="flex flex-col items-center gap-1.5 min-w-0"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-[#1A1A1A] border border-[#333] flex items-center justify-center">
-                      {cat.imageUrl ? (
-                        <img
-                          src={cat.imageUrl}
-                          alt=""
-                          className="w-7 h-7 object-contain"
-                        />
-                      ) : (
-                        <Icon className="w-6 h-6 text-[#CDFF00]" strokeWidth={1.5} />
-                      )}
-                    </div>
-                    <span className="text-[#D5D5D5] text-[10px] leading-tight text-center line-clamp-2 w-full">
-                      {cat.name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <ShopCategoryGrid
+            categories={categories}
+            isLoading={isLoading}
+            onSelect={navigateCategory}
+          />
 
           <div className="border-t border-[#333] pt-4 mt-2 text-center">
             <button
@@ -228,74 +182,25 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
 
   return (
     <div className="h-app-screen bg-[#111111] flex flex-col">
-      <PageHeader
+      <ShopSiteHeader
         title={shopTitle}
-        logoDestination="game"
-        leftAction={
-          isMainShopHome ? (
-            <button
-              type="button"
-              onClick={() => setShowShop(false)}
-              className="p-1"
-              aria-label="뒤로"
-            >
-              <ChevronLeft className="w-6 h-6 text-white" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setLocation(routes.home)}
-              className="p-1"
-              aria-label="뒤로"
-            >
-              <ChevronLeft className="w-6 h-6 text-white" />
-            </button>
-          )
-        }
-        showSettings={!isAdminPreview}
+        variant="member"
+        leftAction={shopBackAction}
+        showAuthButton={!isAdminPreview}
       />
 
       <div
         className={`flex-1 overflow-y-scroll-touch px-4 ${isAdminPreview ? "pb-6" : "pb-bottom-nav"}`}
       >
-          <p className="text-[#888] text-[11px] text-center pt-2 pb-4">
-            카테고리를 선택하세요
-          </p>
+        <p className="text-[#888] text-[11px] text-center pt-2 pb-4">
+          카테고리를 선택하세요
+        </p>
 
-        {isLoading ? (
-          <p className="text-[#666] text-sm text-center py-12">불러오는 중...</p>
-        ) : categories.length === 0 ? (
-          <p className="text-[#888] text-sm text-center py-12">준비 중입니다.</p>
-        ) : (
-          <div className="grid grid-cols-4 gap-x-2 gap-y-5 pb-6">
-            {categories.map((cat) => {
-              const Icon = getShopCategoryIcon(cat.name);
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => navigateCategory(cat.id)}
-                  className="relative z-10 flex flex-col items-center gap-1.5 min-w-0"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-[#1A1A1A] border border-[#333] flex items-center justify-center">
-                    {cat.imageUrl ? (
-                      <img
-                        src={cat.imageUrl}
-                        alt=""
-                        className="w-7 h-7 object-contain"
-                      />
-                    ) : (
-                      <Icon className="w-6 h-6 text-[#CDFF00]" strokeWidth={1.5} />
-                    )}
-                  </div>
-                  <span className="text-[#D5D5D5] text-[10px] leading-tight text-center line-clamp-2 w-full">
-                    {cat.name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <ShopCategoryGrid
+          categories={categories}
+          isLoading={isLoading}
+          onSelect={navigateCategory}
+        />
       </div>
 
       {!isAdminPreview && <BottomNavigation />}

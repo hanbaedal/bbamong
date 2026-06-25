@@ -304,7 +304,7 @@ const homePageSettingsSchema = new Schema(
     gameGuideContent: { type: String, default: "" },
     gameGuideEnabled: { type: Boolean, default: true },
     gameGuideImageUrl: { type: String, default: "" },
-    goodsSectionTitle: { type: String, default: "홈페이지" },
+    goodsSectionTitle: { type: String, default: "빠몽이의 보물창고" },
     goodsSectionEnabled: { type: Boolean, default: true },
     introVideoUrl: { type: String, default: "/videos/company-intro.mp4" },
     shopInquiryEmail: { type: String, default: "" },

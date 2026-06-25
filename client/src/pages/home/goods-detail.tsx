@@ -1,9 +1,8 @@
 import { useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
-import PageHeader from "@/components/PageHeader";
+import ShopSiteHeader from "@/components/public/ShopSiteHeader";
 import BottomNavigation from "@/components/BottomNavigation";
-import PublicSiteHeader from "@/components/public/PublicSiteHeader";
 import GoodsPurchaseActions from "@/components/goods/GoodsPurchaseActions";
 import ShopInquiryForm from "@/components/goods/ShopInquiryForm";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
@@ -109,13 +108,14 @@ export default function GoodsDetailPage() {
   if (isPublic) {
     return (
       <div className="h-app-screen bg-[#111111] flex flex-col">
-        <PublicSiteHeader
+        <ShopSiteHeader
           title="상품 상세"
+          variant="public"
           leftAction={
             <button
               type="button"
               onClick={() => setLocation(backPath)}
-              className="p-1"
+              className="p-1 flex-shrink-0"
               aria-label="뒤로"
             >
               <ChevronLeft className="w-6 h-6 text-white" />
@@ -129,15 +129,14 @@ export default function GoodsDetailPage() {
 
   return (
     <div className="h-app-screen bg-[#111111] flex flex-col">
-      <PageHeader
+      <ShopSiteHeader
         title="상품 상세"
-        showSettings={false}
-        logoDestination="game"
+        variant="member"
         leftAction={
           <button
             type="button"
             onClick={() => setLocation(backPath)}
-            className="p-1"
+            className="p-1 flex-shrink-0"
             aria-label="뒤로"
           >
             <ChevronLeft className="w-6 h-6 text-white" />

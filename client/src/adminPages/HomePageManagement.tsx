@@ -298,8 +298,9 @@ export default function HomePageManagementPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>굿즈 섹션 제목</Label>
+                <Label>보물창고 섹션 제목</Label>
                 <Input
+                  placeholder="빠몽이의 보물창고"
                   value={settingsForm.goodsSectionTitle}
                   onChange={(e) =>
                     setSettingsForm({ ...settingsForm, goodsSectionTitle: e.target.value })

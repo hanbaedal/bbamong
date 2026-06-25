@@ -24,7 +24,7 @@ export default function GoodsPurchaseActions({
   const phone = shopSettings?.shopInquiryPhone?.trim();
 
   const mailto = email
-    ? `mailto:${email}?subject=${encodeURIComponent(`[빠몽굿즈] ${product.name} 구매 문의`)}&body=${encodeURIComponent(`상품명: ${product.name}\n\n문의 내용:\n`)}`
+    ? `mailto:${email}?subject=${encodeURIComponent(`[빠몽이의 보물창고] ${product.name} 구매 문의`)}&body=${encodeURIComponent(`상품명: ${product.name}\n\n문의 내용:\n`)}`
     : null;
 
   const hasPurchase = !!purchaseUrl;
