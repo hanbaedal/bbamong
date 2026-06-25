@@ -1,7 +1,7 @@
 import { getFullUrl, getOrRefreshAccessToken } from "./queryClient";
-import { getPostLoginPath, isPublicSitePath, isMemberShopPath } from "./shopRoutes";
+import { getPostLoginPath, isPublicSitePath, isMemberShopPath, DEFAULT_POST_LOGIN_FALLBACK } from "./shopRoutes";
 
-export { isGuestLoginAllowed, buildUserLoginUrl, isMemberShopPath } from "./shopRoutes";
+export { isGuestLoginAllowed, buildUserLoginUrl, isMemberShopPath, DEFAULT_POST_LOGIN_FALLBACK } from "./shopRoutes";
 
 export const GAME_PATH = "/prediction";
 
@@ -71,7 +71,9 @@ export function mapPublicReturnToMemberPath(path: string): string {
  * 로그인·가입 완료 후 이동 경로 결정.
  * ppamong.com(공개 홈)에서 로그인한 회원은 보물창고(/home?shop=1)로 이동.
  */
-export async function resolveAfterLoginPath(fallback = "/home"): Promise<string> {
+export async function resolveAfterLoginPath(
+  fallback = DEFAULT_POST_LOGIN_FALLBACK,
+): Promise<string> {
   const raw = getPostLoginPath(fallback);
   const base = raw.split("?")[0];
   let target = raw;
@@ -101,11 +103,26 @@ export async function resolveAfterLoginPath(fallback = "/home"): Promise<string>
   return target;
 }
 
-/** 공개 홈 ↔ 회원 앱 전환 시에만 전체 페이지 이동 필요 */
-export function needsAppSwitchNavigation(target: string): boolean {
+/** PublicApp ↔ UserApp 전환 또는 쿼리스트링·회원 쇼핑몰 이동 시 전체 페이지 로드 필요 */
+export function shouldUseHardNavigation(target: string): boolean {
   const targetBase = target.split("?")[0];
   const currentBase = window.location.pathname;
-  return isPublicSitePath(targetBase) !== isPublicSitePath(currentBase);
+
+  if (isPublicSitePath(targetBase) !== isPublicSitePath(currentBase)) {
+    return true;
+  }
+  if (target.includes("?")) {
+    return true;
+  }
+  if (isMemberShopPath(targetBase)) {
+    return true;
+  }
+  return false;
+}
+
+/** @deprecated shouldUseHardNavigation 사용 */
+export function needsAppSwitchNavigation(target: string): boolean {
+  return shouldUseHardNavigation(target);
 }
 
 type ClientNavigateFn = (to: string, options?: { replace?: boolean }) => void;
@@ -116,11 +133,11 @@ type ClientNavigateFn = (to: string, options?: { replace?: boolean }) => void;
  */
 export async function completeLoginNavigation(
   navigate: ClientNavigateFn,
-  fallback = "/home",
+  fallback = DEFAULT_POST_LOGIN_FALLBACK,
 ): Promise<void> {
   const target = await resolveAfterLoginPath(fallback);
 
-  if (needsAppSwitchNavigation(target)) {
+  if (shouldUseHardNavigation(target)) {
     window.location.assign(target);
     return;
   }
@@ -129,7 +146,9 @@ export async function completeLoginNavigation(
 }
 
 /** 자동 로그인 등 SPA 라우터 없이 이동할 때 */
-export async function navigateAfterLogin(fallback = "/home"): Promise<void> {
+export async function navigateAfterLogin(
+  fallback = DEFAULT_POST_LOGIN_FALLBACK,
+): Promise<void> {
   const target = await resolveAfterLoginPath(fallback);
   window.location.assign(target);
 }

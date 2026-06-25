@@ -11,7 +11,7 @@ import Popup from "@/components/customUi/infoPopup";
 import { TermsModal } from "@/components/TermsModal";
 import { Term } from "@shared/schema";
 import { getFullUrl } from "@/lib/queryClient";
-import { completeLoginNavigation } from "@/lib/appNavigation";
+import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
 import { resetRefreshCooldown } from "@/lib/queryClient";
 import PageHeader from "@/components/PageHeader";
@@ -810,7 +810,7 @@ export default function SocialOnboardingPage() {
         <Popup
           message="회원가입이 완료되었습니다."
           buttonText="확인"
-          onConfirm={() => void completeLoginNavigation(setLocation, "/home")}
+          onConfirm={() => void completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK)}
         />
       )}
 

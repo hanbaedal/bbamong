@@ -1,5 +1,8 @@
 export type SiteMode = "user" | "public" | "admin";
 
+/** return URL 없을 때 로그인 후 기본 경로 (게임) */
+export const DEFAULT_POST_LOGIN_FALLBACK = "/prediction";
+
 export interface ShopRoutes {
   home: string;
   shop: string;
@@ -72,11 +75,15 @@ export function buildUserLoginUrl(returnPath: string, options?: { allowGuest?: b
   return `/login?${params.toString()}`;
 }
 
-export function getPostLoginPath(fallback = "/home"): string {
+export function getPostLoginPath(fallback = DEFAULT_POST_LOGIN_FALLBACK): string {
   const params = new URLSearchParams(window.location.search);
   const returnPath = params.get("return");
   if (returnPath?.startsWith("/") && !returnPath.startsWith("//")) {
-    return returnPath;
+    try {
+      return decodeURIComponent(returnPath);
+    } catch {
+      return returnPath;
+    }
   }
   return fallback;
 }

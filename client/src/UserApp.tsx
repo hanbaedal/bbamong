@@ -44,11 +44,11 @@ import VictoryHistoryPage from "@/pages/setting/victory-history";
 import InvitePage from "@/pages/setting/invite";
 import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
-import { navigateAfterLogin } from "@/lib/appNavigation";
+import { navigateAfterLogin, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import { isMemberShopPath } from "@/lib/shopRoutes";
 
 function getPostLoginTarget(): void {
-  void navigateAfterLogin("/home");
+  void navigateAfterLogin(DEFAULT_POST_LOGIN_FALLBACK);
 }
 
 function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
@@ -147,8 +147,9 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }
   
   if (!user) {
-    const params = new URLSearchParams({ return: location });
-    if (isMemberShopPath(location)) {
+    const returnPath = window.location.pathname + window.location.search;
+    const params = new URLSearchParams({ return: returnPath });
+    if (isMemberShopPath(returnPath)) {
       params.set("guest", "0");
     }
     return <Redirect to={`/login?${params.toString()}`} />;

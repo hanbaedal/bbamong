@@ -7,7 +7,7 @@ import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { getFullUrl, apiRequest, resetRefreshCooldown } from "@/lib/queryClient";
-import { completeLoginNavigation } from "@/lib/appNavigation";
+import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import { isGuestLoginAllowed } from "@/lib/shopRoutes";
 import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
 import { Browser } from "@capacitor/browser";
@@ -55,12 +55,12 @@ export default function LoginPage() {
     }
     if (user.provider === "guest" && showGuestLogin) {
       sessionRedirectDoneRef.current = true;
-      void completeLoginNavigation(setLocation, "/home");
+      void completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
       return;
     }
     if (user.provider !== "guest") {
       sessionRedirectDoneRef.current = true;
-      void completeLoginNavigation(setLocation, "/home");
+      void completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
     }
   }, [isUserLoaded, user, isGuestLoading, isLoading, setLocation, showGuestLogin]);
 
@@ -105,7 +105,7 @@ export default function LoginPage() {
         setUser(data.user);
       }
       sessionRedirectDoneRef.current = true;
-      await completeLoginNavigation(setLocation, "/home");
+      await completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
     } catch (error) {
       console.error("게스트 로그인 실패:", error);
       setErrors({ email: "", password: "", general: "게스트 로그인 중 오류가 발생했습니다." });
@@ -225,14 +225,14 @@ export default function LoginPage() {
             }
             setUser(userObj);
 
-            await completeLoginNavigation(setLocation, "/home");
+            await completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
             return;
           }
         } catch (meError) {
           console.error(`[${provider}] /api/users/me 오류:`, meError);
         }
 
-        await completeLoginNavigation(setLocation, "/home");
+        await completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
         return;
       } catch (error) {
         if (socialLoginSucceededRef.current) {
@@ -459,7 +459,7 @@ export default function LoginPage() {
         }
 
         sessionRedirectDoneRef.current = true;
-        await completeLoginNavigation(setLocation, "/home");
+        await completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
       } else {
         if (data.error === "suspended") {
           setShowSuspendedPopup(true);
