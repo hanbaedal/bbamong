@@ -23,6 +23,8 @@ jobs:
         uses: android-actions/setup-android@v3
       - name: Install dependencies
         run: npm ci
+      - name: Use user Capacitor config
+        run: cp capacitor.config.user.ts capacitor.config.ts
       - name: Create placeholder web assets
         run: |
           mkdir -p dist/public
