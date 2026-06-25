@@ -41,6 +41,19 @@ export function isPublicSitePath(path: string): boolean {
   return path === "/" || path === "/shop" || path.startsWith("/shop/");
 }
 
+/** 공개 홈 소개(/)에서 잘못 연결된 회원 로그인 return — 관리자 로그인으로 보냄 */
+export function isIntroStaffLoginReturn(returnPath: string | null | undefined): boolean {
+  if (!returnPath) return false;
+  let decoded = returnPath;
+  try {
+    decoded = decodeURIComponent(returnPath);
+  } catch {
+    // keep raw
+  }
+  const base = decoded.split("?")[0];
+  return base === "/";
+}
+
 /** 회원 전용 보물창고 경로 (게스트 접근 불가) */
 export function isMemberShopPath(path: string): boolean {
   const base = path.split("?")[0];

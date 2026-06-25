@@ -8,7 +8,7 @@ import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { getFullUrl, apiRequest, resetRefreshCooldown } from "@/lib/queryClient";
 import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
-import { isGuestLoginAllowed } from "@/lib/shopRoutes";
+import { isGuestLoginAllowed, isIntroStaffLoginReturn } from "@/lib/shopRoutes";
 import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
@@ -38,6 +38,14 @@ export default function LoginPage() {
   const sessionRedirectDoneRef = useRef(false);
 
   const showGuestLogin = isGuestLoginAllowed();
+
+  // 공개 홈 소개(/)의 구 회원 로그인 링크 → 관리자 로그인
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (isIntroStaffLoginReturn(params.get("return"))) {
+      window.location.replace("/admin/login");
+    }
+  }, []);
 
   // 이미 로그인된 회원이 /login 접속 시에만 이동 (게스트·홈페이지 로그인 처리 중 제외)
   useEffect(() => {
