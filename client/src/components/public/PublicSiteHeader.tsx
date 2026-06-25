@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { useLocation } from "wouter";
 import { useUserAssets } from "@/contexts/UserAssetContext";
+import { navigateToGame } from "@/lib/appNavigation";
 
 interface PublicSiteHeaderProps {
   title?: string;
@@ -13,16 +13,15 @@ export default function PublicSiteHeader({
   leftAction,
   rightAction,
 }: PublicSiteHeaderProps) {
-  const [, setLocation] = useLocation();
   const { assets } = useUserAssets();
 
   const defaultRight = (
     <button
       type="button"
       onClick={() => {
-        window.location.assign("/admin/login");
+        window.location.assign("/login");
       }}
-      data-testid="button-admin-login"
+      data-testid="button-member-login"
       className="text-[#CDFF00] text-xs font-semibold whitespace-nowrap px-2 py-1 rounded border border-[#CDFF00]/40 hover:bg-[#CDFF00]/10 focus:outline-none"
     >
       로그인
@@ -39,8 +38,9 @@ export default function PublicSiteHeader({
 
         <button
           type="button"
-          onClick={() => setLocation("/")}
+          onClick={() => navigateToGame()}
           data-testid="button-public-logo"
+          aria-label="게임으로 돌아가기"
           className="flex-1 flex justify-center min-w-0"
         >
           <img

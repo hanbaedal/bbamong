@@ -1342,7 +1342,7 @@ export default function PredictionPage() {
   return (
     <div className="h-app-screen bg-[#111111] flex flex-col">
       {/* 헤더 */}
-      <PageHeader />
+      <PageHeader logoDestination="homepage" />
 
       {/* 메인 컨텐츠 */}
       <div className="flex-1 px-5 pt-[10px] overflow-y-scroll-touch pb-bottom-nav-with-bar">

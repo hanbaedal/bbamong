@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
-import { queryClient, getOrRefreshAccessToken } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import { fetchMemberSessionKind } from "@/lib/appNavigation";
 import { UserAssetProvider } from "@/contexts/UserAssetContext";
 import { SiteModeProvider } from "@/contexts/SiteModeContext";
 import HomeShopPage from "@/pages/home/shop";
@@ -26,15 +27,15 @@ function MemberSessionRedirect() {
   useEffect(() => {
     void (async () => {
       try {
-        const token = await getOrRefreshAccessToken();
-        if (!token) return;
+        const kind = await fetchMemberSessionKind();
+        if (kind !== "member") return;
 
         const memberPath = mapPublicPathToMemberPath(location);
         if (memberPath && memberPath !== `${location}${window.location.search}`) {
           window.location.replace(memberPath);
         }
       } catch {
-        // 비회원 공개 사이트 유지
+        // 비회원·게스트는 공개 홈페이지 유지
       }
     })();
   }, [location]);

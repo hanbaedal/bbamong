@@ -132,6 +132,7 @@ export default function GoodsDetailPage() {
       <PageHeader
         title="상품 상세"
         showSettings={false}
+        logoDestination="game"
         leftAction={
           <button
             type="button"

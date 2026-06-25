@@ -2,7 +2,12 @@ import type { ReactNode } from "react";
 import { Settings } from "lucide-react";
 import { useLocation } from "wouter";
 import { useUserAssets } from "@/contexts/UserAssetContext";
-import { shopGridPath } from "@/lib/shopRoutes";
+import {
+  GAME_PATH,
+  isHomepageShopPath,
+  navigateToGame,
+  navigateToHomepage,
+} from "@/lib/appNavigation";
 
 interface PageHeaderProps {
   title?: string;
@@ -11,6 +16,8 @@ interface PageHeaderProps {
   rightAction?: ReactNode;
   showSettings?: boolean;
   borderBottom?: boolean;
+  /** auto: 경로에 따라 게임↔홈페이지, homepage: 홈페이지, game: 게임 */
+  logoDestination?: "auto" | "game" | "homepage";
 }
 
 export default function PageHeader({
@@ -20,14 +27,26 @@ export default function PageHeader({
   rightAction,
   showSettings = true,
   borderBottom = false,
+  logoDestination = "auto",
 }: PageHeaderProps) {
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
   const { assets } = useUserAssets();
 
-  const logoTarget =
-    location.startsWith("/home/goods") || location.startsWith("/shop/")
-      ? shopGridPath("user")
-      : "/home";
+  const resolveLogoDestination = (): "game" | "homepage" => {
+    if (logoDestination === "game") return "game";
+    if (logoDestination === "homepage") return "homepage";
+    if (isHomepageShopPath(location)) return "game";
+    if (location.split("?")[0] === GAME_PATH) return "homepage";
+    return "game";
+  };
+
+  const handleLogoClick = () => {
+    if (resolveLogoDestination() === "homepage") {
+      navigateToHomepage();
+      return;
+    }
+    navigateToGame();
+  };
 
   return (
     <div
@@ -52,8 +71,10 @@ export default function PageHeader({
         )}
 
         <button
-          onClick={() => setLocation(logoTarget)}
+          type="button"
+          onClick={handleLogoClick}
           data-testid="button-header-logo"
+          aria-label="PPAMONG"
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
         >
           <img
@@ -67,7 +88,7 @@ export default function PageHeader({
           rightAction
         ) : showSettings ? (
           <button
-            onClick={() => setLocation("/settings")}
+            onClick={() => window.location.assign("/settings")}
             data-testid="button-settings"
             className="p-1 focus:outline-none focus-visible:outline-none"
           >

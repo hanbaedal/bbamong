@@ -6,9 +6,11 @@ import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import PublicSiteHeader from "@/components/public/PublicSiteHeader";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
-import { shopGridPath } from "@/lib/shopRoutes";
+import { navigateToGame } from "@/lib/appNavigation";
+import { useUserAssets } from "@/contexts/UserAssetContext";
 import { getFullUrl } from "@/lib/queryClient";
 import { getShopCategoryIcon } from "@/lib/shopCategoryIcons";
+import { navigateToGame } from "@/lib/appNavigation";
 
 interface HomePageSettings {
   goodsSectionTitle: string;
@@ -38,6 +40,7 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
   const [location, setLocation] = useLocation();
   const siteMode = useSiteMode();
   const routes = useShopRoutes();
+  const { assets } = useUserAssets();
   const isPublic = siteMode === "public";
   const isAdminPreview = siteMode === "admin";
   const isMainShopHome = location === routes.home || location === routes.shop;
@@ -128,11 +131,22 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
               <ChevronLeft className="w-6 h-6" />
             </button>
           )}
-          <span className="text-white text-sm font-medium">{shopTitle}</span>
+          <button
+            type="button"
+            onClick={() => navigateToGame()}
+            aria-label="게임으로 돌아가기"
+            className="flex-1 flex justify-center"
+          >
+            <img
+              src={assets.headerLogo}
+              alt="PPAMONG"
+              className="h-9 w-auto max-w-[72px] object-contain"
+            />
+          </button>
           <button
             type="button"
             onClick={openShop}
-            className="text-[#CDFF00] text-xs px-2 py-1"
+            className="text-[#CDFF00] text-xs px-2 py-1 w-10 text-right"
           >
             건너뛰기
           </button>
@@ -201,9 +215,7 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
           <div className="border-t border-[#333] pt-4 mt-2 text-center">
             <button
               type="button"
-              onClick={() => {
-                window.location.assign("/login");
-              }}
+              onClick={() => navigateToGame()}
               className="text-[#CDFF00] text-xs underline"
             >
               야구 예측 게임 참여하기
@@ -218,6 +230,7 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
     <div className="h-app-screen bg-[#111111] flex flex-col">
       <PageHeader
         title={shopTitle}
+        logoDestination="game"
         leftAction={
           isMainShopHome ? (
             <button

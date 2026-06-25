@@ -121,6 +121,7 @@ export default function GoodsCategoryPage() {
       <PageHeader
         title={category?.name ?? "굿즈"}
         showSettings={false}
+        logoDestination="game"
         leftAction={
           <button
             type="button"
