@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
-import BottomNavigation from "@/components/BottomNavigation";
 import ShopSiteHeader from "@/components/public/ShopSiteHeader";
 import ShopAuthButton from "@/components/public/ShopAuthButton";
 import ShopCategoryGrid from "@/components/goods/ShopCategoryGrid";
@@ -189,9 +188,7 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
         showAuthButton={!isAdminPreview}
       />
 
-      <div
-        className={`flex-1 overflow-y-scroll-touch px-4 ${isAdminPreview ? "pb-6" : "pb-bottom-nav"}`}
-      >
+      <div className="flex-1 overflow-y-scroll-touch px-4 pb-8">
         <p className="text-[#888] text-[11px] text-center pt-2 pb-4">
           카테고리를 선택하세요
         </p>
@@ -202,8 +199,6 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
           onSelect={navigateCategory}
         />
       </div>
-
-      {!isAdminPreview && <BottomNavigation />}
     </div>
   );
 }

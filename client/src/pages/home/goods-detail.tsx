@@ -2,7 +2,6 @@ import { useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 import ShopSiteHeader from "@/components/public/ShopSiteHeader";
-import BottomNavigation from "@/components/BottomNavigation";
 import GoodsPurchaseActions from "@/components/goods/GoodsPurchaseActions";
 import ShopInquiryForm from "@/components/goods/ShopInquiryForm";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
@@ -144,11 +143,9 @@ export default function GoodsDetailPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-scroll-touch px-5 pb-bottom-nav pt-2">
+      <div className="flex-1 overflow-y-scroll-touch px-5 pb-8 pt-2">
         {detailContent}
       </div>
-
-      <BottomNavigation />
     </div>
   );
 }
