@@ -12,7 +12,7 @@ interface ShopSiteHeaderProps {
   variant?: "public" | "member";
   showAuthButton?: boolean;
   /**
-   * 공개 홈 전용: staff=관리자·운영자(소개 화면), member=회원 로그인(쇼핑몰)
+   * 공개 홈 전용: staff=관리자 로그인(소개 화면), member=회원 로그인(쇼핑몰)
    */
   authMode?: "staff" | "member" | "none";
 }

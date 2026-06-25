@@ -1,23 +1,15 @@
-const staffLinkClass =
-  "text-[#888] text-[10px] font-medium whitespace-nowrap px-2 py-1 rounded border border-[#444] hover:border-[#666] hover:text-[#bbb] focus:outline-none";
+const adminLoginClass =
+  "text-[#CDFF00] text-xs font-semibold whitespace-nowrap px-2.5 py-1 rounded border border-[#CDFF00]/40 hover:bg-[#CDFF00]/10 focus:outline-none";
 
+/** 공개 홈 소개(/) — 관리자 로그인만 */
 export default function StaffAuthLinks() {
   return (
-    <nav className="flex items-center gap-1.5" aria-label="운영진 로그인">
-      <a
-        href="/admin/login"
-        data-testid="link-admin-login"
-        className={staffLinkClass}
-      >
-        관리자
-      </a>
-      <a
-        href="/manager/login"
-        data-testid="link-manager-login"
-        className={staffLinkClass}
-      >
-        운영자
-      </a>
-    </nav>
+    <a
+      href="/admin/login"
+      data-testid="link-admin-login"
+      className={adminLoginClass}
+    >
+      로그인
+    </a>
   );
 }
