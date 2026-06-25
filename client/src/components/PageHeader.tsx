@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Settings } from "lucide-react";
 import { useLocation } from "wouter";
 import { useUserAssets } from "@/contexts/UserAssetContext";
+import { shopGridPath } from "@/lib/shopRoutes";
 
 interface PageHeaderProps {
   title?: string;
@@ -20,8 +21,13 @@ export default function PageHeader({
   showSettings = true,
   borderBottom = false,
 }: PageHeaderProps) {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { assets } = useUserAssets();
+
+  const logoTarget =
+    location.startsWith("/home/goods") || location.startsWith("/shop/")
+      ? shopGridPath("user")
+      : "/home";
 
   return (
     <div
@@ -46,7 +52,7 @@ export default function PageHeader({
         )}
 
         <button
-          onClick={() => setLocation("/home")}
+          onClick={() => setLocation(logoTarget)}
           data-testid="button-header-logo"
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
         >

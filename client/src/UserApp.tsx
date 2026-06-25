@@ -44,9 +44,10 @@ import VictoryHistoryPage from "@/pages/setting/victory-history";
 import InvitePage from "@/pages/setting/invite";
 import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
+import { getPostLoginPath } from "@/lib/shopRoutes";
 
 function getPostLoginTarget(): string {
-  return "/home";
+  return getPostLoginPath("/home");
 }
 
 function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
@@ -104,7 +105,7 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (user && window.location.pathname === "/login") {
-      setLocation("/home", { replace: true });
+      setLocation(getPostLoginPath("/home"), { replace: true });
     }
   }, [user, setLocation]);
 
@@ -140,6 +141,7 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType<any> }) {
   const { user, isUserLoaded } = useUser();
+  const [location] = useLocation();
 
   if (!isUserLoaded) {
     return (
@@ -150,7 +152,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }
   
   if (!user) {
-    return <Redirect to="/login" />;
+    return <Redirect to={`/login?return=${encodeURIComponent(location)}`} />;
   }
   
   return <Component />;

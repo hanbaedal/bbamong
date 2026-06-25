@@ -5,6 +5,7 @@ import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import PublicSiteHeader from "@/components/public/PublicSiteHeader";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
+import { shopGridPath } from "@/lib/shopRoutes";
 import { getFullUrl } from "@/lib/queryClient";
 
 interface GoodsCategory {
@@ -123,7 +124,7 @@ export default function GoodsCategoryPage() {
         leftAction={
           <button
             type="button"
-            onClick={() => setLocation(routes.home)}
+            onClick={() => setLocation(shopGridPath(siteMode))}
             className="p-1"
             aria-label="뒤로"
           >

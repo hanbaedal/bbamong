@@ -37,3 +37,18 @@ export function getShopRoutes(mode: SiteMode): ShopRoutes {
 export function isPublicSitePath(path: string): boolean {
   return path === "/" || path === "/shop" || path.startsWith("/shop/");
 }
+
+export function getPostLoginPath(fallback = "/home"): string {
+  const params = new URLSearchParams(window.location.search);
+  const returnPath = params.get("return");
+  if (returnPath?.startsWith("/") && !returnPath.startsWith("//")) {
+    return returnPath;
+  }
+  return fallback;
+}
+
+export function shopGridPath(mode: SiteMode): string {
+  const routes = getShopRoutes(mode);
+  if (mode === "public") return routes.shop;
+  return `${routes.shop}?shop=1`;
+}

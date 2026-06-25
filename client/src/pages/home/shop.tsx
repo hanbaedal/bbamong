@@ -6,6 +6,7 @@ import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import PublicSiteHeader from "@/components/public/PublicSiteHeader";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
+import { shopGridPath } from "@/lib/shopRoutes";
 import { getFullUrl } from "@/lib/queryClient";
 import { getShopCategoryIcon } from "@/lib/shopCategoryIcons";
 
@@ -59,10 +60,12 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
   const shopTitle = settings?.goodsSectionTitle?.trim() || "홈페이지";
 
   useEffect(() => {
-    if (!introVideoUrl || startAtShop) {
+    const params = new URLSearchParams(window.location.search);
+    const openShopGrid = startAtShop || params.get("shop") === "1";
+    if (!introVideoUrl || openShopGrid) {
       setShowShop(true);
     }
-  }, [introVideoUrl, startAtShop]);
+  }, [introVideoUrl, startAtShop, location]);
 
   const openShop = () => setShowShop(true);
 
@@ -72,7 +75,11 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
       window.open(goodsPath, "_blank", "noopener,noreferrer");
       return;
     }
-    setLocation(goodsPath);
+    if (isPublic) {
+      setLocation(goodsPath);
+      return;
+    }
+    window.location.assign(goodsPath);
   };
 
   if (!showShop) {
@@ -255,7 +262,7 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
                   key={cat.id}
                   type="button"
                   onClick={() => navigateCategory(cat.id)}
-                  className="flex flex-col items-center gap-1.5 min-w-0"
+                  className="relative z-10 flex flex-col items-center gap-1.5 min-w-0"
                 >
                   <div className="w-12 h-12 rounded-xl bg-[#1A1A1A] border border-[#333] flex items-center justify-center">
                     {cat.imageUrl ? (
@@ -274,18 +281,6 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
                 </button>
               );
             })}
-          </div>
-        )}
-
-        {!isAdminPreview && (
-          <div className="border-t border-[#333] pt-4 mt-2 text-center">
-            <button
-              type="button"
-              onClick={() => setLocation("/prediction")}
-              className="text-[#CDFF00] text-xs underline"
-            >
-              경기 참여하기
-            </button>
           </div>
         )}
       </div>

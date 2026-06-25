@@ -7,6 +7,7 @@ import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { getFullUrl, apiRequest, resetRefreshCooldown } from "@/lib/queryClient";
+import { getPostLoginPath } from "@/lib/shopRoutes";
 import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
@@ -74,7 +75,7 @@ export default function LoginPage() {
       if (data.user) {
         setUser(data.user);
       }
-      setTimeout(() => setLocation("/home", { replace: true }), 0);
+      setTimeout(() => setLocation(getPostLoginPath("/home"), { replace: true }), 0);
     } catch (error) {
       console.error("게스트 로그인 실패:", error);
       setErrors({ email: "", password: "", general: "게스트 로그인 중 오류가 발생했습니다." });
@@ -194,14 +195,14 @@ export default function LoginPage() {
             }
             setUser(userObj);
 
-            setTimeout(() => setLocation("/home", { replace: true }), 0);
+            setTimeout(() => setLocation(getPostLoginPath("/home"), { replace: true }), 0);
             return;
           }
         } catch (meError) {
           console.error(`[${provider}] /api/users/me 오류:`, meError);
         }
 
-        setTimeout(() => setLocation("/home", { replace: true }), 0);
+        setTimeout(() => setLocation(getPostLoginPath("/home"), { replace: true }), 0);
         return;
       } catch (error) {
         if (socialLoginSucceededRef.current) {
@@ -427,7 +428,7 @@ export default function LoginPage() {
           });
         }
 
-        setTimeout(() => setLocation("/home", { replace: true }), 0);
+        setTimeout(() => setLocation(getPostLoginPath("/home"), { replace: true }), 0);
       } else {
         if (data.error === "suspended") {
           setShowSuspendedPopup(true);

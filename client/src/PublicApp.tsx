@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { queryClient, getOrRefreshAccessToken } from "@/lib/queryClient";
@@ -12,7 +12,7 @@ import NotFound from "@/pages/not-found";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
 
 function mapPublicPathToMemberPath(path: string): string | null {
-  if (path === "/" || path === "/shop") return "/home";
+  if (path === "/" || path === "/shop") return "/home?shop=1";
   const categoryMatch = path.match(/^\/shop\/category\/(\d+)$/);
   if (categoryMatch) return `/home/goods/${categoryMatch[1]}`;
   const productMatch = path.match(/^\/shop\/product\/(\d+)$/);
@@ -21,21 +21,23 @@ function mapPublicPathToMemberPath(path: string): string | null {
 }
 
 function MemberSessionRedirect() {
+  const [location] = useLocation();
+
   useEffect(() => {
     void (async () => {
       try {
         const token = await getOrRefreshAccessToken();
         if (!token) return;
 
-        const memberPath = mapPublicPathToMemberPath(window.location.pathname);
-        if (memberPath) {
+        const memberPath = mapPublicPathToMemberPath(location);
+        if (memberPath && memberPath !== `${location}${window.location.search}`) {
           window.location.replace(memberPath);
         }
       } catch {
         // 비회원 공개 사이트 유지
       }
     })();
-  }, []);
+  }, [location]);
 
   return null;
 }
