@@ -2,6 +2,8 @@ import type { Express } from "express";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { adminAuthMiddleware } from "../middleware/adminAuth";
+import { userAuthMiddleware, type AuthenticatedUserRequest } from "../middleware/userAuth";
+import { userStorage } from "../UserStorage/userStorage";
 import { shopInquiryStorage } from "../UserStorage/shopInquiryStorage";
 import { goodsStorage } from "../UserStorage/goodsStorage";
 
@@ -21,8 +23,13 @@ const createInquirySchema = z.object({
 });
 
 export async function shopRoutes(app: Express): Promise<void> {
-  app.post("/api/shop/inquiries", async (req, res) => {
+  app.post("/api/shop/inquiries", userAuthMiddleware, async (req: AuthenticatedUserRequest, res) => {
     try {
+      const member = await userStorage.getUserById(req.user!.userId);
+      if (!member || member.provider === "guest") {
+        return res.status(403).json({ error: "회원 로그인이 필요합니다." });
+      }
+
       const parsed = createInquirySchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ error: fromZodError(parsed.error).message });

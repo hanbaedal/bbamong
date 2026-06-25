@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getFullUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 
 interface ShopInquiryFormProps {
   productId: number;
@@ -29,16 +29,12 @@ export default function ShopInquiryForm({ productId, productName }: ShopInquiryF
     setSubmitting(true);
     setError("");
     try {
-      const res = await fetch(getFullUrl("/api/shop/inquiries"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId,
-          customerName: customerName.trim(),
-          phone: phone.trim(),
-          email: email.trim(),
-          message: message.trim(),
-        }),
+      const res = await apiRequest("POST", "/api/shop/inquiries", {
+        productId,
+        customerName: customerName.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        message: message.trim(),
       });
       const data = await res.json();
       if (!res.ok) {

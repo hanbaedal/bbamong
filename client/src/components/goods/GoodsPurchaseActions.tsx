@@ -1,3 +1,5 @@
+import PublicMemberOnly from "@/components/public/PublicMemberOnly";
+
 interface ShopInquirySettings {
   shopInquiryEmail?: string;
   shopInquiryPhone?: string;
@@ -54,7 +56,7 @@ export default function GoodsPurchaseActions({
     );
   }
 
-  return (
+  const purchaseActions = (
     <div className="mt-6 pt-4 border-t border-[#333] flex flex-col gap-2">
       {hasPurchase && (
         <a
@@ -92,4 +94,10 @@ export default function GoodsPurchaseActions({
       )}
     </div>
   );
+
+  if (isPublic) {
+    return <PublicMemberOnly>{purchaseActions}</PublicMemberOnly>;
+  }
+
+  return purchaseActions;
 }

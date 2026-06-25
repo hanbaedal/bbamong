@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 import ShopSiteHeader from "@/components/public/ShopSiteHeader";
 import PublicMemberLoginBanner from "@/components/public/PublicMemberLoginBanner";
+import PublicMemberOnly from "@/components/public/PublicMemberOnly";
 import GoodsPurchaseActions from "@/components/goods/GoodsPurchaseActions";
 import ShopInquiryForm from "@/components/goods/ShopInquiryForm";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
@@ -97,9 +98,14 @@ export default function GoodsDetailPage() {
             shopSettings={shopSettings}
             isPublic={isPublic}
           />
-          {!product.purchaseUrl?.trim() && (
-            <ShopInquiryForm productId={product.id} productName={product.name} />
-          )}
+          {!product.purchaseUrl?.trim() &&
+            (isPublic ? (
+              <PublicMemberOnly>
+                <ShopInquiryForm productId={product.id} productName={product.name} />
+              </PublicMemberOnly>
+            ) : (
+              <ShopInquiryForm productId={product.id} productName={product.name} />
+            ))}
         </>
       )}
     </>
