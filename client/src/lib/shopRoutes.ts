@@ -28,7 +28,7 @@ export function getShopRoutes(mode: SiteMode): ShopRoutes {
 
   return {
     home: "/home",
-    shop: "/home/shop",
+    shop: "/home",
     category: (id) => `/home/goods/${id}`,
     product: (id) => `/home/goods/item/${id}`,
   };

@@ -34,11 +34,12 @@ interface HomeShopPageProps {
 }
 
 export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps) {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const siteMode = useSiteMode();
   const routes = useShopRoutes();
   const isPublic = siteMode === "public";
   const isAdminPreview = siteMode === "admin";
+  const isMainShopHome = location === routes.home || location === routes.shop;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showShop, setShowShop] = useState(startAtShop);
 
@@ -108,14 +109,18 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
     return (
       <div className="h-app-screen bg-black flex flex-col">
         <div className="flex-shrink-0 flex items-center justify-between px-4 h-12">
-          <button
-            type="button"
-            onClick={() => setLocation(routes.home)}
-            className="p-1 text-white"
-            aria-label="뒤로"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </button>
+          {isMainShopHome ? (
+            <div className="w-10" />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLocation(routes.home)}
+              className="p-1 text-white"
+              aria-label="뒤로"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+          )}
           <span className="text-white text-sm font-medium">{shopTitle}</span>
           <button
             type="button"
@@ -207,14 +212,25 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
       <PageHeader
         title={shopTitle}
         leftAction={
-          <button
-            type="button"
-            onClick={() => setLocation(routes.home)}
-            className="p-1"
-            aria-label="뒤로"
-          >
-            <ChevronLeft className="w-6 h-6 text-white" />
-          </button>
+          isMainShopHome ? (
+            <button
+              type="button"
+              onClick={() => setShowShop(false)}
+              className="p-1"
+              aria-label="뒤로"
+            >
+              <ChevronLeft className="w-6 h-6 text-white" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLocation(routes.home)}
+              className="p-1"
+              aria-label="뒤로"
+            >
+              <ChevronLeft className="w-6 h-6 text-white" />
+            </button>
+          )
         }
         showSettings={!isAdminPreview}
       />
@@ -258,6 +274,18 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {!isAdminPreview && (
+          <div className="border-t border-[#333] pt-4 mt-2 text-center">
+            <button
+              type="button"
+              onClick={() => setLocation("/prediction")}
+              className="text-[#CDFF00] text-xs underline"
+            >
+              경기 참여하기
+            </button>
           </div>
         )}
       </div>

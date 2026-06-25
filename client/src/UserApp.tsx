@@ -17,7 +17,6 @@ import { preloadUserAssets } from "@/lib/userAssetPreloader";
 import LoginPage from "@/pages/auth/login";
 import SignupPage from "@/pages/auth/signup";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
-import HomePage from "@/pages/home";
 import GameGuidePage from "@/pages/home/game-guide";
 import GoodsCategoryPage from "@/pages/home/goods-category";
 import GoodsDetailPage from "@/pages/home/goods-detail";
@@ -164,9 +163,9 @@ function Router() {
       <Route path="/signup" component={SignupPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/social-onboarding" component={SocialOnboardingPage} />
-      <Route path="/home">{() => <ProtectedRoute component={HomePage} />}</Route>
+      <Route path="/home">{() => <ProtectedRoute component={HomeShopPage} />}</Route>
       <Route path="/home/game-guide">{() => <ProtectedRoute component={GameGuidePage} />}</Route>
-      <Route path="/home/shop">{() => <ProtectedRoute component={HomeShopPage} />}</Route>
+      <Route path="/home/shop">{() => <Redirect to="/home" />}</Route>
       <Route path="/home/goods/item/:productId">
         {() => <ProtectedRoute component={GoodsDetailPage} />}
       </Route>
