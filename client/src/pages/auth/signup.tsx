@@ -382,13 +382,15 @@ export default function SignupPage() {
     }
   };
 
+  const loginUrl = `/login${window.location.search}`;
+
   return (
     <div className="h-app-screen bg-[#111111]">
       <PageHeader
         showSettings={false}
         leftAction={
           <button
-            onClick={() => setLocation("/login")}
+            onClick={() => setLocation(loginUrl)}
             data-testid="button-back"
             className="p-1"
           >
@@ -915,7 +917,7 @@ export default function SignupPage() {
         <Popup
           message="회원가입이 완료되었습니다."
           buttonText="확인"
-          onConfirm={() => setLocation("/login")}
+          onConfirm={() => setLocation(loginUrl)}
         />
       )}
 

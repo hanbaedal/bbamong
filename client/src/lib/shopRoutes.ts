@@ -38,6 +38,40 @@ export function isPublicSitePath(path: string): boolean {
   return path === "/" || path === "/shop" || path.startsWith("/shop/");
 }
 
+/** 회원 전용 보물창고 경로 (게스트 접근 불가) */
+export function isMemberShopPath(path: string): boolean {
+  const base = path.split("?")[0];
+  return (
+    base === "/home" ||
+    base === "/home/shop" ||
+    base.startsWith("/home/goods/") ||
+    base === "/home/game-guide"
+  );
+}
+
+/** 홈페이지(공개)에서 온 로그인인지 — 게스트 로그인 비허용 */
+export function isGuestLoginAllowed(search = window.location.search): boolean {
+  const params = new URLSearchParams(search);
+  if (params.get("guest") === "0") return false;
+  const returnPath = params.get("return");
+  if (returnPath) {
+    const base = returnPath.split("?")[0];
+    if (isPublicSitePath(base)) return false;
+    if (isMemberShopPath(base)) return false;
+    return true;
+  }
+  return true;
+}
+
+export function buildUserLoginUrl(returnPath: string, options?: { allowGuest?: boolean }): string {
+  const params = new URLSearchParams();
+  params.set("return", returnPath);
+  if (options?.allowGuest === false) {
+    params.set("guest", "0");
+  }
+  return `/login?${params.toString()}`;
+}
+
 export function getPostLoginPath(fallback = "/home"): string {
   const params = new URLSearchParams(window.location.search);
   const returnPath = params.get("return");

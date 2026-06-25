@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 import ShopSiteHeader from "@/components/public/ShopSiteHeader";
-import ShopAuthButton from "@/components/public/ShopAuthButton";
+import StaffAuthLinks from "@/components/public/StaffAuthLinks";
 import ShopCategoryGrid from "@/components/goods/ShopCategoryGrid";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
 import { navigateToGame } from "@/lib/appNavigation";
@@ -120,7 +120,8 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
         <ShopSiteHeader
           title={shopTitle}
           variant={headerVariant}
-          showAuthButton={false}
+          authMode="staff"
+          showAuthButton
           rightAction={
             <div className="flex items-center gap-2">
               <button
@@ -130,7 +131,7 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
               >
                 건너뛰기
               </button>
-              {!isAdminPreview && <ShopAuthButton variant={headerVariant} />}
+              {!isAdminPreview && <StaffAuthLinks />}
             </div>
           }
         />
@@ -152,11 +153,14 @@ export default function HomeShopPage({ startAtShop = false }: HomeShopPageProps)
   if (isPublic) {
     return (
       <div className="h-app-screen bg-[#111111] flex flex-col">
-        <ShopSiteHeader title={shopTitle} variant="public" leftAction={backAction} />
+        <ShopSiteHeader title={shopTitle} variant="public" authMode="member" leftAction={backAction} />
 
         <div className="flex-1 overflow-y-scroll-touch px-4 pb-8">
-          <p className="text-[#888] text-[11px] text-center pt-2 pb-4">
+          <p className="text-[#888] text-[11px] text-center pt-2 pb-1">
             카테고리를 선택하세요
+          </p>
+          <p className="text-[#666] text-[10px] text-center pb-4">
+            구매·문의는 우측 「회원 로그인」 후 이용하세요
           </p>
 
           <ShopCategoryGrid

@@ -2,6 +2,7 @@ import { useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 import ShopSiteHeader from "@/components/public/ShopSiteHeader";
+import PublicMemberLoginBanner from "@/components/public/PublicMemberLoginBanner";
 import GoodsPurchaseActions from "@/components/goods/GoodsPurchaseActions";
 import ShopInquiryForm from "@/components/goods/ShopInquiryForm";
 import { useSiteMode, useShopRoutes } from "@/contexts/SiteModeContext";
@@ -121,7 +122,10 @@ export default function GoodsDetailPage() {
             </button>
           }
         />
-        <div className="flex-1 overflow-y-scroll-touch px-5 pb-8 pt-2">{detailContent}</div>
+        <div className="flex-1 overflow-y-scroll-touch px-5 pb-8 pt-2">
+          <PublicMemberLoginBanner />
+          {detailContent}
+        </div>
       </div>
     );
   }

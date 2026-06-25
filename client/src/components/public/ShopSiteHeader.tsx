@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { navigateToGame } from "@/lib/appNavigation";
 import ShopAuthButton from "@/components/public/ShopAuthButton";
+import StaffAuthLinks from "@/components/public/StaffAuthLinks";
 
 interface ShopSiteHeaderProps {
   title?: string;
@@ -10,6 +11,10 @@ interface ShopSiteHeaderProps {
   /** public: 공개 홈페이지, member: 회원 앱 쇼핑몰 */
   variant?: "public" | "member";
   showAuthButton?: boolean;
+  /**
+   * 공개 홈 전용: staff=관리자·운영자(소개 화면), member=회원 로그인(쇼핑몰)
+   */
+  authMode?: "staff" | "member" | "none";
 }
 
 export default function ShopSiteHeader({
@@ -18,12 +23,22 @@ export default function ShopSiteHeader({
   rightAction,
   variant = "public",
   showAuthButton = true,
+  authMode = "member",
 }: ShopSiteHeaderProps) {
   const { assets } = useUserAssets();
 
-  const rightSlot =
-    rightAction ??
-    (showAuthButton ? <ShopAuthButton variant={variant} /> : <div className="w-14" />);
+  const defaultAuth =
+    !showAuthButton || authMode === "none" ? (
+      <div className="w-14" />
+    ) : variant === "member" ? (
+      <ShopAuthButton variant="member" />
+    ) : authMode === "staff" ? (
+      <StaffAuthLinks />
+    ) : (
+      <ShopAuthButton variant="public" />
+    );
+
+  const rightSlot = rightAction ?? defaultAuth;
 
   return (
     <div

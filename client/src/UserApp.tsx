@@ -44,10 +44,11 @@ import VictoryHistoryPage from "@/pages/setting/victory-history";
 import InvitePage from "@/pages/setting/invite";
 import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
-import { getPostLoginPath } from "@/lib/shopRoutes";
+import { navigateAfterLogin } from "@/lib/appNavigation";
+import { isMemberShopPath } from "@/lib/shopRoutes";
 
-function getPostLoginTarget(): string {
-  return getPostLoginPath("/home");
+function getPostLoginTarget(): void {
+  void navigateAfterLogin("/home");
 }
 
 function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
@@ -99,15 +100,9 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (splashDone && !isChecking && autoLoginSucceeded && user) {
       setAutoLoginSucceeded(false);
-      setLocation(getPostLoginTarget(), { replace: true });
+      getPostLoginTarget();
     }
-  }, [splashDone, isChecking, autoLoginSucceeded, user, setLocation]);
-
-  useEffect(() => {
-    if (user && window.location.pathname === "/login") {
-      setLocation(getPostLoginPath("/home"), { replace: true });
-    }
-  }, [user, setLocation]);
+  }, [splashDone, isChecking, autoLoginSucceeded, user]);
 
   if (!splashDone || isChecking) {
     return (
@@ -152,7 +147,16 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }
   
   if (!user) {
-    return <Redirect to={`/login?return=${encodeURIComponent(location)}`} />;
+    const params = new URLSearchParams({ return: location });
+    if (isMemberShopPath(location)) {
+      params.set("guest", "0");
+    }
+    return <Redirect to={`/login?${params.toString()}`} />;
+  }
+
+  if (user.provider === "guest" && isMemberShopPath(location)) {
+    window.location.assign("/");
+    return null;
   }
   
   return <Component />;

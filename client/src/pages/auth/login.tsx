@@ -7,7 +7,8 @@ import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { getFullUrl, apiRequest, resetRefreshCooldown } from "@/lib/queryClient";
-import { getPostLoginPath } from "@/lib/shopRoutes";
+import { completeLoginNavigation } from "@/lib/appNavigation";
+import { isGuestLoginAllowed } from "@/lib/shopRoutes";
 import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
@@ -16,7 +17,7 @@ import SimpleInfoPopup from "@/components/customUi/simpleInfoPopup";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const { setUser } = useUser();
+  const { user, setUser, isUserLoaded } = useUser();
   const { assets } = useUserAssets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +35,34 @@ export default function LoginPage() {
 
   const socialLoginSucceededRef = useRef(false);
   const [isGuestLoading, setIsGuestLoading] = useState(false);
+  const sessionRedirectDoneRef = useRef(false);
+
+  const showGuestLogin = isGuestLoginAllowed();
+
+  // 이미 로그인된 회원이 /login 접속 시에만 이동 (게스트·홈페이지 로그인 처리 중 제외)
+  useEffect(() => {
+    if (
+      sessionRedirectDoneRef.current ||
+      !isUserLoaded ||
+      !user ||
+      isGuestLoading ||
+      isLoading
+    ) {
+      return;
+    }
+    if (user.provider === "guest" && !showGuestLogin) {
+      return;
+    }
+    if (user.provider === "guest" && showGuestLogin) {
+      sessionRedirectDoneRef.current = true;
+      void completeLoginNavigation(setLocation, "/home");
+      return;
+    }
+    if (user.provider !== "guest") {
+      sessionRedirectDoneRef.current = true;
+      void completeLoginNavigation(setLocation, "/home");
+    }
+  }, [isUserLoaded, user, isGuestLoading, isLoading, setLocation, showGuestLogin]);
 
   const handleGuestLogin = async () => {
     if (isGuestLoading || isLoading) return;
@@ -69,13 +98,14 @@ export default function LoginPage() {
         setAccessToken(data.accessToken);
       }
       if (data.refreshToken) {
-        saveRefreshToken(data.refreshToken);
+        await saveRefreshToken(data.refreshToken);
       }
 
       if (data.user) {
         setUser(data.user);
       }
-      setTimeout(() => setLocation(getPostLoginPath("/home"), { replace: true }), 0);
+      sessionRedirectDoneRef.current = true;
+      await completeLoginNavigation(setLocation, "/home");
     } catch (error) {
       console.error("게스트 로그인 실패:", error);
       setErrors({ email: "", password: "", general: "게스트 로그인 중 오류가 발생했습니다." });
@@ -195,14 +225,14 @@ export default function LoginPage() {
             }
             setUser(userObj);
 
-            setTimeout(() => setLocation(getPostLoginPath("/home"), { replace: true }), 0);
+            await completeLoginNavigation(setLocation, "/home");
             return;
           }
         } catch (meError) {
           console.error(`[${provider}] /api/users/me 오류:`, meError);
         }
 
-        setTimeout(() => setLocation(getPostLoginPath("/home"), { replace: true }), 0);
+        await completeLoginNavigation(setLocation, "/home");
         return;
       } catch (error) {
         if (socialLoginSucceededRef.current) {
@@ -428,7 +458,8 @@ export default function LoginPage() {
           });
         }
 
-        setTimeout(() => setLocation(getPostLoginPath("/home"), { replace: true }), 0);
+        sessionRedirectDoneRef.current = true;
+        await completeLoginNavigation(setLocation, "/home");
       } else {
         if (data.error === "suspended") {
           setShowSuspendedPopup(true);
@@ -599,17 +630,19 @@ export default function LoginPage() {
           {/* 게스트 로그인 및 소셜 로그인 */}
           <div className="flex flex-col">
             <div className="mb-4 space-y-4">
-              <div className="flex justify-center">
-                <button
-                  type="button"
-                  onClick={handleGuestLogin}
-                  data-testid="button-guest-login"
-                  disabled={isGuestLoading}
-                  className="text-sm text-[#BFBFBF] hover:text-white transition-colors underline disabled:opacity-50"
-                >
-                  {isGuestLoading ? "로그인 중..." : "게스트로 로그인"}
-                </button>
-              </div>
+              {showGuestLogin && (
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleGuestLogin}
+                    data-testid="button-guest-login"
+                    disabled={isGuestLoading}
+                    className="text-sm text-[#BFBFBF] hover:text-white transition-colors underline disabled:opacity-50"
+                  >
+                    {isGuestLoading ? "로그인 중..." : "게스트로 로그인"}
+                  </button>
+                </div>
+              )}
 
               {/* 소셜 로그인 버튼 */}
               <div className="flex items-center justify-center gap-4">
@@ -660,7 +693,7 @@ export default function LoginPage() {
             <p className="text-center text-sm mb-4 gap-[6px] flex justify-center">
               <span className="text-[#BFBFBF]">계정이 없으신가요? </span>
               <Link
-                href="/signup"
+                href={`/signup${window.location.search}`}
                 className="text-[#CDFF00] font-semibold hover:underline"
                 data-testid="link-signup"
               >

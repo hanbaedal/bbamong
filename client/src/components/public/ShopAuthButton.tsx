@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useUser } from "@/contexts/UserContext";
-import { fetchMemberSessionKind, type MemberSessionKind } from "@/lib/appNavigation";
+import { fetchMemberSessionKind } from "@/lib/appNavigation";
+import { buildUserLoginUrl } from "@/lib/shopRoutes";
 import { clearTokens } from "@/lib/tokenManager";
 import { queryClient } from "@/lib/queryClient";
 
@@ -40,25 +41,25 @@ function MemberShopAuthButton({ className }: { className?: string }) {
 }
 
 function PublicShopAuthButton({ className }: { className?: string }) {
-  const [kind, setKind] = useState<MemberSessionKind | "loading">("loading");
+  const [isMemberLoggedIn, setIsMemberLoggedIn] = useState<boolean | null>(null);
 
   useEffect(() => {
-    void fetchMemberSessionKind().then((k) => setKind(k));
+    void fetchMemberSessionKind().then((kind) => {
+      setIsMemberLoggedIn(kind === "member");
+    });
   }, []);
 
-  if (kind === "loading") {
+  if (isMemberLoggedIn === null) {
     return <div className={`w-14 h-7 ${className}`} aria-hidden />;
   }
-
-  const isLoggedIn = kind !== "none";
 
   return (
     <button
       type="button"
       onClick={async () => {
-        if (!isLoggedIn) {
+        if (!isMemberLoggedIn) {
           const returnPath = window.location.pathname + window.location.search;
-          window.location.assign(`/login?return=${encodeURIComponent(returnPath)}`);
+          window.location.assign(buildUserLoginUrl(returnPath, { allowGuest: false }));
           return;
         }
         await clearTokens();
@@ -66,10 +67,10 @@ function PublicShopAuthButton({ className }: { className?: string }) {
         queryClient.clear();
         window.location.assign("/");
       }}
-      data-testid={isLoggedIn ? "button-shop-logout" : "button-shop-login"}
+      data-testid={isMemberLoggedIn ? "button-shop-logout" : "button-shop-login"}
       className={`${buttonClass} ${className}`}
     >
-      {isLoggedIn ? "로그아웃" : "로그인"}
+      {isMemberLoggedIn ? "로그아웃" : "회원 로그인"}
     </button>
   );
 }
