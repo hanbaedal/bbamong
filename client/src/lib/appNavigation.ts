@@ -1,5 +1,5 @@
 import { getFullUrl, getOrRefreshAccessToken } from "./queryClient";
-import { getPostLoginPath, isPublicSitePath, isMemberShopPath, DEFAULT_POST_LOGIN_FALLBACK } from "./shopRoutes";
+import { getPostLoginPath, isPublicSitePath, isMemberShopPath, isMemberOnlyLoginIntent, DEFAULT_POST_LOGIN_FALLBACK } from "./shopRoutes";
 
 export { isGuestLoginAllowed, buildUserLoginUrl, isMemberShopPath, DEFAULT_POST_LOGIN_FALLBACK } from "./shopRoutes";
 
@@ -80,7 +80,7 @@ export async function resolveAfterLoginPath(
 
   if (isPublicSitePath(base)) {
     const kind = await fetchMemberSessionKind();
-    if (kind === "member") {
+    if (kind === "member" || isMemberOnlyLoginIntent()) {
       target = mapPublicReturnToMemberPath(raw);
     }
     return target;

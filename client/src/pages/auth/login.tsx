@@ -8,7 +8,7 @@ import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { getFullUrl, apiRequest, resetRefreshCooldown } from "@/lib/queryClient";
 import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
-import { isGuestLoginAllowed, isIntroStaffLoginReturn } from "@/lib/shopRoutes";
+import { isGuestLoginAllowed, isIntroStaffLoginReturn, clearGuestSessionArtifacts } from "@/lib/shopRoutes";
 import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
@@ -39,10 +39,9 @@ export default function LoginPage() {
 
   const showGuestLogin = isGuestLoginAllowed();
 
-  // 공개 홈 소개(/)의 구 회원 로그인 링크 → 관리자 로그인
+  // 공개 홈 소개(/)의 구 회원 로그인 링크 → 관리자 로그인 (회원 쇼핑 guest=0 제외)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (isIntroStaffLoginReturn(params.get("return"))) {
+    if (isIntroStaffLoginReturn()) {
       window.location.replace("/admin/login");
     }
   }, []);
@@ -205,6 +204,7 @@ export default function LoginPage() {
 
         socialLoginSucceededRef.current = true;
 
+        clearGuestSessionArtifacts();
         resetRefreshCooldown();
         setAccessToken(accessToken);
         await saveRefreshToken(refreshToken);
@@ -428,6 +428,7 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
+        clearGuestSessionArtifacts();
         resetRefreshCooldown();
         setAccessToken(data.accessToken);
         await saveRefreshToken(data.refreshToken);

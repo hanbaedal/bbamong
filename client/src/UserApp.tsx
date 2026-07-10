@@ -100,7 +100,9 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (splashDone && !isChecking && autoLoginSucceeded && user) {
       setAutoLoginSucceeded(false);
-      getPostLoginTarget();
+      if (window.location.pathname === "/login") {
+        getPostLoginTarget();
+      }
     }
   }, [splashDone, isChecking, autoLoginSucceeded, user]);
 

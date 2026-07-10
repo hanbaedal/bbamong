@@ -41,8 +41,16 @@ export function isPublicSitePath(path: string): boolean {
   return path === "/" || path === "/shop" || path.startsWith("/shop/");
 }
 
-/** 공개 홈 소개(/)에서 잘못 연결된 회원 로그인 return — 관리자 로그인으로 보냄 */
-export function isIntroStaffLoginReturn(returnPath: string | null | undefined): boolean {
+/** 쇼핑 등 회원 전용 로그인 의도 (`guest=0`) */
+export function isMemberOnlyLoginIntent(search = window.location.search): boolean {
+  return new URLSearchParams(search).get("guest") === "0";
+}
+
+/** 공개 홈 소개(/)의 구 회원 로그인 링크 — 관리자 로그인으로 보냄 (회원 쇼핑 로그인 제외) */
+export function isIntroStaffLoginReturn(search = window.location.search): boolean {
+  if (isMemberOnlyLoginIntent(search)) return false;
+  const params = new URLSearchParams(search);
+  const returnPath = params.get("return");
   if (!returnPath) return false;
   let decoded = returnPath;
   try {
@@ -63,6 +71,11 @@ export function isMemberShopPath(path: string): boolean {
     base.startsWith("/home/goods/") ||
     base === "/home/game-guide"
   );
+}
+
+/** 게스트 → 회원 전환 시 남은 게스트 식별자 제거 */
+export function clearGuestSessionArtifacts(): void {
+  localStorage.removeItem("guest_user_id");
 }
 
 /** 홈페이지(공개)에서 온 로그인인지 — 게스트 로그인 비허용 */
