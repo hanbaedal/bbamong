@@ -177,6 +177,10 @@ export class ObjectStorageService {
     return this.getEntityUploadURL("advertisement", fileExtension);
   }
 
+  async getMallProductImageUploadURL(): Promise<{ uploadURL: string; canonicalPath: string }> {
+    return this.getEntityUploadURL("mall-products", ".webp");
+  }
+
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
@@ -321,7 +325,12 @@ export class ObjectStorageService {
       contentType,
       metadata: { cacheControl: "public, max-age=31536000" },
     });
-    await objectFile.makePublic();
+    try {
+      await objectFile.makePublic();
+    } catch (err) {
+      // Uniform bucket-level access 등에서는 makePublic이 실패할 수 있음 — ACL 메타만 설정
+      console.warn("makePublic skipped:", err instanceof Error ? err.message : err);
+    }
     await setObjectAclPolicy(objectFile, {
       owner: "system",
       visibility: "public",

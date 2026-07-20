@@ -16,6 +16,23 @@ function decodeBase64Image(payload: string): Buffer {
 }
 
 export async function mallProductImageRoutes(app: Express): Promise<void> {
+  /** signed URL 방식 — Replit Object Storage와 동일 패턴 (권장) */
+  app.post("/api/admin/mall/product-images/upload-url", adminAuthMiddleware, async (_req, res) => {
+    try {
+      const objectStorage = new ObjectStorageService();
+      const { uploadURL, canonicalPath } = await objectStorage.getMallProductImageUploadURL();
+      res.json({ uploadURL, canonicalPath, maxBytes: MALL_PRODUCT_IMAGE_MAX_BYTES });
+    } catch (error) {
+      console.error("Mall product image upload-url error:", error);
+      const message =
+        error instanceof Error && error.message.includes("PRIVATE_OBJECT_DIR")
+          ? "Object Storage가 설정되지 않았습니다. Replit Object Storage 환경 변수를 확인해 주세요."
+          : "업로드 URL 생성에 실패했습니다.";
+      res.status(500).json({ error: message });
+    }
+  });
+
+  /** 레거시 base64 업로드 (서버 압축) — fallback */
   app.post("/api/admin/mall/product-images", adminAuthMiddleware, async (req, res) => {
     try {
       const parsed = uploadSchema.safeParse(req.body);
@@ -44,7 +61,13 @@ export async function mallProductImageRoutes(app: Express): Promise<void> {
       });
     } catch (error) {
       console.error("Mall product image upload error:", error);
-      res.status(500).json({ error: "이미지 업로드에 실패했습니다." });
+      const message =
+        error instanceof Error && error.message.includes("PRIVATE_OBJECT_DIR")
+          ? "Object Storage가 설정되지 않았습니다. Replit Object Storage 환경 변수를 확인해 주세요."
+          : error instanceof Error && error.message.includes("sharp")
+            ? "이미지 처리 모듈 오류입니다. 서버를 재시작해 주세요."
+            : "이미지 업로드에 실패했습니다.";
+      res.status(500).json({ error: message });
     }
   });
 }
