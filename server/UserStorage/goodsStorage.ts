@@ -9,6 +9,7 @@ import {
   formatProductPriceLabel,
   MALL_DEFAULT_SHIPPING_LABEL,
   MALL_PRODUCT_VARIANT_MAX,
+  isProcureFulfillment,
   type MallProductVariant,
   findProductVariant,
   resolveAvailableStock,
@@ -42,6 +43,8 @@ export interface GoodsProduct {
   size?: string;
   stockQuantity?: number;
   variants?: MallProductVariant[];
+  fulfillmentType?: "stock" | "procure";
+  procureNotice?: string;
   discountPercent?: number;
   shippingLabel?: string;
   detailImages?: string[];
@@ -263,6 +266,8 @@ export class GoodsStorage {
     size?: string;
     stockQuantity?: number;
     variants?: MallProductVariant[];
+    fulfillmentType?: "stock" | "procure";
+    procureNotice?: string;
     shippingLabel?: string;
     detailImages?: string[];
     purchaseUrl?: string;
@@ -289,6 +294,8 @@ export class GoodsStorage {
       size: variantLabels?.size ?? data.size ?? "",
       stockQuantity: variants.length > 0 ? -1 : normalizeStockQuantity(data.stockQuantity),
       variants,
+      fulfillmentType: data.fulfillmentType === "procure" ? "procure" : "stock",
+      procureNotice: data.procureNotice ?? "",
       shippingLabel: data.shippingLabel ?? MALL_DEFAULT_SHIPPING_LABEL,
       detailImages: (data.detailImages ?? []).slice(0, 10),
       purchaseUrl: data.purchaseUrl ?? "",
@@ -317,6 +324,8 @@ export class GoodsStorage {
         | "size"
         | "stockQuantity"
         | "variants"
+        | "fulfillmentType"
+        | "procureNotice"
         | "shippingLabel"
         | "detailImages"
         | "purchaseUrl"
@@ -371,6 +380,7 @@ export class GoodsStorage {
     color?: string,
     size?: string,
   ): string | null {
+    if (isProcureFulfillment(product.fulfillmentType)) return null;
     const available = resolveAvailableStock(product, color, size);
     if (available === null) return null;
     if (available < quantity) {
@@ -390,6 +400,7 @@ export class GoodsStorage {
   ): Promise<void> {
     const product = await GoodsProductModel.findOne({ id: productId });
     if (!product) return;
+    if (isProcureFulfillment(product.fulfillmentType as string)) return;
 
     const variants = normalizeVariants(product.variants as MallProductVariant[]);
     if (variants.length > 0) {

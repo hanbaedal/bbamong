@@ -2,8 +2,11 @@ import { useMemo, useRef, useState } from "react";
 import {
   calculateDiscountedPrice,
   MALL_DEFAULT_SHIPPING_LABEL,
+  MALL_DEFAULT_PROCURE_NOTICE,
+  MALL_FULFILLMENT_OPTIONS,
   MALL_PRODUCT_DETAIL_IMAGE_MAX,
   MALL_PRODUCT_VARIANT_MAX,
+  type MallFulfillmentType,
   type MallProductVariant,
 } from "@shared/mallProduct";
 import { Input } from "@/components/ui/input";
@@ -36,6 +39,8 @@ export interface MallProductFormValues {
   shippingLabel: string;
   stockQuantity: number;
   variants: MallProductVariant[];
+  fulfillmentType: MallFulfillmentType;
+  procureNotice: string;
   imageUrl: string;
   detailImages: string[];
   isActive: boolean;
@@ -69,6 +74,8 @@ export function createEmptyMallProduct(categoryId?: number): Partial<MallProduct
     shippingLabel: MALL_DEFAULT_SHIPPING_LABEL,
     stockQuantity: -1,
     variants: [],
+    fulfillmentType: "stock",
+    procureNotice: MALL_DEFAULT_PROCURE_NOTICE,
     imageUrl: "",
     detailImages: [],
     isActive: true,
@@ -103,6 +110,7 @@ export default function MallProductForm({
   const detailImages = value.detailImages ?? [];
   const variants = value.variants ?? [];
   const hasVariants = variants.length > 0;
+  const isProcure = value.fulfillmentType === "procure";
 
   const updateVariant = (index: number, patch: Partial<MallProductVariant>) => {
     const next = variants.map((row, i) => (i === index ? { ...row, ...patch } : row));
@@ -112,6 +120,48 @@ export default function MallProductForm({
   return (
     <div className="border border-[#E9E9E9] rounded-lg p-4 space-y-4 bg-[#FAFAFA]">
       <h3 className="font-medium">{value.id ? "상품 수정" : "상품 등록"}</h3>
+
+      <div className="space-y-2">
+        <Label>판매 유형</Label>
+        <Select
+          value={value.fulfillmentType ?? "stock"}
+          onValueChange={(v) =>
+            onChange({
+              ...value,
+              fulfillmentType: v as MallFulfillmentType,
+              procureNotice:
+                v === "procure"
+                  ? value.procureNotice || MALL_DEFAULT_PROCURE_NOTICE
+                  : value.procureNotice,
+            })
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MALL_FULFILLMENT_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-[#888]">
+          {MALL_FULFILLMENT_OPTIONS.find((o) => o.value === (value.fulfillmentType ?? "stock"))?.description}
+        </p>
+      </div>
+
+      {isProcure ? (
+        <div className="space-y-2">
+          <Label>주문후조달 안내 문구</Label>
+          <Textarea
+            value={value.procureNotice ?? MALL_DEFAULT_PROCURE_NOTICE}
+            onChange={(e) => onChange({ ...value, procureNotice: e.target.value })}
+            rows={2}
+          />
+        </div>
+      ) : null}
 
       <div className="space-y-2">
         <Label>카테고리</Label>
@@ -149,7 +199,7 @@ export default function MallProductForm({
             onChange={(e) => onChange({ ...value, brand: e.target.value })}
           />
         </div>
-        {!hasVariants ? (
+        {!hasVariants && !isProcure ? (
           <>
             <div className="space-y-2">
               <Label>컬러 (표시용)</Label>
@@ -197,10 +247,12 @@ export default function MallProductForm({
           <div>
             <Label>옵션별 재고 (컬러 · 사이즈)</Label>
             <p className="text-xs text-[#888] mt-1">
-              등록 시 몰에서 컬러·사이즈를 선택하고 재고를 확인할 수 있습니다.
+              {isProcure
+                ? "주문후조달 상품은 재고를 표시하지 않습니다. (발주·입고는 구매·재고 관리에서 처리)"
+                : "등록 시 몰에서 컬러·사이즈를 선택하고 재고를 확인할 수 있습니다."}
             </p>
           </div>
-          {variants.length < MALL_PRODUCT_VARIANT_MAX ? (
+          {!isProcure && variants.length < MALL_PRODUCT_VARIANT_MAX ? (
             <Button
               type="button"
               variant="outline"
@@ -216,7 +268,7 @@ export default function MallProductForm({
             </Button>
           ) : null}
         </div>
-        {variants.length > 0 ? (
+        {variants.length > 0 && !isProcure ? (
           <div className="space-y-2">
             {variants.map((row, index) => (
               <div key={index} className="grid grid-cols-[1fr_1fr_100px_auto] gap-2 items-center">
@@ -255,9 +307,9 @@ export default function MallProductForm({
               </div>
             ))}
           </div>
-        ) : (
+        ) : !isProcure ? (
           <p className="text-xs text-[#888]">옵션이 없으면 위의 컬러·사이즈·단일 재고를 사용합니다.</p>
-        )}
+        ) : null}
       </div>
 
       <div className="space-y-2">

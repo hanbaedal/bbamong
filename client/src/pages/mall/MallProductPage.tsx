@@ -3,7 +3,7 @@ import { Link, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, Minus, Plus } from "lucide-react";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
-import { resolveAvailableStock } from "@shared/mallProduct";
+import { resolveAvailableStock, isProcureFulfillment, MALL_DEFAULT_PROCURE_NOTICE } from "@shared/mallProduct";
 import MemberOnlyGate from "@/components/mall/MemberOnlyGate";
 import MallProductDetailTabs from "@/components/mall/product/MallProductDetailTabs";
 import { notifyMallCartChanged } from "@/components/mall/MallHeader";
@@ -40,9 +40,13 @@ export default function MallProductPage() {
   });
 
   const product = data?.product;
+  const isProcure = isProcureFulfillment(product?.fulfillmentType);
   const variants = useMemo(
-    () => product?.variants?.filter((v) => v.color.trim() || v.size.trim()) ?? [],
-    [product?.variants],
+    () =>
+      !isProcure
+        ? product?.variants?.filter((v) => v.color.trim() || v.size.trim()) ?? []
+        : [],
+    [product?.variants, isProcure],
   );
   const hasVariants = variants.length > 0;
   const colorOptions = useMemo(
@@ -56,13 +60,17 @@ export default function MallProductPage() {
     return [...new Set(pool.map((v) => v.size.trim()).filter(Boolean))];
   }, [variants, selectedColor]);
 
-  const availableStock = product
-    ? resolveAvailableStock(product, selectedColor, selectedSize)
-    : null;
-  const maxQuantity =
-    availableStock === null ? 99 : availableStock > 0 ? Math.min(99, availableStock) : 0;
-  const isSoldOut = availableStock !== null && availableStock <= 0;
-  const needsOptionSelection = hasVariants && (!selectedColor || !selectedSize);
+  const availableStock =
+    product && !isProcure ? resolveAvailableStock(product, selectedColor, selectedSize) : null;
+  const maxQuantity = isProcure
+    ? 99
+    : availableStock === null
+      ? 99
+      : availableStock > 0
+        ? Math.min(99, availableStock)
+        : 0;
+  const isSoldOut = !isProcure && availableStock !== null && availableStock <= 0;
+  const needsOptionSelection = !isProcure && hasVariants && (!selectedColor || !selectedSize);
 
   useEffect(() => {
     if (maxQuantity <= 0) return;
@@ -149,6 +157,18 @@ export default function MallProductPage() {
           )}
           <h1 className="text-2xl font-bold text-neutral-900 mb-4">{product.name}</h1>
 
+          {isSoldOut && (
+            <p className="mb-4 text-lg font-bold text-red-600 animate-pulse" role="status">
+              판매완료
+            </p>
+          )}
+
+          {isProcure && (
+            <p className="mb-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 leading-relaxed">
+              {product.procureNotice?.trim() || MALL_DEFAULT_PROCURE_NOTICE}
+            </p>
+          )}
+
           <div className="flex items-baseline gap-2 mb-6">
             {rate !== null && rate > 0 && (
               <span className="text-lg font-bold text-red-600">{rate}%</span>
@@ -169,7 +189,7 @@ export default function MallProductPage() {
             <p className="text-sm text-neutral-600 mb-4 leading-relaxed">{product.summary}</p>
           )}
 
-          {(hasVariants || product.color || product.size || product.shippingLabel) && (
+          {(hasVariants || (!isProcure && (product.color || product.size)) || product.shippingLabel) && (
             <div className="space-y-4 mb-6">
               {hasVariants ? (
                 <>
@@ -230,13 +250,9 @@ export default function MallProductPage() {
                       </div>
                     </div>
                   )}
-                  {availableStock !== null && selectedColor && selectedSize && (
-                    <p className="text-sm text-neutral-600">
-                      {availableStock > 0 ? `재고 ${availableStock}개` : "품절"}
-                    </p>
-                  )}
                 </>
               ) : (
+                !isProcure &&
                 (product.color || product.size) && (
                   <dl className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-2 text-sm border border-neutral-100 rounded-md p-4 bg-neutral-50">
                     {product.color ? (
@@ -254,14 +270,27 @@ export default function MallProductPage() {
                   </dl>
                 )
               )}
+              {isProcure && (product.color || product.size) && (
+                <p className="text-sm text-neutral-600">
+                  옵션:{" "}
+                  <span className="text-neutral-900">
+                    {[product.color, product.size].filter(Boolean).join(" / ")}
+                  </span>
+                </p>
+              )}
               {product.shippingLabel && (
                 <p className="text-sm text-neutral-600">
                   배송: <span className="text-neutral-900">{product.shippingLabel}</span>
                 </p>
               )}
-              {!hasVariants && availableStock !== null && (
+              {!isProcure && availableStock !== null && selectedColor && selectedSize && !isSoldOut && (
                 <p className="text-sm text-neutral-600">
-                  {availableStock > 0 ? `재고 ${availableStock}개` : "품절"}
+                  재고 <span className="font-medium text-neutral-900">{availableStock}개</span>
+                </p>
+              )}
+              {!isProcure && !hasVariants && availableStock !== null && !isSoldOut && (
+                <p className="text-sm text-neutral-600">
+                  재고 <span className="font-medium text-neutral-900">{availableStock}개</span>
                 </p>
               )}
             </div>

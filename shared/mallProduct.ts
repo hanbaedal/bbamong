@@ -9,6 +9,36 @@ export const MALL_PRODUCT_VARIANT_MAX = 30;
 
 export const MALL_DEFAULT_SHIPPING_LABEL = "무료배송";
 
+/** stock=창고 재고 판매, procure=주문 후 매입·발송 */
+export type MallFulfillmentType = "stock" | "procure";
+
+export const MALL_FULFILLMENT_OPTIONS: { value: MallFulfillmentType; label: string; description: string }[] = [
+  {
+    value: "stock",
+    label: "재고판매",
+    description: "창고 재고 기준. 품절 시 판매완료 표시, 주문 시 재고 차감",
+  },
+  {
+    value: "procure",
+    label: "주문후조달",
+    description: "재고 미표시. 주문 접수 후 매입·입고·발송",
+  },
+];
+
+export const MALL_DEFAULT_PROCURE_NOTICE = "주문 확인 후 매입·제작되어 발송됩니다. (보통 7~14일 소요)";
+
+export function isProcureFulfillment(
+  fulfillmentType?: MallFulfillmentType | string | null,
+): boolean {
+  return fulfillmentType === "procure";
+}
+
+export function shouldValidateStockOnOrder(product: {
+  fulfillmentType?: MallFulfillmentType | string | null;
+}): boolean {
+  return !isProcureFulfillment(product.fulfillmentType);
+}
+
 export interface MallProductVariant {
   color: string;
   size: string;

@@ -355,6 +355,8 @@ const goodsProductSchema = new Schema(
       ],
       default: [],
     },
+    fulfillmentType: { type: String, enum: ["stock", "procure"], default: "stock" },
+    procureNotice: { type: String, default: "" },
     discountPercent: { type: Number, default: 0 },
     shippingLabel: { type: String, default: "무료배송" },
     detailImages: { type: [String], default: [] },

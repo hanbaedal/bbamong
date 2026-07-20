@@ -17,7 +17,7 @@ import MallProductForm, {
   type MallProductFormValues,
 } from "@/components/admin/MallProductForm";
 import { MALL_DEFAULT_CATEGORIES } from "@shared/mallConfig";
-import { calculateDiscountedPrice, MALL_DEFAULT_SHIPPING_LABEL } from "@shared/mallProduct";
+import { calculateDiscountedPrice, MALL_DEFAULT_SHIPPING_LABEL, MALL_DEFAULT_PROCURE_NOTICE } from "@shared/mallProduct";
 import { formatKrw } from "@/lib/mallCart";
 
 type Tab = "catalog" | "settings" | "inquiries";
@@ -66,6 +66,8 @@ interface GoodsProduct {
   size?: string;
   stockQuantity?: number;
   variants?: { color: string; size: string; stock: number }[];
+  fulfillmentType?: "stock" | "procure";
+  procureNotice?: string;
   shippingLabel?: string;
   detailImages?: string[];
   purchaseUrl?: string;
@@ -90,6 +92,8 @@ function productToForm(product: Partial<GoodsProduct>): Partial<MallProductFormV
     shippingLabel: product.shippingLabel ?? MALL_DEFAULT_SHIPPING_LABEL,
     stockQuantity: product.stockQuantity ?? -1,
     variants: product.variants ?? [],
+    fulfillmentType: product.fulfillmentType ?? "stock",
+    procureNotice: product.procureNotice ?? MALL_DEFAULT_PROCURE_NOTICE,
     imageUrl: product.imageUrl ?? "",
     detailImages: product.detailImages ?? [],
     isActive: product.isActive ?? true,
@@ -116,6 +120,8 @@ function formToProduct(form: Partial<MallProductFormValues>): Partial<GoodsProdu
     shippingLabel: form.shippingLabel ?? MALL_DEFAULT_SHIPPING_LABEL,
     stockQuantity: form.stockQuantity ?? -1,
     variants: form.variants ?? [],
+    fulfillmentType: form.fulfillmentType ?? "stock",
+    procureNotice: form.procureNotice ?? "",
     imageUrl: form.imageUrl ?? "",
     detailImages: form.detailImages ?? [],
     isActive: form.isActive ?? true,

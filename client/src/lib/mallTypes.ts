@@ -1,3 +1,5 @@
+import type { MallFulfillmentType } from "@shared/mallProduct";
+
 export interface MallProduct {
   id: number;
   categoryId: number;
@@ -14,6 +16,8 @@ export interface MallProduct {
   size?: string;
   stockQuantity?: number;
   variants?: MallProductVariant[];
+  fulfillmentType?: MallFulfillmentType;
+  procureNotice?: string;
   shippingLabel?: string;
   detailImages?: string[];
   categoryName?: string;
