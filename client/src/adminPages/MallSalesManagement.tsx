@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AdminLayout from "./adminLayout";
+import AdminPageShell from "./components/AdminPageShell";
 import { getFullUrl } from "@/lib/adminQueryClient";
 import { Button } from "@/components/ui/button";
 
@@ -29,35 +30,37 @@ export default function MallSalesManagementPage() {
 
   return (
     <AdminLayout>
-      <h1 className="text-xl font-semibold text-[#201E22] mb-2">판매 관리</h1>
-      <p className="text-sm text-[#666] mb-4">취소 제외 주문 기준 집계</p>
-
-      <div className="flex gap-2 mb-6">
-        <Button
-          type="button"
-          size="sm"
-          variant={period === "day" ? "default" : "outline"}
-          className={period === "day" ? "bg-[#E11936] hover:bg-[#B71C1C]" : ""}
-          onClick={() => setPeriod("day")}
-        >
-          오늘
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={period === "month" ? "default" : "outline"}
-          className={period === "month" ? "bg-[#E11936] hover:bg-[#B71C1C]" : ""}
-          onClick={() => setPeriod("month")}
-        >
-          이번 달
-        </Button>
-      </div>
-
+      <AdminPageShell
+        title="판매 관리"
+        description="취소 제외 주문 기준 집계"
+        headerExtra={
+          <div className="flex gap-2 mb-4 lg:mb-5 shrink-0">
+            <Button
+              type="button"
+              size="sm"
+              variant={period === "day" ? "default" : "outline"}
+              className={period === "day" ? "bg-[#E11936] hover:bg-[#B71C1C]" : ""}
+              onClick={() => setPeriod("day")}
+            >
+              오늘
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={period === "month" ? "default" : "outline"}
+              className={period === "month" ? "bg-[#E11936] hover:bg-[#B71C1C]" : ""}
+              onClick={() => setPeriod("month")}
+            >
+              이번 달
+            </Button>
+          </div>
+        }
+      >
       {isLoading ? (
         <p className="text-sm text-[#888]">불러오는 중...</p>
       ) : data ? (
         <>
-          <div className="grid sm:grid-cols-3 gap-4 mb-8">
+          <div className="grid sm:grid-cols-3 xl:grid-cols-4 gap-4 mb-6 lg:mb-8">
             <div className="border border-[#E9E9E9] rounded-lg p-4">
               <p className="text-xs text-[#888]">주문 건수</p>
               <p className="text-2xl font-bold text-[#201E22]">{data.summary.orderCount}</p>
@@ -74,7 +77,7 @@ export default function MallSalesManagementPage() {
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-6">
+          <div className="grid lg:grid-cols-2 xl:grid-cols-2 gap-6">
             <div>
               <h2 className="font-medium text-[#201E22] mb-3">제품별</h2>
               <div className="border border-[#E9E9E9] rounded-lg overflow-hidden">
@@ -144,6 +147,7 @@ export default function MallSalesManagementPage() {
           </div>
         </>
       ) : null}
+      </AdminPageShell>
     </AdminLayout>
   );
 }

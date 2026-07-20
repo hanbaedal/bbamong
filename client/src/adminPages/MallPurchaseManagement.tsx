@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "./adminLayout";
+import AdminPageShell from "./components/AdminPageShell";
 import { getFullUrl } from "@/lib/adminQueryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,9 +139,7 @@ export default function MallPurchaseManagementPage() {
 
   return (
     <AdminLayout>
-      <h1 className="text-xl font-semibold text-[#201E22] mb-2">구매 관리</h1>
-      <p className="text-sm text-[#666] mb-6">매입처 발주 → 입고 시 재고 자동 증가</p>
-
+      <AdminPageShell title="구매 관리" description="매입처 발주 → 입고 시 재고 자동 증가">
       {isLoading ? (
         <p className="text-sm text-[#888]">불러오는 중...</p>
       ) : (
@@ -159,7 +158,7 @@ export default function MallPurchaseManagementPage() {
             </div>
           )}
 
-          <div className="grid lg:grid-cols-2 gap-6 mb-8">
+          <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
             <div className="border border-[#E9E9E9] rounded-lg p-4">
               <h2 className="font-medium mb-3">매입처 등록</h2>
               <div className="space-y-2">
@@ -329,6 +328,7 @@ export default function MallPurchaseManagementPage() {
           </div>
         </>
       )}
+      </AdminPageShell>
     </AdminLayout>
   );
 }

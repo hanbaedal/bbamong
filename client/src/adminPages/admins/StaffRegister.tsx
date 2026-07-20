@@ -86,7 +86,7 @@ export default function StaffRegisterPage() {
 
   return (
     <AdminLayout>
-      <div className="flex flex-col h-full min-h-0 max-w-xl">
+      <div className="flex flex-col h-full min-h-0 w-full max-w-none">
         <div className="flex items-center gap-2 mb-3 md:mb-4 shrink-0" data-testid="breadcrumb">
           <span className="text-xs md:text-sm text-[#BFBFBF]">관리자 관리</span>
           <span className="text-xs md:text-sm text-[#BFBFBF]">&gt;</span>
@@ -101,7 +101,7 @@ export default function StaffRegisterPage() {
           관리자 등록
         </h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-5">
           <div className="space-y-2">
             <Label>아이디</Label>
             <Input
@@ -168,7 +168,7 @@ export default function StaffRegisterPage() {
             />
           </div>
 
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-2 pt-2 md:col-span-2 xl:col-span-3">
             <Button
               type="button"
               variant="outline"

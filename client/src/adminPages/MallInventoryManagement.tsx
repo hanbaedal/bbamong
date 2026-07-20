@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "./adminLayout";
+import AdminPageShell from "./components/AdminPageShell";
 import { getFullUrl } from "@/lib/adminQueryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,11 +82,10 @@ export default function MallInventoryManagementPage() {
 
   return (
     <AdminLayout>
-      <h1 className="text-xl font-semibold text-[#201E22] mb-2">재고 관리</h1>
-      <p className="text-sm text-[#666] mb-6">
-        창고: {warehouse?.name ?? "본사 창고"} · 입고 시 몰 판매 재고 자동 반영
-      </p>
-
+      <AdminPageShell
+        title="재고 관리"
+        description={`창고: ${warehouse?.name ?? "본사 창고"} · 입고 시 몰 판매 재고 자동 반영`}
+      >
       {isLoading ? (
         <p className="text-sm text-[#888]">불러오는 중...</p>
       ) : (
@@ -105,7 +105,7 @@ export default function MallInventoryManagementPage() {
             </div>
           )}
 
-          <div className="grid lg:grid-cols-2 gap-6 mb-8">
+          <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
             <div className="border border-[#E9E9E9] rounded-lg p-4">
               <h2 className="font-medium mb-3">수동 입고</h2>
               <div className="space-y-2">
@@ -233,6 +233,7 @@ export default function MallInventoryManagementPage() {
           </ul>
         </>
       )}
+      </AdminPageShell>
     </AdminLayout>
   );
 }

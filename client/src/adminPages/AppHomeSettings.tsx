@@ -84,8 +84,8 @@ export default function AppHomeSettingsPage() {
           <span className="text-xs text-[#201E22]">앱 홈 설정</span>
         </div>
 
-        <h1 className="text-xl md:text-2xl font-semibold text-[#201E22] flex items-center gap-2 mb-4">
-          <img src={assets.adMatchCharaterIcon} className="w-8 h-8" alt="" />
+        <h1 className="text-xl lg:text-2xl xl:text-[1.75rem] font-semibold text-[#201E22] flex items-center gap-2 mb-4">
+          <img src={assets.adMatchCharaterIcon} className="w-8 h-8 lg:w-9 lg:h-9" alt="" />
           앱 홈 설정
         </h1>
 
@@ -106,16 +106,18 @@ export default function AppHomeSettingsPage() {
           ))}
         </div>
 
-        <div className="flex-1 overflow-auto min-h-0 max-w-3xl pb-8">
+        <div className="flex-1 overflow-auto min-h-0 w-full max-w-none pb-4 lg:pb-6">
           {activeTab === "basic" && (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 saveSettingsMutation.mutate(settingsForm);
               }}
-              className="space-y-4"
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-5"
             >
-              <p className="text-sm text-[#666]">사용자 앱 로그인 후 홈 화면에 표시되는 문구입니다.</p>
+              <p className="text-sm lg:text-base text-[#666] md:col-span-2 xl:col-span-3">
+                사용자 앱 로그인 후 홈 화면에 표시되는 문구입니다.
+              </p>
               <div className="space-y-2">
                 <Label>인사말 (이름 앞)</Label>
                 <Input
@@ -157,7 +159,7 @@ export default function AppHomeSettingsPage() {
                 />
                 <span className="text-sm">경기 참여 버튼 표시</span>
               </label>
-              <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C]">
+              <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C] lg:col-span-2">
                 저장
               </Button>
             </form>
@@ -169,12 +171,12 @@ export default function AppHomeSettingsPage() {
                 e.preventDefault();
                 saveSettingsMutation.mutate(settingsForm);
               }}
-              className="space-y-4"
+              className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5"
             >
-              <p className="text-sm text-[#666]">
+              <p className="text-sm lg:text-base text-[#666] lg:col-span-2">
                 사용자 앱 홈에서 &apos;야구 예측 게임&apos; 소개와 상세 페이지에 표시됩니다.
               </p>
-              <label className="flex items-center gap-2">
+              <label className="flex items-center gap-2 lg:col-span-2">
                 <Checkbox
                   checked={settingsForm.gameGuideEnabled}
                   onCheckedChange={(v) =>
@@ -202,14 +204,14 @@ export default function AppHomeSettingsPage() {
                   rows={3}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 lg:col-span-2">
                 <Label>상세 내용</Label>
                 <Textarea
                   value={settingsForm.gameGuideContent}
                   onChange={(e) =>
                     setSettingsForm({ ...settingsForm, gameGuideContent: e.target.value })
                   }
-                  rows={10}
+                  rows={12}
                 />
               </div>
               <div className="space-y-2">
@@ -221,7 +223,7 @@ export default function AppHomeSettingsPage() {
                   }
                 />
               </div>
-              <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C]">
+              <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C] lg:col-span-2">
                 저장
               </Button>
             </form>

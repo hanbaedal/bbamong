@@ -32,15 +32,15 @@ export default function AdminHomePage() {
 
   return (
     <AdminLayout>
-      <div className="flex flex-col h-full max-w-4xl">
+      <div className="flex flex-col h-full w-full max-w-none">
         <h1
-          className="text-xl md:text-2xl font-semibold text-[#201E22] mb-2 flex items-center gap-2"
+          className="text-xl lg:text-2xl xl:text-[1.75rem] font-semibold text-[#201E22] mb-2 flex items-center gap-2"
           data-testid="text-page-title"
         >
-          <img src={assets.adListIcon} className="w-8 h-8" alt="" />
+          <img src={assets.adListIcon} className="w-8 h-8 lg:w-9 lg:h-9" alt="" />
           관리자 대시보드
         </h1>
-        <p className="text-sm text-[#666] mb-6 md:mb-8">
+        <p className="text-sm lg:text-base text-[#666] mb-6 lg:mb-8">
           {user?.name ?? "관리자"}님, PPAMONG 관리자 페이지에 오신 것을 환영합니다.
           {isSuperAdmin ? " (슈퍼바이저)" : ""}
         </p>
@@ -80,7 +80,7 @@ export default function AdminHomePage() {
                   {section.title}
                 </h2>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 lg:gap-4">
                 {section.links.map((link) => (
                   <button
                     key={link.path}

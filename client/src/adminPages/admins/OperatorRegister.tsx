@@ -27,7 +27,7 @@ export default function OperatorRegisterPage() {
 
   return (
     <AdminLayout>
-      <div className="max-w-2xl">
+      <div className="w-full max-w-none">
         <div className="flex items-center gap-2 mb-3 md:mb-4" data-testid="breadcrumb">
           <span className="text-xs md:text-sm text-[#BFBFBF]">운영자 관리</span>
           <span className="text-xs md:text-sm text-[#BFBFBF]">&gt;</span>

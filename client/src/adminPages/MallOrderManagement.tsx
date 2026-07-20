@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "./adminLayout";
+import AdminPageShell from "./components/AdminPageShell";
 import { getFullUrl } from "@/lib/adminQueryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,32 +104,34 @@ export default function MallOrderManagementPage() {
 
   return (
     <AdminLayout>
-      <h1 className="text-xl font-semibold text-[#201E22] mb-2">주문 관리</h1>
-      <p className="text-sm text-[#666] mb-4">주문 접수 → 발송 준비 → 택배사 인계</p>
-
-      <div className="flex flex-wrap gap-2 mb-6">
-        {["all", ...STATUS_FLOW, "cancelled"].map((s) => (
-          <Button
-            key={s}
-            type="button"
-            size="sm"
-            variant={filter === s ? "default" : "outline"}
-            className={filter === s ? "bg-[#E11936] hover:bg-[#B71C1C]" : ""}
-            onClick={() => setFilter(s)}
-          >
-            {s === "all"
-              ? "전체"
-              : MALL_ORDER_STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s}
-          </Button>
-        ))}
-      </div>
-
+      <AdminPageShell
+        title="주문 관리"
+        description="주문 접수 → 발송 준비 → 택배사 인계"
+        headerExtra={
+          <div className="flex flex-wrap gap-2 mb-4 lg:mb-5 shrink-0">
+            {["all", ...STATUS_FLOW, "cancelled"].map((s) => (
+              <Button
+                key={s}
+                type="button"
+                size="sm"
+                variant={filter === s ? "default" : "outline"}
+                className={filter === s ? "bg-[#E11936] hover:bg-[#B71C1C]" : ""}
+                onClick={() => setFilter(s)}
+              >
+                {s === "all"
+                  ? "전체"
+                  : MALL_ORDER_STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s}
+              </Button>
+            ))}
+          </div>
+        }
+      >
       {isLoading ? (
         <p className="text-sm text-[#888]">불러오는 중...</p>
       ) : orders.length === 0 ? (
         <p className="text-sm text-[#888]">주문 내역이 없습니다.</p>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {orders.map((order) => {
             const status = normalizeMallOrderStatus(order.status);
             const draft = getDraft(order);
@@ -241,6 +244,7 @@ export default function MallOrderManagementPage() {
           })}
         </div>
       )}
+      </AdminPageShell>
     </AdminLayout>
   );
 }

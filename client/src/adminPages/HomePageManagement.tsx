@@ -19,6 +19,7 @@ import MallProductForm, {
   type MallProductFormValues,
 } from "@/components/admin/MallProductForm";
 import { MALL_DEFAULT_CATEGORIES } from "@shared/mallConfig";
+import { adminPageShellClass } from "./components/adminPageStyles";
 import { calculateDiscountedPrice, MALL_DEFAULT_SHIPPING_LABEL, MALL_DEFAULT_PROCURE_NOTICE } from "@shared/mallProduct";
 import { formatKrw } from "@/lib/mallCart";
 
@@ -317,7 +318,7 @@ export default function HomePageManagementPage() {
 
   return (
     <AdminLayout>
-      <div className="flex flex-col h-full min-h-0">
+      <div className={adminPageShellClass}>
         <div className="flex items-center gap-2 mb-3 shrink-0">
           <span className="text-xs text-[#BFBFBF]">쇼핑몰</span>
           <span className="text-xs text-[#BFBFBF]">&gt;</span>
