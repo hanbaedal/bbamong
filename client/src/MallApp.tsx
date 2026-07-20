@@ -47,7 +47,7 @@ function MallShell({ children }: { children: React.ReactNode }) {
       />
       <main>{children}</main>
       <footer className="border-t border-neutral-200 mt-12 py-8 text-center text-xs text-neutral-400">
-        PPAMONG 스포츠몰 · 정회원 주문은 사용자 앱 가입 후 이용
+        PPAMONG 스포츠몰 · 주문은 게임 앱 정회원 전용
       </footer>
     </div>
   );
@@ -94,9 +94,11 @@ export default function MallApp() {
     const previousHref = iconLink.href;
     iconLink.href = userFavicon;
     document.documentElement.classList.remove("native-app");
+    document.documentElement.classList.add("mall-site");
 
     return () => {
       iconLink.href = previousHref;
+      document.documentElement.classList.remove("mall-site");
     };
   }, []);
 

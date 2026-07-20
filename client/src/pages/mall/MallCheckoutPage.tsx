@@ -89,7 +89,7 @@ export default function MallCheckoutPage() {
     try {
       const token = await getOrRefreshAccessToken();
       if (!token) {
-        setError("로그인이 필요합니다.");
+        setError("게임 앱에서 회원 로그인 후 주문해 주세요.");
         return;
       }
 
@@ -127,7 +127,7 @@ export default function MallCheckoutPage() {
   if (sessionKind === "none" || sessionKind === "guest") {
     return (
       <div className="max-w-lg mx-auto px-4 py-12">
-        <MemberOnlyGate returnPath={`${MALL_BASE_PATH}/checkout`} />
+        <MemberOnlyGate />
       </div>
     );
   }

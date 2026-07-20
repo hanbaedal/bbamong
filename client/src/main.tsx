@@ -14,7 +14,9 @@ const root = createRoot(document.getElementById("root")!);
 
 const path = window.location.pathname;
 
-if (path.startsWith("/manager")) {
+if (!Capacitor.isNativePlatform() && (path === "/" || path === "")) {
+  window.location.replace("/admin/");
+} else if (path.startsWith("/manager")) {
   root.render(<ManagerApp />);
 } else if (path.startsWith("/admin")) {
   root.render(<AdminApp />);

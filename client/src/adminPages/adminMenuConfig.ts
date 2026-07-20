@@ -25,6 +25,12 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
           path: "/admin/home",
           iconKey: "adListIcon",
         },
+        {
+          id: "app-home-settings",
+          label: "앱 홈 설정",
+          path: "/admin/app-home-settings",
+          iconKey: "adNoticeIcon",
+        },
       ],
     },
     {

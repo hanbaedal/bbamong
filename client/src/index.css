@@ -265,6 +265,24 @@ body {
     @apply border-border;
   }
 
+  html.mall-site,
+  html.mall-site body,
+  html.mall-site #root {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: auto;
+  }
+
+  html.mall-site {
+    background-color: #ffffff;
+  }
+
+  html.mall-site #root {
+    background-color: #ffffff;
+  }
+
   html,
   body,
   #root {

@@ -129,7 +129,7 @@ export default function MallCartPage() {
               >
                 주문하기 (정회원 전용)
               </button>
-              <MemberOnlyGate returnPath={`${MALL_BASE_PATH}/cart`} />
+              <MemberOnlyGate />
             </div>
           )}
         </>

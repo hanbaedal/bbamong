@@ -166,7 +166,7 @@ export default function MallProductPage() {
           </div>
 
           {sessionKind !== "member" && price > 0 && (
-            <MemberOnlyGate returnPath={`${MALL_BASE_PATH}/product/${product.id}`} />
+            <MemberOnlyGate />
           )}
 
           <div className="border-t border-neutral-200 pt-6 mt-6">

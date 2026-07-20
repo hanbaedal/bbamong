@@ -18,7 +18,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type Tab = "basic" | "game" | "categories" | "products" | "inquiries";
+import MallCategoryNav from "@/components/mall/MallCategoryNav";
+import { MALL_DEFAULT_CATEGORIES } from "@shared/mallConfig";
+
+type Tab = "catalog" | "settings" | "inquiries";
 
 interface HomePageSettings {
   greetingPrefix: string;
@@ -82,14 +85,6 @@ interface AdminHomepageData {
   products: GoodsProduct[];
 }
 
-const emptyCategory = (): Partial<GoodsCategory> => ({
-  name: "",
-  description: "",
-  imageUrl: "",
-  displayOrder: 0,
-  isActive: true,
-});
-
 const emptyProduct = (categoryId?: number): Partial<GoodsProduct> => ({
   categoryId: categoryId ?? 0,
   name: "",
@@ -110,7 +105,8 @@ export default function HomePageManagementPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<Tab>("basic");
+  const [activeTab, setActiveTab] = useState<Tab>("catalog");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [settingsForm, setSettingsForm] = useState<HomePageSettings | null>(null);
   const [editingCategory, setEditingCategory] = useState<Partial<GoodsCategory> | null>(null);
   const [editingProduct, setEditingProduct] = useState<Partial<GoodsProduct> | null>(null);
@@ -160,15 +156,6 @@ export default function HomePageManagementPage() {
     },
   });
 
-  const deleteCategoryMutation = useMutation({
-    mutationFn: async (id: number) =>
-      apiRequest("DELETE", `/api/admin/homepage/goods/categories/${id}`),
-    onSuccess: () => {
-      invalidate();
-      toast({ description: "분류가 삭제되었습니다." });
-    },
-  });
-
   const saveProductMutation = useMutation({
     mutationFn: async (product: Partial<GoodsProduct>) => {
       if (product.id) {
@@ -210,10 +197,8 @@ export default function HomePageManagementPage() {
   });
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "basic", label: "기본 설정" },
-    { id: "game", label: "예측 게임 설명" },
-    { id: "categories", label: "굿즈 분류" },
-    { id: "products", label: "굿즈 상품" },
+    { id: "catalog", label: "상품 관리" },
+    { id: "settings", label: "몰 설정" },
     { id: "inquiries", label: "구매 문의" },
   ];
 
@@ -227,12 +212,21 @@ export default function HomePageManagementPage() {
 
   const categories = data?.categories ?? [];
   const products = data?.products ?? [];
+  const visibleProducts =
+    selectedCategoryId === null
+      ? products
+      : products.filter((p) => p.categoryId === selectedCategoryId);
+  const selectedCategory =
+    selectedCategoryId === null
+      ? null
+      : categories.find((c) => c.id === selectedCategoryId) ?? null;
+  const mallMenuNames = MALL_DEFAULT_CATEGORIES.map((c) => c.name).join(" · ");
 
   return (
     <AdminLayout>
       <div className="flex flex-col h-full min-h-0">
         <div className="flex items-center gap-2 mb-3 shrink-0">
-          <span className="text-xs text-[#BFBFBF]">홈 페이지</span>
+          <span className="text-xs text-[#BFBFBF]">쇼핑몰</span>
           <span className="text-xs text-[#BFBFBF]">&gt;</span>
           <span className="text-xs text-[#201E22]">쇼핑몰 관리</span>
         </div>
@@ -269,214 +263,35 @@ export default function HomePageManagementPage() {
           ))}
         </div>
 
+        {activeTab === "catalog" && (
+          <div className="mb-4 shrink-0 space-y-2">
+            <p className="text-xs text-[#888]">
+              쇼핑몰 헤더 메뉴와 동일한 카테고리입니다. ({mallMenuNames})
+            </p>
+            <MallCategoryNav
+              categories={categories}
+              activeCategoryId={selectedCategoryId}
+              variant="admin"
+              onSelect={(id) => {
+                setSelectedCategoryId(id);
+                setEditingProduct(null);
+                if (id !== null) {
+                  const cat = categories.find((c) => c.id === id);
+                  setEditingCategory(cat ?? null);
+                } else {
+                  setEditingCategory(null);
+                }
+              }}
+            />
+          </div>
+        )}
+
         <div className="flex-1 overflow-auto min-h-0 max-w-3xl pb-8">
-          {activeTab === "basic" && (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveSettingsMutation.mutate(settingsForm);
-              }}
-              className="space-y-4"
-            >
-              <div className="space-y-2">
-                <Label>인사말 (이름 앞)</Label>
-                <Input
-                  value={settingsForm.greetingPrefix}
-                  onChange={(e) =>
-                    setSettingsForm({ ...settingsForm, greetingPrefix: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>부가 문구</Label>
-                <Input
-                  value={settingsForm.subGreeting}
-                  onChange={(e) =>
-                    setSettingsForm({ ...settingsForm, subGreeting: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>경기 참여 버튼 문구</Label>
-                <Input
-                  value={settingsForm.buttonText}
-                  onChange={(e) =>
-                    setSettingsForm({ ...settingsForm, buttonText: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>쇼핑몰 섹션 제목</Label>
-                <Input
-                  placeholder="PPAMONG 스포츠몰"
-                  value={settingsForm.goodsSectionTitle}
-                  onChange={(e) =>
-                    setSettingsForm({ ...settingsForm, goodsSectionTitle: e.target.value })
-                  }
-                />
-              </div>
-              <label className="flex items-center gap-2">
-                <Checkbox
-                  checked={settingsForm.showDate}
-                  onCheckedChange={(v) =>
-                    setSettingsForm({ ...settingsForm, showDate: !!v })
-                  }
-                />
-                <span className="text-sm">날짜 표시</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <Checkbox
-                  checked={settingsForm.buttonEnabled}
-                  onCheckedChange={(v) =>
-                    setSettingsForm({ ...settingsForm, buttonEnabled: !!v })
-                  }
-                />
-                <span className="text-sm">경기 참여 버튼 표시</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <Checkbox
-                  checked={settingsForm.goodsSectionEnabled}
-                  onCheckedChange={(v) =>
-                    setSettingsForm({ ...settingsForm, goodsSectionEnabled: !!v })
-                  }
-                />
-                <span className="text-sm">굿즈 섹션 표시</span>
-              </label>
-
-              <div className="border-t border-[#E9E9E9] pt-4 mt-2 space-y-4">
-                <p className="text-sm font-medium text-[#201E22]">쇼핑몰 (ppamong.com/shop)</p>
-                <div className="space-y-2">
-                  <Label>회사소개 영상 URL</Label>
-                  <Input
-                    value={settingsForm.introVideoUrl ?? "/videos/company-intro.mp4"}
-                    onChange={(e) =>
-                      setSettingsForm({ ...settingsForm, introVideoUrl: e.target.value })
-                    }
-                    placeholder="/videos/company-intro.mp4"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>구매 문의 이메일</Label>
-                  <Input
-                    type="email"
-                    value={settingsForm.shopInquiryEmail ?? ""}
-                    onChange={(e) =>
-                      setSettingsForm({ ...settingsForm, shopInquiryEmail: e.target.value })
-                    }
-                    placeholder="shop@ppamong.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>구매 문의 전화 (선택)</Label>
-                  <Input
-                    value={settingsForm.shopInquiryPhone ?? ""}
-                    onChange={(e) =>
-                      setSettingsForm({ ...settingsForm, shopInquiryPhone: e.target.value })
-                    }
-                    placeholder="02-0000-0000"
-                  />
-                </div>
-                <p className="text-xs text-[#888]">
-                  상품에 구매 링크가 없으면 이메일·전화 문의 버튼이 표시됩니다.
-                </p>
-              </div>
-
-              <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C]">
-                저장
-              </Button>
-            </form>
-          )}
-
-          {activeTab === "game" && (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveSettingsMutation.mutate(settingsForm);
-              }}
-              className="space-y-4"
-            >
-              <p className="text-sm text-[#666]">
-                사용자 앱 홈에서 &apos;야구 예측 게임&apos; 소개와 상세 페이지에 표시됩니다.
-              </p>
-              <label className="flex items-center gap-2">
-                <Checkbox
-                  checked={settingsForm.gameGuideEnabled}
-                  onCheckedChange={(v) =>
-                    setSettingsForm({ ...settingsForm, gameGuideEnabled: !!v })
-                  }
-                />
-                <span className="text-sm">예측 게임 설명 노출</span>
-              </label>
-              <div className="space-y-2">
-                <Label>제목</Label>
-                <Input
-                  value={settingsForm.gameGuideTitle}
-                  onChange={(e) =>
-                    setSettingsForm({ ...settingsForm, gameGuideTitle: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>요약 (홈 화면 카드)</Label>
-                <Textarea
-                  value={settingsForm.gameGuideSummary}
-                  onChange={(e) =>
-                    setSettingsForm({ ...settingsForm, gameGuideSummary: e.target.value })
-                  }
-                  rows={3}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>상세 설명</Label>
-                <Textarea
-                  value={settingsForm.gameGuideContent}
-                  onChange={(e) =>
-                    setSettingsForm({ ...settingsForm, gameGuideContent: e.target.value })
-                  }
-                  rows={12}
-                  placeholder="게임 참여 방법, 규칙, 포인트 안내 등을 입력하세요."
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>대표 이미지 URL (선택)</Label>
-                <Input
-                  value={settingsForm.gameGuideImageUrl}
-                  onChange={(e) =>
-                    setSettingsForm({ ...settingsForm, gameGuideImageUrl: e.target.value })
-                  }
-                  placeholder="https://..."
-                />
-              </div>
-              <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C]">
-                저장
-              </Button>
-            </form>
-          )}
-
-          {activeTab === "categories" && (
+          {activeTab === "catalog" && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-[#666]">야구 굿즈 대분류 (모자, 유니폼 등)</p>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => setEditingCategory(emptyCategory())}
-                >
-                  + 분류 추가
-                </Button>
-              </div>
-
-              {editingCategory && (
+              {selectedCategory && editingCategory && (
                 <div className="border border-[#E9E9E9] rounded-lg p-4 space-y-3 bg-[#FAFAFA]">
-                  <h3 className="font-medium">{editingCategory.id ? "분류 수정" : "분류 등록"}</h3>
-                  <Input
-                    placeholder="분류명 (예: 모자)"
-                    value={editingCategory.name ?? ""}
-                    onChange={(e) =>
-                      setEditingCategory({ ...editingCategory, name: e.target.value })
-                    }
-                  />
+                  <h3 className="font-medium">{selectedCategory.name} 카테고리</h3>
                   <Input
                     placeholder="설명"
                     value={editingCategory.description ?? ""}
@@ -509,7 +324,7 @@ export default function HomePageManagementPage() {
                         setEditingCategory({ ...editingCategory, isActive: !!v })
                       }
                     />
-                    <span className="text-sm">노출</span>
+                    <span className="text-sm">쇼핑몰 노출</span>
                   </label>
                   <div className="flex gap-2">
                     <Button
@@ -517,75 +332,27 @@ export default function HomePageManagementPage() {
                       onClick={() => saveCategoryMutation.mutate(editingCategory)}
                       className="bg-[#E11936] hover:bg-[#B71C1C]"
                     >
-                      저장
-                    </Button>
-                    <Button type="button" variant="outline" onClick={() => setEditingCategory(null)}>
-                      취소
+                      카테고리 저장
                     </Button>
                   </div>
                 </div>
               )}
 
-              <div className="space-y-2">
-                {categories.map((cat) => (
-                  <div
-                    key={cat.id}
-                    className="flex items-center gap-3 p-3 border border-[#E9E9E9] rounded-lg"
-                  >
-                    <div className="w-14 h-14 rounded bg-[#F0F0F0] overflow-hidden flex-shrink-0">
-                      {cat.imageUrl ? (
-                        <img src={cat.imageUrl} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs text-[#999]">
-                          {cat.name.slice(0, 2)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{cat.name}</p>
-                      <p className="text-xs text-[#888] truncate">{cat.description}</p>
-                      <p className="text-xs text-[#888]">상품 {cat.productCount ?? 0}개</p>
-                    </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingCategory(cat)}
-                      >
-                        수정
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="text-[#E11936]"
-                        onClick={() => {
-                          if (confirm(`"${cat.name}" 분류를 삭제할까요?`)) {
-                            deleteCategoryMutation.mutate(cat.id);
-                          }
-                        }}
-                      >
-                        삭제
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "products" && (
-            <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <p className="text-sm text-[#666]">
-                  분류별 굿즈 상품 · 구매 링크(스마트스토어 등) 또는 문의 버튼
+                  {selectedCategory
+                    ? `${selectedCategory.name} 상품`
+                    : "전체 상품 (쇼핑몰 '전체' 메뉴)"}
+                  {" · "}
+                  <span className="font-semibold text-[#201E22]">{visibleProducts.length}</span>개
                 </p>
                 <Button
                   type="button"
                   size="sm"
                   onClick={() =>
-                    setEditingProduct(emptyProduct(categories[0]?.id))
+                    setEditingProduct(
+                      emptyProduct(selectedCategoryId ?? categories[0]?.id),
+                    )
                   }
                   disabled={categories.length === 0}
                 >
@@ -603,7 +370,7 @@ export default function HomePageManagementPage() {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="분류 선택" />
+                      <SelectValue placeholder="카테고리 선택" />
                     </SelectTrigger>
                     <SelectContent>
                       {categories.map((c) => (
@@ -712,56 +479,128 @@ export default function HomePageManagementPage() {
               )}
 
               <div className="space-y-2">
-                {products.map((p) => {
-                  const cat = categories.find((c) => c.id === p.categoryId);
-                  return (
-                    <div
-                      key={p.id}
-                      className="flex items-center gap-3 p-3 border border-[#E9E9E9] rounded-lg"
-                    >
-                      <div className="w-12 h-12 rounded bg-[#F0F0F0] overflow-hidden flex-shrink-0">
-                        {p.imageUrl ? (
-                          <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-[10px] text-[#999]">
-                            N/A
-                          </div>
-                        )}
+                {visibleProducts.length === 0 ? (
+                  <p className="text-sm text-[#888] py-8 text-center">등록된 상품이 없습니다.</p>
+                ) : (
+                  visibleProducts.map((p) => {
+                    const cat = categories.find((c) => c.id === p.categoryId);
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-3 p-3 border border-[#E9E9E9] rounded-lg"
+                      >
+                        <div className="w-12 h-12 rounded bg-[#F0F0F0] overflow-hidden flex-shrink-0">
+                          {p.imageUrl ? (
+                            <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[10px] text-[#999]">
+                              N/A
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{p.name}</p>
+                          <p className="text-xs text-[#888]">
+                            {cat?.name} {p.priceLabel && `· ${p.priceLabel}`}
+                          </p>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingProduct(p)}
+                          >
+                            수정
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-[#E11936]"
+                            onClick={() => {
+                              if (confirm(`"${p.name}" 상품을 삭제할까요?`)) {
+                                deleteProductMutation.mutate(p.id);
+                              }
+                            }}
+                          >
+                            삭제
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{p.name}</p>
-                        <p className="text-xs text-[#888]">
-                          {cat?.name} {p.priceLabel && `· ${p.priceLabel}`}
-                        </p>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setEditingProduct(p)}
-                        >
-                          수정
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="text-[#E11936]"
-                          onClick={() => {
-                            if (confirm(`"${p.name}" 상품을 삭제할까요?`)) {
-                              deleteProductMutation.mutate(p.id);
-                            }
-                          }}
-                        >
-                          삭제
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
+          )}
+
+          {activeTab === "settings" && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveSettingsMutation.mutate(settingsForm);
+              }}
+              className="space-y-4"
+            >
+              <p className="text-sm text-[#666]">ppamong.com/shop 쇼핑몰 표시 설정입니다.</p>
+              <div className="space-y-2">
+                <Label>쇼핑몰 제목 (헤더)</Label>
+                <Input
+                  placeholder="PPAMONG 스포츠몰"
+                  value={settingsForm.goodsSectionTitle}
+                  onChange={(e) =>
+                    setSettingsForm({ ...settingsForm, goodsSectionTitle: e.target.value })
+                  }
+                />
+              </div>
+              <label className="flex items-center gap-2">
+                <Checkbox
+                  checked={settingsForm.goodsSectionEnabled}
+                  onCheckedChange={(v) =>
+                    setSettingsForm({ ...settingsForm, goodsSectionEnabled: !!v })
+                  }
+                />
+                <span className="text-sm">쇼핑몰 노출</span>
+              </label>
+              <div className="space-y-2">
+                <Label>회사소개 영상 URL</Label>
+                <Input
+                  value={settingsForm.introVideoUrl ?? "/videos/company-intro.mp4"}
+                  onChange={(e) =>
+                    setSettingsForm({ ...settingsForm, introVideoUrl: e.target.value })
+                  }
+                  placeholder="/videos/company-intro.mp4"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>구매 문의 이메일</Label>
+                <Input
+                  type="email"
+                  value={settingsForm.shopInquiryEmail ?? ""}
+                  onChange={(e) =>
+                    setSettingsForm({ ...settingsForm, shopInquiryEmail: e.target.value })
+                  }
+                  placeholder="shop@ppamong.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>구매 문의 전화 (선택)</Label>
+                <Input
+                  value={settingsForm.shopInquiryPhone ?? ""}
+                  onChange={(e) =>
+                    setSettingsForm({ ...settingsForm, shopInquiryPhone: e.target.value })
+                  }
+                  placeholder="02-0000-0000"
+                />
+              </div>
+              <p className="text-xs text-[#888]">
+                앱 홈·예측 게임 문구는 관리자 메뉴의 &apos;앱 홈 설정&apos;에서 수정합니다.
+              </p>
+              <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C]">
+                저장
+              </Button>
+            </form>
           )}
 
           {activeTab === "inquiries" && (

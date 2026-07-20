@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Search, Gamepad2 } from "lucide-react";
+import { ShoppingBag, Search } from "lucide-react";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
 import { resolveShopSectionTitle } from "@/lib/shopBranding";
 import { readMallCart } from "@/lib/mallCart";
-import { fetchMemberSessionKind, navigateToGame, type MemberSessionKind } from "@/lib/appNavigation";
-import { buildUserLoginUrl } from "@/lib/shopRoutes";
+import MallCategoryNav, { resolveMallActiveCategoryId } from "@/components/mall/MallCategoryNav";
+import MallGameButton from "@/components/mall/MallGameButton";
 import type { MallCategory } from "@/lib/mallTypes";
 
 interface MallHeaderProps {
@@ -16,7 +16,6 @@ interface MallHeaderProps {
 export default function MallHeader({ categories, mallTitle }: MallHeaderProps) {
   const [location, setLocation] = useLocation();
   const [cartCount, setCartCount] = useState(0);
-  const [sessionKind, setSessionKind] = useState<MemberSessionKind>("none");
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -29,12 +28,8 @@ export default function MallHeader({ categories, mallTitle }: MallHeaderProps) {
     return () => window.removeEventListener("ppamong:mall-cart", sync);
   }, [location]);
 
-  useEffect(() => {
-    void fetchMemberSessionKind().then(setSessionKind);
-  }, [location]);
-
   const title = resolveShopSectionTitle(mallTitle);
-  const base = location.split("?")[0];
+  const activeCategoryId = resolveMallActiveCategoryId(location, categories);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,29 +49,12 @@ export default function MallHeader({ categories, mallTitle }: MallHeaderProps) {
             <span className="text-lg font-bold tracking-tight text-neutral-900">{title}</span>
           </Link>
 
-          <nav className="hidden lg:flex items-center gap-1 flex-1 overflow-x-auto">
-            <Link
-              href={MALL_BASE_PATH}
-              className={`px-3 py-2 text-sm whitespace-nowrap rounded-md ${
-                base === MALL_BASE_PATH ? "font-semibold text-neutral-900 bg-neutral-100" : "text-neutral-600 hover:text-neutral-900"
-              }`}
-            >
-              전체
-            </Link>
-            {categories.map((cat) => (
-              <Link
-                key={cat.id}
-                href={`${MALL_BASE_PATH}/category/${cat.id}`}
-                className={`px-3 py-2 text-sm whitespace-nowrap rounded-md ${
-                  base === `${MALL_BASE_PATH}/category/${cat.id}`
-                    ? "font-semibold text-neutral-900 bg-neutral-100"
-                    : "text-neutral-600 hover:text-neutral-900"
-                }`}
-              >
-                {cat.name}
-              </Link>
-            ))}
-          </nav>
+          <MallCategoryNav
+            categories={categories}
+            activeCategoryId={activeCategoryId}
+            variant="mall"
+            layout="desktop"
+          />
 
           <form onSubmit={handleSearch} className="hidden md:flex items-center flex-1 max-w-xs ml-auto">
             <div className="relative w-full">
@@ -91,27 +69,8 @@ export default function MallHeader({ categories, mallTitle }: MallHeaderProps) {
             </div>
           </form>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => navigateToGame()}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-600 hover:text-neutral-900"
-              title="게임으로"
-            >
-              <Gamepad2 className="w-4 h-4" />
-              게임
-            </button>
-
-            {sessionKind === "member" ? (
-              <span className="text-xs text-neutral-500 hidden sm:inline">회원</span>
-            ) : (
-              <a
-                href={buildUserLoginUrl(window.location.pathname + window.location.search, { allowGuest: false })}
-                className="text-sm font-medium text-neutral-900 hover:underline"
-              >
-                로그인
-              </a>
-            )}
+          <div className="flex items-center gap-2 shrink-0 ml-auto md:ml-0">
+            <MallGameButton />
 
             <Link
               href={`${MALL_BASE_PATH}/cart`}
@@ -128,23 +87,12 @@ export default function MallHeader({ categories, mallTitle }: MallHeaderProps) {
           </div>
         </div>
 
-        <div className="lg:hidden pb-2 flex gap-2 overflow-x-auto">
-          <Link
-            href={MALL_BASE_PATH}
-            className="px-3 py-1.5 text-xs whitespace-nowrap rounded-full border border-neutral-200"
-          >
-            전체
-          </Link>
-          {categories.map((cat) => (
-            <Link
-              key={cat.id}
-              href={`${MALL_BASE_PATH}/category/${cat.id}`}
-              className="px-3 py-1.5 text-xs whitespace-nowrap rounded-full border border-neutral-200"
-            >
-              {cat.name}
-            </Link>
-          ))}
-        </div>
+        <MallCategoryNav
+          categories={categories}
+          activeCategoryId={activeCategoryId}
+          variant="mall"
+          layout="mobile"
+        />
       </div>
     </header>
   );

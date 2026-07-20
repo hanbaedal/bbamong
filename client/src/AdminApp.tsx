@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import AdminLoginPage from "@/adminPages/auth/login";
 import AdminHomePage from "@/adminPages/AdminHome";
 import HomePageManagementPage from "@/adminPages/HomePageManagement";
+import AppHomeSettingsPage from "@/adminPages/AppHomeSettings";
 import MallOrderManagementPage from "@/adminPages/MallOrderManagement";
 import { AdminProtectedLayout } from "@/adminPages/components/AdminProtectedLayout";
 import AdminSignupPage from "@/adminPages/auth/signup";
@@ -52,12 +53,14 @@ function Router() {
   return (
     <Switch>
       {/* 관리자 로그인: /admin/login — 슈퍼어드민·일반어드민만 */}
+      <Route path="/admin">{() => <Redirect to="/admin/login" />}</Route>
       <Route path="/admin/login" component={AdminLoginPage} />
       <Route path="/admin/signup" component={AdminSignupPage} />
       <Route path="/admin/waiting" component={AdminWaitingPage} />
       <Route path="/admin/home" component={AdminHomePage} />
       <Route path="/admin/mall-preview" component={AdminMallPreviewPage} />
       <Route path="/admin/mall-management" component={HomePageManagementPage} />
+      <Route path="/admin/app-home-settings" component={AppHomeSettingsPage} />
       <Route path="/admin/mall-orders" component={MallOrderManagementPage} />
       <Route path="/admin/homepage-shop">{() => <Redirect to="/admin/mall-preview" />}</Route>
       <Route path="/admin/homepage-management">{() => <Redirect to="/admin/mall-management" />}</Route>
