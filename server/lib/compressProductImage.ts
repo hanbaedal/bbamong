@@ -1,12 +1,16 @@
 import sharp from "sharp";
-import { MALL_PRODUCT_IMAGE_MAX_BYTES } from "@shared/mallProduct";
+import {
+  getMallProductImageLimits,
+  type MallProductImageKind,
+} from "@shared/mallProduct";
 
 export async function compressProductImage(
   input: Buffer,
-  maxBytes = MALL_PRODUCT_IMAGE_MAX_BYTES,
+  kind: MallProductImageKind = "cover",
 ): Promise<{ buffer: Buffer; contentType: string; extension: string }> {
-  let quality = 82;
-  let width = 1280;
+  const { maxBytes, maxWidth: initialWidth } = getMallProductImageLimits(kind);
+  let quality = kind === "detail" ? 85 : 82;
+  let width = initialWidth;
 
   let lastBuffer = await sharp(input)
     .rotate()

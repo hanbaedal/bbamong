@@ -1,5 +1,29 @@
-/** 상품 이미지 1장당 최대 용량 (20KB) */
+/** 대표(썸네일) 이미지 1장당 최대 용량 — 목록·상단용 (20KB) */
 export const MALL_PRODUCT_IMAGE_MAX_BYTES = 20 * 1024;
+
+/** 상품정보 탭 이미지 1장당 최대 용량 — 글·표 포함 세로 이미지 (80KB) */
+export const MALL_PRODUCT_DETAIL_IMAGE_MAX_BYTES = 80 * 1024;
+
+/** 대표 이미지 압축 시 최대 가로 */
+export const MALL_PRODUCT_COVER_MAX_WIDTH = 1280;
+
+/** 상품정보 이미지 압축 시 최대 가로 (스마트폰 전체 너비 기준) */
+export const MALL_PRODUCT_DETAIL_MAX_WIDTH = 860;
+
+export type MallProductImageKind = "cover" | "detail";
+
+export function getMallProductImageLimits(kind: MallProductImageKind = "cover") {
+  if (kind === "detail") {
+    return {
+      maxBytes: MALL_PRODUCT_DETAIL_IMAGE_MAX_BYTES,
+      maxWidth: MALL_PRODUCT_DETAIL_MAX_WIDTH,
+    };
+  }
+  return {
+    maxBytes: MALL_PRODUCT_IMAGE_MAX_BYTES,
+    maxWidth: MALL_PRODUCT_COVER_MAX_WIDTH,
+  };
+}
 
 /** 상품정보 이미지 최대 개수 */
 export const MALL_PRODUCT_DETAIL_IMAGE_MAX = 10;

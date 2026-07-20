@@ -8,10 +8,15 @@ import {
   saveMallProductImageLocal,
 } from "../lib/mallProductImageStorage";
 import { ObjectStorageService } from "../objectStorage";
-import { MALL_PRODUCT_IMAGE_MAX_BYTES } from "@shared/mallProduct";
+import { getMallProductImageLimits } from "@shared/mallProduct";
 
 const uploadSchema = z.object({
   imageBase64: z.string().min(1).max(20_000_000),
+  kind: z.enum(["cover", "detail"]).optional().default("cover"),
+});
+
+const uploadUrlSchema = z.object({
+  kind: z.enum(["cover", "detail"]).optional().default("cover"),
 });
 
 function decodeBase64Image(payload: string): Buffer {
@@ -29,34 +34,36 @@ async function uploadToObjectStorage(
 }
 
 export async function mallProductImageRoutes(app: Express): Promise<void> {
-  /** signed URL (Object Storage 설정 시) 또는 direct 모드 */
-  app.post("/api/admin/mall/product-images/upload-url", adminAuthMiddleware, async (_req, res) => {
+  app.post("/api/admin/mall/product-images/upload-url", adminAuthMiddleware, async (req, res) => {
     try {
+      const parsed = uploadUrlSchema.safeParse(req.body ?? {});
+      const kind = parsed.success ? parsed.data.kind : "cover";
+      const { maxBytes } = getMallProductImageLimits(kind);
+
       if (!isObjectStorageConfigured()) {
-        return res.json({
-          mode: "direct" as const,
-          maxBytes: MALL_PRODUCT_IMAGE_MAX_BYTES,
-        });
+        return res.json({ mode: "direct" as const, kind, maxBytes });
       }
 
       const objectStorage = new ObjectStorageService();
       const { uploadURL, canonicalPath } = await objectStorage.getMallProductImageUploadURL();
       res.json({
         mode: "signed" as const,
+        kind,
         uploadURL,
         canonicalPath,
-        maxBytes: MALL_PRODUCT_IMAGE_MAX_BYTES,
+        maxBytes,
       });
     } catch (error) {
       console.error("Mall product image upload-url error:", error);
+      const kind = "cover";
       res.json({
         mode: "direct" as const,
-        maxBytes: MALL_PRODUCT_IMAGE_MAX_BYTES,
+        kind,
+        maxBytes: getMallProductImageLimits(kind).maxBytes,
       });
     }
   });
 
-  /** 서버 업로드 — GCS 우선, 실패·미설정 시 로컬 디스크 */
   app.post("/api/admin/mall/product-images", adminAuthMiddleware, async (req, res) => {
     try {
       const parsed = uploadSchema.safeParse(req.body);
@@ -64,12 +71,14 @@ export async function mallProductImageRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: fromZodError(parsed.error).message });
       }
 
+      const { kind } = parsed.data;
+      const { maxBytes } = getMallProductImageLimits(kind);
       const input = decodeBase64Image(parsed.data.imageBase64);
       if (input.length > 12 * 1024 * 1024) {
         return res.status(400).json({ error: "원본 이미지가 너무 큽니다. (최대 12MB)" });
       }
 
-      const compressed = await compressProductImage(input, MALL_PRODUCT_IMAGE_MAX_BYTES);
+      const compressed = await compressProductImage(input, kind);
       let url: string;
       let storage: "gcs" | "local" = "local";
 
@@ -92,8 +101,9 @@ export async function mallProductImageRoutes(app: Express): Promise<void> {
       res.json({
         url,
         storage,
+        kind,
         sizeBytes: compressed.buffer.length,
-        maxBytes: MALL_PRODUCT_IMAGE_MAX_BYTES,
+        maxBytes,
       });
     } catch (error) {
       console.error("Mall product image upload error:", error);

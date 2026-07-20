@@ -3,7 +3,10 @@ import { Loader2, X } from "lucide-react";
 import { apiRequest } from "@/lib/adminQueryClient";
 import { compressMallProductImageFile } from "@/lib/compressMallProductImage";
 import { Button } from "@/components/ui/button";
-import { MALL_PRODUCT_IMAGE_MAX_BYTES } from "@shared/mallProduct";
+import {
+  getMallProductImageLimits,
+  type MallProductImageKind,
+} from "@shared/mallProduct";
 
 interface MallProductImageUploadProps {
   label: string;
@@ -11,6 +14,8 @@ interface MallProductImageUploadProps {
   onChange: (url: string) => void;
   onClear?: () => void;
   compact?: boolean;
+  /** cover=대표 20KB, detail=상품정보 80KB */
+  kind?: MallProductImageKind;
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -22,23 +27,35 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-async function uploadViaServer(blob: Blob): Promise<{ url: string; sizeBytes: number }> {
+async function uploadViaServer(
+  blob: Blob,
+  kind: MallProductImageKind,
+): Promise<{ url: string; sizeBytes: number; maxBytes: number }> {
   const imageBase64 = await blobToBase64(blob);
-  const res = await apiRequest("POST", "/api/admin/mall/product-images", { imageBase64 });
-  const data = (await res.json()) as { url: string; sizeBytes: number };
-  return { url: data.url, sizeBytes: data.sizeBytes ?? blob.size };
+  const res = await apiRequest("POST", "/api/admin/mall/product-images", { imageBase64, kind });
+  const data = (await res.json()) as { url: string; sizeBytes: number; maxBytes: number };
+  return {
+    url: data.url,
+    sizeBytes: data.sizeBytes ?? blob.size,
+    maxBytes: data.maxBytes,
+  };
 }
 
-async function uploadCompressedBlob(blob: Blob): Promise<{ url: string; sizeBytes: number }> {
-  const res = await apiRequest("POST", "/api/admin/mall/product-images/upload-url");
+async function uploadCompressedBlob(
+  blob: Blob,
+  kind: MallProductImageKind,
+): Promise<{ url: string; sizeBytes: number; maxBytes: number }> {
+  const { maxBytes: fallbackMax } = getMallProductImageLimits(kind);
+  const res = await apiRequest("POST", "/api/admin/mall/product-images/upload-url", { kind });
   const data = (await res.json()) as {
     mode?: "direct" | "signed";
     uploadURL?: string;
     canonicalPath?: string;
+    maxBytes?: number;
   };
 
   if (data.mode === "direct" || !data.uploadURL || !data.canonicalPath) {
-    return uploadViaServer(blob);
+    return uploadViaServer(blob, kind);
   }
 
   const uploadRes = await fetch(data.uploadURL, {
@@ -48,10 +65,14 @@ async function uploadCompressedBlob(blob: Blob): Promise<{ url: string; sizeByte
   });
 
   if (!uploadRes.ok) {
-    return uploadViaServer(blob);
+    return uploadViaServer(blob, kind);
   }
 
-  return { url: data.canonicalPath, sizeBytes: blob.size };
+  return {
+    url: data.canonicalPath,
+    sizeBytes: blob.size,
+    maxBytes: data.maxBytes ?? fallbackMax,
+  };
 }
 
 export default function MallProductImageUpload({
@@ -60,10 +81,12 @@ export default function MallProductImageUpload({
   onChange,
   onClear,
   compact = false,
+  kind = "cover",
 }: MallProductImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [meta, setMeta] = useState<string>("");
+  const { maxBytes } = getMallProductImageLimits(kind);
 
   const handleSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -76,10 +99,10 @@ export default function MallProductImageUpload({
 
     setUploading(true);
     try {
-      const blob = await compressMallProductImageFile(file);
-      const { url, sizeBytes } = await uploadCompressedBlob(blob);
+      const blob = await compressMallProductImageFile(file, kind);
+      const { url, sizeBytes, maxBytes: limit } = await uploadCompressedBlob(blob, kind);
       onChange(url);
-      setMeta(`${Math.round(sizeBytes / 1024)}KB / ${Math.round(MALL_PRODUCT_IMAGE_MAX_BYTES / 1024)}KB`);
+      setMeta(`${Math.round(sizeBytes / 1024)}KB / ${Math.round(limit / 1024)}KB`);
     } catch (err) {
       alert(err instanceof Error ? err.message : "이미지 업로드 실패");
     } finally {
@@ -91,7 +114,9 @@ export default function MallProductImageUpload({
     <div className="space-y-2">
       <p className="text-sm font-medium text-[#201E22]">{label}</p>
       <p className="text-xs text-[#888]">
-        JPG·PNG 등 업로드 시 {Math.round(MALL_PRODUCT_IMAGE_MAX_BYTES / 1024)}KB 이하로 자동 압축 저장
+        {kind === "detail"
+          ? `스마트폰 상품정보 탭용 · 가로 ${getMallProductImageLimits("detail").maxWidth}px · ${Math.round(maxBytes / 1024)}KB 이하 자동 압축`
+          : `목록·상단 썸네일 · ${Math.round(maxBytes / 1024)}KB 이하 자동 압축`}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <input
@@ -134,8 +159,11 @@ export default function MallProductImageUpload({
   );
 }
 
-export async function uploadMallProductImageFile(file: File): Promise<string> {
-  const blob = await compressMallProductImageFile(file);
-  const { url } = await uploadCompressedBlob(blob);
+export async function uploadMallProductImageFile(
+  file: File,
+  kind: MallProductImageKind = "cover",
+): Promise<string> {
+  const blob = await compressMallProductImageFile(file, kind);
+  const { url } = await uploadCompressedBlob(blob, kind);
   return url;
 }

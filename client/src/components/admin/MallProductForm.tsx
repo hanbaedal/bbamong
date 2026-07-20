@@ -5,6 +5,8 @@ import {
   MALL_DEFAULT_PROCURE_NOTICE,
   MALL_FULFILLMENT_OPTIONS,
   MALL_PRODUCT_DETAIL_IMAGE_MAX,
+  MALL_PRODUCT_DETAIL_IMAGE_MAX_BYTES,
+  MALL_PRODUCT_DETAIL_MAX_WIDTH,
   MALL_PRODUCT_VARIANT_MAX,
   type MallFulfillmentType,
   type MallProductVariant,
@@ -487,7 +489,7 @@ export default function MallProductForm({
                       if (!file) return;
                       setDetailUploading(true);
                       try {
-                        const url = await uploadMallProductImageFile(file);
+                        const url = await uploadMallProductImageFile(file, "detail");
                         const current = valueRef.current.detailImages ?? [];
                         onChange({ detailImages: [...current, url] });
                       } catch (err) {
@@ -541,7 +543,9 @@ export default function MallProductForm({
                 ))}
               </div>
             ) : (
-              <p className="text-[11px] text-[#888]">상세 탭에 표시할 이미지</p>
+              <p className="text-[11px] text-[#888]">
+                상세 탭 전체 너비 · 가로 {MALL_PRODUCT_DETAIL_MAX_WIDTH}px · {Math.round(MALL_PRODUCT_DETAIL_IMAGE_MAX_BYTES / 1024)}KB 이하 자동 압축
+              </p>
             )}
           </div>
         </div>

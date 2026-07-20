@@ -1,4 +1,7 @@
-import { MALL_PRODUCT_IMAGE_MAX_BYTES } from "@shared/mallProduct";
+import {
+  getMallProductImageLimits,
+  type MallProductImageKind,
+} from "@shared/mallProduct";
 
 function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -35,12 +38,12 @@ function canvasToBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob>
 /** 브라우저에서 몰 상품 이미지를 WebP로 압축 (서버 sharp와 동일 목표 용량) */
 export async function compressMallProductImageFile(
   file: File,
-  maxBytes = MALL_PRODUCT_IMAGE_MAX_BYTES,
+  kind: MallProductImageKind = "cover",
 ): Promise<Blob> {
+  const { maxBytes, maxWidth } = getMallProductImageLimits(kind);
   const img = await loadImageFromFile(file);
   let width = img.naturalWidth;
   let height = img.naturalHeight;
-  const maxWidth = 1280;
 
   if (width > maxWidth) {
     height = Math.round((height * maxWidth) / width);
@@ -57,7 +60,7 @@ export async function compressMallProductImageFile(
   canvas.height = height;
   ctx.drawImage(img, 0, 0, width, height);
 
-  let quality = 0.82;
+  let quality = kind === "detail" ? 0.85 : 0.82;
   let lastBlob = await canvasToBlob(canvas, quality);
 
   while (lastBlob.size > maxBytes && (quality > 0.15 || width > 240)) {
