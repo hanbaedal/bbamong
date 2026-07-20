@@ -61,6 +61,7 @@ interface MallProductFormProps {
   onCancel: () => void;
   saving?: boolean;
   saveError?: string;
+  mode?: "create" | "edit";
 }
 
 export function createEmptyMallProduct(categoryId?: number): Partial<MallProductFormValues> {
@@ -136,6 +137,7 @@ export default function MallProductForm({
   onCancel,
   saving = false,
   saveError,
+  mode = value.id ? "edit" : "create",
 }: MallProductFormProps) {
   const detailInputRef = useRef<HTMLInputElement>(null);
   const valueRef = useRef(value);
@@ -172,7 +174,9 @@ export default function MallProductForm({
   return (
     <div className="border border-[#E9E9E9] rounded-lg bg-[#FAFAFA] overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-3 lg:px-4 py-2 lg:py-2.5 border-b border-[#E9E9E9] bg-white">
-        <h3 className="font-medium text-sm lg:text-base">{value.id ? "상품 수정" : "상품 등록"}</h3>
+        <h3 className="font-medium text-sm lg:text-base">
+          {mode === "edit" ? "상품 수정" : "상품 등록"}
+        </h3>
         <label className="flex items-center gap-1.5 text-xs lg:text-sm shrink-0">
           <Checkbox
             checked={value.isActive ?? true}
@@ -551,10 +555,10 @@ export default function MallProductForm({
           size="sm"
           className="bg-[#E11936] hover:bg-[#B71C1C]"
         >
-          {saving ? "저장 중..." : "저장"}
+          {saving ? "저장 중..." : mode === "edit" ? "수정 저장" : "등록"}
         </Button>
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-          취소
+          {mode === "edit" ? "취소" : "입력 초기화"}
         </Button>
       </div>
     </div>

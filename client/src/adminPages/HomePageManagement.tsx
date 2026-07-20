@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
 
 import MallCategoryNav from "@/components/mall/MallCategoryNav";
 import MallProductForm, {
@@ -19,11 +18,11 @@ import MallProductForm, {
   type MallProductFormValues,
 } from "@/components/admin/MallProductForm";
 import { MALL_DEFAULT_CATEGORIES } from "@shared/mallConfig";
-import { adminPageShellClass } from "./components/adminPageStyles";
+import { adminFormGridClass, adminPageShellClass, adminTableClass, adminTableWrapClass } from "./components/adminPageStyles";
 import { calculateDiscountedPrice, MALL_DEFAULT_SHIPPING_LABEL, MALL_DEFAULT_PROCURE_NOTICE } from "@shared/mallProduct";
 import { formatKrw } from "@/lib/mallCart";
 
-type Tab = "catalog" | "settings" | "inquiries";
+type Tab = "register" | "list" | "settings" | "inquiries";
 
 interface HomePageSettings {
   greetingPrefix: string;
@@ -155,36 +154,49 @@ interface AdminHomepageData {
   products: GoodsProduct[];
 }
 
-function openProductEditor(
-  product: Partial<GoodsProduct> | null,
-  categoryId?: number,
-): Partial<MallProductFormValues> {
-  if (product) return productToForm(product);
-  return createEmptyMallProduct(categoryId);
-}
+const TAB_HINTS: Record<Tab, string> = {
+  register: "새 상품을 등록합니다. 수정·삭제는 「상품 리스트」 탭에서 하세요.",
+  list: "등록된 상품을 검색·수정·삭제합니다.",
+  settings: "ppamong.com/shop 화면에 보이는 쇼핑몰 이름, 노출 여부, 소개 영상, 문의 연락처를 설정합니다.",
+  inquiries:
+    "고객이 쇼핑몰 상품 페이지에서 보낸 구매 문의 목록입니다. 전화·이메일로 답변한 뒤 「처리완료」로 표시하세요. (여기서 답변글을 보내는 기능은 없습니다.)",
+};
 
 export default function HomePageManagementPage() {
   const { assets } = useAdminAssets();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<Tab>("catalog");
+  const [activeTab, setActiveTab] = useState<Tab>("register");
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [settingsForm, setSettingsForm] = useState<HomePageSettings | null>(null);
   const [editingCategory, setEditingCategory] = useState<Partial<GoodsCategory> | null>(null);
-  const [editingProduct, setEditingProduct] = useState<Partial<MallProductFormValues> | null>(null);
-  const [productSaveError, setProductSaveError] = useState<string>("");
+  const [registerForm, setRegisterForm] = useState<Partial<MallProductFormValues> | null>(null);
+  const [listEditForm, setListEditForm] = useState<Partial<MallProductFormValues> | null>(null);
+  const [registerSaveError, setRegisterSaveError] = useState("");
+  const [listSaveError, setListSaveError] = useState("");
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
 
   const { data, isLoading } = useQuery<AdminHomepageData>({
     queryKey: ["/api/admin/homepage-settings"],
   });
 
+  const categories = data?.categories ?? [];
+  const products = data?.products ?? [];
+
   useEffect(() => {
     if (data?.settings) {
       setSettingsForm(data.settings);
     }
   }, [data]);
+
+  useEffect(() => {
+    if (categories.length > 0 && !registerForm) {
+      const catId =
+        selectedCategoryId && selectedCategoryId > 0 ? selectedCategoryId : categories[0].id;
+      setRegisterForm(createEmptyMallProduct(catId));
+    }
+  }, [categories, registerForm, selectedCategoryId]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/admin/homepage-settings"] });
@@ -197,7 +209,7 @@ export default function HomePageManagementPage() {
       apiRequest("PUT", "/api/admin/homepage-settings", payload),
     onSuccess: () => {
       invalidate();
-      toast({ description: "저장되었습니다." });
+      toast({ description: "쇼핑몰 표시 설정이 저장되었습니다." });
     },
     onError: (err: Error) => {
       toast({ variant: "destructive", description: err.message || "저장 실패" });
@@ -213,65 +225,55 @@ export default function HomePageManagementPage() {
     },
     onSuccess: () => {
       invalidate();
-      setEditingCategory(null);
-      toast({ description: "분류가 저장되었습니다." });
+      toast({ description: "카테고리가 저장되었습니다." });
     },
     onError: (err: Error) => {
       toast({ variant: "destructive", description: err.message || "저장 실패" });
     },
   });
 
-  const saveProductMutation = useMutation({
-    mutationFn: async (product: Partial<MallProductFormValues>) => {
-      const payload = formToProduct(sanitizeMallProductForm(product));
-      if (product.id) {
-        return apiRequest("PATCH", `/api/admin/homepage/goods/products/${product.id}`, payload);
-      }
-      return apiRequest("POST", "/api/admin/homepage/goods/products", payload);
-    },
-    onSuccess: () => {
+  const createProductMutation = useMutation({
+    mutationFn: async (product: Partial<MallProductFormValues>) =>
+      apiRequest("POST", "/api/admin/homepage/goods/products", formToProduct(sanitizeMallProductForm(product))),
+    onSuccess: (_res, product) => {
       invalidate();
-      setEditingProduct(null);
-      setProductSaveError("");
-      toast({ description: "상품이 저장되었습니다." });
+      setRegisterSaveError("");
+      setRegisterForm(createEmptyMallProduct(product.categoryId));
+      toast({ description: "상품이 등록되었습니다." });
     },
     onError: (err: Error) => {
-      const message = err.message || "저장 실패";
-      setProductSaveError(message);
+      const message = err.message || "등록 실패";
+      setRegisterSaveError(message);
       toast({ variant: "destructive", description: message });
     },
   });
 
-  const handleSaveProduct = () => {
-    if (!editingProduct) return;
-    const error = validateMallProductForm(editingProduct, categories);
-    if (error) {
-      setProductSaveError(error);
-      toast({ variant: "destructive", description: error });
-      return;
-    }
-    setProductSaveError("");
-    saveProductMutation.mutate(editingProduct);
-  };
-
-  const openNewProduct = () => {
-    const defaultCategoryId =
-      selectedCategoryId && selectedCategoryId > 0
-        ? selectedCategoryId
-        : categories[0]?.id;
-    if (!defaultCategoryId) {
-      toast({ variant: "destructive", description: "먼저 카테고리를 등록해 주세요." });
-      return;
-    }
-    setProductSaveError("");
-    setEditingProduct(openProductEditor(null, defaultCategoryId));
-  };
+  const updateProductMutation = useMutation({
+    mutationFn: async (product: Partial<MallProductFormValues>) =>
+      apiRequest(
+        "PATCH",
+        `/api/admin/homepage/goods/products/${product.id}`,
+        formToProduct(sanitizeMallProductForm(product)),
+      ),
+    onSuccess: () => {
+      invalidate();
+      setListEditForm(null);
+      setListSaveError("");
+      toast({ description: "상품이 수정되었습니다." });
+    },
+    onError: (err: Error) => {
+      const message = err.message || "수정 실패";
+      setListSaveError(message);
+      toast({ variant: "destructive", description: message });
+    },
+  });
 
   const deleteProductMutation = useMutation({
     mutationFn: async (id: number) =>
       apiRequest("DELETE", `/api/admin/homepage/goods/products/${id}`),
     onSuccess: () => {
       invalidate();
+      setListEditForm(null);
       toast({ description: "상품이 삭제되었습니다." });
     },
   });
@@ -286,13 +288,38 @@ export default function HomePageManagementPage() {
       apiRequest("PATCH", `/api/admin/shop/inquiries/${id}`, { status }),
     onSuccess: () => {
       refetchInquiries();
-      toast({ description: "처리 상태가 변경되었습니다." });
+      toast({ description: "처리완료로 표시했습니다." });
     },
   });
 
+  const handleSaveRegister = () => {
+    if (!registerForm) return;
+    const error = validateMallProductForm(registerForm, categories);
+    if (error) {
+      setRegisterSaveError(error);
+      toast({ variant: "destructive", description: error });
+      return;
+    }
+    setRegisterSaveError("");
+    createProductMutation.mutate({ ...registerForm, id: undefined });
+  };
+
+  const handleSaveListEdit = () => {
+    if (!listEditForm?.id) return;
+    const error = validateMallProductForm(listEditForm, categories);
+    if (error) {
+      setListSaveError(error);
+      toast({ variant: "destructive", description: error });
+      return;
+    }
+    setListSaveError("");
+    updateProductMutation.mutate(listEditForm);
+  };
+
   const tabs: { id: Tab; label: string }[] = [
-    { id: "catalog", label: "상품 관리" },
-    { id: "settings", label: "몰 설정" },
+    { id: "register", label: "상품 등록" },
+    { id: "list", label: "상품 리스트" },
+    { id: "settings", label: "쇼핑몰 표시" },
     { id: "inquiries", label: "구매 문의" },
   ];
 
@@ -304,8 +331,6 @@ export default function HomePageManagementPage() {
     );
   }
 
-  const categories = data?.categories ?? [];
-  const products = data?.products ?? [];
   const visibleProducts =
     selectedCategoryId === null
       ? products
@@ -320,9 +345,9 @@ export default function HomePageManagementPage() {
     <AdminLayout>
       <div className={adminPageShellClass}>
         <div className="flex items-center gap-2 mb-3 shrink-0">
-          <span className="text-xs text-[#BFBFBF]">쇼핑몰</span>
-          <span className="text-xs text-[#BFBFBF]">&gt;</span>
-          <span className="text-xs text-[#201E22]">쇼핑몰 관리</span>
+          <span className="text-xs lg:text-sm text-[#BFBFBF]">쇼핑몰</span>
+          <span className="text-xs lg:text-sm text-[#BFBFBF]">&gt;</span>
+          <span className="text-xs lg:text-sm text-[#201E22]">쇼핑몰 관리</span>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
@@ -340,13 +365,16 @@ export default function HomePageManagementPage() {
           </Button>
         </div>
 
-        <div className="flex gap-2 border-b border-[#E9E9E9] mb-4 overflow-x-auto shrink-0">
+        <div className="flex gap-2 border-b border-[#E9E9E9] mb-3 overflow-x-auto shrink-0">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`pb-2 px-3 text-sm whitespace-nowrap font-medium border-b-2 -mb-px ${
+              onClick={() => {
+                setActiveTab(tab.id);
+                if (tab.id === "list") setListEditForm(null);
+              }}
+              className={`pb-2 px-3 text-sm lg:text-base whitespace-nowrap font-medium border-b-2 -mb-px ${
                 activeTab === tab.id
                   ? "border-[#E11936] text-[#E11936]"
                   : "border-transparent text-[#888]"
@@ -357,10 +385,14 @@ export default function HomePageManagementPage() {
           ))}
         </div>
 
-        {activeTab === "catalog" && (
+        <p className="text-sm lg:text-base text-[#666] mb-4 shrink-0 bg-[#FAFAFA] border border-[#E9E9E9] rounded-lg px-3 py-2">
+          {TAB_HINTS[activeTab]}
+        </p>
+
+        {(activeTab === "register" || activeTab === "list") && (
           <div className="mb-4 shrink-0 space-y-2">
-            <p className="text-xs text-[#888]">
-              쇼핑몰 헤더 메뉴와 동일한 카테고리입니다. ({mallMenuNames})
+            <p className="text-xs lg:text-sm text-[#888]">
+              카테고리 필터 · 쇼핑몰 메뉴: {mallMenuNames}
             </p>
             <MallCategoryNav
               categories={categories}
@@ -368,17 +400,17 @@ export default function HomePageManagementPage() {
               variant="admin"
               onSelect={(id) => {
                 setSelectedCategoryId(id);
-                if (id !== null) {
-                  const cat = categories.find((c) => c.id === id);
-                  setEditingCategory(cat ?? null);
-                  if (editingProduct && !editingProduct.id) {
-                    setEditingProduct((prev) =>
-                      prev ? { ...prev, categoryId: id } : prev,
+                if (activeTab === "register") {
+                  if (id !== null) {
+                    const cat = categories.find((c) => c.id === id);
+                    setEditingCategory(cat ?? null);
+                    setRegisterForm((prev) =>
+                      prev ? { ...prev, categoryId: id } : createEmptyMallProduct(id),
                     );
+                  } else {
+                    setEditingCategory(null);
+                    setShowCategoryEditor(false);
                   }
-                } else {
-                  setEditingCategory(null);
-                  setShowCategoryEditor(false);
                 }
               }}
             />
@@ -386,8 +418,8 @@ export default function HomePageManagementPage() {
         )}
 
         <div className="flex-1 overflow-auto min-h-0 w-full pb-4">
-          {activeTab === "catalog" && (
-            <div className="space-y-3 lg:space-y-4">
+          {activeTab === "register" && (
+            <div className="space-y-4 max-w-5xl">
               {selectedCategory && editingCategory ? (
                 <div className="border border-[#E9E9E9] rounded-lg bg-[#FAFAFA] overflow-hidden">
                   <button
@@ -401,16 +433,16 @@ export default function HomePageManagementPage() {
                   {showCategoryEditor ? (
                     <div className="p-3 space-y-2 border-t border-[#E9E9E9]">
                       <Input
-                        className="h-9 text-sm"
+                        className="h-9 lg:h-10 text-sm lg:text-base"
                         placeholder="설명"
                         value={editingCategory.description ?? ""}
                         onChange={(e) =>
                           setEditingCategory({ ...editingCategory, description: e.target.value })
                         }
                       />
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <Input
-                          className="h-9 text-sm"
+                          className="h-9 lg:h-10 text-sm lg:text-base"
                           placeholder="이미지 URL"
                           value={editingCategory.imageUrl ?? ""}
                           onChange={(e) =>
@@ -418,7 +450,7 @@ export default function HomePageManagementPage() {
                           }
                         />
                         <Input
-                          className="h-9 text-sm"
+                          className="h-9 lg:h-10 text-sm lg:text-base"
                           type="number"
                           placeholder="표시 순서"
                           value={editingCategory.displayOrder ?? 0}
@@ -452,118 +484,138 @@ export default function HomePageManagementPage() {
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(400px,36%)] xl:grid-cols-[minmax(0,1fr)_minmax(440px,34%)] 2xl:grid-cols-[minmax(0,1fr)_minmax(480px,32%)] gap-4 xl:gap-6 items-start">
-                <div className="min-w-0 space-y-2">
-                  <div className="flex justify-between items-center gap-2">
-                    <p className="text-sm lg:text-base text-[#666]">
-                      {selectedCategory
-                        ? `${selectedCategory.name} 상품`
-                        : "전체 상품"}
-                      {" · "}
-                      <span className="font-semibold text-[#201E22]">{visibleProducts.length}</span>개
-                    </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={openNewProduct}
-                      disabled={categories.length === 0}
-                    >
-                      + 상품 추가
-                    </Button>
-                  </div>
+              {registerForm && categories.length > 0 ? (
+                <MallProductForm
+                  categories={categories}
+                  value={registerForm}
+                  onChange={(patch) =>
+                    setRegisterForm((prev) => ({ ...(prev ?? createEmptyMallProduct()), ...patch, id: undefined }))
+                  }
+                  onSave={handleSaveRegister}
+                  onCancel={() => {
+                    setRegisterSaveError("");
+                    setRegisterForm(createEmptyMallProduct(registerForm.categoryId));
+                  }}
+                  saving={createProductMutation.isPending}
+                  saveError={registerSaveError}
+                  mode="create"
+                />
+              ) : (
+                <p className="text-sm text-[#888]">카테고리가 없습니다. 먼저 카테고리를 설정해 주세요.</p>
+              )}
+            </div>
+          )}
 
-                  <div className="space-y-1.5 max-h-[calc(100vh-240px)] lg:max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
+          {activeTab === "list" && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm lg:text-base text-[#666]">
+                  {selectedCategory ? `${selectedCategory.name}` : "전체"} ·{" "}
+                  <span className="font-semibold text-[#201E22]">{visibleProducts.length}</span>개
+                </p>
+              </div>
+
+              {listEditForm ? (
+                <MallProductForm
+                  categories={categories}
+                  value={listEditForm}
+                  onChange={(patch) =>
+                    setListEditForm((prev) => ({ ...(prev ?? createEmptyMallProduct()), ...patch }))
+                  }
+                  onSave={handleSaveListEdit}
+                  onCancel={() => {
+                    setListEditForm(null);
+                    setListSaveError("");
+                  }}
+                  saving={updateProductMutation.isPending}
+                  saveError={listSaveError}
+                  mode="edit"
+                />
+              ) : null}
+
+              <div className={adminTableWrapClass}>
+                <table className={adminTableClass}>
+                  <thead className="bg-[#FAFAFA]">
+                    <tr>
+                      <th className="text-left p-3 w-14">사진</th>
+                      <th className="text-left p-3">상품명</th>
+                      <th className="text-left p-3">카테고리</th>
+                      <th className="text-right p-3">가격</th>
+                      <th className="text-center p-3">노출</th>
+                      <th className="text-right p-3 w-32">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {visibleProducts.length === 0 ? (
-                      <p className="text-sm text-[#888] py-6 text-center border border-dashed border-[#E9E9E9] rounded-lg">
-                        등록된 상품이 없습니다.
-                      </p>
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-[#888]">
+                          등록된 상품이 없습니다.
+                        </td>
+                      </tr>
                     ) : (
                       visibleProducts.map((p) => {
                         const cat = categories.find((c) => c.id === p.categoryId);
-                        const isEditing = editingProduct?.id === p.id;
+                        const isEditing = listEditForm?.id === p.id;
                         return (
-                          <div
+                          <tr
                             key={p.id}
-                            className={`flex items-center gap-2 p-2 border rounded-lg text-sm ${
-                              isEditing
-                                ? "border-[#E11936] bg-[#FFF9FA]"
-                                : "border-[#E9E9E9] bg-white"
-                            }`}
+                            className={`border-t border-[#F0F0F0] ${isEditing ? "bg-[#FFF9FA]" : ""}`}
                           >
-                            <div className="w-10 h-10 rounded bg-[#F0F0F0] overflow-hidden flex-shrink-0">
-                              {p.imageUrl ? (
-                                <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
+                            <td className="p-2">
+                              <div className="w-10 h-10 rounded bg-[#F0F0F0] overflow-hidden">
+                                {p.imageUrl ? (
+                                  <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
+                                ) : null}
+                              </div>
+                            </td>
+                            <td className="p-3 font-medium">{p.name}</td>
+                            <td className="p-3 text-[#666]">{cat?.name ?? "—"}</td>
+                            <td className="p-3 text-right whitespace-nowrap">
+                              {p.priceAmount ? formatKrw(p.priceAmount) : "—"}
+                            </td>
+                            <td className="p-3 text-center">
+                              {p.isActive ? (
+                                <span className="text-xs text-green-700">노출</span>
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[9px] text-[#999]">
-                                  N/A
-                                </div>
+                                <span className="text-xs text-[#888]">숨김</span>
                               )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">{p.name}</p>
-                              <p className="text-[11px] text-[#888] truncate">
-                                {cat?.name}
-                                {p.priceAmount ? ` · ${formatKrw(p.priceAmount)}` : ""}
-                              </p>
-                            </div>
-                            <div className="flex gap-1 shrink-0">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs"
-                                onClick={() => {
-                                  setProductSaveError("");
-                                  setEditingProduct(productToForm(p));
-                                }}
-                              >
-                                수정
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs text-[#E11936]"
-                                onClick={() => {
-                                  if (confirm(`"${p.name}" 상품을 삭제할까요?`)) {
-                                    deleteProductMutation.mutate(p.id);
-                                  }
-                                }}
-                              >
-                                삭제
-                              </Button>
-                            </div>
-                          </div>
+                            </td>
+                            <td className="p-3">
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8"
+                                  onClick={() => {
+                                    setListSaveError("");
+                                    setListEditForm(productToForm(p));
+                                  }}
+                                >
+                                  수정
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-[#E11936]"
+                                  onClick={() => {
+                                    if (confirm(`"${p.name}" 상품을 삭제할까요?`)) {
+                                      deleteProductMutation.mutate(p.id);
+                                    }
+                                  }}
+                                >
+                                  삭제
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
                         );
                       })
                     )}
-                  </div>
-                </div>
-
-                {editingProduct ? (
-                  <div className="lg:sticky lg:top-0">
-                    <MallProductForm
-                      categories={categories}
-                      value={editingProduct}
-                      onChange={(patch) =>
-                        setEditingProduct((prev) => ({ ...(prev ?? createEmptyMallProduct()), ...patch }))
-                      }
-                      onSave={handleSaveProduct}
-                      onCancel={() => {
-                        setEditingProduct(null);
-                        setProductSaveError("");
-                      }}
-                      saving={saveProductMutation.isPending}
-                      saveError={productSaveError}
-                    />
-                  </div>
-                ) : (
-                  <div className="hidden lg:flex items-center justify-center border border-dashed border-[#E0E0E0] rounded-lg p-10 text-sm lg:text-base text-[#888] min-h-[240px]">
-                    상품 추가 또는 수정을 선택하세요
-                  </div>
-                )}
+                  </tbody>
+                </table>
               </div>
-
             </div>
           )}
 
@@ -573,9 +625,16 @@ export default function HomePageManagementPage() {
                 e.preventDefault();
                 saveSettingsMutation.mutate(settingsForm);
               }}
-              className="space-y-4"
+              className={`${adminFormGridClass} max-w-4xl`}
             >
-              <p className="text-sm text-[#666]">ppamong.com/shop 쇼핑몰 표시 설정입니다.</p>
+              <div className="md:col-span-2 xl:col-span-3 space-y-1">
+                <h2 className="text-base lg:text-lg font-semibold text-[#201E22]">쇼핑몰 화면 설정</h2>
+                <p className="text-sm text-[#666]">
+                  고객이 보는 /shop 페이지의 제목·노출·소개 영상·문의 연락처입니다.
+                  앱 홈 문구는 「앱 홈 설정」 메뉴에서 수정합니다.
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label>쇼핑몰 제목 (헤더)</Label>
                 <Input
@@ -586,16 +645,20 @@ export default function HomePageManagementPage() {
                   }
                 />
               </div>
-              <label className="flex items-center gap-2">
-                <Checkbox
-                  checked={settingsForm.goodsSectionEnabled}
-                  onCheckedChange={(v) =>
-                    setSettingsForm({ ...settingsForm, goodsSectionEnabled: !!v })
-                  }
-                />
-                <span className="text-sm">쇼핑몰 노출</span>
-              </label>
-              <div className="space-y-2">
+
+              <div className="space-y-2 flex items-end">
+                <label className="flex items-center gap-2 pb-2">
+                  <Checkbox
+                    checked={settingsForm.goodsSectionEnabled}
+                    onCheckedChange={(v) =>
+                      setSettingsForm({ ...settingsForm, goodsSectionEnabled: !!v })
+                    }
+                  />
+                  <span className="text-sm">쇼핑몰 메뉴·페이지 노출</span>
+                </label>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
                 <Label>회사소개 영상 URL</Label>
                 <Input
                   value={settingsForm.introVideoUrl ?? "/videos/company-intro.mp4"}
@@ -605,8 +668,9 @@ export default function HomePageManagementPage() {
                   placeholder="/videos/company-intro.mp4"
                 />
               </div>
+
               <div className="space-y-2">
-                <Label>구매 문의 이메일</Label>
+                <Label>문의 이메일 (쇼핑몰 표시)</Label>
                 <Input
                   type="email"
                   value={settingsForm.shopInquiryEmail ?? ""}
@@ -616,8 +680,9 @@ export default function HomePageManagementPage() {
                   placeholder="shop@ppamong.com"
                 />
               </div>
+
               <div className="space-y-2">
-                <Label>구매 문의 전화 (선택)</Label>
+                <Label>문의 전화 (쇼핑몰 표시, 선택)</Label>
                 <Input
                   value={settingsForm.shopInquiryPhone ?? ""}
                   onChange={(e) =>
@@ -626,62 +691,69 @@ export default function HomePageManagementPage() {
                   placeholder="02-0000-0000"
                 />
               </div>
-              <p className="text-xs text-[#888]">
-                앱 홈·예측 게임 문구는 관리자 메뉴의 &apos;앱 홈 설정&apos;에서 수정합니다.
-              </p>
-              <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C]">
-                저장
-              </Button>
+
+              <div className="md:col-span-2 xl:col-span-3">
+                <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C]">
+                  저장
+                </Button>
+              </div>
             </form>
           )}
 
           {activeTab === "inquiries" && (
             <div className="space-y-4">
-              <p className="text-sm text-[#666]">
-                쇼핑몰 상품 상세에서 접수된 구매 문의입니다.
-              </p>
               {(inquiriesData?.inquiries ?? []).length === 0 ? (
-                <p className="text-sm text-[#888] py-8 text-center">접수된 문의가 없습니다.</p>
+                <p className="text-sm text-[#888] py-8 text-center border border-dashed border-[#E9E9E9] rounded-lg">
+                  접수된 구매 문의가 없습니다.
+                </p>
               ) : (
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
                   {inquiriesData?.inquiries.map((inq) => (
                     <div
                       key={inq.id}
-                      className="border border-[#E9E9E9] rounded-lg p-4 bg-white"
+                      className="border border-[#E9E9E9] rounded-lg p-4 bg-white flex flex-col"
                     >
                       <div className="flex items-start justify-between gap-3 mb-2">
-                        <div>
-                          <p className="font-medium text-sm text-[#201E22]">{inq.productName}</p>
-                          <p className="text-xs text-[#888]">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm text-[#201E22] truncate">{inq.productName}</p>
+                          <p className="text-xs text-[#888] mt-1">
                             {inq.customerName}
                             {inq.phone ? ` · ${inq.phone}` : ""}
-                            {inq.email ? ` · ${inq.email}` : ""}
                           </p>
+                          {inq.email ? (
+                            <a
+                              href={`mailto:${inq.email}`}
+                              className="text-xs text-[#E11936] block truncate"
+                            >
+                              {inq.email}
+                            </a>
+                          ) : null}
                           <p className="text-xs text-[#BFBFBF] mt-1">
                             {new Date(inq.createdAt).toLocaleString("ko-KR")}
                           </p>
                         </div>
                         <span
-                          className={`text-xs px-2 py-1 rounded ${
+                          className={`text-xs px-2 py-1 rounded shrink-0 ${
                             inq.status === "done"
                               ? "bg-[#E8F5E9] text-[#2E7D32]"
                               : "bg-[#FFF3E0] text-[#E65100]"
                           }`}
                         >
-                          {inq.status === "done" ? "처리완료" : "대기"}
+                          {inq.status === "done" ? "처리완료" : "답변 대기"}
                         </span>
                       </div>
-                      <p className="text-sm text-[#4D4B4E] whitespace-pre-wrap mb-3">{inq.message}</p>
+                      <p className="text-sm text-[#4D4B4E] whitespace-pre-wrap flex-1 mb-3">{inq.message}</p>
                       {inq.status === "pending" && (
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
+                          className="self-start"
                           onClick={() =>
                             updateInquiryMutation.mutate({ id: inq.id, status: "done" })
                           }
                         >
-                          처리완료
+                          처리완료 (답변 후)
                         </Button>
                       )}
                     </div>
