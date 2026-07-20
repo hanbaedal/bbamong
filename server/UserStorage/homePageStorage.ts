@@ -39,7 +39,7 @@ const DEFAULT_SETTINGS: Omit<HomePageSettings, "updatedAt"> = {
   gameGuideContent: "",
   gameGuideEnabled: true,
   gameGuideImageUrl: "",
-  goodsSectionTitle: "빠몽이의 보물창고",
+  goodsSectionTitle: "PPAMONG 스포츠몰",
   goodsSectionEnabled: true,
   introVideoUrl: "/videos/company-intro.mp4",
   shopInquiryEmail: "",

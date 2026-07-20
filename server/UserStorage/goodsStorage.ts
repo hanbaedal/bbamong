@@ -24,6 +24,9 @@ export interface GoodsProduct {
   detailContent: string;
   imageUrl: string;
   priceLabel: string;
+  priceAmount?: number;
+  originalPriceAmount?: number;
+  brand?: string;
   purchaseUrl: string;
   displayOrder: number;
   isActive: boolean;
@@ -194,6 +197,9 @@ export class GoodsStorage {
     detailContent?: string;
     imageUrl?: string;
     priceLabel?: string;
+    priceAmount?: number;
+    originalPriceAmount?: number;
+    brand?: string;
     purchaseUrl?: string;
     displayOrder?: number;
     isActive?: boolean;
@@ -207,6 +213,9 @@ export class GoodsStorage {
       detailContent: data.detailContent ?? "",
       imageUrl: data.imageUrl ?? "",
       priceLabel: data.priceLabel ?? "",
+      priceAmount: data.priceAmount ?? 0,
+      originalPriceAmount: data.originalPriceAmount ?? 0,
+      brand: data.brand ?? "",
       purchaseUrl: data.purchaseUrl ?? "",
       displayOrder: data.displayOrder ?? id,
       isActive: data.isActive ?? true,
@@ -219,7 +228,7 @@ export class GoodsStorage {
     data: Partial<
       Pick<
         GoodsProduct,
-        "categoryId" | "name" | "summary" | "detailContent" | "imageUrl" | "priceLabel" | "purchaseUrl" | "displayOrder" | "isActive"
+        "categoryId" | "name" | "summary" | "detailContent" | "imageUrl" | "priceLabel" | "priceAmount" | "originalPriceAmount" | "brand" | "purchaseUrl" | "displayOrder" | "isActive"
       >
     >,
   ): Promise<GoodsProduct | undefined> {

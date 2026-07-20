@@ -3,8 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import UserApp from "./UserApp";
 import AdminApp from "./AdminApp";
 import ManagerApp from "./ManagerApp";
-import PublicApp from "./PublicApp";
-import { isPublicSitePath } from "./lib/shopRoutes";
+import MallApp, { isMallSitePath } from "./MallApp";
 import "./index.css";
 
 if (Capacitor.isNativePlatform()) {
@@ -19,8 +18,8 @@ if (path.startsWith("/manager")) {
   root.render(<ManagerApp />);
 } else if (path.startsWith("/admin")) {
   root.render(<AdminApp />);
-} else if (isPublicSitePath(path)) {
-  root.render(<PublicApp />);
+} else if (isMallSitePath(path)) {
+  root.render(<MallApp />);
 } else {
   root.render(<UserApp />);
 }

@@ -47,21 +47,21 @@ export default function AdminHomePage() {
 
         <button
           type="button"
-          onClick={() => setLocation("/admin/homepage-management")}
+          onClick={() => setLocation("/admin/mall-management")}
           className="mb-4 w-full text-left p-4 rounded-lg border border-[#E0E0E0] bg-white hover:border-[#E11936] transition"
         >
-          <span className="text-sm font-medium text-[#201E22]">홈페이지 관리 · 상품 등록</span>
-          <p className="text-xs text-[#888] mt-1">굿즈 상품·구매 링크·문의 이메일 설정</p>
+          <span className="text-sm font-medium text-[#201E22]">쇼핑몰 관리 · 상품 등록</span>
+          <p className="text-xs text-[#888] mt-1">카테고리·상품·가격·주문 관리</p>
         </button>
 
         <button
           type="button"
-          onClick={() => setLocation("/admin/homepage-shop")}
+          onClick={() => setLocation("/admin/mall-preview")}
           className="mb-6 w-full text-left p-5 rounded-xl border-2 border-[#E11936] bg-gradient-to-r from-[#FFF9FA] to-white hover:from-[#FFF0F2] transition shadow-sm"
         >
-          <p className="text-base font-bold text-[#E11936] mb-1">홈페이지 쇼핑몰</p>
+          <p className="text-base font-bold text-[#E11936] mb-1">쇼핑몰 확인 (작업용)</p>
           <p className="text-sm text-[#666]">
-            회사소개 동영상 재생 후 카테고리 아이콘 쇼핑몰 화면으로 이동합니다.
+            ppamong.com/shop 화면을 관리자 페이지에서 바로 확인합니다.
           </p>
         </button>
 

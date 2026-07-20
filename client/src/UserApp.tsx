@@ -1,13 +1,12 @@
-import { Switch, Route, useLocation, Redirect } from "wouter";
-import { useState, useEffect, useCallback } from "react";
-import { queryClient, getFullUrl, getOrRefreshAccessToken } from "./lib/queryClient";
+import { Switch, Route, Redirect, useLocation, useRoute } from "wouter";
+import { useState, useEffect } from "react";
+import { queryClient, getOrRefreshAccessToken } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UserProvider, useUser } from "@/contexts/UserContext";
-import { SiteModeProvider } from "@/contexts/SiteModeContext";
 import { UserAssetProvider } from "@/contexts/UserAssetContext";
-import { getRefreshToken, setAccessToken, saveRefreshToken, clearTokens } from "@/lib/tokenManager";
+import { clearTokens } from "@/lib/tokenManager";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import splashIcon from "@assets/user/user-mascot.png";
@@ -18,9 +17,6 @@ import LoginPage from "@/pages/auth/login";
 import SignupPage from "@/pages/auth/signup";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import GameGuidePage from "@/pages/home/game-guide";
-import GoodsCategoryPage from "@/pages/home/goods-category";
-import GoodsDetailPage from "@/pages/home/goods-detail";
-import HomeShopPage from "@/pages/home/shop";
 import PredictionPage from "@/pages/prediction";
 import AttendancePage from "@/pages/attendance";
 import BoardPage from "@/pages/board";
@@ -44,8 +40,15 @@ import VictoryHistoryPage from "@/pages/setting/victory-history";
 import InvitePage from "@/pages/setting/invite";
 import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
-import { navigateAfterLogin, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
-import { isMemberShopPath } from "@/lib/shopRoutes";
+import { navigateAfterLogin, openMallFromApp, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
+import { MALL_BASE_PATH } from "@shared/mallConfig";
+
+function LegacyMallRedirect({ target }: { target: string }) {
+  useEffect(() => {
+    window.location.replace(target);
+  }, [target]);
+  return null;
+}
 
 function getPostLoginTarget(): void {
   void navigateAfterLogin(DEFAULT_POST_LOGIN_FALLBACK);
@@ -138,7 +141,6 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType<any> }) {
   const { user, isUserLoaded } = useUser();
-  const [location] = useLocation();
 
   if (!isUserLoaded) {
     return (
@@ -150,19 +152,23 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   
   if (!user) {
     const returnPath = window.location.pathname + window.location.search;
-    const params = new URLSearchParams({ return: returnPath });
-    if (isMemberShopPath(returnPath)) {
-      params.set("guest", "0");
-    }
+    const params = new URLSearchParams({ return: returnPath, guest: "0" });
     return <Redirect to={`/login?${params.toString()}`} />;
-  }
-
-  if (user.provider === "guest" && isMemberShopPath(location)) {
-    window.location.assign("/");
-    return null;
   }
   
   return <Component />;
+}
+
+function RedirectLegacyProduct() {
+  const [, params] = useRoute("/home/goods/item/:productId");
+  const id = params?.productId ?? "";
+  return <LegacyMallRedirect target={`${MALL_BASE_PATH}/product/${id}`} />;
+}
+
+function RedirectLegacyCategory() {
+  const [, params] = useRoute("/home/goods/:categoryId");
+  const id = params?.categoryId ?? "";
+  return <LegacyMallRedirect target={`${MALL_BASE_PATH}/category/${id}`} />;
 }
 
 function Router() {
@@ -172,15 +178,17 @@ function Router() {
       <Route path="/signup" component={SignupPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/social-onboarding" component={SocialOnboardingPage} />
-      <Route path="/home">{() => <ProtectedRoute component={HomeShopPage} />}</Route>
+
+      {/* 보물창고 → 쇼핑몰 리다이렉트 */}
+      <Route path="/">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
+      <Route path="/home">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
+      <Route path="/home/shop">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
+      <Route path="/home/goods/item/:productId" component={RedirectLegacyProduct} />
+      <Route path="/home/goods/:categoryId" component={RedirectLegacyCategory} />
+
       <Route path="/home/game-guide">{() => <ProtectedRoute component={GameGuidePage} />}</Route>
-      <Route path="/home/shop">{() => <Redirect to="/home" />}</Route>
-      <Route path="/home/goods/item/:productId">
-        {() => <ProtectedRoute component={GoodsDetailPage} />}
-      </Route>
-      <Route path="/home/goods/:categoryId">
-        {() => <ProtectedRoute component={GoodsCategoryPage} />}
-      </Route>
+      <Route path="/mall">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
+
       <Route path="/prediction">{() => <ProtectedRoute component={PredictionPage} />}</Route>
       <Route path="/attendance">{() => <ProtectedRoute component={AttendancePage} />}</Route>
       <Route path="/board">{() => <ProtectedRoute component={BoardPage} />}</Route>
@@ -202,7 +210,6 @@ function Router() {
       <Route path="/ebook">{() => <ProtectedRoute component={EbookPage} />}</Route>
       <Route path="/victory-history">{() => <ProtectedRoute component={VictoryHistoryPage} />}</Route>
       <Route path="/invitation">{() => <ProtectedRoute component={InvitePage} />}</Route>
-      <Route path="/shop">{() => <ProtectedRoute component={HomeShopPage} />}</Route>
       <Route path="/mypage">{() => <ProtectedRoute component={NotFound} />}</Route>
       <Route component={NotFound} />
     </Switch>
@@ -231,7 +238,7 @@ function AppStateManager({ children }: { children: React.ReactNode }) {
 
       backHandle = await App.addListener('backButton', () => {
         const path = window.location.pathname;
-        const exitPages = ['/home', '/login'];
+        const exitPages = ['/prediction', '/login'];
         
         if (exitPages.includes(path)) {
           App.minimizeApp();
@@ -306,21 +313,20 @@ function UserApp() {
   return (
     <QueryClientProvider client={queryClient}>
       <UserAssetProvider>
-        <SiteModeProvider mode="user">
-          <UserProvider>
-            <TooltipProvider>
-              <AppStateManager>
-                <AutoLoginWrapper>
-                  <Toaster />
-                  <Router />
-                </AutoLoginWrapper>
-              </AppStateManager>
-            </TooltipProvider>
-          </UserProvider>
-        </SiteModeProvider>
+        <UserProvider>
+          <TooltipProvider>
+            <AppStateManager>
+              <AutoLoginWrapper>
+                <Toaster />
+                <Router />
+              </AutoLoginWrapper>
+            </AppStateManager>
+          </TooltipProvider>
+        </UserProvider>
       </UserAssetProvider>
     </QueryClientProvider>
   );
 }
 
 export default UserApp;
+export { openMallFromApp };

@@ -1,6 +1,14 @@
-export const SHOP_SECTION_TITLE = "빠몽이의 보물창고";
+import { MALL_SECTION_TITLE } from "./mallConfig";
 
-const LEGACY_SHOP_TITLES = new Set(["홈페이지", "PPAMONG 굿즈", "PPAMONG굿즈", "굿즈"]);
+export const SHOP_SECTION_TITLE = MALL_SECTION_TITLE;
+
+const LEGACY_SHOP_TITLES = new Set([
+  "홈페이지",
+  "PPAMONG 굿즈",
+  "PPAMONG굿즈",
+  "굿즈",
+  "빠몽이의 보물창고",
+]);
 
 export function resolveShopSectionTitle(title?: string | null): string {
   const trimmed = title?.trim();

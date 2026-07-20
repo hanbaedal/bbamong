@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import AdminLayout from "./adminLayout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/adminQueryClient";
@@ -55,6 +56,9 @@ interface GoodsProduct {
   detailContent: string;
   imageUrl: string;
   priceLabel: string;
+  priceAmount?: number;
+  originalPriceAmount?: number;
+  brand?: string;
   purchaseUrl?: string;
   displayOrder: number;
   isActive: boolean;
@@ -93,6 +97,9 @@ const emptyProduct = (categoryId?: number): Partial<GoodsProduct> => ({
   detailContent: "",
   imageUrl: "",
   priceLabel: "",
+  priceAmount: 0,
+  originalPriceAmount: 0,
+  brand: "",
   purchaseUrl: "",
   displayOrder: 0,
   isActive: true,
@@ -100,6 +107,7 @@ const emptyProduct = (categoryId?: number): Partial<GoodsProduct> => ({
 
 export default function HomePageManagementPage() {
   const { assets } = useAdminAssets();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("basic");
@@ -226,21 +234,21 @@ export default function HomePageManagementPage() {
         <div className="flex items-center gap-2 mb-3 shrink-0">
           <span className="text-xs text-[#BFBFBF]">홈 페이지</span>
           <span className="text-xs text-[#BFBFBF]">&gt;</span>
-          <span className="text-xs text-[#201E22]">홈페이지 관리</span>
+          <span className="text-xs text-[#201E22]">쇼핑몰 관리</span>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
           <h1 className="text-xl md:text-2xl font-semibold text-[#201E22] flex items-center gap-2">
             <img src={assets.adMatchCharaterIcon} className="w-8 h-8" alt="" />
-            홈페이지 관리
+            쇼핑몰 관리
           </h1>
           <Button
             type="button"
             variant="outline"
             className="border-[#E11936] text-[#E11936] hover:bg-[#FFF9FA]"
-            onClick={() => window.location.assign("/admin/homepage-shop")}
+            onClick={() => setLocation("/admin/mall-preview")}
           >
-            쇼핑몰 화면 보기
+            쇼핑몰 확인
           </Button>
         </div>
 
@@ -298,9 +306,9 @@ export default function HomePageManagementPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>보물창고 섹션 제목</Label>
+                <Label>쇼핑몰 섹션 제목</Label>
                 <Input
-                  placeholder="빠몽이의 보물창고"
+                  placeholder="PPAMONG 스포츠몰"
                   value={settingsForm.goodsSectionTitle}
                   onChange={(e) =>
                     setSettingsForm({ ...settingsForm, goodsSectionTitle: e.target.value })
@@ -336,7 +344,7 @@ export default function HomePageManagementPage() {
               </label>
 
               <div className="border-t border-[#E9E9E9] pt-4 mt-2 space-y-4">
-                <p className="text-sm font-medium text-[#201E22]">공개 쇼핑몰 (ppamong.com)</p>
+                <p className="text-sm font-medium text-[#201E22]">쇼핑몰 (ppamong.com/shop)</p>
                 <div className="space-y-2">
                   <Label>회사소개 영상 URL</Label>
                   <Input
@@ -620,7 +628,38 @@ export default function HomePageManagementPage() {
                     }
                   />
                   <Input
-                    placeholder="가격 표시 (예: 29,000원)"
+                    placeholder="브랜드 (선택)"
+                    value={editingProduct.brand ?? ""}
+                    onChange={(e) =>
+                      setEditingProduct({ ...editingProduct, brand: e.target.value })
+                    }
+                  />
+                  <Input
+                    placeholder="판매가 (숫자, 원)"
+                    type="number"
+                    min={0}
+                    value={editingProduct.priceAmount ?? 0}
+                    onChange={(e) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        priceAmount: parseInt(e.target.value, 10) || 0,
+                      })
+                    }
+                  />
+                  <Input
+                    placeholder="정가 (숫자, 할인 표시용, 선택)"
+                    type="number"
+                    min={0}
+                    value={editingProduct.originalPriceAmount ?? 0}
+                    onChange={(e) =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        originalPriceAmount: parseInt(e.target.value, 10) || 0,
+                      })
+                    }
+                  />
+                  <Input
+                    placeholder="가격 표시 (예: 29,000원, 선택)"
                     value={editingProduct.priceLabel ?? ""}
                     onChange={(e) =>
                       setEditingProduct({ ...editingProduct, priceLabel: e.target.value })

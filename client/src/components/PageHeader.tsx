@@ -6,7 +6,7 @@ import {
   GAME_PATH,
   isHomepageShopPath,
   navigateToGame,
-  navigateToHomepage,
+  navigateToMall,
 } from "@/lib/appNavigation";
 
 interface PageHeaderProps {
@@ -42,7 +42,7 @@ export default function PageHeader({
 
   const handleLogoClick = () => {
     if (resolveLogoDestination() === "homepage") {
-      navigateToHomepage();
+      navigateToMall();
       return;
     }
     navigateToGame();

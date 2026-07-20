@@ -304,7 +304,7 @@ const homePageSettingsSchema = new Schema(
     gameGuideContent: { type: String, default: "" },
     gameGuideEnabled: { type: Boolean, default: true },
     gameGuideImageUrl: { type: String, default: "" },
-    goodsSectionTitle: { type: String, default: "빠몽이의 보물창고" },
+    goodsSectionTitle: { type: String, default: "PPAMONG 스포츠몰" },
     goodsSectionEnabled: { type: Boolean, default: true },
     introVideoUrl: { type: String, default: "/videos/company-intro.mp4" },
     shopInquiryEmail: { type: String, default: "" },
@@ -339,6 +339,9 @@ const goodsProductSchema = new Schema(
     detailContent: { type: String, default: "" },
     imageUrl: { type: String, default: "" },
     priceLabel: { type: String, default: "" },
+    priceAmount: { type: Number, default: 0 },
+    originalPriceAmount: { type: Number, default: 0 },
+    brand: { type: String, default: "" },
     purchaseUrl: { type: String, default: "" },
     displayOrder: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
@@ -378,5 +381,40 @@ const shopInquirySchema = new Schema(
 );
 shopInquirySchema.index({ status: 1, createdAt: -1 });
 export const ShopInquiryModel = mongoose.model("ShopInquiry", shopInquirySchema);
+
+const mallOrderItemSchema = new Schema(
+  {
+    productId: { type: Number, required: true },
+    productName: { type: String, required: true },
+    priceAmount: { type: Number, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    imageUrl: { type: String, default: "" },
+  },
+  { _id: false },
+);
+
+const mallOrderSchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true },
+    userId: { type: String, required: true },
+    customerName: { type: String, required: true },
+    customerPhone: { type: String, required: true },
+    shippingAddress: { type: String, required: true },
+    memo: { type: String, default: "" },
+    items: { type: [mallOrderItemSchema], required: true },
+    totalAmount: { type: Number, required: true },
+    status: {
+      type: String,
+      enum: ["pending", "confirmed", "shipped", "cancelled"],
+      default: "pending",
+    },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+mallOrderSchema.index({ userId: 1, createdAt: -1 });
+mallOrderSchema.index({ status: 1, createdAt: -1 });
+export const MallOrderModel = mongoose.model("MallOrder", mallOrderSchema);
 
 export type MongoUser = InferSchemaType<typeof userSchema>;

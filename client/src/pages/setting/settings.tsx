@@ -10,6 +10,7 @@ import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import { useUser } from "@/contexts/UserContext";
 import { clearTokens } from "@/lib/tokenManager";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
+import { openMallFromApp } from "@/lib/appNavigation";
 
 
 export default function SettingsPage() {
@@ -51,6 +52,13 @@ export default function SettingsPage() {
           setLocation("/verify-identity");
         }
       },
+    },
+    {
+      id: "mall",
+      label: "PPAMONG 스포츠몰",
+      icon: assets.ebookServiceIcon,
+      hasArrow: true,
+      onClick: () => openMallFromApp(),
     },
     {
       id: "customer-center",
