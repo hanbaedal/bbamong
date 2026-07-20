@@ -325,8 +325,8 @@ export default function HomePageManagementPage() {
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4 shrink-0">
-          <h1 className="text-xl md:text-2xl font-semibold text-[#201E22] flex items-center gap-2">
-            <img src={assets.adMatchCharaterIcon} className="w-8 h-8" alt="" />
+          <h1 className="text-xl lg:text-2xl xl:text-[1.75rem] font-semibold text-[#201E22] flex items-center gap-2">
+            <img src={assets.adMatchCharaterIcon} className="w-8 h-8 lg:w-9 lg:h-9" alt="" />
             쇼핑몰 관리
           </h1>
           <Button
@@ -384,9 +384,9 @@ export default function HomePageManagementPage() {
           </div>
         )}
 
-        <div className="flex-1 overflow-auto min-h-0 max-w-6xl pb-4">
+        <div className="flex-1 overflow-auto min-h-0 w-full pb-4">
           {activeTab === "catalog" && (
-            <div className="space-y-3">
+            <div className="space-y-3 lg:space-y-4">
               {selectedCategory && editingCategory ? (
                 <div className="border border-[#E9E9E9] rounded-lg bg-[#FAFAFA] overflow-hidden">
                   <button
@@ -451,10 +451,10 @@ export default function HomePageManagementPage() {
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-3 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(400px,36%)] xl:grid-cols-[minmax(0,1fr)_minmax(440px,34%)] 2xl:grid-cols-[minmax(0,1fr)_minmax(480px,32%)] gap-4 xl:gap-6 items-start">
                 <div className="min-w-0 space-y-2">
                   <div className="flex justify-between items-center gap-2">
-                    <p className="text-sm text-[#666]">
+                    <p className="text-sm lg:text-base text-[#666]">
                       {selectedCategory
                         ? `${selectedCategory.name} 상품`
                         : "전체 상품"}
@@ -471,7 +471,7 @@ export default function HomePageManagementPage() {
                     </Button>
                   </div>
 
-                  <div className="space-y-1.5 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
+                  <div className="space-y-1.5 max-h-[calc(100vh-240px)] lg:max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
                     {visibleProducts.length === 0 ? (
                       <p className="text-sm text-[#888] py-6 text-center border border-dashed border-[#E9E9E9] rounded-lg">
                         등록된 상품이 없습니다.
@@ -540,7 +540,7 @@ export default function HomePageManagementPage() {
                 </div>
 
                 {editingProduct ? (
-                  <div className="xl:sticky xl:top-0">
+                  <div className="lg:sticky lg:top-0">
                     <MallProductForm
                       categories={categories}
                       value={editingProduct}
@@ -557,7 +557,7 @@ export default function HomePageManagementPage() {
                     />
                   </div>
                 ) : (
-                  <div className="hidden xl:flex items-center justify-center border border-dashed border-[#E0E0E0] rounded-lg p-8 text-sm text-[#888] min-h-[200px]">
+                  <div className="hidden lg:flex items-center justify-center border border-dashed border-[#E0E0E0] rounded-lg p-10 text-sm lg:text-base text-[#888] min-h-[240px]">
                     상품 추가 또는 수정을 선택하세요
                   </div>
                 )}

@@ -171,9 +171,9 @@ export default function MallProductForm({
 
   return (
     <div className="border border-[#E9E9E9] rounded-lg bg-[#FAFAFA] overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-[#E9E9E9] bg-white">
-        <h3 className="font-medium text-sm">{value.id ? "상품 수정" : "상품 등록"}</h3>
-        <label className="flex items-center gap-1.5 text-xs shrink-0">
+      <div className="flex items-center justify-between gap-2 px-3 lg:px-4 py-2 lg:py-2.5 border-b border-[#E9E9E9] bg-white">
+        <h3 className="font-medium text-sm lg:text-base">{value.id ? "상품 수정" : "상품 등록"}</h3>
+        <label className="flex items-center gap-1.5 text-xs lg:text-sm shrink-0">
           <Checkbox
             checked={value.isActive ?? true}
             onCheckedChange={(v) => onChange({ isActive: !!v })}
@@ -182,16 +182,16 @@ export default function MallProductForm({
         </label>
       </div>
 
-      <div className="p-3 space-y-3 max-h-[calc(100vh-220px)] overflow-y-auto">
+      <div className="p-3 lg:p-4 space-y-3 lg:space-y-4 max-h-[calc(100vh-220px)] lg:max-h-[calc(100vh-180px)] overflow-y-auto">
         {saveError ? (
           <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded px-2 py-1.5">
             {saveError}
           </p>
         ) : null}
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2 lg:gap-3">
           <div className="space-y-1">
-            <Label className="text-xs">판매 유형</Label>
+            <Label className="text-xs lg:text-sm">판매 유형</Label>
             <Select
               value={value.fulfillmentType ?? "stock"}
               onValueChange={(v) =>
@@ -204,7 +204,7 @@ export default function MallProductForm({
                 })
               }
             >
-              <SelectTrigger className="h-9 text-sm">
+              <SelectTrigger className="h-9 lg:h-10 text-sm lg:text-base">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -218,12 +218,12 @@ export default function MallProductForm({
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">카테고리 *</Label>
+            <Label className="text-xs lg:text-sm">카테고리 *</Label>
             <Select
               value={categorySelectValue}
               onValueChange={(v) => onChange({ categoryId: parseInt(v, 10) })}
             >
-              <SelectTrigger className="h-9 text-sm">
+              <SelectTrigger className="h-9 lg:h-10 text-sm lg:text-base">
                 <SelectValue placeholder="선택" />
               </SelectTrigger>
               <SelectContent>
@@ -237,9 +237,9 @@ export default function MallProductForm({
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">제품명 *</Label>
+            <Label className="text-xs lg:text-sm">제품명 *</Label>
             <Input
-              className="h-9 text-sm"
+              className="h-9 lg:h-10 text-sm lg:text-base"
               placeholder="제품명"
               value={value.name ?? ""}
               onChange={(e) => onChange({ name: e.target.value })}
@@ -247,9 +247,9 @@ export default function MallProductForm({
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">브랜드</Label>
+            <Label className="text-xs lg:text-sm">브랜드</Label>
             <Input
-              className="h-9 text-sm"
+              className="h-9 lg:h-10 text-sm lg:text-base"
               placeholder="브랜드"
               value={value.brand ?? ""}
               onChange={(e) => onChange({ brand: e.target.value })}
@@ -259,7 +259,7 @@ export default function MallProductForm({
 
         {isProcure ? (
           <div className="space-y-1">
-            <Label className="text-xs">주문후조달 안내</Label>
+            <Label className="text-xs lg:text-sm">주문후조달 안내</Label>
             <Textarea
               className="text-sm min-h-[52px]"
               value={value.procureNotice ?? MALL_DEFAULT_PROCURE_NOTICE}
@@ -273,27 +273,27 @@ export default function MallProductForm({
           {!hasVariants && !isProcure ? (
             <>
               <div className="space-y-1">
-                <Label className="text-xs">컬러</Label>
+                <Label className="text-xs lg:text-sm">컬러</Label>
                 <Input
-                  className="h-9 text-sm"
+                  className="h-9 lg:h-10 text-sm lg:text-base"
                   placeholder="블랙"
                   value={value.color ?? ""}
                   onChange={(e) => onChange({ color: e.target.value })}
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">사이즈</Label>
+                <Label className="text-xs lg:text-sm">사이즈</Label>
                 <Input
-                  className="h-9 text-sm"
+                  className="h-9 lg:h-10 text-sm lg:text-base"
                   placeholder="M, L"
                   value={value.size ?? ""}
                   onChange={(e) => onChange({ size: e.target.value })}
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">재고</Label>
+                <Label className="text-xs lg:text-sm">재고</Label>
                 <Input
-                  className="h-9 text-sm"
+                  className="h-9 lg:h-10 text-sm lg:text-base"
                   type="number"
                   min={-1}
                   placeholder="비우면 무제한"
@@ -304,10 +304,10 @@ export default function MallProductForm({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">리오더 / 적정재고</Label>
+                <Label className="text-xs lg:text-sm">리오더 / 적정재고</Label>
                 <div className="flex gap-1">
                   <Input
-                    className="h-9 text-sm"
+                    className="h-9 lg:h-10 text-sm lg:text-base"
                     type="number"
                     min={0}
                     placeholder="리오더"
@@ -317,7 +317,7 @@ export default function MallProductForm({
                     }
                   />
                   <Input
-                    className="h-9 text-sm"
+                    className="h-9 lg:h-10 text-sm lg:text-base"
                     type="number"
                     min={0}
                     placeholder="적정"
@@ -331,9 +331,9 @@ export default function MallProductForm({
             </>
           ) : null}
           <div className="space-y-1">
-            <Label className="text-xs">배송</Label>
+            <Label className="text-xs lg:text-sm">배송</Label>
             <Input
-              className="h-9 text-sm"
+              className="h-9 lg:h-10 text-sm lg:text-base"
               placeholder={MALL_DEFAULT_SHIPPING_LABEL}
               value={value.shippingLabel ?? MALL_DEFAULT_SHIPPING_LABEL}
               onChange={(e) => onChange({ shippingLabel: e.target.value })}
@@ -344,7 +344,7 @@ export default function MallProductForm({
         {!isProcure ? (
           <div className="border border-[#E9E9E9] rounded-md p-2 bg-white space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-xs">옵션별 재고 (컬러·사이즈)</Label>
+              <Label className="text-xs lg:text-sm">옵션별 재고 (컬러·사이즈)</Label>
               {variants.length < MALL_PRODUCT_VARIANT_MAX ? (
                 <Button
                   type="button"
@@ -406,7 +406,7 @@ export default function MallProductForm({
         ) : null}
 
         <div className="space-y-1">
-          <Label className="text-xs">제품설명</Label>
+          <Label className="text-xs lg:text-sm">제품설명</Label>
           <Textarea
             className="text-sm min-h-[52px]"
             placeholder="상품 설명"
@@ -418,9 +418,9 @@ export default function MallProductForm({
 
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-1">
-            <Label className="text-xs">판매가 (원)</Label>
+            <Label className="text-xs lg:text-sm">판매가 (원)</Label>
             <Input
-              className="h-9 text-sm"
+              className="h-9 lg:h-10 text-sm lg:text-base"
               type="number"
               min={0}
               value={value.originalPriceAmount ? value.originalPriceAmount : ""}
@@ -433,9 +433,9 @@ export default function MallProductForm({
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">할인 (%)</Label>
+            <Label className="text-xs lg:text-sm">할인 (%)</Label>
             <Input
-              className="h-9 text-sm"
+              className="h-9 lg:h-10 text-sm lg:text-base"
               type="number"
               min={0}
               max={100}
@@ -449,7 +449,7 @@ export default function MallProductForm({
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">할인가 (자동)</Label>
+            <Label className="text-xs lg:text-sm">할인가 (자동)</Label>
             <Input
               className="h-9 text-sm bg-[#F5F5F5]"
               readOnly
@@ -469,7 +469,7 @@ export default function MallProductForm({
 
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-xs">상품정보 이미지 ({detailImages.length}/{MALL_PRODUCT_DETAIL_IMAGE_MAX})</Label>
+              <Label className="text-xs lg:text-sm">상품정보 이미지 ({detailImages.length}/{MALL_PRODUCT_DETAIL_IMAGE_MAX})</Label>
               {detailImages.length < MALL_PRODUCT_DETAIL_IMAGE_MAX ? (
                 <>
                   <input
