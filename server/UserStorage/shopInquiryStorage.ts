@@ -8,6 +8,8 @@ export interface ShopInquiry {
   phone: string;
   email: string;
   message: string;
+  response: string;
+  respondedAt?: Date;
   status: "pending" | "done";
   createdAt: Date;
   updatedAt: Date;
@@ -26,6 +28,7 @@ export class ShopInquiryStorage {
     const doc = await ShopInquiryModel.create({
       id,
       ...data,
+      response: "",
       status: "pending",
     });
     return doc.toObject() as ShopInquiry;
@@ -39,12 +42,20 @@ export class ShopInquiryStorage {
     return docs as ShopInquiry[];
   }
 
-  async updateStatus(id: number, status: "pending" | "done"): Promise<ShopInquiry | undefined> {
-    const doc = await ShopInquiryModel.findOneAndUpdate(
-      { id },
-      { status, updatedAt: new Date() },
-      { new: true },
-    ).lean();
+  async update(
+    id: number,
+    data: { status?: "pending" | "done"; response?: string },
+  ): Promise<ShopInquiry | undefined> {
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (data.response !== undefined) {
+      patch.response = data.response;
+      patch.respondedAt = new Date();
+      patch.status = "done";
+    } else if (data.status !== undefined) {
+      patch.status = data.status;
+    }
+
+    const doc = await ShopInquiryModel.findOneAndUpdate({ id }, patch, { new: true }).lean();
     return doc ? (doc as ShopInquiry) : undefined;
   }
 }

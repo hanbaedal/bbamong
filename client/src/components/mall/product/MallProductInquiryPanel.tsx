@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getFullUrl } from "@/lib/queryClient";
+import { buildMailtoHref, phoneTelHref } from "@/lib/contactLinks";
 
 interface MallProductInquiryPanelProps {
   productId: number;
@@ -88,8 +89,30 @@ export default function MallProductInquiryPanel({
       {(contactEmail || contactPhone) && (
         <div className="mb-6 p-4 bg-neutral-50 border border-neutral-100 rounded-md text-sm text-neutral-700 space-y-1">
           <p className="font-medium text-neutral-900">고객센터</p>
-          {contactPhone && <p>전화: {contactPhone}</p>}
-          {contactEmail && <p>이메일: {contactEmail}</p>}
+          {contactPhone && (
+            <p>
+              전화:{" "}
+              <a
+                href={phoneTelHref(contactPhone)}
+                className="font-medium text-neutral-900 underline underline-offset-2"
+              >
+                {contactPhone}
+              </a>
+            </p>
+          )}
+          {contactEmail && (
+            <p>
+              이메일:{" "}
+              <a
+                href={buildMailtoHref(contactEmail, {
+                  subject: `[PPAMONG] ${productName} 구매 문의`,
+                })}
+                className="font-medium text-neutral-900 underline underline-offset-2"
+              >
+                {contactEmail}
+              </a>
+            </p>
+          )}
         </div>
       )}
 

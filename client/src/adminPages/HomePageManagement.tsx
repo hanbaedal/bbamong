@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 
 import MallCategoryNav from "@/components/mall/MallCategoryNav";
@@ -21,6 +22,7 @@ import { MALL_DEFAULT_CATEGORIES } from "@shared/mallConfig";
 import { adminFormGridClass, adminPageShellClass, adminTableClass, adminTableWrapClass } from "./components/adminPageStyles";
 import { calculateDiscountedPrice, MALL_DEFAULT_SHIPPING_LABEL, MALL_DEFAULT_PROCURE_NOTICE } from "@shared/mallProduct";
 import { formatKrw } from "@/lib/mallCart";
+import { buildMailtoHref, phoneTelHref } from "@/lib/contactLinks";
 
 type Tab = "register" | "list" | "settings" | "inquiries";
 
@@ -144,6 +146,8 @@ interface ShopInquiry {
   phone: string;
   email: string;
   message: string;
+  response?: string;
+  respondedAt?: string;
   status: "pending" | "done";
   createdAt: string;
 }
@@ -159,7 +163,7 @@ const TAB_HINTS: Record<Tab, string> = {
   list: "등록된 상품을 검색·수정·삭제합니다.",
   settings: "ppamong.com/shop 화면에 보이는 쇼핑몰 이름, 노출 여부, 소개 영상, 문의 연락처를 설정합니다.",
   inquiries:
-    "고객이 쇼핑몰 상품 페이지에서 보낸 구매 문의 목록입니다. 전화·이메일로 답변한 뒤 「처리완료」로 표시하세요. (여기서 답변글을 보내는 기능은 없습니다.)",
+    "고객이 쇼핑몰 상품 페이지에서 보낸 구매 문의입니다. 답변글을 작성·저장한 뒤 이메일·전화로 전달하고 처리완료로 표시하세요.",
 };
 
 export default function HomePageManagementPage() {
@@ -176,6 +180,7 @@ export default function HomePageManagementPage() {
   const [registerSaveError, setRegisterSaveError] = useState("");
   const [listSaveError, setListSaveError] = useState("");
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
+  const [inquiryReplyDrafts, setInquiryReplyDrafts] = useState<Record<number, string>>({});
 
   const { data, isLoading } = useQuery<AdminHomepageData>({
     queryKey: ["/api/admin/homepage-settings"],
@@ -284,11 +289,27 @@ export default function HomePageManagementPage() {
   });
 
   const updateInquiryMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: number; status: "pending" | "done" }) =>
-      apiRequest("PATCH", `/api/admin/shop/inquiries/${id}`, { status }),
-    onSuccess: () => {
+    mutationFn: async ({
+      id,
+      status,
+      response,
+    }: {
+      id: number;
+      status?: "pending" | "done";
+      response?: string;
+    }) => apiRequest("PATCH", `/api/admin/shop/inquiries/${id}`, { status, response }),
+    onSuccess: (_data, variables) => {
       refetchInquiries();
-      toast({ description: "처리완료로 표시했습니다." });
+      if (variables.response !== undefined) {
+        setInquiryReplyDrafts((prev) => {
+          const next = { ...prev };
+          delete next[variables.id];
+          return next;
+        });
+        toast({ description: "답변을 저장하고 처리완료로 표시했습니다." });
+      } else {
+        toast({ description: "처리완료로 표시했습니다." });
+      }
     },
   });
 
@@ -716,13 +737,21 @@ export default function HomePageManagementPage() {
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <div className="min-w-0">
                           <p className="font-medium text-sm text-[#201E22] truncate">{inq.productName}</p>
-                          <p className="text-xs text-[#888] mt-1">
-                            {inq.customerName}
-                            {inq.phone ? ` · ${inq.phone}` : ""}
-                          </p>
+                          <p className="text-xs text-[#888] mt-1">{inq.customerName}</p>
+                          {inq.phone ? (
+                            <a
+                              href={phoneTelHref(inq.phone)}
+                              className="text-xs text-[#E11936] block truncate"
+                            >
+                              {inq.phone}
+                            </a>
+                          ) : null}
                           {inq.email ? (
                             <a
-                              href={`mailto:${inq.email}`}
+                              href={buildMailtoHref(inq.email, {
+                                subject: `[PPAMONG] ${inq.productName} 구매 문의`,
+                                body: `${inq.customerName}님 문의:\n${inq.message}\n`,
+                              })}
                               className="text-xs text-[#E11936] block truncate"
                             >
                               {inq.email}
@@ -743,18 +772,88 @@ export default function HomePageManagementPage() {
                         </span>
                       </div>
                       <p className="text-sm text-[#4D4B4E] whitespace-pre-wrap flex-1 mb-3">{inq.message}</p>
+                      {inq.status === "done" && inq.response?.trim() ? (
+                        <div className="mb-3 rounded-md bg-[#F9F9F9] border border-[#E9E9E9] p-3">
+                          <p className="text-xs font-medium text-[#888] mb-1">관리자 답변</p>
+                          <p className="text-sm text-[#201E22] whitespace-pre-wrap">{inq.response}</p>
+                          {inq.respondedAt ? (
+                            <p className="text-[11px] text-[#BFBFBF] mt-2">
+                              {new Date(inq.respondedAt).toLocaleString("ko-KR")} 저장
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {inq.status === "pending" && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="self-start"
-                          onClick={() =>
-                            updateInquiryMutation.mutate({ id: inq.id, status: "done" })
-                          }
-                        >
-                          처리완료 (답변 후)
-                        </Button>
+                        <div className="space-y-2 mt-auto">
+                          <Label className="text-xs text-[#888]">답변글</Label>
+                          <Textarea
+                            value={inquiryReplyDrafts[inq.id] ?? ""}
+                            onChange={(e) =>
+                              setInquiryReplyDrafts((prev) => ({
+                                ...prev,
+                                [inq.id]: e.target.value,
+                              }))
+                            }
+                            placeholder="예: 동호회명 인쇄 단체 주문 가능합니다. 최소 10장부터..."
+                            rows={4}
+                            className="text-sm resize-none"
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="bg-[#E11936] hover:bg-[#B71C1C]"
+                              disabled={updateInquiryMutation.isPending}
+                              onClick={() => {
+                                const response = (inquiryReplyDrafts[inq.id] ?? "").trim();
+                                if (!response) {
+                                  toast({
+                                    variant: "destructive",
+                                    description: "답변글을 입력해 주세요.",
+                                  });
+                                  return;
+                                }
+                                updateInquiryMutation.mutate({ id: inq.id, response });
+                              }}
+                            >
+                              답변 저장 · 처리완료
+                            </Button>
+                            {inq.email ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                asChild
+                              >
+                                <a
+                                  href={buildMailtoHref(inq.email, {
+                                    subject: `[PPAMONG] ${inq.productName} 구매 문의 답변`,
+                                    body: `${inq.customerName}님, 안녕하세요.\n\n문의하신 내용:\n${inq.message}\n\n답변:\n${(inquiryReplyDrafts[inq.id] ?? "").trim() || "(위 답변글을 작성한 뒤 이용하세요)"}\n\n감사합니다.\nPPAMONG`,
+                                  })}
+                                >
+                                  이메일로 보내기
+                                </a>
+                              </Button>
+                            ) : null}
+                            {inq.phone ? (
+                              <Button type="button" size="sm" variant="outline" asChild>
+                                <a href={phoneTelHref(inq.phone)}>전화 걸기</a>
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="text-[#888]"
+                              disabled={updateInquiryMutation.isPending}
+                              onClick={() =>
+                                updateInquiryMutation.mutate({ id: inq.id, status: "done" })
+                              }
+                            >
+                              전화로만 답변함
+                            </Button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))}

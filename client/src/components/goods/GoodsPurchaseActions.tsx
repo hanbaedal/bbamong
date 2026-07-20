@@ -1,4 +1,5 @@
 import PublicMemberOnly from "@/components/public/PublicMemberOnly";
+import { buildMailtoHref, phoneTelHref } from "@/lib/contactLinks";
 
 interface ShopInquirySettings {
   shopInquiryEmail?: string;
@@ -26,7 +27,10 @@ export default function GoodsPurchaseActions({
   const phone = shopSettings?.shopInquiryPhone?.trim();
 
   const mailto = email
-    ? `mailto:${email}?subject=${encodeURIComponent(`[PPAMONG 스포츠몰] ${product.name} 구매 문의`)}&body=${encodeURIComponent(`상품명: ${product.name}\n\n문의 내용:\n`)}`
+    ? buildMailtoHref(email, {
+        subject: `[PPAMONG 스포츠몰] ${product.name} 구매 문의`,
+        body: `상품명: ${product.name}\n\n문의 내용:\n`,
+      })
     : null;
 
   const hasPurchase = !!purchaseUrl;
@@ -82,7 +86,7 @@ export default function GoodsPurchaseActions({
       )}
       {!mailto && phone && (
         <a
-          href={`tel:${phone.replace(/\s/g, "")}`}
+          href={phoneTelHref(phone)}
           className={`w-full py-3 rounded-lg font-bold text-sm text-center ${
             hasPurchase
               ? "border border-[#CDFF00] text-[#CDFF00]"

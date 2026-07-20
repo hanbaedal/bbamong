@@ -72,11 +72,22 @@ export async function shopRoutes(app: Express): Promise<void> {
       if (isNaN(id)) {
         return res.status(400).json({ error: "잘못된 ID입니다." });
       }
-      const status = req.body?.status;
-      if (status !== "pending" && status !== "done") {
-        return res.status(400).json({ error: "status는 pending 또는 done 이어야 합니다." });
+
+      const updateSchema = z
+        .object({
+          status: z.enum(["pending", "done"]).optional(),
+          response: z.string().max(2000).optional(),
+        })
+        .refine((body) => body.status !== undefined || body.response !== undefined, {
+          message: "status 또는 response가 필요합니다.",
+        });
+
+      const parsed = updateSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: fromZodError(parsed.error).message });
       }
-      const inquiry = await shopInquiryStorage.updateStatus(id, status);
+
+      const inquiry = await shopInquiryStorage.update(id, parsed.data);
       if (!inquiry) {
         return res.status(404).json({ error: "문의를 찾을 수 없습니다." });
       }

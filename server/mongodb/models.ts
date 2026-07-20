@@ -393,6 +393,8 @@ const shopInquirySchema = new Schema(
     phone: { type: String, default: "" },
     email: { type: String, default: "" },
     message: { type: String, default: "" },
+    response: { type: String, default: "" },
+    respondedAt: { type: Date },
     status: { type: String, enum: ["pending", "done"], default: "pending" },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
