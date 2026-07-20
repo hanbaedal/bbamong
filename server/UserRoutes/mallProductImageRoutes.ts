@@ -3,6 +3,10 @@ import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { adminAuthMiddleware } from "../middleware/adminAuth";
 import { compressProductImage } from "../lib/compressProductImage";
+import {
+  isObjectStorageConfigured,
+  saveMallProductImageLocal,
+} from "../lib/mallProductImageStorage";
 import { ObjectStorageService } from "../objectStorage";
 import { MALL_PRODUCT_IMAGE_MAX_BYTES } from "@shared/mallProduct";
 
@@ -15,24 +19,44 @@ function decodeBase64Image(payload: string): Buffer {
   return Buffer.from(normalized, "base64");
 }
 
+async function uploadToObjectStorage(
+  buffer: Buffer,
+  contentType: string,
+  extension: string,
+): Promise<string> {
+  const objectStorage = new ObjectStorageService();
+  return objectStorage.uploadPublicProductImage("mall-products", buffer, contentType, extension);
+}
+
 export async function mallProductImageRoutes(app: Express): Promise<void> {
-  /** signed URL 방식 — Replit Object Storage와 동일 패턴 (권장) */
+  /** signed URL (Object Storage 설정 시) 또는 direct 모드 */
   app.post("/api/admin/mall/product-images/upload-url", adminAuthMiddleware, async (_req, res) => {
     try {
+      if (!isObjectStorageConfigured()) {
+        return res.json({
+          mode: "direct" as const,
+          maxBytes: MALL_PRODUCT_IMAGE_MAX_BYTES,
+        });
+      }
+
       const objectStorage = new ObjectStorageService();
       const { uploadURL, canonicalPath } = await objectStorage.getMallProductImageUploadURL();
-      res.json({ uploadURL, canonicalPath, maxBytes: MALL_PRODUCT_IMAGE_MAX_BYTES });
+      res.json({
+        mode: "signed" as const,
+        uploadURL,
+        canonicalPath,
+        maxBytes: MALL_PRODUCT_IMAGE_MAX_BYTES,
+      });
     } catch (error) {
       console.error("Mall product image upload-url error:", error);
-      const message =
-        error instanceof Error && error.message.includes("PRIVATE_OBJECT_DIR")
-          ? "Object Storage가 설정되지 않았습니다. Replit Object Storage 환경 변수를 확인해 주세요."
-          : "업로드 URL 생성에 실패했습니다.";
-      res.status(500).json({ error: message });
+      res.json({
+        mode: "direct" as const,
+        maxBytes: MALL_PRODUCT_IMAGE_MAX_BYTES,
+      });
     }
   });
 
-  /** 레거시 base64 업로드 (서버 압축) — fallback */
+  /** 서버 업로드 — GCS 우선, 실패·미설정 시 로컬 디스크 */
   app.post("/api/admin/mall/product-images", adminAuthMiddleware, async (req, res) => {
     try {
       const parsed = uploadSchema.safeParse(req.body);
@@ -46,28 +70,39 @@ export async function mallProductImageRoutes(app: Express): Promise<void> {
       }
 
       const compressed = await compressProductImage(input, MALL_PRODUCT_IMAGE_MAX_BYTES);
-      const objectStorage = new ObjectStorageService();
-      const url = await objectStorage.uploadPublicProductImage(
-        "mall-products",
-        compressed.buffer,
-        compressed.contentType,
-        compressed.extension,
-      );
+      let url: string;
+      let storage: "gcs" | "local" = "local";
+
+      if (isObjectStorageConfigured()) {
+        try {
+          url = await uploadToObjectStorage(
+            compressed.buffer,
+            compressed.contentType,
+            compressed.extension,
+          );
+          storage = "gcs";
+        } catch (gcsError) {
+          console.warn("GCS upload failed, using local storage:", gcsError);
+          url = await saveMallProductImageLocal(compressed.buffer, compressed.extension);
+        }
+      } else {
+        url = await saveMallProductImageLocal(compressed.buffer, compressed.extension);
+      }
 
       res.json({
         url,
+        storage,
         sizeBytes: compressed.buffer.length,
         maxBytes: MALL_PRODUCT_IMAGE_MAX_BYTES,
       });
     } catch (error) {
       console.error("Mall product image upload error:", error);
-      const message =
-        error instanceof Error && error.message.includes("PRIVATE_OBJECT_DIR")
-          ? "Object Storage가 설정되지 않았습니다. Replit Object Storage 환경 변수를 확인해 주세요."
-          : error instanceof Error && error.message.includes("sharp")
+      res.status(500).json({
+        error:
+          error instanceof Error && error.message.includes("sharp")
             ? "이미지 처리 모듈 오류입니다. 서버를 재시작해 주세요."
-            : "이미지 업로드에 실패했습니다.";
-      res.status(500).json({ error: message });
+            : "이미지 업로드에 실패했습니다.",
+      });
     }
   });
 }

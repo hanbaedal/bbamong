@@ -1,4 +1,6 @@
 import type { Express } from "express";
+import express from "express";
+import path from "path";
 import { attendanceRoutes } from "./UserRoutes/attendanceRoutes";
 import { stadiumRoutes } from "./UserRoutes/stadiumsRoutes";
 import { baMatchRoutes } from "./UserRoutes/baMatchRoutes";
@@ -38,6 +40,12 @@ import matchControlRoutes from "./liveMatch/matchControlRoutes"
 import { healthRoutes } from "./routes/healthRoutes"
 
 export async function registerRoutes(app: Express): Promise<void> {
+  app.use(
+    "/uploads",
+    express.static(path.join(process.cwd(), "data", "uploads"), {
+      maxAge: "7d",
+    }),
+  );
 
   await healthRoutes(app)
   await userRoutes(app)

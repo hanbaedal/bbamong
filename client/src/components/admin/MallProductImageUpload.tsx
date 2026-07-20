@@ -13,9 +13,33 @@ interface MallProductImageUploadProps {
   compact?: boolean;
 }
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("파일 변환에 실패했습니다."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function uploadViaServer(blob: Blob): Promise<{ url: string; sizeBytes: number }> {
+  const imageBase64 = await blobToBase64(blob);
+  const res = await apiRequest("POST", "/api/admin/mall/product-images", { imageBase64 });
+  const data = (await res.json()) as { url: string; sizeBytes: number };
+  return { url: data.url, sizeBytes: data.sizeBytes ?? blob.size };
+}
+
 async function uploadCompressedBlob(blob: Blob): Promise<{ url: string; sizeBytes: number }> {
   const res = await apiRequest("POST", "/api/admin/mall/product-images/upload-url");
-  const data = (await res.json()) as { uploadURL: string; canonicalPath: string; maxBytes: number };
+  const data = (await res.json()) as {
+    mode?: "direct" | "signed";
+    uploadURL?: string;
+    canonicalPath?: string;
+  };
+
+  if (data.mode === "direct" || !data.uploadURL || !data.canonicalPath) {
+    return uploadViaServer(blob);
+  }
 
   const uploadRes = await fetch(data.uploadURL, {
     method: "PUT",
@@ -24,7 +48,7 @@ async function uploadCompressedBlob(blob: Blob): Promise<{ url: string; sizeByte
   });
 
   if (!uploadRes.ok) {
-    throw new Error(`스토리지 업로드 실패 (${uploadRes.status})`);
+    return uploadViaServer(blob);
   }
 
   return { url: data.canonicalPath, sizeBytes: blob.size };

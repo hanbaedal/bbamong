@@ -15,6 +15,7 @@ vite.config.ts.*
 .cache/
 .redis-data/
 .local/
+data/uploads/
 
 # Replit / IDE
 .replit.nix
