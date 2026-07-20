@@ -54,10 +54,14 @@ function MallShell({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
+  const onMallSubdomain = isMallHost(window.location.hostname);
+
   return (
     <MallShell>
       <Switch>
-        <Route path="/">{() => <Redirect to={MALL_BASE_PATH} />}</Route>
+        {onMallSubdomain ? (
+          <Route path="/">{() => <Redirect to={MALL_BASE_PATH} />}</Route>
+        ) : null}
         <Route path="/shop">{() => <MallHome />}</Route>
         <Route path="/shop/category/:categoryId" component={MallCategoryPage} />
         <Route path="/shop/product/:productId" component={MallProductPage} />
@@ -71,7 +75,7 @@ function Router() {
 
 export function isMallSitePath(path: string): boolean {
   const base = path.split("?")[0];
-  if (base === "/" || base === "/shop" || base.startsWith("/shop/")) return true;
+  if (base === MALL_BASE_PATH || base.startsWith(`${MALL_BASE_PATH}/`)) return true;
   return isMallHost(window.location.hostname);
 }
 

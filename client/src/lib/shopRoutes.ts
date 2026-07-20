@@ -33,7 +33,7 @@ export function getShopRoutes(mode: SiteMode): ShopRoutes {
 /** @deprecated MallApp 사용 — 하위 호환 */
 export function isPublicSitePath(path: string): boolean {
   const base = path.split("?")[0];
-  return base === "/" || base === MALL_BASE_PATH || base.startsWith(`${MALL_BASE_PATH}/`);
+  return base === MALL_BASE_PATH || base.startsWith(`${MALL_BASE_PATH}/`);
 }
 
 export function isMallPath(path: string): boolean {

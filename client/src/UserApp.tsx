@@ -180,7 +180,7 @@ function Router() {
       <Route path="/social-onboarding" component={SocialOnboardingPage} />
 
       {/* 보물창고 → 쇼핑몰 리다이렉트 */}
-      <Route path="/">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
+      <Route path="/">{() => <Redirect to="/login" />}</Route>
       <Route path="/home">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
       <Route path="/home/shop">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
       <Route path="/home/goods/item/:productId" component={RedirectLegacyProduct} />

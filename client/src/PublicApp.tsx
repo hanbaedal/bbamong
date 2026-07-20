@@ -5,7 +5,7 @@ import { MALL_BASE_PATH } from "@shared/mallConfig";
 export default function PublicApp() {
   useEffect(() => {
     const path = window.location.pathname;
-    if (path === "/" || path === "/shop") {
+    if (path === "/shop") {
       window.location.replace(MALL_BASE_PATH);
       return;
     }
