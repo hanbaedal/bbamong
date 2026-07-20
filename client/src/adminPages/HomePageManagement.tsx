@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import MallCategoryNav from "@/components/mall/MallCategoryNav";
 import MallProductForm, {
   createEmptyMallProduct,
+  sanitizeMallProductForm,
+  validateMallProductForm,
   type MallProductFormValues,
 } from "@/components/admin/MallProductForm";
 import { MALL_DEFAULT_CATEGORIES } from "@shared/mallConfig";
@@ -170,6 +172,8 @@ export default function HomePageManagementPage() {
   const [settingsForm, setSettingsForm] = useState<HomePageSettings | null>(null);
   const [editingCategory, setEditingCategory] = useState<Partial<GoodsCategory> | null>(null);
   const [editingProduct, setEditingProduct] = useState<Partial<MallProductFormValues> | null>(null);
+  const [productSaveError, setProductSaveError] = useState<string>("");
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false);
 
   const { data, isLoading } = useQuery<AdminHomepageData>({
     queryKey: ["/api/admin/homepage-settings"],
@@ -217,19 +221,50 @@ export default function HomePageManagementPage() {
   });
 
   const saveProductMutation = useMutation({
-    mutationFn: async (product: Partial<MallProductFormValues>) =>
-      product.id
-        ? apiRequest("PATCH", `/api/admin/homepage/goods/products/${product.id}`, formToProduct(product))
-        : apiRequest("POST", "/api/admin/homepage/goods/products", formToProduct(product)),
+    mutationFn: async (product: Partial<MallProductFormValues>) => {
+      const payload = formToProduct(sanitizeMallProductForm(product));
+      if (product.id) {
+        return apiRequest("PATCH", `/api/admin/homepage/goods/products/${product.id}`, payload);
+      }
+      return apiRequest("POST", "/api/admin/homepage/goods/products", payload);
+    },
     onSuccess: () => {
       invalidate();
       setEditingProduct(null);
+      setProductSaveError("");
       toast({ description: "상품이 저장되었습니다." });
     },
     onError: (err: Error) => {
-      toast({ variant: "destructive", description: err.message || "저장 실패" });
+      const message = err.message || "저장 실패";
+      setProductSaveError(message);
+      toast({ variant: "destructive", description: message });
     },
   });
+
+  const handleSaveProduct = () => {
+    if (!editingProduct) return;
+    const error = validateMallProductForm(editingProduct, categories);
+    if (error) {
+      setProductSaveError(error);
+      toast({ variant: "destructive", description: error });
+      return;
+    }
+    setProductSaveError("");
+    saveProductMutation.mutate(editingProduct);
+  };
+
+  const openNewProduct = () => {
+    const defaultCategoryId =
+      selectedCategoryId && selectedCategoryId > 0
+        ? selectedCategoryId
+        : categories[0]?.id;
+    if (!defaultCategoryId) {
+      toast({ variant: "destructive", description: "먼저 카테고리를 등록해 주세요." });
+      return;
+    }
+    setProductSaveError("");
+    setEditingProduct(openProductEditor(null, defaultCategoryId));
+  };
 
   const deleteProductMutation = useMutation({
     mutationFn: async (id: number) =>
@@ -332,162 +367,202 @@ export default function HomePageManagementPage() {
               variant="admin"
               onSelect={(id) => {
                 setSelectedCategoryId(id);
-                setEditingProduct(null);
                 if (id !== null) {
                   const cat = categories.find((c) => c.id === id);
                   setEditingCategory(cat ?? null);
+                  if (editingProduct && !editingProduct.id) {
+                    setEditingProduct((prev) =>
+                      prev ? { ...prev, categoryId: id } : prev,
+                    );
+                  }
                 } else {
                   setEditingCategory(null);
+                  setShowCategoryEditor(false);
                 }
               }}
             />
           </div>
         )}
 
-        <div className="flex-1 overflow-auto min-h-0 max-w-3xl pb-8">
+        <div className="flex-1 overflow-auto min-h-0 max-w-6xl pb-4">
           {activeTab === "catalog" && (
-            <div className="space-y-4">
-              {selectedCategory && editingCategory && (
-                <div className="border border-[#E9E9E9] rounded-lg p-4 space-y-3 bg-[#FAFAFA]">
-                  <h3 className="font-medium">{selectedCategory.name} 카테고리</h3>
-                  <Input
-                    placeholder="설명"
-                    value={editingCategory.description ?? ""}
-                    onChange={(e) =>
-                      setEditingCategory({ ...editingCategory, description: e.target.value })
-                    }
-                  />
-                  <Input
-                    placeholder="이미지 URL"
-                    value={editingCategory.imageUrl ?? ""}
-                    onChange={(e) =>
-                      setEditingCategory({ ...editingCategory, imageUrl: e.target.value })
-                    }
-                  />
-                  <Input
-                    type="number"
-                    placeholder="표시 순서"
-                    value={editingCategory.displayOrder ?? 0}
-                    onChange={(e) =>
-                      setEditingCategory({
-                        ...editingCategory,
-                        displayOrder: parseInt(e.target.value, 10) || 0,
-                      })
-                    }
-                  />
-                  <label className="flex items-center gap-2">
-                    <Checkbox
-                      checked={editingCategory.isActive ?? true}
-                      onCheckedChange={(v) =>
-                        setEditingCategory({ ...editingCategory, isActive: !!v })
-                      }
-                    />
-                    <span className="text-sm">쇼핑몰 노출</span>
-                  </label>
-                  <div className="flex gap-2">
+            <div className="space-y-3">
+              {selectedCategory && editingCategory ? (
+                <div className="border border-[#E9E9E9] rounded-lg bg-[#FAFAFA] overflow-hidden">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium bg-white"
+                    onClick={() => setShowCategoryEditor((v) => !v)}
+                  >
+                    <span>{selectedCategory.name} 카테고리 설정</span>
+                    <span className="text-xs text-[#888]">{showCategoryEditor ? "접기" : "펼치기"}</span>
+                  </button>
+                  {showCategoryEditor ? (
+                    <div className="p-3 space-y-2 border-t border-[#E9E9E9]">
+                      <Input
+                        className="h-9 text-sm"
+                        placeholder="설명"
+                        value={editingCategory.description ?? ""}
+                        onChange={(e) =>
+                          setEditingCategory({ ...editingCategory, description: e.target.value })
+                        }
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          className="h-9 text-sm"
+                          placeholder="이미지 URL"
+                          value={editingCategory.imageUrl ?? ""}
+                          onChange={(e) =>
+                            setEditingCategory({ ...editingCategory, imageUrl: e.target.value })
+                          }
+                        />
+                        <Input
+                          className="h-9 text-sm"
+                          type="number"
+                          placeholder="표시 순서"
+                          value={editingCategory.displayOrder ?? 0}
+                          onChange={(e) =>
+                            setEditingCategory({
+                              ...editingCategory,
+                              displayOrder: parseInt(e.target.value, 10) || 0,
+                            })
+                          }
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={editingCategory.isActive ?? true}
+                          onCheckedChange={(v) =>
+                            setEditingCategory({ ...editingCategory, isActive: !!v })
+                          }
+                        />
+                        쇼핑몰 노출
+                      </label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => saveCategoryMutation.mutate(editingCategory)}
+                        className="bg-[#E11936] hover:bg-[#B71C1C]"
+                      >
+                        카테고리 저장
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-3 items-start">
+                <div className="min-w-0 space-y-2">
+                  <div className="flex justify-between items-center gap-2">
+                    <p className="text-sm text-[#666]">
+                      {selectedCategory
+                        ? `${selectedCategory.name} 상품`
+                        : "전체 상품"}
+                      {" · "}
+                      <span className="font-semibold text-[#201E22]">{visibleProducts.length}</span>개
+                    </p>
                     <Button
                       type="button"
-                      onClick={() => saveCategoryMutation.mutate(editingCategory)}
-                      className="bg-[#E11936] hover:bg-[#B71C1C]"
+                      size="sm"
+                      onClick={openNewProduct}
+                      disabled={categories.length === 0}
                     >
-                      카테고리 저장
+                      + 상품 추가
                     </Button>
                   </div>
-                </div>
-              )}
 
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-[#666]">
-                  {selectedCategory
-                    ? `${selectedCategory.name} 상품`
-                    : "전체 상품 (쇼핑몰 '전체' 메뉴)"}
-                  {" · "}
-                  <span className="font-semibold text-[#201E22]">{visibleProducts.length}</span>개
-                </p>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() =>
-                    setEditingProduct(openProductEditor(null, selectedCategoryId ?? categories[0]?.id))
-                  }
-                  disabled={categories.length === 0}
-                >
-                  + 상품 추가
-                </Button>
-              </div>
-
-              {editingProduct && (
-                <MallProductForm
-                  categories={categories}
-                  value={editingProduct}
-                  onChange={setEditingProduct}
-                  onSave={() => saveProductMutation.mutate(editingProduct)}
-                  onCancel={() => setEditingProduct(null)}
-                  saving={saveProductMutation.isPending}
-                />
-              )}
-
-              <div className="space-y-2">
-                {visibleProducts.length === 0 ? (
-                  <p className="text-sm text-[#888] py-8 text-center">등록된 상품이 없습니다.</p>
-                ) : (
-                  visibleProducts.map((p) => {
-                    const cat = categories.find((c) => c.id === p.categoryId);
-                    return (
-                      <div
-                        key={p.id}
-                        className="flex items-center gap-3 p-3 border border-[#E9E9E9] rounded-lg"
-                      >
-                        <div className="w-12 h-12 rounded bg-[#F0F0F0] overflow-hidden flex-shrink-0">
-                          {p.imageUrl ? (
-                            <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[10px] text-[#999]">
-                              N/A
+                  <div className="space-y-1.5 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
+                    {visibleProducts.length === 0 ? (
+                      <p className="text-sm text-[#888] py-6 text-center border border-dashed border-[#E9E9E9] rounded-lg">
+                        등록된 상품이 없습니다.
+                      </p>
+                    ) : (
+                      visibleProducts.map((p) => {
+                        const cat = categories.find((c) => c.id === p.categoryId);
+                        const isEditing = editingProduct?.id === p.id;
+                        return (
+                          <div
+                            key={p.id}
+                            className={`flex items-center gap-2 p-2 border rounded-lg text-sm ${
+                              isEditing
+                                ? "border-[#E11936] bg-[#FFF9FA]"
+                                : "border-[#E9E9E9] bg-white"
+                            }`}
+                          >
+                            <div className="w-10 h-10 rounded bg-[#F0F0F0] overflow-hidden flex-shrink-0">
+                              {p.imageUrl ? (
+                                <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[9px] text-[#999]">
+                                  N/A
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{p.name}</p>
-                          <p className="text-xs text-[#888]">
-                            {cat?.name}
-                            {p.color ? ` · ${p.color}` : ""}
-                            {p.size ? ` · ${p.size}` : ""}
-                          </p>
-                          <p className="text-xs text-[#666] mt-0.5">
-                            {p.originalPriceAmount ? formatKrw(p.originalPriceAmount) : ""}
-                            {p.discountPercent ? ` · ${p.discountPercent}%` : ""}
-                            {p.priceAmount ? ` → ${formatKrw(p.priceAmount)}` : ""}
-                          </p>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setEditingProduct(productToForm(p))}
-                          >
-                            수정
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="text-[#E11936]"
-                            onClick={() => {
-                              if (confirm(`"${p.name}" 상품을 삭제할까요?`)) {
-                                deleteProductMutation.mutate(p.id);
-                              }
-                            }}
-                          >
-                            삭제
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{p.name}</p>
+                              <p className="text-[11px] text-[#888] truncate">
+                                {cat?.name}
+                                {p.priceAmount ? ` · ${formatKrw(p.priceAmount)}` : ""}
+                              </p>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => {
+                                  setProductSaveError("");
+                                  setEditingProduct(productToForm(p));
+                                }}
+                              >
+                                수정
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs text-[#E11936]"
+                                onClick={() => {
+                                  if (confirm(`"${p.name}" 상품을 삭제할까요?`)) {
+                                    deleteProductMutation.mutate(p.id);
+                                  }
+                                }}
+                              >
+                                삭제
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {editingProduct ? (
+                  <div className="xl:sticky xl:top-0">
+                    <MallProductForm
+                      categories={categories}
+                      value={editingProduct}
+                      onChange={(patch) =>
+                        setEditingProduct((prev) => ({ ...(prev ?? createEmptyMallProduct()), ...patch }))
+                      }
+                      onSave={handleSaveProduct}
+                      onCancel={() => {
+                        setEditingProduct(null);
+                        setProductSaveError("");
+                      }}
+                      saving={saveProductMutation.isPending}
+                      saveError={productSaveError}
+                    />
+                  </div>
+                ) : (
+                  <div className="hidden xl:flex items-center justify-center border border-dashed border-[#E0E0E0] rounded-lg p-8 text-sm text-[#888] min-h-[200px]">
+                    상품 추가 또는 수정을 선택하세요
+                  </div>
                 )}
               </div>
+
             </div>
           )}
 
