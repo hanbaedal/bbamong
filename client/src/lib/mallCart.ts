@@ -2,6 +2,10 @@ import type { MallCartItem } from "./mallTypes";
 
 const CART_KEY = "ppamong_mall_cart";
 
+function cartLineKey(item: Pick<MallCartItem, "productId" | "color" | "size">): string {
+  return `${item.productId}:${item.color ?? ""}:${item.size ?? ""}`;
+}
+
 export function readMallCart(): MallCartItem[] {
   try {
     const raw = localStorage.getItem(CART_KEY);
@@ -19,7 +23,8 @@ export function writeMallCart(items: MallCartItem[]): void {
 
 export function addToMallCart(item: Omit<MallCartItem, "quantity">, quantity = 1): MallCartItem[] {
   const cart = readMallCart();
-  const existing = cart.find((c) => c.productId === item.productId);
+  const key = cartLineKey(item);
+  const existing = cart.find((c) => cartLineKey(c) === key);
   if (existing) {
     existing.quantity = Math.min(99, existing.quantity + quantity);
   } else {
@@ -29,20 +34,29 @@ export function addToMallCart(item: Omit<MallCartItem, "quantity">, quantity = 1
   return cart;
 }
 
-export function updateMallCartQuantity(productId: number, quantity: number): MallCartItem[] {
+export function updateMallCartQuantity(
+  productId: number,
+  quantity: number,
+  options?: { color?: string; size?: string },
+): MallCartItem[] {
   const cart = readMallCart();
+  const key = cartLineKey({ productId, color: options?.color, size: options?.size });
   if (quantity <= 0) {
-    return removeFromMallCart(productId);
+    return removeFromMallCart(productId, options);
   }
   const next = cart.map((c) =>
-    c.productId === productId ? { ...c, quantity: Math.min(99, quantity) } : c,
+    cartLineKey(c) === key ? { ...c, quantity: Math.min(99, quantity) } : c,
   );
   writeMallCart(next);
   return next;
 }
 
-export function removeFromMallCart(productId: number): MallCartItem[] {
-  const next = readMallCart().filter((c) => c.productId !== productId);
+export function removeFromMallCart(
+  productId: number,
+  options?: { color?: string; size?: string },
+): MallCartItem[] {
+  const key = cartLineKey({ productId, color: options?.color, size: options?.size });
+  const next = readMallCart().filter((c) => cartLineKey(c) !== key);
   writeMallCart(next);
   return next;
 }

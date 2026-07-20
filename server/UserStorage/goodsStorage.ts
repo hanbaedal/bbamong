@@ -8,6 +8,11 @@ import {
   calculateDiscountedPrice,
   formatProductPriceLabel,
   MALL_DEFAULT_SHIPPING_LABEL,
+  MALL_PRODUCT_VARIANT_MAX,
+  type MallProductVariant,
+  findProductVariant,
+  resolveAvailableStock,
+  summarizeVariantLabels,
 } from "@shared/mallProduct";
 
 export interface GoodsCategory {
@@ -35,6 +40,8 @@ export interface GoodsProduct {
   brand?: string;
   color?: string;
   size?: string;
+  stockQuantity?: number;
+  variants?: MallProductVariant[];
   discountPercent?: number;
   shippingLabel?: string;
   detailImages?: string[];
@@ -68,6 +75,23 @@ function normalizeProductPricing(data: {
     priceAmount,
     priceLabel: priceAmount > 0 ? formatProductPriceLabel(priceAmount) : data.priceLabel ?? "",
   };
+}
+
+function normalizeVariants(raw?: MallProductVariant[]): MallProductVariant[] {
+  if (!raw?.length) return [];
+  return raw
+    .map((v) => ({
+      color: (v.color ?? "").trim(),
+      size: (v.size ?? "").trim(),
+      stock: Math.max(0, v.stock ?? 0),
+    }))
+    .filter((v) => v.color || v.size)
+    .slice(0, MALL_PRODUCT_VARIANT_MAX);
+}
+
+function normalizeStockQuantity(raw?: number): number {
+  if (raw === undefined || raw === null) return -1;
+  return Math.max(-1, raw);
 }
 
 export class GoodsStorage {
@@ -237,6 +261,8 @@ export class GoodsStorage {
     brand?: string;
     color?: string;
     size?: string;
+    stockQuantity?: number;
+    variants?: MallProductVariant[];
     shippingLabel?: string;
     detailImages?: string[];
     purchaseUrl?: string;
@@ -245,6 +271,8 @@ export class GoodsStorage {
   }): Promise<GoodsProduct> {
     const id = await getNextSequence("goodsProduct");
     const pricing = normalizeProductPricing(data);
+    const variants = normalizeVariants(data.variants);
+    const variantLabels = variants.length > 0 ? summarizeVariantLabels(variants) : null;
     const doc = await GoodsProductModel.create({
       id,
       categoryId: data.categoryId,
@@ -257,8 +285,10 @@ export class GoodsStorage {
       originalPriceAmount: pricing.originalPriceAmount,
       discountPercent: pricing.discountPercent,
       brand: data.brand ?? "",
-      color: data.color ?? "",
-      size: data.size ?? "",
+      color: variantLabels?.color ?? data.color ?? "",
+      size: variantLabels?.size ?? data.size ?? "",
+      stockQuantity: variants.length > 0 ? -1 : normalizeStockQuantity(data.stockQuantity),
+      variants,
       shippingLabel: data.shippingLabel ?? MALL_DEFAULT_SHIPPING_LABEL,
       detailImages: (data.detailImages ?? []).slice(0, 10),
       purchaseUrl: data.purchaseUrl ?? "",
@@ -285,6 +315,8 @@ export class GoodsStorage {
         | "brand"
         | "color"
         | "size"
+        | "stockQuantity"
+        | "variants"
         | "shippingLabel"
         | "detailImages"
         | "purchaseUrl"
@@ -303,10 +335,24 @@ export class GoodsStorage {
       priceLabel: data.priceLabel ?? existing.priceLabel,
     });
 
+    const variants =
+      data.variants !== undefined ? normalizeVariants(data.variants) : normalizeVariants(existing.variants);
+    const variantLabels = variants.length > 0 ? summarizeVariantLabels(variants) : null;
+    const stockQuantity =
+      data.stockQuantity !== undefined
+        ? normalizeStockQuantity(data.stockQuantity)
+        : variants.length > 0
+          ? -1
+          : normalizeStockQuantity(existing.stockQuantity);
+
     const doc = await GoodsProductModel.findOneAndUpdate(
       { id },
       {
         ...data,
+        color: variantLabels?.color ?? data.color ?? existing.color,
+        size: variantLabels?.size ?? data.size ?? existing.size,
+        stockQuantity,
+        variants,
         priceLabel: pricing.priceLabel,
         priceAmount: pricing.priceAmount,
         originalPriceAmount: pricing.originalPriceAmount,
@@ -317,6 +363,52 @@ export class GoodsStorage {
       { new: true },
     ).lean();
     return doc ? (doc as GoodsProduct) : undefined;
+  }
+
+  validateOrderStock(
+    product: GoodsProduct,
+    quantity: number,
+    color?: string,
+    size?: string,
+  ): string | null {
+    const available = resolveAvailableStock(product, color, size);
+    if (available === null) return null;
+    if (available < quantity) {
+      const label = [color, size].filter(Boolean).join(" / ");
+      return label
+        ? `"${product.name}" (${label}) 재고가 부족합니다. (남은 수량: ${available})`
+        : `"${product.name}" 재고가 부족합니다. (남은 수량: ${available})`;
+    }
+    return null;
+  }
+
+  async decrementStock(
+    productId: number,
+    quantity: number,
+    color?: string,
+    size?: string,
+  ): Promise<void> {
+    const product = await GoodsProductModel.findOne({ id: productId });
+    if (!product) return;
+
+    const variants = normalizeVariants(product.variants as MallProductVariant[]);
+    if (variants.length > 0) {
+      const variant = findProductVariant(variants, color ?? "", size ?? "");
+      if (!variant) return;
+      const nextVariants = variants.map((v) =>
+        v.color === variant.color && v.size === variant.size
+          ? { ...v, stock: Math.max(0, v.stock - quantity) }
+          : v,
+      );
+      product.variants = nextVariants;
+      product.color = summarizeVariantLabels(nextVariants).color;
+      product.size = summarizeVariantLabels(nextVariants).size;
+    } else if (product.stockQuantity >= 0) {
+      product.stockQuantity = Math.max(0, product.stockQuantity - quantity);
+    }
+
+    product.updatedAt = new Date();
+    await product.save();
   }
 
   async deleteProduct(id: number): Promise<void> {

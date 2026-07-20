@@ -344,6 +344,17 @@ const goodsProductSchema = new Schema(
     brand: { type: String, default: "" },
     color: { type: String, default: "" },
     size: { type: String, default: "" },
+    stockQuantity: { type: Number, default: -1 },
+    variants: {
+      type: [
+        {
+          color: { type: String, default: "" },
+          size: { type: String, default: "" },
+          stock: { type: Number, default: 0, min: 0 },
+        },
+      ],
+      default: [],
+    },
     discountPercent: { type: Number, default: 0 },
     shippingLabel: { type: String, default: "무료배송" },
     detailImages: { type: [String], default: [] },
@@ -409,6 +420,8 @@ const mallOrderItemSchema = new Schema(
     priceAmount: { type: Number, required: true },
     quantity: { type: Number, required: true, min: 1 },
     imageUrl: { type: String, default: "" },
+    color: { type: String, default: "" },
+    size: { type: String, default: "" },
   },
   { _id: false },
 );

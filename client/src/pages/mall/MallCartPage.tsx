@@ -48,7 +48,7 @@ export default function MallCartPage() {
         <>
           <ul className="divide-y divide-neutral-200 border-t border-neutral-200">
             {items.map((item) => (
-              <li key={item.productId} className="py-4 flex gap-4">
+              <li key={`${item.productId}:${item.color ?? ""}:${item.size ?? ""}`} className="py-4 flex gap-4">
                 <div className="w-20 h-24 bg-neutral-100 rounded-sm overflow-hidden shrink-0">
                   {item.imageUrl ? (
                     <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
@@ -61,6 +61,11 @@ export default function MallCartPage() {
                   >
                     {item.name}
                   </Link>
+                  {(item.color || item.size) && (
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      {[item.color, item.size].filter(Boolean).join(" / ")}
+                    </p>
+                  )}
                   <p className="text-sm font-semibold text-neutral-900 mt-1">
                     {formatKrw(item.priceAmount)}
                   </p>
@@ -70,7 +75,10 @@ export default function MallCartPage() {
                         type="button"
                         className="p-1.5"
                         onClick={() => {
-                          updateMallCartQuantity(item.productId, item.quantity - 1);
+                          updateMallCartQuantity(item.productId, item.quantity - 1, {
+                            color: item.color,
+                            size: item.size,
+                          });
                           refresh();
                         }}
                       >
@@ -81,7 +89,10 @@ export default function MallCartPage() {
                         type="button"
                         className="p-1.5"
                         onClick={() => {
-                          updateMallCartQuantity(item.productId, item.quantity + 1);
+                          updateMallCartQuantity(item.productId, item.quantity + 1, {
+                            color: item.color,
+                            size: item.size,
+                          });
                           refresh();
                         }}
                       >
@@ -92,7 +103,10 @@ export default function MallCartPage() {
                       type="button"
                       className="p-1.5 text-neutral-400 hover:text-red-600"
                       onClick={() => {
-                        removeFromMallCart(item.productId);
+                        removeFromMallCart(item.productId, {
+                          color: item.color,
+                          size: item.size,
+                        });
                         refresh();
                       }}
                       aria-label="삭제"

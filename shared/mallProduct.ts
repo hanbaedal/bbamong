@@ -4,7 +4,59 @@ export const MALL_PRODUCT_IMAGE_MAX_BYTES = 20 * 1024;
 /** 상품정보 이미지 최대 개수 */
 export const MALL_PRODUCT_DETAIL_IMAGE_MAX = 10;
 
+/** 옵션(컬러·사이즈)별 재고 최대 행 수 */
+export const MALL_PRODUCT_VARIANT_MAX = 30;
+
 export const MALL_DEFAULT_SHIPPING_LABEL = "무료배송";
+
+export interface MallProductVariant {
+  color: string;
+  size: string;
+  stock: number;
+}
+
+/** 옵션 목록에서 컬러·사이즈 일치 행 찾기 */
+export function findProductVariant(
+  variants: MallProductVariant[] | undefined,
+  color: string,
+  size: string,
+): MallProductVariant | undefined {
+  if (!variants?.length) return undefined;
+  const c = color.trim();
+  const s = size.trim();
+  return variants.find((v) => v.color.trim() === c && v.size.trim() === s);
+}
+
+/** 선택 옵션 또는 단일 재고 기준 가용 수량. null = 재고 미설정(무제한) */
+export function resolveAvailableStock(
+  product: {
+    variants?: MallProductVariant[];
+    stockQuantity?: number;
+  },
+  color?: string,
+  size?: string,
+): number | null {
+  const variants = product.variants?.filter((v) => v.color.trim() || v.size.trim()) ?? [];
+  if (variants.length > 0) {
+    if (!color?.trim() || !size?.trim()) return 0;
+    const variant = findProductVariant(variants, color, size);
+    if (!variant) return 0;
+    return Math.max(0, variant.stock);
+  }
+  if (product.stockQuantity === undefined || product.stockQuantity === null || product.stockQuantity < 0) {
+    return null;
+  }
+  return Math.max(0, product.stockQuantity);
+}
+
+export function summarizeVariantLabels(variants: MallProductVariant[]): { color: string; size: string } {
+  const colors = [...new Set(variants.map((v) => v.color.trim()).filter(Boolean))];
+  const sizes = [...new Set(variants.map((v) => v.size.trim()).filter(Boolean))];
+  return {
+    color: colors.join(", "),
+    size: sizes.join(", "),
+  };
+}
 
 /** 판매가격(정가) + 할인율 → 할인가격 */
 export function calculateDiscountedPrice(originalPrice: number, discountPercent: number): number {

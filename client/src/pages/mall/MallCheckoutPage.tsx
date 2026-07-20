@@ -20,6 +20,8 @@ export default function MallCheckoutPage() {
   const buyParams = useMemo(() => new URLSearchParams(searchString), [searchString]);
   const buyProductId = buyParams.get("buy");
   const buyQty = parseInt(buyParams.get("qty") || "1", 10);
+  const buyColor = buyParams.get("color") ?? "";
+  const buySize = buyParams.get("size") ?? "";
 
   const [items, setItems] = useState<MallCartItem[]>([]);
   const [sessionKind, setSessionKind] = useState<MemberSessionKind>("none");
@@ -53,6 +55,8 @@ export default function MallCheckoutPage() {
                   priceAmount: price,
                   originalPriceAmount: product.originalPriceAmount,
                   imageUrl: product.imageUrl,
+                  color: buyColor || undefined,
+                  size: buySize || undefined,
                 },
                 buyQty,
               );
@@ -76,7 +80,7 @@ export default function MallCheckoutPage() {
         }
       }
     })();
-  }, [buyProductId, buyQty]);
+  }, [buyProductId, buyQty, buyColor, buySize]);
 
   const total = mallCartTotal(items);
 
@@ -100,7 +104,12 @@ export default function MallCheckoutPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          items: items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            color: i.color ?? "",
+            size: i.size ?? "",
+          })),
           customerName: name.trim(),
           customerPhone: phone.trim(),
           shippingAddress: address.trim(),
@@ -166,9 +175,13 @@ export default function MallCheckoutPage() {
         <h2 className="text-sm font-semibold text-neutral-900 mb-3">주문 상품</h2>
         <ul className="space-y-2">
           {items.map((item) => (
-            <li key={item.productId} className="flex justify-between text-sm">
+            <li key={`${item.productId}:${item.color ?? ""}:${item.size ?? ""}`} className="flex justify-between text-sm">
               <span className="text-neutral-700 truncate pr-4">
-                {item.name} × {item.quantity}
+                {item.name}
+                {(item.color || item.size) && (
+                  <span className="text-neutral-500"> ({[item.color, item.size].filter(Boolean).join(" / ")})</span>
+                )}{" "}
+                × {item.quantity}
               </span>
               <span className="font-medium shrink-0">{formatKrw(item.priceAmount * item.quantity)}</span>
             </li>

@@ -12,9 +12,17 @@ export interface MallProduct {
   brand?: string;
   color?: string;
   size?: string;
+  stockQuantity?: number;
+  variants?: MallProductVariant[];
   shippingLabel?: string;
   detailImages?: string[];
   categoryName?: string;
+}
+
+export interface MallProductVariant {
+  color: string;
+  size: string;
+  stock: number;
 }
 
 export interface MallProductReview {
@@ -50,6 +58,8 @@ export interface MallCartItem {
   originalPriceAmount?: number;
   imageUrl: string;
   quantity: number;
+  color?: string;
+  size?: string;
 }
 
 export type MallSort = "popular" | "newest" | "price_asc" | "price_desc" | "discount";

@@ -64,6 +64,8 @@ interface GoodsProduct {
   brand?: string;
   color?: string;
   size?: string;
+  stockQuantity?: number;
+  variants?: { color: string; size: string; stock: number }[];
   shippingLabel?: string;
   detailImages?: string[];
   purchaseUrl?: string;
@@ -76,6 +78,7 @@ function productToForm(product: Partial<GoodsProduct>): Partial<MallProductFormV
     id: product.id,
     categoryId: product.categoryId ?? 0,
     name: product.name ?? "",
+    brand: product.brand ?? "",
     color: product.color ?? "",
     size: product.size ?? "",
     summary: product.summary ?? "",
@@ -85,6 +88,8 @@ function productToForm(product: Partial<GoodsProduct>): Partial<MallProductFormV
       product.priceAmount ??
       calculateDiscountedPrice(product.originalPriceAmount ?? 0, product.discountPercent ?? 0),
     shippingLabel: product.shippingLabel ?? MALL_DEFAULT_SHIPPING_LABEL,
+    stockQuantity: product.stockQuantity ?? -1,
+    variants: product.variants ?? [],
     imageUrl: product.imageUrl ?? "",
     detailImages: product.detailImages ?? [],
     isActive: product.isActive ?? true,
@@ -100,6 +105,7 @@ function formToProduct(form: Partial<MallProductFormValues>): Partial<GoodsProdu
     id: form.id,
     categoryId: form.categoryId ?? 0,
     name: form.name ?? "",
+    brand: form.brand ?? "",
     color: form.color ?? "",
     size: form.size ?? "",
     summary: form.summary ?? "",
@@ -108,6 +114,8 @@ function formToProduct(form: Partial<MallProductFormValues>): Partial<GoodsProdu
     discountPercent: form.discountPercent ?? 0,
     priceAmount,
     shippingLabel: form.shippingLabel ?? MALL_DEFAULT_SHIPPING_LABEL,
+    stockQuantity: form.stockQuantity ?? -1,
+    variants: form.variants ?? [],
     imageUrl: form.imageUrl ?? "",
     detailImages: form.detailImages ?? [],
     isActive: form.isActive ?? true,

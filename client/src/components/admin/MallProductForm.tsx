@@ -3,6 +3,8 @@ import {
   calculateDiscountedPrice,
   MALL_DEFAULT_SHIPPING_LABEL,
   MALL_PRODUCT_DETAIL_IMAGE_MAX,
+  MALL_PRODUCT_VARIANT_MAX,
+  type MallProductVariant,
 } from "@shared/mallProduct";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +26,7 @@ export interface MallProductFormValues {
   id?: number;
   categoryId: number;
   name: string;
+  brand: string;
   color: string;
   size: string;
   summary: string;
@@ -31,6 +34,8 @@ export interface MallProductFormValues {
   discountPercent: number;
   priceAmount: number;
   shippingLabel: string;
+  stockQuantity: number;
+  variants: MallProductVariant[];
   imageUrl: string;
   detailImages: string[];
   isActive: boolean;
@@ -54,6 +59,7 @@ export function createEmptyMallProduct(categoryId?: number): Partial<MallProduct
   return {
     categoryId: categoryId ?? 0,
     name: "",
+    brand: "",
     color: "",
     size: "",
     summary: "",
@@ -61,6 +67,8 @@ export function createEmptyMallProduct(categoryId?: number): Partial<MallProduct
     discountPercent: 0,
     priceAmount: 0,
     shippingLabel: MALL_DEFAULT_SHIPPING_LABEL,
+    stockQuantity: -1,
+    variants: [],
     imageUrl: "",
     detailImages: [],
     isActive: true,
@@ -93,6 +101,13 @@ export default function MallProductForm({
   };
 
   const detailImages = value.detailImages ?? [];
+  const variants = value.variants ?? [];
+  const hasVariants = variants.length > 0;
+
+  const updateVariant = (index: number, patch: Partial<MallProductVariant>) => {
+    const next = variants.map((row, i) => (i === index ? { ...row, ...patch } : row));
+    onChange({ ...value, variants: next });
+  };
 
   return (
     <div className="border border-[#E9E9E9] rounded-lg p-4 space-y-4 bg-[#FAFAFA]">
@@ -127,21 +142,46 @@ export default function MallProductForm({
           />
         </div>
         <div className="space-y-2">
-          <Label>컬러</Label>
+          <Label>브랜드</Label>
           <Input
-            placeholder="예: 블랙"
-            value={value.color ?? ""}
-            onChange={(e) => onChange({ ...value, color: e.target.value })}
+            placeholder="예: PPAMONG"
+            value={value.brand ?? ""}
+            onChange={(e) => onChange({ ...value, brand: e.target.value })}
           />
         </div>
-        <div className="space-y-2">
-          <Label>사이즈</Label>
-          <Input
-            placeholder="예: M, L, FREE"
-            value={value.size ?? ""}
-            onChange={(e) => onChange({ ...value, size: e.target.value })}
-          />
-        </div>
+        {!hasVariants ? (
+          <>
+            <div className="space-y-2">
+              <Label>컬러 (표시용)</Label>
+              <Input
+                placeholder="예: 블랙"
+                value={value.color ?? ""}
+                onChange={(e) => onChange({ ...value, color: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>사이즈 (표시용)</Label>
+              <Input
+                placeholder="예: M, L, FREE"
+                value={value.size ?? ""}
+                onChange={(e) => onChange({ ...value, size: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>재고 (단일)</Label>
+              <Input
+                type="number"
+                min={-1}
+                placeholder="-1 = 무제한"
+                value={value.stockQuantity ?? -1}
+                onChange={(e) =>
+                  onChange({ ...value, stockQuantity: parseInt(e.target.value, 10) || -1 })
+                }
+              />
+              <p className="text-xs text-[#888]">-1이면 재고 제한 없음, 0이면 품절</p>
+            </div>
+          </>
+        ) : null}
         <div className="space-y-2">
           <Label>배송</Label>
           <Input
@@ -150,6 +190,74 @@ export default function MallProductForm({
             onChange={(e) => onChange({ ...value, shippingLabel: e.target.value })}
           />
         </div>
+      </div>
+
+      <div className="space-y-3 border border-[#E9E9E9] rounded-lg p-3 bg-white">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <Label>옵션별 재고 (컬러 · 사이즈)</Label>
+            <p className="text-xs text-[#888] mt-1">
+              등록 시 몰에서 컬러·사이즈를 선택하고 재고를 확인할 수 있습니다.
+            </p>
+          </div>
+          {variants.length < MALL_PRODUCT_VARIANT_MAX ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                onChange({
+                  ...value,
+                  variants: [...variants, { color: "", size: "", stock: 0 }],
+                })
+              }
+            >
+              옵션 추가
+            </Button>
+          ) : null}
+        </div>
+        {variants.length > 0 ? (
+          <div className="space-y-2">
+            {variants.map((row, index) => (
+              <div key={index} className="grid grid-cols-[1fr_1fr_100px_auto] gap-2 items-center">
+                <Input
+                  placeholder="컬러"
+                  value={row.color}
+                  onChange={(e) => updateVariant(index, { color: e.target.value })}
+                />
+                <Input
+                  placeholder="사이즈"
+                  value={row.size}
+                  onChange={(e) => updateVariant(index, { size: e.target.value })}
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="재고"
+                  value={row.stock}
+                  onChange={(e) =>
+                    updateVariant(index, { stock: parseInt(e.target.value, 10) || 0 })
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    onChange({
+                      ...value,
+                      variants: variants.filter((_, i) => i !== index),
+                    })
+                  }
+                >
+                  삭제
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-[#888]">옵션이 없으면 위의 컬러·사이즈·단일 재고를 사용합니다.</p>
+        )}
       </div>
 
       <div className="space-y-2">

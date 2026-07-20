@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, Minus, Plus } from "lucide-react";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
+import { resolveAvailableStock } from "@shared/mallProduct";
 import MemberOnlyGate from "@/components/mall/MemberOnlyGate";
 import MallProductDetailTabs from "@/components/mall/product/MallProductDetailTabs";
 import { notifyMallCartChanged } from "@/components/mall/MallHeader";
@@ -11,6 +12,7 @@ import { addToMallCart, discountRate, formatKrw } from "@/lib/mallCart";
 import { fetchMemberSessionKind, type MemberSessionKind } from "@/lib/appNavigation";
 import { getFullUrl } from "@/lib/queryClient";
 import type { MallProduct, MallProductDetailTab } from "@/lib/mallTypes";
+import { cn } from "@/lib/utils";
 
 export default function MallProductPage() {
   const [, params] = useRoute("/shop/product/:productId");
@@ -19,6 +21,9 @@ export default function MallProductPage() {
   const [sessionKind, setSessionKind] = useState<MemberSessionKind>("none");
   const [added, setAdded] = useState(false);
   const [activeTab, setActiveTab] = useState<MallProductDetailTab>("info");
+  const [selectedColor, setSelectedColor] = useState("");
+  const [selectedSize, setSelectedSize] = useState("");
+  const [optionError, setOptionError] = useState("");
 
   useEffect(() => {
     void fetchMemberSessionKind().then(setSessionKind);
@@ -35,6 +40,35 @@ export default function MallProductPage() {
   });
 
   const product = data?.product;
+  const variants = useMemo(
+    () => product?.variants?.filter((v) => v.color.trim() || v.size.trim()) ?? [],
+    [product?.variants],
+  );
+  const hasVariants = variants.length > 0;
+  const colorOptions = useMemo(
+    () => [...new Set(variants.map((v) => v.color.trim()).filter(Boolean))],
+    [variants],
+  );
+  const sizeOptions = useMemo(() => {
+    const pool = selectedColor
+      ? variants.filter((v) => v.color.trim() === selectedColor)
+      : variants;
+    return [...new Set(pool.map((v) => v.size.trim()).filter(Boolean))];
+  }, [variants, selectedColor]);
+
+  const availableStock = product
+    ? resolveAvailableStock(product, selectedColor, selectedSize)
+    : null;
+  const maxQuantity =
+    availableStock === null ? 99 : availableStock > 0 ? Math.min(99, availableStock) : 0;
+  const isSoldOut = availableStock !== null && availableStock <= 0;
+  const needsOptionSelection = hasVariants && (!selectedColor || !selectedSize);
+
+  useEffect(() => {
+    if (maxQuantity <= 0) return;
+    setQuantity((q) => Math.min(q, maxQuantity));
+  }, [maxQuantity]);
+
   const price = product ? resolvePrice(product) : 0;
   const rate =
     product?.discountPercent && product.discountPercent > 0
@@ -44,7 +78,12 @@ export default function MallProductPage() {
         : null;
 
   const handleAddToCart = () => {
-    if (!product || price <= 0) return;
+    if (!product || price <= 0 || isSoldOut) return;
+    if (needsOptionSelection) {
+      setOptionError("컬러와 사이즈를 선택해 주세요.");
+      return;
+    }
+    setOptionError("");
     addToMallCart(
       {
         productId: product.id,
@@ -52,6 +91,8 @@ export default function MallProductPage() {
         priceAmount: price,
         originalPriceAmount: product.originalPriceAmount,
         imageUrl: product.imageUrl,
+        color: hasVariants ? selectedColor : undefined,
+        size: hasVariants ? selectedSize : undefined,
       },
       quantity,
     );
@@ -71,6 +112,14 @@ export default function MallProductPage() {
   if (!product) {
     return <p className="p-8 text-center text-neutral-500">상품을 찾을 수 없습니다.</p>;
   }
+
+  const checkoutQuery = new URLSearchParams({
+    buy: String(product.id),
+    qty: String(quantity),
+  });
+  if (hasVariants && selectedColor) checkoutQuery.set("color", selectedColor);
+  if (hasVariants && selectedSize) checkoutQuery.set("size", selectedSize);
+  const checkoutHref = `${MALL_BASE_PATH}/checkout?${checkoutQuery.toString()}`;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
@@ -120,30 +169,107 @@ export default function MallProductPage() {
             <p className="text-sm text-neutral-600 mb-4 leading-relaxed">{product.summary}</p>
           )}
 
-          {(product.color || product.size || product.shippingLabel) && (
-            <dl className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-2 text-sm mb-6 border border-neutral-100 rounded-md p-4 bg-neutral-50">
-              {product.color ? (
+          {(hasVariants || product.color || product.size || product.shippingLabel) && (
+            <div className="space-y-4 mb-6">
+              {hasVariants ? (
                 <>
-                  <dt className="text-neutral-500">컬러</dt>
-                  <dd className="text-neutral-900">{product.color}</dd>
+                  {colorOptions.length > 0 && (
+                    <div>
+                      <p className="text-sm text-neutral-600 mb-2">컬러</p>
+                      <div className="flex flex-wrap gap-2">
+                        {colorOptions.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => {
+                              setSelectedColor(color);
+                              setSelectedSize("");
+                              setOptionError("");
+                            }}
+                            className={cn(
+                              "px-3 py-1.5 text-sm border rounded-md",
+                              selectedColor === color
+                                ? "border-neutral-900 text-neutral-900 font-medium bg-neutral-50"
+                                : "border-neutral-200 text-neutral-600 hover:border-neutral-400",
+                            )}
+                          >
+                            {color}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {sizeOptions.length > 0 && (
+                    <div>
+                      <p className="text-sm text-neutral-600 mb-2">사이즈</p>
+                      <div className="flex flex-wrap gap-2">
+                        {sizeOptions.map((size) => {
+                          const stock = resolveAvailableStock(product, selectedColor, size);
+                          const disabled = stock !== null && stock <= 0;
+                          return (
+                            <button
+                              key={size}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => {
+                                setSelectedSize(size);
+                                setOptionError("");
+                              }}
+                              className={cn(
+                                "px-3 py-1.5 text-sm border rounded-md",
+                                selectedSize === size
+                                  ? "border-neutral-900 text-neutral-900 font-medium bg-neutral-50"
+                                  : "border-neutral-200 text-neutral-600 hover:border-neutral-400",
+                                disabled && "opacity-40 cursor-not-allowed line-through",
+                              )}
+                            >
+                              {size}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {availableStock !== null && selectedColor && selectedSize && (
+                    <p className="text-sm text-neutral-600">
+                      {availableStock > 0 ? `재고 ${availableStock}개` : "품절"}
+                    </p>
+                  )}
                 </>
-              ) : null}
-              {product.size ? (
-                <>
-                  <dt className="text-neutral-500">사이즈</dt>
-                  <dd className="text-neutral-900">{product.size}</dd>
-                </>
-              ) : null}
-              {product.shippingLabel ? (
-                <>
-                  <dt className="text-neutral-500">배송</dt>
-                  <dd className="text-neutral-900">{product.shippingLabel}</dd>
-                </>
-              ) : null}
-            </dl>
+              ) : (
+                (product.color || product.size) && (
+                  <dl className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-2 text-sm border border-neutral-100 rounded-md p-4 bg-neutral-50">
+                    {product.color ? (
+                      <>
+                        <dt className="text-neutral-500">컬러</dt>
+                        <dd className="text-neutral-900">{product.color}</dd>
+                      </>
+                    ) : null}
+                    {product.size ? (
+                      <>
+                        <dt className="text-neutral-500">사이즈</dt>
+                        <dd className="text-neutral-900">{product.size}</dd>
+                      </>
+                    ) : null}
+                  </dl>
+                )
+              )}
+              {product.shippingLabel && (
+                <p className="text-sm text-neutral-600">
+                  배송: <span className="text-neutral-900">{product.shippingLabel}</span>
+                </p>
+              )}
+              {!hasVariants && availableStock !== null && (
+                <p className="text-sm text-neutral-600">
+                  {availableStock > 0 ? `재고 ${availableStock}개` : "품절"}
+                </p>
+              )}
+            </div>
           )}
 
-          {price > 0 && (
+          {optionError && <p className="text-sm text-red-600 mb-4">{optionError}</p>}
+
+          {price > 0 && !isSoldOut && maxQuantity > 0 && (
             <div className="flex items-center gap-3 mb-6">
               <span className="text-sm text-neutral-600">수량</span>
               <div className="flex items-center border border-neutral-200 rounded-md">
@@ -159,7 +285,7 @@ export default function MallProductPage() {
                 <button
                   type="button"
                   className="p-2 hover:bg-neutral-50"
-                  onClick={() => setQuantity((q) => Math.min(99, q + 1))}
+                  onClick={() => setQuantity((q) => Math.min(maxQuantity, q + 1))}
                   aria-label="수량 증가"
                 >
                   <Plus className="w-4 h-4" />
@@ -168,20 +294,31 @@ export default function MallProductPage() {
             </div>
           )}
 
+          {price > 0 && isSoldOut && (
+            <p className="text-sm font-medium text-red-600 mb-4">품절된 상품입니다.</p>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-2 mb-4">
-            {price > 0 && (
+            {price > 0 && !isSoldOut && (
               <>
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className="flex-1 h-12 text-sm font-semibold border border-neutral-900 text-neutral-900 rounded-md hover:bg-neutral-50"
+                  disabled={needsOptionSelection}
+                  className="flex-1 h-12 text-sm font-semibold border border-neutral-900 text-neutral-900 rounded-md hover:bg-neutral-50 disabled:opacity-50"
                 >
                   {added ? "장바구니에 담았습니다" : "장바구니 담기"}
                 </button>
                 {sessionKind === "member" ? (
                   <Link
-                    href={`${MALL_BASE_PATH}/checkout?buy=${product.id}&qty=${quantity}`}
-                    className="flex-1 h-12 flex items-center justify-center text-sm font-semibold text-white bg-neutral-900 rounded-md hover:bg-neutral-800"
+                    href={needsOptionSelection ? "#" : checkoutHref}
+                    onClick={(e) => {
+                      if (needsOptionSelection) {
+                        e.preventDefault();
+                        setOptionError("컬러와 사이즈를 선택해 주세요.");
+                      }
+                    }}
+                    className="flex-1 h-12 flex items-center justify-center text-sm font-semibold text-white bg-neutral-900 rounded-md hover:bg-neutral-800 disabled:opacity-50"
                   >
                     바로 구매
                   </Link>

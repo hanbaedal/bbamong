@@ -31,6 +31,12 @@ const categorySchema = z.object({
   isActive: z.boolean().optional().default(true),
 });
 
+const variantSchema = z.object({
+  color: z.string().max(100).optional().default(""),
+  size: z.string().max(100).optional().default(""),
+  stock: z.number().int().min(0).optional().default(0),
+});
+
 const productSchema = z.object({
   categoryId: z.number().int(),
   name: z.string().min(1).max(100),
@@ -43,6 +49,8 @@ const productSchema = z.object({
   brand: z.string().max(100).optional().default(""),
   color: z.string().max(100).optional().default(""),
   size: z.string().max(100).optional().default(""),
+  stockQuantity: z.number().int().min(-1).optional().default(-1),
+  variants: z.array(variantSchema).max(30).optional().default([]),
   discountPercent: z.number().int().min(0).max(100).optional().default(0),
   shippingLabel: z.string().max(100).optional().default("무료배송"),
   detailImages: z.array(z.string().max(2000)).max(10).optional().default([]),

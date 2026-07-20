@@ -13,6 +13,8 @@ import { shopInquiryStorage } from "../UserStorage/shopInquiryStorage";
 const orderItemSchema = z.object({
   productId: z.number().int(),
   quantity: z.number().int().min(1).max(99),
+  color: z.string().max(100).optional().default(""),
+  size: z.string().max(100).optional().default(""),
 });
 
 const createOrderSchema = z.object({
@@ -240,14 +242,26 @@ export async function mallRoutes(app: Express): Promise<void> {
         if (priceAmount <= 0) {
           return res.status(400).json({ error: `"${product.name}"은(는) 주문 가능한 가격이 설정되지 않았습니다.` });
         }
+        const stockError = goodsStorage.validateOrderStock(
+          product,
+          item.quantity,
+          item.color,
+          item.size,
+        );
+        if (stockError) {
+          return res.status(400).json({ error: stockError });
+        }
         const lineTotal = priceAmount * item.quantity;
         totalAmount += lineTotal;
+        const optionLabel = [item.color, item.size].filter(Boolean).join(" / ");
         orderItems.push({
           productId: product.id,
-          productName: product.name,
+          productName: optionLabel ? `${product.name} (${optionLabel})` : product.name,
           priceAmount,
           quantity: item.quantity,
           imageUrl: product.imageUrl || "",
+          color: item.color,
+          size: item.size,
         });
       }
 
@@ -261,6 +275,10 @@ export async function mallRoutes(app: Express): Promise<void> {
         totalAmount,
         status: "pending",
       });
+
+      for (const item of parsed.data.items) {
+        await goodsStorage.decrementStock(item.productId, item.quantity, item.color, item.size);
+      }
 
       res.status(201).json({ success: true, order });
     } catch (error) {
