@@ -17,6 +17,24 @@ export interface MallProduct {
   categoryName?: string;
 }
 
+export interface MallProductReview {
+  id: number;
+  productId: number;
+  authorName: string;
+  rating: number;
+  content: string;
+  isVisible: boolean;
+  createdAt: string;
+}
+
+export interface MallProductReviewSummary {
+  reviews: MallProductReview[];
+  totalCount: number;
+  averageRating: number;
+}
+
+export type MallProductDetailTab = "info" | "reviews" | "recommend" | "inquiry";
+
 export interface MallCategory {
   id: number;
   name: string;

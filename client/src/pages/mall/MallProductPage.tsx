@@ -1,16 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, Minus, Plus } from "lucide-react";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
 import MemberOnlyGate from "@/components/mall/MemberOnlyGate";
+import MallProductDetailTabs from "@/components/mall/product/MallProductDetailTabs";
 import { notifyMallCartChanged } from "@/components/mall/MallHeader";
 import { resolvePrice } from "@/components/mall/ProductCard";
 import { addToMallCart, discountRate, formatKrw } from "@/lib/mallCart";
 import { fetchMemberSessionKind, type MemberSessionKind } from "@/lib/appNavigation";
 import { getFullUrl } from "@/lib/queryClient";
-import type { MallProduct } from "@/lib/mallTypes";
-import { useEffect } from "react";
+import type { MallProduct, MallProductDetailTab } from "@/lib/mallTypes";
 
 export default function MallProductPage() {
   const [, params] = useRoute("/shop/product/:productId");
@@ -18,6 +18,7 @@ export default function MallProductPage() {
   const [quantity, setQuantity] = useState(1);
   const [sessionKind, setSessionKind] = useState<MemberSessionKind>("none");
   const [added, setAdded] = useState(false);
+  const [activeTab, setActiveTab] = useState<MallProductDetailTab>("info");
 
   useEffect(() => {
     void fetchMemberSessionKind().then(setSessionKind);
@@ -73,7 +74,10 @@ export default function MallProductPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-      <Link href={backPath} className="inline-flex items-center gap-1 text-sm text-neutral-600 mb-6 hover:text-neutral-900">
+      <Link
+        href={backPath}
+        className="inline-flex items-center gap-1 text-sm text-neutral-600 mb-6 hover:text-neutral-900"
+      >
         <ChevronLeft className="w-4 h-4" />
         목록으로
       </Link>
@@ -83,7 +87,9 @@ export default function MallProductPage() {
           {product.imageUrl ? (
             <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-neutral-400">이미지 없음</div>
+            <div className="w-full h-full flex items-center justify-center text-neutral-400">
+              이미지 없음
+            </div>
           )}
         </div>
 
@@ -162,7 +168,7 @@ export default function MallProductPage() {
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row gap-2 mb-8">
+          <div className="flex flex-col sm:flex-row gap-2 mb-4">
             {price > 0 && (
               <>
                 <button
@@ -193,31 +199,39 @@ export default function MallProductPage() {
             )}
           </div>
 
-          {sessionKind !== "member" && price > 0 && (
-            <MemberOnlyGate />
-          )}
+          {sessionKind !== "member" && price > 0 && <MemberOnlyGate />}
 
-          <div className="border-t border-neutral-200 pt-6 mt-6">
-            <h2 className="text-sm font-semibold text-neutral-900 mb-3">상품 정보</h2>
-            {product.detailImages && product.detailImages.length > 0 ? (
-              <div className="space-y-3">
-                {product.detailImages.map((url, index) => (
-                  <img
-                    key={`${url}-${index}`}
-                    src={url}
-                    alt={`${product.name} 상품정보 ${index + 1}`}
-                    className="w-full rounded-sm border border-neutral-100"
-                    loading="lazy"
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap">
-                {product.detailContent?.trim() || product.summary?.trim() || "상세 설명이 없습니다."}
-              </div>
-            )}
+          <div className="flex flex-wrap gap-2 mt-6">
+            {(
+              [
+                ["info", "상품정보"],
+                ["reviews", "리뷰"],
+                ["recommend", "추천"],
+                ["inquiry", "문의"],
+              ] as const
+            ).map(([tab, label]) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => {
+                  setActiveTab(tab);
+                  document.getElementById("product-detail-tabs")?.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="text-xs px-3 py-1.5 border border-neutral-200 rounded-full text-neutral-600 hover:border-neutral-900 hover:text-neutral-900"
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
+
+      <div id="product-detail-tabs">
+        <MallProductDetailTabs
+          product={product}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
       </div>
     </div>
   );

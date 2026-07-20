@@ -387,6 +387,21 @@ const shopInquirySchema = new Schema(
 shopInquirySchema.index({ status: 1, createdAt: -1 });
 export const ShopInquiryModel = mongoose.model("ShopInquiry", shopInquirySchema);
 
+const mallProductReviewSchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true },
+    productId: { type: Number, required: true },
+    authorName: { type: String, required: true },
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    content: { type: String, default: "" },
+    isVisible: { type: Boolean, default: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+mallProductReviewSchema.index({ productId: 1, isVisible: 1, createdAt: -1 });
+export const MallProductReviewModel = mongoose.model("MallProductReview", mallProductReviewSchema);
+
 const mallOrderItemSchema = new Schema(
   {
     productId: { type: Number, required: true },

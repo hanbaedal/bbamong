@@ -7,6 +7,8 @@ import { userAuthMiddleware, type AuthenticatedUserRequest } from "../middleware
 import { userStorage } from "../UserStorage/userStorage";
 import { goodsStorage } from "../UserStorage/goodsStorage";
 import { mallOrderStorage } from "../UserStorage/mallOrderStorage";
+import { mallProductReviewStorage } from "../UserStorage/mallProductReviewStorage";
+import { shopInquiryStorage } from "../UserStorage/shopInquiryStorage";
 
 const orderItemSchema = z.object({
   productId: z.number().int(),
@@ -19,6 +21,27 @@ const createOrderSchema = z.object({
   customerPhone: z.string().min(8).max(30),
   shippingAddress: z.string().min(5).max(500),
   memo: z.string().max(500).optional().default(""),
+});
+
+const createReviewSchema = z.object({
+  authorName: z.string().min(1).max(30),
+  rating: z.number().int().min(1).max(5),
+  content: z.string().min(1).max(2000),
+});
+
+const createMallInquirySchema = z.object({
+  productId: z.number().int(),
+  customerName: z.string().min(1).max(50),
+  phone: z.string().max(30).optional().default(""),
+  email: z.string().max(200).default(""),
+  message: z.string().min(1).max(2000),
+}).superRefine((data, ctx) => {
+  if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+    ctx.addIssue({ code: "custom", message: "이메일 형식이 올바르지 않습니다.", path: ["email"] });
+  }
+  if (!data.phone.trim() && !data.email.trim()) {
+    ctx.addIssue({ code: "custom", message: "전화번호 또는 이메일 중 하나는 필요합니다.", path: ["phone"] });
+  }
 });
 
 function parsePriceAmount(priceLabel: string, priceAmount?: number): number {
@@ -99,6 +122,93 @@ export async function mallRoutes(app: Express): Promise<void> {
       res.json({ categories });
     } catch (error) {
       console.error("List mall categories error:", error);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.get("/api/mall/products/:productId/related", async (req, res) => {
+    try {
+      const productId = parseInt(req.params.productId, 10);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "잘못된 상품 ID입니다." });
+      }
+      const product = await goodsStorage.getProduct(productId, true);
+      if (!product) {
+        return res.status(404).json({ error: "상품을 찾을 수 없습니다." });
+      }
+      const limit = Math.min(12, Math.max(1, parseInt(String(req.query.limit || "8"), 10) || 8));
+      const products = await goodsStorage.listRelatedProducts(productId, limit);
+      res.json({ products });
+    } catch (error) {
+      console.error("List related products error:", error);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.get("/api/mall/products/:productId/reviews", async (req, res) => {
+    try {
+      const productId = parseInt(req.params.productId, 10);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "잘못된 상품 ID입니다." });
+      }
+      const product = await goodsStorage.getProduct(productId, true);
+      if (!product) {
+        return res.status(404).json({ error: "상품을 찾을 수 없습니다." });
+      }
+      const summary = await mallProductReviewStorage.getSummary(productId);
+      res.json(summary);
+    } catch (error) {
+      console.error("List product reviews error:", error);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.post("/api/mall/products/:productId/reviews", async (req, res) => {
+    try {
+      const productId = parseInt(req.params.productId, 10);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "잘못된 상품 ID입니다." });
+      }
+      const product = await goodsStorage.getProduct(productId, true);
+      if (!product) {
+        return res.status(404).json({ error: "상품을 찾을 수 없습니다." });
+      }
+      const parsed = createReviewSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: fromZodError(parsed.error).message });
+      }
+      const review = await mallProductReviewStorage.create({
+        productId,
+        ...parsed.data,
+      });
+      res.status(201).json({ success: true, review });
+    } catch (error) {
+      console.error("Create product review error:", error);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.post("/api/mall/inquiries", async (req, res) => {
+    try {
+      const parsed = createMallInquirySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: fromZodError(parsed.error).message });
+      }
+      const product = await goodsStorage.getProduct(parsed.data.productId, true);
+      if (!product) {
+        return res.status(404).json({ error: "상품을 찾을 수 없습니다." });
+      }
+      const inquiry = await shopInquiryStorage.create({
+        productId: product.id,
+        productName: product.name,
+        customerName: parsed.data.customerName,
+        phone: parsed.data.phone,
+        email: parsed.data.email,
+        message: parsed.data.message,
+      });
+      res.status(201).json({ success: true, inquiry });
+    } catch (error) {
+      console.error("Create mall inquiry error:", error);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   });
@@ -202,6 +312,23 @@ export async function mallRoutes(app: Express): Promise<void> {
       res.json({ order });
     } catch (error) {
       console.error("Admin update mall order error:", error);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.delete("/api/admin/mall/reviews/:id", adminAuthMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "잘못된 ID입니다." });
+      }
+      const deleted = await mallProductReviewStorage.delete(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "리뷰를 찾을 수 없습니다." });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Admin delete mall review error:", error);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   });

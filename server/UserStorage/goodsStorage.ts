@@ -210,6 +210,20 @@ export class GoodsStorage {
     return { ...doc, categoryName: category?.name } as GoodsProduct;
   }
 
+  async listRelatedProducts(productId: number, limit = 8): Promise<GoodsProduct[]> {
+    const product = await this.getProduct(productId, true);
+    if (!product) return [];
+    const docs = await GoodsProductModel.find({
+      categoryId: product.categoryId,
+      isActive: true,
+      id: { $ne: productId },
+    })
+      .sort({ displayOrder: 1, id: 1 })
+      .limit(limit)
+      .lean();
+    return docs as GoodsProduct[];
+  }
+
   async createProduct(data: {
     categoryId: number;
     name: string;
