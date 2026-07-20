@@ -301,6 +301,34 @@ export class ObjectStorageService {
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
+
+  /** 몰 상품 이미지 — GCS에 직접 저장 후 /objects/... 경로 반환 */
+  async uploadPublicProductImage(
+    directory: string,
+    buffer: Buffer,
+    contentType: string,
+    extension: string,
+  ): Promise<string> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fileName = `${objectId}${extension}`;
+    const fullPath = `${privateObjectDir}/${directory}/${fileName}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const objectFile = bucket.file(objectName);
+
+    await objectFile.save(buffer, {
+      contentType,
+      metadata: { cacheControl: "public, max-age=31536000" },
+    });
+    await objectFile.makePublic();
+    await setObjectAclPolicy(objectFile, {
+      owner: "system",
+      visibility: "public",
+    });
+
+    return `/objects/${directory}/${fileName}`;
+  }
 }
 
 function parseObjectPath(path: string): {

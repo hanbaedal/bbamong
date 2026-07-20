@@ -8,7 +8,12 @@ export interface MallProduct {
   priceLabel: string;
   priceAmount?: number;
   originalPriceAmount?: number;
+  discountPercent?: number;
   brand?: string;
+  color?: string;
+  size?: string;
+  shippingLabel?: string;
+  detailImages?: string[];
   categoryName?: string;
 }
 

@@ -30,6 +30,7 @@ import {adminAdvertisementRoutes} from "./routes/adminAdvertisementRoutes"
 import {adminAdmobRoutes} from "./routes/adminAdmobRoutes"
 import { shopRoutes } from "./UserRoutes/shopRoutes"
 import { mallRoutes } from "./UserRoutes/mallRoutes"
+import { mallProductImageRoutes } from "./UserRoutes/mallProductImageRoutes"
 import { managerRoutes } from "./routes/managerRoutes"
 import predictionRoutes from "./liveMatch/predictionRoutes"
 import matchControlRoutes from "./liveMatch/matchControlRoutes"
@@ -50,6 +51,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   await homePageRoutes(app)
   await shopRoutes(app)
   await mallRoutes(app)
+  await mallProductImageRoutes(app)
   await faqRoutes(app)
   await ebookRoutes(app)
   

@@ -10,16 +10,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 import MallCategoryNav from "@/components/mall/MallCategoryNav";
+import MallProductForm, {
+  createEmptyMallProduct,
+  type MallProductFormValues,
+} from "@/components/admin/MallProductForm";
 import { MALL_DEFAULT_CATEGORIES } from "@shared/mallConfig";
+import { calculateDiscountedPrice, MALL_DEFAULT_SHIPPING_LABEL } from "@shared/mallProduct";
+import { formatKrw } from "@/lib/mallCart";
 
 type Tab = "catalog" | "settings" | "inquiries";
 
@@ -61,10 +60,58 @@ interface GoodsProduct {
   priceLabel: string;
   priceAmount?: number;
   originalPriceAmount?: number;
+  discountPercent?: number;
   brand?: string;
+  color?: string;
+  size?: string;
+  shippingLabel?: string;
+  detailImages?: string[];
   purchaseUrl?: string;
   displayOrder: number;
   isActive: boolean;
+}
+
+function productToForm(product: Partial<GoodsProduct>): Partial<MallProductFormValues> {
+  return {
+    id: product.id,
+    categoryId: product.categoryId ?? 0,
+    name: product.name ?? "",
+    color: product.color ?? "",
+    size: product.size ?? "",
+    summary: product.summary ?? "",
+    originalPriceAmount: product.originalPriceAmount ?? 0,
+    discountPercent: product.discountPercent ?? 0,
+    priceAmount:
+      product.priceAmount ??
+      calculateDiscountedPrice(product.originalPriceAmount ?? 0, product.discountPercent ?? 0),
+    shippingLabel: product.shippingLabel ?? MALL_DEFAULT_SHIPPING_LABEL,
+    imageUrl: product.imageUrl ?? "",
+    detailImages: product.detailImages ?? [],
+    isActive: product.isActive ?? true,
+  };
+}
+
+function formToProduct(form: Partial<MallProductFormValues>): Partial<GoodsProduct> {
+  const priceAmount = calculateDiscountedPrice(
+    form.originalPriceAmount ?? 0,
+    form.discountPercent ?? 0,
+  );
+  return {
+    id: form.id,
+    categoryId: form.categoryId ?? 0,
+    name: form.name ?? "",
+    color: form.color ?? "",
+    size: form.size ?? "",
+    summary: form.summary ?? "",
+    detailContent: form.summary ?? "",
+    originalPriceAmount: form.originalPriceAmount ?? 0,
+    discountPercent: form.discountPercent ?? 0,
+    priceAmount,
+    shippingLabel: form.shippingLabel ?? MALL_DEFAULT_SHIPPING_LABEL,
+    imageUrl: form.imageUrl ?? "",
+    detailImages: form.detailImages ?? [],
+    isActive: form.isActive ?? true,
+  };
 }
 
 interface ShopInquiry {
@@ -85,20 +132,13 @@ interface AdminHomepageData {
   products: GoodsProduct[];
 }
 
-const emptyProduct = (categoryId?: number): Partial<GoodsProduct> => ({
-  categoryId: categoryId ?? 0,
-  name: "",
-  summary: "",
-  detailContent: "",
-  imageUrl: "",
-  priceLabel: "",
-  priceAmount: 0,
-  originalPriceAmount: 0,
-  brand: "",
-  purchaseUrl: "",
-  displayOrder: 0,
-  isActive: true,
-});
+function openProductEditor(
+  product: Partial<GoodsProduct> | null,
+  categoryId?: number,
+): Partial<MallProductFormValues> {
+  if (product) return productToForm(product);
+  return createEmptyMallProduct(categoryId);
+}
 
 export default function HomePageManagementPage() {
   const { assets } = useAdminAssets();
@@ -109,7 +149,7 @@ export default function HomePageManagementPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [settingsForm, setSettingsForm] = useState<HomePageSettings | null>(null);
   const [editingCategory, setEditingCategory] = useState<Partial<GoodsCategory> | null>(null);
-  const [editingProduct, setEditingProduct] = useState<Partial<GoodsProduct> | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Partial<MallProductFormValues> | null>(null);
 
   const { data, isLoading } = useQuery<AdminHomepageData>({
     queryKey: ["/api/admin/homepage-settings"],
@@ -157,12 +197,10 @@ export default function HomePageManagementPage() {
   });
 
   const saveProductMutation = useMutation({
-    mutationFn: async (product: Partial<GoodsProduct>) => {
-      if (product.id) {
-        return apiRequest("PATCH", `/api/admin/homepage/goods/products/${product.id}`, product);
-      }
-      return apiRequest("POST", "/api/admin/homepage/goods/products", product);
-    },
+    mutationFn: async (product: Partial<MallProductFormValues>) =>
+      product.id
+        ? apiRequest("PATCH", `/api/admin/homepage/goods/products/${product.id}`, formToProduct(product))
+        : apiRequest("POST", "/api/admin/homepage/goods/products", formToProduct(product)),
     onSuccess: () => {
       invalidate();
       setEditingProduct(null);
@@ -350,9 +388,7 @@ export default function HomePageManagementPage() {
                   type="button"
                   size="sm"
                   onClick={() =>
-                    setEditingProduct(
-                      emptyProduct(selectedCategoryId ?? categories[0]?.id),
-                    )
+                    setEditingProduct(openProductEditor(null, selectedCategoryId ?? categories[0]?.id))
                   }
                   disabled={categories.length === 0}
                 >
@@ -361,121 +397,14 @@ export default function HomePageManagementPage() {
               </div>
 
               {editingProduct && (
-                <div className="border border-[#E9E9E9] rounded-lg p-4 space-y-3 bg-[#FAFAFA]">
-                  <h3 className="font-medium">{editingProduct.id ? "상품 수정" : "상품 등록"}</h3>
-                  <Select
-                    value={String(editingProduct.categoryId || "")}
-                    onValueChange={(v) =>
-                      setEditingProduct({ ...editingProduct, categoryId: parseInt(v, 10) })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="카테고리 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="상품명"
-                    value={editingProduct.name ?? ""}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, name: e.target.value })
-                    }
-                  />
-                  <Input
-                    placeholder="한줄 요약"
-                    value={editingProduct.summary ?? ""}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, summary: e.target.value })
-                    }
-                  />
-                  <Input
-                    placeholder="브랜드 (선택)"
-                    value={editingProduct.brand ?? ""}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, brand: e.target.value })
-                    }
-                  />
-                  <Input
-                    placeholder="판매가 (숫자, 원)"
-                    type="number"
-                    min={0}
-                    value={editingProduct.priceAmount ?? 0}
-                    onChange={(e) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        priceAmount: parseInt(e.target.value, 10) || 0,
-                      })
-                    }
-                  />
-                  <Input
-                    placeholder="정가 (숫자, 할인 표시용, 선택)"
-                    type="number"
-                    min={0}
-                    value={editingProduct.originalPriceAmount ?? 0}
-                    onChange={(e) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        originalPriceAmount: parseInt(e.target.value, 10) || 0,
-                      })
-                    }
-                  />
-                  <Input
-                    placeholder="가격 표시 (예: 29,000원, 선택)"
-                    value={editingProduct.priceLabel ?? ""}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, priceLabel: e.target.value })
-                    }
-                  />
-                  <Input
-                    placeholder="구매 링크 URL (스마트스토어·자사몰, 선택)"
-                    value={editingProduct.purchaseUrl ?? ""}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, purchaseUrl: e.target.value })
-                    }
-                  />
-                  <Input
-                    placeholder="이미지 URL"
-                    value={editingProduct.imageUrl ?? ""}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, imageUrl: e.target.value })
-                    }
-                  />
-                  <Textarea
-                    placeholder="상세 설명"
-                    value={editingProduct.detailContent ?? ""}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, detailContent: e.target.value })
-                    }
-                    rows={6}
-                  />
-                  <label className="flex items-center gap-2">
-                    <Checkbox
-                      checked={editingProduct.isActive ?? true}
-                      onCheckedChange={(v) =>
-                        setEditingProduct({ ...editingProduct, isActive: !!v })
-                      }
-                    />
-                    <span className="text-sm">노출</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      onClick={() => saveProductMutation.mutate(editingProduct)}
-                      className="bg-[#E11936] hover:bg-[#B71C1C]"
-                    >
-                      저장
-                    </Button>
-                    <Button type="button" variant="outline" onClick={() => setEditingProduct(null)}>
-                      취소
-                    </Button>
-                  </div>
-                </div>
+                <MallProductForm
+                  categories={categories}
+                  value={editingProduct}
+                  onChange={setEditingProduct}
+                  onSave={() => saveProductMutation.mutate(editingProduct)}
+                  onCancel={() => setEditingProduct(null)}
+                  saving={saveProductMutation.isPending}
+                />
               )}
 
               <div className="space-y-2">
@@ -501,7 +430,14 @@ export default function HomePageManagementPage() {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{p.name}</p>
                           <p className="text-xs text-[#888]">
-                            {cat?.name} {p.priceLabel && `· ${p.priceLabel}`}
+                            {cat?.name}
+                            {p.color ? ` · ${p.color}` : ""}
+                            {p.size ? ` · ${p.size}` : ""}
+                          </p>
+                          <p className="text-xs text-[#666] mt-0.5">
+                            {p.originalPriceAmount ? formatKrw(p.originalPriceAmount) : ""}
+                            {p.discountPercent ? ` · ${p.discountPercent}%` : ""}
+                            {p.priceAmount ? ` → ${formatKrw(p.priceAmount)}` : ""}
                           </p>
                         </div>
                         <div className="flex gap-1">
@@ -509,7 +445,7 @@ export default function HomePageManagementPage() {
                             type="button"
                             size="sm"
                             variant="outline"
-                            onClick={() => setEditingProduct(p)}
+                            onClick={() => setEditingProduct(productToForm(p))}
                           >
                             수정
                           </Button>

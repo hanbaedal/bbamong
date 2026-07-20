@@ -4,6 +4,11 @@ import {
   getNextSequence,
 } from "./db";
 import { MALL_CATEGORY_NAMES, MALL_DEFAULT_CATEGORIES } from "@shared/mallConfig";
+import {
+  calculateDiscountedPrice,
+  formatProductPriceLabel,
+  MALL_DEFAULT_SHIPPING_LABEL,
+} from "@shared/mallProduct";
 
 export interface GoodsCategory {
   id: number;
@@ -28,6 +33,11 @@ export interface GoodsProduct {
   priceAmount?: number;
   originalPriceAmount?: number;
   brand?: string;
+  color?: string;
+  size?: string;
+  discountPercent?: number;
+  shippingLabel?: string;
+  detailImages?: string[];
   purchaseUrl: string;
   displayOrder: number;
   isActive: boolean;
@@ -38,6 +48,27 @@ export interface GoodsProduct {
 
 const SHOP_CATEGORIES = MALL_DEFAULT_CATEGORIES.map((c) => ({ ...c }));
 const SHOP_CATEGORY_NAMES = MALL_CATEGORY_NAMES;
+
+function normalizeProductPricing(data: {
+  priceAmount?: number;
+  originalPriceAmount?: number;
+  discountPercent?: number;
+  priceLabel?: string;
+}) {
+  const original = Math.max(0, data.originalPriceAmount ?? 0);
+  const discountPercent = Math.min(100, Math.max(0, data.discountPercent ?? 0));
+  const priceAmount =
+    original > 0
+      ? calculateDiscountedPrice(original, discountPercent)
+      : Math.max(0, data.priceAmount ?? 0);
+
+  return {
+    originalPriceAmount: original,
+    discountPercent,
+    priceAmount,
+    priceLabel: priceAmount > 0 ? formatProductPriceLabel(priceAmount) : data.priceLabel ?? "",
+  };
+}
 
 export class GoodsStorage {
   async ensureDefaultCategories(): Promise<void> {
@@ -188,12 +219,18 @@ export class GoodsStorage {
     priceLabel?: string;
     priceAmount?: number;
     originalPriceAmount?: number;
+    discountPercent?: number;
     brand?: string;
+    color?: string;
+    size?: string;
+    shippingLabel?: string;
+    detailImages?: string[];
     purchaseUrl?: string;
     displayOrder?: number;
     isActive?: boolean;
   }): Promise<GoodsProduct> {
     const id = await getNextSequence("goodsProduct");
+    const pricing = normalizeProductPricing(data);
     const doc = await GoodsProductModel.create({
       id,
       categoryId: data.categoryId,
@@ -201,10 +238,15 @@ export class GoodsStorage {
       summary: data.summary ?? "",
       detailContent: data.detailContent ?? "",
       imageUrl: data.imageUrl ?? "",
-      priceLabel: data.priceLabel ?? "",
-      priceAmount: data.priceAmount ?? 0,
-      originalPriceAmount: data.originalPriceAmount ?? 0,
+      priceLabel: pricing.priceLabel,
+      priceAmount: pricing.priceAmount,
+      originalPriceAmount: pricing.originalPriceAmount,
+      discountPercent: pricing.discountPercent,
       brand: data.brand ?? "",
+      color: data.color ?? "",
+      size: data.size ?? "",
+      shippingLabel: data.shippingLabel ?? MALL_DEFAULT_SHIPPING_LABEL,
+      detailImages: (data.detailImages ?? []).slice(0, 10),
       purchaseUrl: data.purchaseUrl ?? "",
       displayOrder: data.displayOrder ?? id,
       isActive: data.isActive ?? true,
@@ -217,13 +259,47 @@ export class GoodsStorage {
     data: Partial<
       Pick<
         GoodsProduct,
-        "categoryId" | "name" | "summary" | "detailContent" | "imageUrl" | "priceLabel" | "priceAmount" | "originalPriceAmount" | "brand" | "purchaseUrl" | "displayOrder" | "isActive"
+        | "categoryId"
+        | "name"
+        | "summary"
+        | "detailContent"
+        | "imageUrl"
+        | "priceLabel"
+        | "priceAmount"
+        | "originalPriceAmount"
+        | "discountPercent"
+        | "brand"
+        | "color"
+        | "size"
+        | "shippingLabel"
+        | "detailImages"
+        | "purchaseUrl"
+        | "displayOrder"
+        | "isActive"
       >
     >,
   ): Promise<GoodsProduct | undefined> {
+    const existing = await GoodsProductModel.findOne({ id }).lean();
+    if (!existing) return undefined;
+
+    const pricing = normalizeProductPricing({
+      priceAmount: data.priceAmount ?? existing.priceAmount,
+      originalPriceAmount: data.originalPriceAmount ?? existing.originalPriceAmount,
+      discountPercent: data.discountPercent ?? existing.discountPercent,
+      priceLabel: data.priceLabel ?? existing.priceLabel,
+    });
+
     const doc = await GoodsProductModel.findOneAndUpdate(
       { id },
-      { ...data, updatedAt: new Date() },
+      {
+        ...data,
+        priceLabel: pricing.priceLabel,
+        priceAmount: pricing.priceAmount,
+        originalPriceAmount: pricing.originalPriceAmount,
+        discountPercent: pricing.discountPercent,
+        detailImages: data.detailImages ? data.detailImages.slice(0, 10) : undefined,
+        updatedAt: new Date(),
+      },
       { new: true },
     ).lean();
     return doc ? (doc as GoodsProduct) : undefined;

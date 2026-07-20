@@ -35,7 +35,12 @@ export default function MallProductPage() {
 
   const product = data?.product;
   const price = product ? resolvePrice(product) : 0;
-  const rate = product ? discountRate(price, product.originalPriceAmount) : null;
+  const rate =
+    product?.discountPercent && product.discountPercent > 0
+      ? product.discountPercent
+      : product
+        ? discountRate(price, product.originalPriceAmount)
+        : null;
 
   const handleAddToCart = () => {
     if (!product || price <= 0) return;
@@ -106,7 +111,30 @@ export default function MallProductPage() {
           </div>
 
           {product.summary && (
-            <p className="text-sm text-neutral-600 mb-6 leading-relaxed">{product.summary}</p>
+            <p className="text-sm text-neutral-600 mb-4 leading-relaxed">{product.summary}</p>
+          )}
+
+          {(product.color || product.size || product.shippingLabel) && (
+            <dl className="grid grid-cols-[80px_1fr] gap-x-3 gap-y-2 text-sm mb-6 border border-neutral-100 rounded-md p-4 bg-neutral-50">
+              {product.color ? (
+                <>
+                  <dt className="text-neutral-500">컬러</dt>
+                  <dd className="text-neutral-900">{product.color}</dd>
+                </>
+              ) : null}
+              {product.size ? (
+                <>
+                  <dt className="text-neutral-500">사이즈</dt>
+                  <dd className="text-neutral-900">{product.size}</dd>
+                </>
+              ) : null}
+              {product.shippingLabel ? (
+                <>
+                  <dt className="text-neutral-500">배송</dt>
+                  <dd className="text-neutral-900">{product.shippingLabel}</dd>
+                </>
+              ) : null}
+            </dl>
           )}
 
           {price > 0 && (
@@ -171,9 +199,23 @@ export default function MallProductPage() {
 
           <div className="border-t border-neutral-200 pt-6 mt-6">
             <h2 className="text-sm font-semibold text-neutral-900 mb-3">상품 정보</h2>
-            <div className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap">
-              {product.detailContent?.trim() || "상세 설명이 없습니다."}
-            </div>
+            {product.detailImages && product.detailImages.length > 0 ? (
+              <div className="space-y-3">
+                {product.detailImages.map((url, index) => (
+                  <img
+                    key={`${url}-${index}`}
+                    src={url}
+                    alt={`${product.name} 상품정보 ${index + 1}`}
+                    className="w-full rounded-sm border border-neutral-100"
+                    loading="lazy"
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap">
+                {product.detailContent?.trim() || product.summary?.trim() || "상세 설명이 없습니다."}
+              </div>
+            )}
           </div>
         </div>
       </div>
