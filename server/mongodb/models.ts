@@ -357,6 +357,8 @@ const goodsProductSchema = new Schema(
     },
     fulfillmentType: { type: String, enum: ["stock", "procure"], default: "stock" },
     procureNotice: { type: String, default: "" },
+    reorderPoint: { type: Number, default: 0 },
+    optimalStock: { type: Number, default: 0 },
     discountPercent: { type: Number, default: 0 },
     shippingLabel: { type: String, default: "무료배송" },
     detailImages: { type: [String], default: [] },
@@ -440,9 +442,13 @@ const mallOrderSchema = new Schema(
     totalAmount: { type: Number, required: true },
     status: {
       type: String,
-      enum: ["pending", "confirmed", "shipped", "cancelled"],
+      enum: ["pending", "preparing", "confirmed", "shipped", "cancelled"],
       default: "pending",
     },
+    courierCompany: { type: String, default: "" },
+    trackingNumber: { type: String, default: "" },
+    shippedAt: { type: Date },
+    stockRestored: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
   },
@@ -451,5 +457,97 @@ const mallOrderSchema = new Schema(
 mallOrderSchema.index({ userId: 1, createdAt: -1 });
 mallOrderSchema.index({ status: 1, createdAt: -1 });
 export const MallOrderModel = mongoose.model("MallOrder", mallOrderSchema);
+
+const mallWarehouseSchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true },
+    name: { type: String, required: true },
+    isDefault: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+export const MallWarehouseModel = mongoose.model("MallWarehouse", mallWarehouseSchema);
+
+const mallLocationSchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true },
+    warehouseId: { type: Number, required: true },
+    code: { type: String, required: true },
+    description: { type: String, default: "" },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+mallLocationSchema.index({ warehouseId: 1, code: 1 }, { unique: true });
+export const MallLocationModel = mongoose.model("MallLocation", mallLocationSchema);
+
+const mallStockMovementSchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true },
+    warehouseId: { type: Number, required: true },
+    locationId: { type: Number },
+    productId: { type: Number, required: true },
+    productName: { type: String, default: "" },
+    color: { type: String, default: "" },
+    size: { type: String, default: "" },
+    quantity: { type: Number, required: true },
+    movementType: { type: String, required: true },
+    referenceId: { type: Number },
+    memo: { type: String, default: "" },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+mallStockMovementSchema.index({ productId: 1, createdAt: -1 });
+export const MallStockMovementModel = mongoose.model("MallStockMovement", mallStockMovementSchema);
+
+const mallSupplierSchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true },
+    name: { type: String, required: true },
+    contactName: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    email: { type: String, default: "" },
+    memo: { type: String, default: "" },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+export const MallSupplierModel = mongoose.model("MallSupplier", mallSupplierSchema);
+
+const mallPurchaseLineSchema = new Schema(
+  {
+    productId: { type: Number, required: true },
+    productName: { type: String, required: true },
+    color: { type: String, default: "" },
+    size: { type: String, default: "" },
+    quantity: { type: Number, required: true, min: 1 },
+    receivedQuantity: { type: Number, default: 0, min: 0 },
+    unitCost: { type: Number, default: 0, min: 0 },
+  },
+  { _id: false },
+);
+
+const mallPurchaseOrderSchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true },
+    supplierId: { type: Number, required: true },
+    supplierName: { type: String, default: "" },
+    status: {
+      type: String,
+      enum: ["draft", "ordered", "partial", "received", "cancelled"],
+      default: "draft",
+    },
+    lines: { type: [mallPurchaseLineSchema], default: [] },
+    memo: { type: String, default: "" },
+    orderedAt: { type: Date },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+mallPurchaseOrderSchema.index({ status: 1, createdAt: -1 });
+export const MallPurchaseOrderModel = mongoose.model("MallPurchaseOrder", mallPurchaseOrderSchema);
 
 export type MongoUser = InferSchemaType<typeof userSchema>;

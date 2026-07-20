@@ -68,6 +68,8 @@ interface GoodsProduct {
   variants?: { color: string; size: string; stock: number }[];
   fulfillmentType?: "stock" | "procure";
   procureNotice?: string;
+  reorderPoint?: number;
+  optimalStock?: number;
   shippingLabel?: string;
   detailImages?: string[];
   purchaseUrl?: string;
@@ -94,6 +96,8 @@ function productToForm(product: Partial<GoodsProduct>): Partial<MallProductFormV
     variants: product.variants ?? [],
     fulfillmentType: product.fulfillmentType ?? "stock",
     procureNotice: product.procureNotice ?? MALL_DEFAULT_PROCURE_NOTICE,
+    reorderPoint: product.reorderPoint ?? 0,
+    optimalStock: product.optimalStock ?? 0,
     imageUrl: product.imageUrl ?? "",
     detailImages: product.detailImages ?? [],
     isActive: product.isActive ?? true,
@@ -122,6 +126,8 @@ function formToProduct(form: Partial<MallProductFormValues>): Partial<GoodsProdu
     variants: form.variants ?? [],
     fulfillmentType: form.fulfillmentType ?? "stock",
     procureNotice: form.procureNotice ?? "",
+    reorderPoint: form.reorderPoint ?? 0,
+    optimalStock: form.optimalStock ?? 0,
     imageUrl: form.imageUrl ?? "",
     detailImages: form.detailImages ?? [],
     isActive: form.isActive ?? true,

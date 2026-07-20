@@ -274,6 +274,8 @@ export async function mallRoutes(app: Express): Promise<void> {
         items: orderItems,
         totalAmount,
         status: "pending",
+        courierCompany: "",
+        trackingNumber: "",
       });
 
       for (const item of parsed.data.items) {
@@ -297,39 +299,6 @@ export async function mallRoutes(app: Express): Promise<void> {
       res.json({ orders });
     } catch (error) {
       console.error("List my mall orders error:", error);
-      res.status(500).json({ error: "서버 오류가 발생했습니다." });
-    }
-  });
-
-  app.get("/api/admin/mall/orders", adminAuthMiddleware, async (req, res) => {
-    try {
-      const status = typeof req.query.status === "string" ? req.query.status : undefined;
-      const orders = await mallOrderStorage.listForAdmin(status);
-      res.json({ orders });
-    } catch (error) {
-      console.error("Admin list mall orders error:", error);
-      res.status(500).json({ error: "서버 오류가 발생했습니다." });
-    }
-  });
-
-  app.patch("/api/admin/mall/orders/:id", adminAuthMiddleware, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id, 10);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "잘못된 ID입니다." });
-      }
-      const status = req.body?.status;
-      const allowed = ["pending", "confirmed", "shipped", "cancelled"];
-      if (!allowed.includes(status)) {
-        return res.status(400).json({ error: "유효하지 않은 상태입니다." });
-      }
-      const order = await mallOrderStorage.updateStatus(id, status);
-      if (!order) {
-        return res.status(404).json({ error: "주문을 찾을 수 없습니다." });
-      }
-      res.json({ order });
-    } catch (error) {
-      console.error("Admin update mall order error:", error);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   });

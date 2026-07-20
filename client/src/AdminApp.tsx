@@ -8,6 +8,9 @@ import AdminHomePage from "@/adminPages/AdminHome";
 import HomePageManagementPage from "@/adminPages/HomePageManagement";
 import AppHomeSettingsPage from "@/adminPages/AppHomeSettings";
 import MallOrderManagementPage from "@/adminPages/MallOrderManagement";
+import MallSalesManagementPage from "@/adminPages/MallSalesManagement";
+import MallInventoryManagementPage from "@/adminPages/MallInventoryManagement";
+import MallPurchaseManagementPage from "@/adminPages/MallPurchaseManagement";
 import { AdminProtectedLayout } from "@/adminPages/components/AdminProtectedLayout";
 import AdminSignupPage from "@/adminPages/auth/signup";
 import AdminWaitingPage from "@/adminPages/auth/waiting";
@@ -62,6 +65,9 @@ function Router() {
       <Route path="/admin/mall-management" component={HomePageManagementPage} />
       <Route path="/admin/app-home-settings" component={AppHomeSettingsPage} />
       <Route path="/admin/mall-orders" component={MallOrderManagementPage} />
+      <Route path="/admin/mall-sales" component={MallSalesManagementPage} />
+      <Route path="/admin/mall-inventory" component={MallInventoryManagementPage} />
+      <Route path="/admin/mall-purchase" component={MallPurchaseManagementPage} />
       <Route path="/admin/homepage-shop">{() => <Redirect to="/admin/mall-preview" />}</Route>
       <Route path="/admin/homepage-management">{() => <Redirect to="/admin/mall-management" />}</Route>
 

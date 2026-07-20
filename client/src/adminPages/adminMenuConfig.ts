@@ -55,6 +55,24 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
           path: "/admin/mall-orders",
           iconKey: "adMatchCharaterIcon",
         },
+        {
+          id: "mall-sales",
+          label: "판매 관리",
+          path: "/admin/mall-sales",
+          iconKey: "adMatchCharaterIcon",
+        },
+        {
+          id: "mall-inventory",
+          label: "재고 관리",
+          path: "/admin/mall-inventory",
+          iconKey: "adMatchCharaterIcon",
+        },
+        {
+          id: "mall-purchase",
+          label: "구매 관리",
+          path: "/admin/mall-purchase",
+          iconKey: "adMatchCharaterIcon",
+        },
       ],
     },
     {

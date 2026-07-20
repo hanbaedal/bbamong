@@ -45,6 +45,8 @@ export interface GoodsProduct {
   variants?: MallProductVariant[];
   fulfillmentType?: "stock" | "procure";
   procureNotice?: string;
+  reorderPoint?: number;
+  optimalStock?: number;
   discountPercent?: number;
   shippingLabel?: string;
   detailImages?: string[];
@@ -268,6 +270,8 @@ export class GoodsStorage {
     variants?: MallProductVariant[];
     fulfillmentType?: "stock" | "procure";
     procureNotice?: string;
+    reorderPoint?: number;
+    optimalStock?: number;
     shippingLabel?: string;
     detailImages?: string[];
     purchaseUrl?: string;
@@ -296,6 +300,8 @@ export class GoodsStorage {
       variants,
       fulfillmentType: data.fulfillmentType === "procure" ? "procure" : "stock",
       procureNotice: data.procureNotice ?? "",
+      reorderPoint: Math.max(0, data.reorderPoint ?? 0),
+      optimalStock: Math.max(0, data.optimalStock ?? 0),
       shippingLabel: data.shippingLabel ?? MALL_DEFAULT_SHIPPING_LABEL,
       detailImages: (data.detailImages ?? []).slice(0, 10),
       purchaseUrl: data.purchaseUrl ?? "",
@@ -326,6 +332,8 @@ export class GoodsStorage {
         | "variants"
         | "fulfillmentType"
         | "procureNotice"
+        | "reorderPoint"
+        | "optimalStock"
         | "shippingLabel"
         | "detailImages"
         | "purchaseUrl"
@@ -411,7 +419,7 @@ export class GoodsStorage {
           ? { ...v, stock: Math.max(0, v.stock - quantity) }
           : v,
       );
-      product.variants = nextVariants;
+      product.set("variants", nextVariants);
       product.color = summarizeVariantLabels(nextVariants).color;
       product.size = summarizeVariantLabels(nextVariants).size;
     } else if (product.stockQuantity >= 0) {
@@ -420,6 +428,101 @@ export class GoodsStorage {
 
     product.updatedAt = new Date();
     await product.save();
+  }
+
+  async incrementStock(
+    productId: number,
+    quantity: number,
+    color?: string,
+    size?: string,
+  ): Promise<void> {
+    const product = await GoodsProductModel.findOne({ id: productId });
+    if (!product) return;
+    if (isProcureFulfillment(product.fulfillmentType as string)) return;
+
+    const variants = normalizeVariants(product.variants as MallProductVariant[]);
+    if (variants.length > 0) {
+      const variant = findProductVariant(variants, color ?? "", size ?? "");
+      if (!variant) return;
+      const nextVariants = variants.map((v) =>
+        v.color === variant.color && v.size === variant.size
+          ? { ...v, stock: v.stock + quantity }
+          : v,
+      );
+      product.set("variants", nextVariants);
+      product.color = summarizeVariantLabels(nextVariants).color;
+      product.size = summarizeVariantLabels(nextVariants).size;
+    } else if (product.stockQuantity >= 0) {
+      product.stockQuantity = product.stockQuantity + quantity;
+    } else {
+      product.stockQuantity = quantity;
+    }
+
+    product.updatedAt = new Date();
+    await product.save();
+  }
+
+  async listReorderAlerts(): Promise<
+    Array<{
+      productId: number;
+      name: string;
+      color: string;
+      size: string;
+      stock: number;
+      reorderPoint: number;
+      optimalStock: number;
+    }>
+  > {
+    const products = await GoodsProductModel.find({
+      fulfillmentType: { $ne: "procure" },
+      isActive: true,
+    }).lean();
+
+    const alerts: Array<{
+      productId: number;
+      name: string;
+      color: string;
+      size: string;
+      stock: number;
+      reorderPoint: number;
+      optimalStock: number;
+    }> = [];
+
+    for (const p of products) {
+      const reorderPoint = p.reorderPoint ?? 0;
+      if (reorderPoint <= 0) continue;
+      const optimalStock = p.optimalStock ?? 0;
+      const variants = normalizeVariants(p.variants as MallProductVariant[]);
+      if (variants.length > 0) {
+        for (const v of variants) {
+          if (v.stock <= reorderPoint) {
+            alerts.push({
+              productId: p.id,
+              name: p.name,
+              color: v.color,
+              size: v.size,
+              stock: v.stock,
+              reorderPoint,
+              optimalStock,
+            });
+          }
+        }
+      } else {
+        const stock = p.stockQuantity >= 0 ? p.stockQuantity : 0;
+        if (stock <= reorderPoint) {
+          alerts.push({
+            productId: p.id,
+            name: p.name,
+            color: "",
+            size: "",
+            stock,
+            reorderPoint,
+            optimalStock,
+          });
+        }
+      }
+    }
+    return alerts;
   }
 
   async deleteProduct(id: number): Promise<void> {

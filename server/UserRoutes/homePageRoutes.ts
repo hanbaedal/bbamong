@@ -53,6 +53,8 @@ const productSchema = z.object({
   variants: z.array(variantSchema).max(30).optional().default([]),
   fulfillmentType: z.enum(["stock", "procure"]).optional().default("stock"),
   procureNotice: z.string().max(500).optional().default(""),
+  reorderPoint: z.number().int().min(0).optional().default(0),
+  optimalStock: z.number().int().min(0).optional().default(0),
   discountPercent: z.number().int().min(0).max(100).optional().default(0),
   shippingLabel: z.string().max(100).optional().default("무료배송"),
   detailImages: z.array(z.string().max(2000)).max(10).optional().default([]),

@@ -41,6 +41,8 @@ export interface MallProductFormValues {
   variants: MallProductVariant[];
   fulfillmentType: MallFulfillmentType;
   procureNotice: string;
+  reorderPoint: number;
+  optimalStock: number;
   imageUrl: string;
   detailImages: string[];
   isActive: boolean;
@@ -76,6 +78,8 @@ export function createEmptyMallProduct(categoryId?: number): Partial<MallProduct
     variants: [],
     fulfillmentType: "stock",
     procureNotice: MALL_DEFAULT_PROCURE_NOTICE,
+    reorderPoint: 0,
+    optimalStock: 0,
     imageUrl: "",
     detailImages: [],
     isActive: true,
@@ -229,6 +233,28 @@ export default function MallProductForm({
                 }
               />
               <p className="text-xs text-[#888]">-1이면 재고 제한 없음, 0이면 품절</p>
+            </div>
+            <div className="space-y-2">
+              <Label>리오더 포인트</Label>
+              <Input
+                type="number"
+                min={0}
+                value={value.reorderPoint ?? 0}
+                onChange={(e) =>
+                  onChange({ ...value, reorderPoint: parseInt(e.target.value, 10) || 0 })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>적정 재고량</Label>
+              <Input
+                type="number"
+                min={0}
+                value={value.optimalStock ?? 0}
+                onChange={(e) =>
+                  onChange({ ...value, optimalStock: parseInt(e.target.value, 10) || 0 })
+                }
+              />
             </div>
           </>
         ) : null}
