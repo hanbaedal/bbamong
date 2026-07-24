@@ -6,6 +6,7 @@ import { useUserAssets } from "@/contexts/UserAssetContext";
 import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import { getFullUrl } from "@/lib/queryClient";
+import { navigateToMall } from "@/lib/appNavigation";
 import { ChevronRight } from "lucide-react";
 
 interface HomePageSettings {
@@ -108,12 +109,82 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* 홈페이지 쇼핑몰 (회사소개 영상 → 카테고리) */}
-        {goodsSectionEnabled && (
+        {/* 사용 설명서 · 시뮬레이션 */}
+        <section className="mb-6 space-y-3">
+          <h2 className="text-white text-base font-bold">시작하기</h2>
+          <button
+            type="button"
+            onClick={() => setLocation("/home/guide")}
+            data-testid="button-user-guide"
+            className="w-full text-left p-4 rounded-lg bg-[#1A1A1A] border border-[#333] flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-lg bg-[#252525] border border-[#333] flex items-center justify-center flex-shrink-0 text-[#CDFF00] text-lg font-bold">
+              ?
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-sm font-semibold">사용 설명서</p>
+              <p className="text-[#888] text-[11px] mt-1">
+                예측 게임 · 하단 메뉴 · 쇼핑몰 · 광고 보상 안내
+              </p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setLocation("/home/simulation")}
+            data-testid="button-user-simulation"
+            className="w-full text-left p-4 rounded-lg bg-[#1A1A1A] border border-[#333] flex items-center gap-3"
+          >
+            <img
+              src={assets.baseballLogo}
+              alt=""
+              className="w-10 h-10 object-contain flex-shrink-0"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-sm font-semibold">게임 시뮬레이션</p>
+              <p className="text-[#888] text-[11px] mt-1">
+                실제 포인트 없이 배팅·배당 정산 연습
+              </p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
+          </button>
+        </section>
+
+        {/* 관리자 커스텀 게임 소개 (있을 때) */}
+        {gameGuideEnabled && (
           <section className="mb-6">
+            <h2 className="text-white text-base font-bold mb-3">
+              {settings?.gameGuideTitle ?? "야구 예측 게임이란?"}
+            </h2>
             <button
               type="button"
-              onClick={() => setLocation("/home/shop")}
+              onClick={() => setLocation("/home/game-guide")}
+              data-testid="button-game-guide"
+              className="w-full text-left p-4 rounded-lg bg-[#1A1A1A] border border-[#333] flex items-center gap-3"
+            >
+              <img
+                src={assets.baseballLogo}
+                alt=""
+                className="w-10 h-10 object-contain flex-shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-[#D5D5D5] text-sm line-clamp-3">
+                  {settings?.gameGuideSummary ||
+                    "실시간 야구 경기 타석을 예측하고, 적중 시 배당 포인트를 획득하세요."}
+                </p>
+                <p className="text-[#CDFF00] text-xs mt-2">게임 소개 자세히 보기</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
+            </button>
+          </section>
+        )}
+
+        {/* 쇼핑몰 바로가기 */}
+        {goodsSectionEnabled && (
+          <section className="mb-8">
+            <button
+              type="button"
+              onClick={() => navigateToMall()}
               data-testid="button-homepage-shop"
               className="w-full text-left rounded-lg overflow-hidden bg-[#1A1A1A] border border-[#333] flex items-center gap-3 p-4"
             >
@@ -126,39 +197,11 @@ export default function HomePage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-bold">
-                  {goodsSectionTitle}
+                  {goodsSectionTitle === "홈페이지" ? "쇼핑몰" : goodsSectionTitle}
                 </p>
                 <p className="text-[#888] text-[11px] mt-1">
-                  회사소개 영상 후 쇼핑몰 카테고리
+                  스포츠 용품 · 굿즈 둘러보기
                 </p>
-              </div>
-              <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
-            </button>
-          </section>
-        )}
-
-        {/* 야구 예측 게임 소개 */}
-        {gameGuideEnabled && (
-          <section className="mb-8">
-            <h2 className="text-white text-base font-bold mb-3">
-              {settings?.gameGuideTitle ?? "야구 예측 게임이란?"}
-            </h2>
-            <button
-              type="button"
-              onClick={() => setLocation("/home/game-guide")}
-              className="w-full text-left p-4 rounded-lg bg-[#1A1A1A] border border-[#333] flex items-center gap-3"
-            >
-              <img
-                src={assets.baseballLogo}
-                alt=""
-                className="w-10 h-10 object-contain flex-shrink-0"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-[#D5D5D5] text-sm line-clamp-2">
-                  {settings?.gameGuideSummary ||
-                    "실시간 야구 경기를 예측하고 포인트를 획득하세요."}
-                </p>
-                <p className="text-[#CDFF00] text-xs mt-2">자세히 보기</p>
               </div>
               <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
             </button>

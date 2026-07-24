@@ -55,6 +55,8 @@ import ManagerSignupPage from "./managerPages/auth/signup";
 import ManagerPendingApprovalPage from "./managerPages/auth/pending-approval";
 import ManagerHomePage from "./managerPages/home";
 import MatchDetailPage from "./managerPages/matchDetail";
+import ManagerGuidePage from "./managerPages/guide";
+import ManagerSimulationPage from "./managerPages/simulation";
 import NotFound from "./pages/not-found";
 import { SessionExpiredPopup } from "./components/SessionExpiredPopup";
 import splashIcon from "@assets/manager/manager-mascot.png";
@@ -79,6 +81,8 @@ function AppStateManager({ children }: { children: React.ReactNode }) {
       backHandle = await App.addListener('backButton', () => {
         const path = window.location.pathname;
         if (path.startsWith('/manager/match/')) {
+          window.location.replace('/manager/home');
+        } else if (path === '/manager/guide' || path === '/manager/simulation' || path === '/manager/test') {
           window.location.replace('/manager/home');
         } else if (path === '/manager/signup' || path === '/manager/pending-approval') {
           window.location.replace('/manager/login');
@@ -232,6 +236,8 @@ function Router() {
       <Route path="/manager/signup" component={ManagerSignupPage} />
       <Route path="/manager/pending-approval" component={ManagerPendingApprovalPage} />
       <Route path="/manager/home" component={ManagerHomePage} />
+      <Route path="/manager/guide" component={ManagerGuidePage} />
+      <Route path="/manager/simulation" component={ManagerSimulationPage} />
       <Route path="/manager/match/:id" component={MatchDetailPage} />
       <Route path="/manager/test" component={MatchResultTest} />
       <Route component={NotFound} />

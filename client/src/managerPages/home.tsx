@@ -232,6 +232,27 @@ export default function ManagerHomePage() {
           오늘의 경기
         </h2>
 
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setLocation("/manager/guide")}
+            data-testid="button-open-guide"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-left hover:bg-gray-50"
+          >
+            <p className="text-[15px] font-semibold text-gray-900">사용 설명</p>
+            <p className="text-[12px] text-gray-500 mt-1">운영 순서 안내</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setLocation("/manager/simulation")}
+            data-testid="button-open-simulation"
+            className="rounded-lg border border-[#1A6DFF]/30 bg-[#1A6DFF]/5 px-3 py-3 text-left hover:bg-[#1A6DFF]/10"
+          >
+            <p className="text-[15px] font-semibold text-[#1A6DFF]">시뮬레이션</p>
+            <p className="text-[12px] text-gray-500 mt-1">연습 모드 (실제 반영 없음)</p>
+          </button>
+        </div>
+
         {/* 경기 리스트 */}
         <div className="space-y-2">
           {matches.length === 0 ? (

@@ -16,6 +16,7 @@ export {
 } from "./shopRoutes";
 
 export const GAME_PATH = "/prediction";
+export const HOME_PATH = "/home";
 
 export type MemberSessionKind = "none" | "guest" | "member";
 
@@ -60,6 +61,10 @@ export function navigateToMall(): void {
 /** @deprecated */
 export function navigateToHomepage(): void {
   navigateToMall();
+}
+
+export function navigateToHome(): void {
+  window.location.assign(HOME_PATH);
 }
 
 export function navigateToGame(): void {

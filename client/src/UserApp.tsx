@@ -17,6 +17,9 @@ import LoginPage from "@/pages/auth/login";
 import SignupPage from "@/pages/auth/signup";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import GameGuidePage from "@/pages/home/game-guide";
+import UserGuidePage from "@/pages/home/user-guide";
+import UserSimulationPage from "@/pages/home/user-simulation";
+import HomePage from "@/pages/home";
 import PredictionPage from "@/pages/prediction";
 import AttendancePage from "@/pages/attendance";
 import BoardPage from "@/pages/board";
@@ -179,16 +182,18 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/social-onboarding" component={SocialOnboardingPage} />
 
-      {/* 보물창고 → 쇼핑몰 리다이렉트 */}
+      {/* 레거시 보물창고 상품 URL → 쇼핑몰 */}
       <Route path="/">
         {() => <Redirect to={Capacitor.isNativePlatform() ? "/login" : "/admin/"} />}
       </Route>
-      <Route path="/home">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
+      <Route path="/home">{() => <ProtectedRoute component={HomePage} />}</Route>
       <Route path="/home/shop">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
       <Route path="/home/goods/item/:productId" component={RedirectLegacyProduct} />
       <Route path="/home/goods/:categoryId" component={RedirectLegacyCategory} />
 
       <Route path="/home/game-guide">{() => <ProtectedRoute component={GameGuidePage} />}</Route>
+      <Route path="/home/guide">{() => <ProtectedRoute component={UserGuidePage} />}</Route>
+      <Route path="/home/simulation">{() => <ProtectedRoute component={UserSimulationPage} />}</Route>
       <Route path="/mall">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
 
       <Route path="/prediction">{() => <ProtectedRoute component={PredictionPage} />}</Route>
