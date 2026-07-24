@@ -6,6 +6,8 @@ import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import AdminConfirmPopup from "@/components/customUi/AdminConfirmPopup";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/adminQueryClient";
+import LiveScoreboard from "@/components/LiveScoreboard";
+import { useApiSportsHealth, useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 
 interface Match {
   id: string;
@@ -15,6 +17,7 @@ interface Match {
   endTime: string;
   matchStatus: string;
   currentRound: number;
+  controlMode?: string;
 }
 
 interface OverallStats {
@@ -147,6 +150,64 @@ export default function RealtimeGameMonitoring() {
   }, [params?.dateKey]);
 
   const selectedMatch = currentDateMatches[selectedMatchIndex];
+  const { data: apiHealth } = useApiSportsHealth();
+  const { data: scoreboardPayload } = useLiveScoreboard(selectedMatch?.id ?? null);
+  const { data: bettingDistribution } = useQuery({
+    queryKey: ["/api/live-match/matches", selectedMatch?.id, "betting-distribution"],
+    enabled: Boolean(selectedMatch?.id),
+    refetchInterval: 3000,
+    queryFn: async () => {
+      const res = await fetch(`/api/live-match/matches/${selectedMatch!.id}/betting-distribution`);
+      if (!res.ok) throw new Error("배팅 현황 조회 실패");
+      return res.json();
+    },
+  });
+  const [controlMode, setControlMode] = useState<"auto" | "manual">("auto");
+  const [isSyncingApi, setIsSyncingApi] = useState(false);
+
+  useEffect(() => {
+    const mode = (selectedMatch as Match & { controlMode?: string })?.controlMode;
+    if (mode === "manual" || mode === "auto") {
+      setControlMode(mode);
+    } else {
+      setControlMode(scoreboardPayload?.controlMode === "manual" ? "manual" : "auto");
+    }
+  }, [selectedMatch?.id, scoreboardPayload?.controlMode, selectedMatch]);
+
+  const handleToggleControlMode = async () => {
+    if (!selectedMatch) return;
+    const nextMode = controlMode === "auto" ? "manual" : "auto";
+    try {
+      await apiRequest("POST", `/api/admin/matches/${selectedMatch.id}/control-mode`, {
+        mode: nextMode,
+      });
+      setControlMode(nextMode);
+      toast({
+        description:
+          nextMode === "manual"
+            ? "비상 수동 제어 모드로 전환했습니다."
+            : "자동 API 동기화 모드로 복귀했습니다.",
+      });
+    } catch {
+      toast({ variant: "destructive", description: "제어 모드 변경에 실패했습니다." });
+    }
+  };
+
+  const handleSyncFromApiSports = async () => {
+    setIsSyncingApi(true);
+    try {
+      const result = await apiRequest("POST", "/api/admin/matches/sync-from-api-sports", {
+        date: params?.dateKey,
+      });
+      const body = await result.json();
+      toast({ description: `API-SPORTS ${body.linked ?? 0}개 경기를 연결했습니다.` });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
+    } catch {
+      toast({ variant: "destructive", description: "API-SPORTS 동기화에 실패했습니다." });
+    } finally {
+      setIsSyncingApi(false);
+    }
+  };
 
   const clearHeartbeat = useCallback(() => {
     if (heartbeatIntervalRef.current) {
@@ -699,6 +760,91 @@ export default function RealtimeGameMonitoring() {
 
       {selectedMatch && (
         <>
+          <div className="mb-6 grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <div className="border border-[#E9E9E9] rounded-[10px] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-[#201E22]">API-SPORTS 헬스</h3>
+                <span
+                  className={`inline-flex items-center gap-2 text-sm font-medium ${
+                    apiHealth?.healthy ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      apiHealth?.healthy ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  />
+                  {apiHealth?.healthy ? "Green" : "Red"}
+                </span>
+              </div>
+              <div className="text-xs text-[#666] space-y-1">
+                <p>폴링 주기: {apiHealth?.pollIntervalMs ?? 2500}ms</p>
+                <p>지연: {apiHealth?.latencyMs ?? "-"}ms</p>
+                <p>
+                  마지막 성공:{" "}
+                  {apiHealth?.lastSuccessAt
+                    ? new Date(apiHealth.lastSuccessAt).toLocaleTimeString("ko-KR")
+                    : "-"}
+                </p>
+                {apiHealth?.lastError && <p className="text-red-600">오류: {apiHealth.lastError}</p>}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSyncFromApiSports}
+                  disabled={isSyncingApi}
+                  className="px-3 py-1.5 text-xs rounded-md border border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936]"
+                >
+                  {isSyncingApi ? "동기화 중..." : "오늘 경기 API 연결"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToggleControlMode}
+                  className={`px-3 py-1.5 text-xs rounded-md border ${
+                    controlMode === "manual"
+                      ? "border-red-500 text-red-600 bg-red-50"
+                      : "border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936]"
+                  }`}
+                >
+                  {controlMode === "manual" ? "수동 제어 중" : "수동 제어 전환"}
+                </button>
+              </div>
+            </div>
+
+            <div className="border border-[#E9E9E9] rounded-[10px] p-4">
+              <h3 className="font-semibold text-[#201E22] mb-3">실시간 스코어보드</h3>
+              <LiveScoreboard scoreboard={scoreboardPayload?.scoreboard ?? null} compact />
+            </div>
+
+            <div className="border border-[#E9E9E9] rounded-[10px] p-4">
+              <h3 className="font-semibold text-[#201E22] mb-3">현재 라운드 배팅 현황</h3>
+              <div className="space-y-2">
+                {(bettingDistribution?.distribution ?? []).map((item: any) => {
+                  const maxPoints = Math.max(
+                    ...(bettingDistribution?.distribution ?? []).map((d: any) => d.totalPoints || 0),
+                    1,
+                  );
+                  const width = `${Math.round(((item.totalPoints || 0) / maxPoints) * 100)}%`;
+                  return (
+                    <div key={item.prediction}>
+                      <div className="flex justify-between text-xs text-[#666] mb-1">
+                        <span>
+                          {item.prediction} ({item.odds}배)
+                        </span>
+                        <span>
+                          {item.count}명 / {item.totalPoints}P
+                        </span>
+                      </div>
+                      <div className="h-2 bg-[#F3F3F3] rounded-full overflow-hidden">
+                        <div className="h-full bg-[#E11936]" style={{ width }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           {/* Match Info Section - 4열 2행 (작은 화면) / 8열 1행 (큰 화면) */}
           <div className="grid grid-cols-4 xl:grid-cols-8 gap-2 xl:gap-3 w-full">
             {/* 1행: 첫 3개 통계 카드 */}

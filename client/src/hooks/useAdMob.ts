@@ -3,8 +3,15 @@ import { Capacitor } from "@capacitor/core";
 import {
   AdMob,
   AdOptions,
+  BannerAdOptions,
+  BannerAdPluginEvents,
+  BannerAdPosition,
+  BannerAdSize,
   InterstitialAdPluginEvents,
+  RewardAdOptions,
+  RewardAdPluginEvents,
 } from "@capacitor-community/admob";
+import { AD_EARLY_DISMISS_SECONDS } from "@shared/predictionOdds";
 import { getFullUrl } from "@/lib/queryClient";
 
 const IS_TESTING = import.meta.env.DEV;
@@ -19,6 +26,10 @@ const FALLBACK_AD_ID_IOS =
 interface RuntimeAdConfig {
   androidInterstitialAdUnitId: string;
   iosInterstitialAdUnitId: string;
+  androidRewardedAdUnitId?: string;
+  iosRewardedAdUnitId?: string;
+  androidBannerAdUnitId?: string;
+  iosBannerAdUnitId?: string;
 }
 
 let runtimeAdConfig: RuntimeAdConfig | null = null;
@@ -75,15 +86,43 @@ function getAdId(): string {
   return import.meta.env.VITE_ADMOB_AD_ID_ANDROID?.trim() || FALLBACK_AD_ID_ANDROID;
 }
 
+function getRewardedAdId(): string {
+  const platform = Capacitor.getPlatform();
+  const fromRuntime =
+    platform === "ios"
+      ? runtimeAdConfig?.iosRewardedAdUnitId?.trim()
+      : runtimeAdConfig?.androidRewardedAdUnitId?.trim();
+  if (fromRuntime) return fromRuntime;
+  return platform === "ios"
+    ? "ca-app-pub-3940256099942544/1712485313"
+    : "ca-app-pub-3940256099942544/5224354917";
+}
+
+function getBannerAdId(): string {
+  const platform = Capacitor.getPlatform();
+  const fromRuntime =
+    platform === "ios"
+      ? runtimeAdConfig?.iosBannerAdUnitId?.trim()
+      : runtimeAdConfig?.androidBannerAdUnitId?.trim();
+  if (fromRuntime) return fromRuntime;
+  return platform === "ios"
+    ? "ca-app-pub-3940256099942544/2934735716"
+    : "ca-app-pub-3940256099942544/6300978111";
+}
+
 export type AdSessionState = "idle" | "preparing" | "showing" | "overlay";
 
 interface UseAdMobResult {
   isAdReady: boolean;
   isAdShowing: boolean;
   adSessionState: AdSessionState;
-  startAdSession: () => Promise<void>;
+  isBannerVisible: boolean;
+  startAdSession: () => Promise<{ dismissedEarly: boolean }>;
   stopAdSession: () => void;
   preloadAd: () => Promise<void>;
+  showBannerAd: () => Promise<void>;
+  hideBannerAd: () => Promise<void>;
+  showRewardedAd: () => Promise<boolean>;
   isNativePlatform: boolean;
 }
 
@@ -91,12 +130,15 @@ export function useAdMob(): UseAdMobResult {
   const [isAdReady, setIsAdReady] = useState(false);
   const [isAdShowing, setIsAdShowing] = useState(false);
   const [adSessionState, setAdSessionState] = useState<AdSessionState>("idle");
+  const [isBannerVisible, setIsBannerVisible] = useState(false);
 
   const isInitialized = useRef(false);
   const isNativePlatform = Capacitor.isNativePlatform();
   const shouldContinueAds = useRef(false);
   const isLoadingAd = useRef(false);
   const isAdReadyRef = useRef(false);
+  const interstitialShowedAtRef = useRef<number | null>(null);
+  const rewardedGrantedRef = useRef(false);
   // Set to true when FailedToLoad fires so waitForAdReady can return immediately
   const lastLoadFailedRef = useRef(false);
 
@@ -215,45 +257,44 @@ export function useAdMob(): UseAdMobResult {
     resolveAdReady(false);
   }, [resolveAdReady]);
 
-  const startAdSession = useCallback(async () => {
+  const startAdSession = useCallback(async (): Promise<{ dismissedEarly: boolean }> => {
     if (!isNativePlatform) {
       console.log("[AdMob] Not native platform, overlay mode");
       setAdSessionState("overlay");
-      return;
+      return { dismissedEarly: false };
     }
 
     console.log("[AdMob] Starting ad session");
     shouldContinueAds.current = true;
     setAdSessionState("preparing");
+    interstitialShowedAtRef.current = null;
 
-    // Ensure AdMob is initialized
     if (!isInitialized.current) {
       await initializeAdMob();
     }
 
     if (!shouldContinueAds.current) {
       console.log("[AdMob] Session cancelled before prepare");
-      return;
+      return { dismissedEarly: true };
     }
 
-    // If ad is already loaded, show it immediately
     if (isAdReadyRef.current) {
       console.log("[AdMob] Ad already ready, showing immediately");
       setAdSessionState("showing");
+      interstitialShowedAtRef.current = Date.now();
       const adShown = await showInterstitialAd();
       if (!adShown && shouldContinueAds.current) {
         console.log("[AdMob] Failed to show pre-loaded ad, switching to overlay");
         setAdSessionState("overlay");
       }
-      return;
+      return { dismissedEarly: false };
     }
 
-    // Ad not ready — prepare and wait for Loaded event
     await prepareInterstitialAd();
 
     if (!shouldContinueAds.current) {
       console.log("[AdMob] Session cancelled during preparation");
-      return;
+      return { dismissedEarly: true };
     }
 
     console.log("[AdMob] Waiting for ad to load (max 8s)...");
@@ -261,21 +302,23 @@ export function useAdMob(): UseAdMobResult {
 
     if (!shouldContinueAds.current) {
       console.log("[AdMob] Session cancelled while waiting for load");
-      return;
+      return { dismissedEarly: true };
     }
 
     if (!ready) {
       console.log("[AdMob] Ad not ready after timeout, switching to overlay");
       setAdSessionState("overlay");
-      return;
+      return { dismissedEarly: false };
     }
 
     setAdSessionState("showing");
+    interstitialShowedAtRef.current = Date.now();
     const adShown = await showInterstitialAd();
     if (!adShown && shouldContinueAds.current) {
       console.log("[AdMob] Failed to show ad, switching to overlay");
       setAdSessionState("overlay");
     }
+    return { dismissedEarly: false };
   }, [isNativePlatform, initializeAdMob, prepareInterstitialAd, showInterstitialAd, waitForAdReady]);
 
   const handleAdDismissed = useCallback(async () => {
@@ -285,38 +328,18 @@ export function useAdMob(): UseAdMobResult {
     setIsAdReady(false);
     isLoadingAd.current = false;
 
+    const showedAt = interstitialShowedAtRef.current;
+    const dismissedEarly =
+      showedAt !== null && Date.now() - showedAt < AD_EARLY_DISMISS_SECONDS * 1000;
+    interstitialShowedAtRef.current = null;
+
     if (!shouldContinueAds.current) {
       setAdSessionState("idle");
       return;
     }
 
-    console.log("[AdMob] Dismissed — preparing next ad");
     setAdSessionState("overlay");
-
-    if (!shouldContinueAds.current) {
-      setAdSessionState("idle");
-      return;
-    }
-
-    await prepareInterstitialAd();
-
-    if (!shouldContinueAds.current) return;
-
-    const ready = await waitForAdReady(8000);
-
-    if (!shouldContinueAds.current) return;
-
-    if (!ready) {
-      console.log("[AdMob] Next ad not ready after timeout, staying on overlay");
-      return;
-    }
-
-    setAdSessionState("showing");
-    const adShown = await showInterstitialAd();
-    if (!adShown && shouldContinueAds.current) {
-      setAdSessionState("overlay");
-    }
-  }, [prepareInterstitialAd, showInterstitialAd, waitForAdReady]);
+  }, []);
 
   useEffect(() => {
     if (!isNativePlatform) return;
@@ -387,15 +410,93 @@ export function useAdMob(): UseAdMobResult {
       dismissedListener.then((l) => l.remove());
       failedToShowListener.then((l) => l.remove());
     };
-  }, [isNativePlatform, initializeAdMob, prepareInterstitialAd, handleAdDismissed, resolveAdReady]);
+  }, [prepareInterstitialAd, handleAdDismissed, resolveAdReady]);
+
+  const showBannerAd = useCallback(async () => {
+    if (!isNativePlatform) {
+      setIsBannerVisible(true);
+      return;
+    }
+    if (!isInitialized.current) await initializeAdMob();
+    const options: BannerAdOptions = {
+      adId: getBannerAdId(),
+      adSize: BannerAdSize.ADAPTIVE_BANNER,
+      position: BannerAdPosition.BOTTOM_CENTER,
+      isTesting: IS_TESTING,
+    };
+    await AdMob.showBanner(options);
+    setIsBannerVisible(true);
+  }, [isNativePlatform, initializeAdMob]);
+
+  const hideBannerAd = useCallback(async () => {
+    if (isNativePlatform) {
+      try {
+        await AdMob.hideBanner();
+      } catch (error) {
+        console.warn("[AdMob] hideBanner failed:", error);
+      }
+    }
+    setIsBannerVisible(false);
+  }, [isNativePlatform]);
+
+  const showRewardedAd = useCallback(async (): Promise<boolean> => {
+    if (!isNativePlatform) {
+      return true;
+    }
+    if (!isInitialized.current) await initializeAdMob();
+
+    rewardedGrantedRef.current = false;
+
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+
+      const rewardListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
+        rewardedGrantedRef.current = true;
+      });
+      const dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
+        rewardListener.then((l) => l.remove());
+        dismissListener.then((l) => l.remove());
+        finish(rewardedGrantedRef.current);
+      });
+      const failListener = AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => {
+        rewardListener.then((l) => l.remove());
+        dismissListener.then((l) => l.remove());
+        failListener.then((l) => l.remove());
+        finish(false);
+      });
+
+      const options: RewardAdOptions = {
+        adId: getRewardedAdId(),
+        isTesting: IS_TESTING,
+      };
+      AdMob.prepareRewardVideoAd(options)
+        .then(() => AdMob.showRewardVideoAd())
+        .catch((error) => {
+          console.error("[AdMob] Rewarded ad error:", error);
+          rewardListener.then((l) => l.remove());
+          dismissListener.then((l) => l.remove());
+          failListener.then((l) => l.remove());
+          finish(false);
+        });
+    });
+  }, [isNativePlatform, initializeAdMob]);
 
   return {
     isAdReady,
     isAdShowing,
     adSessionState,
+    isBannerVisible,
     startAdSession,
     stopAdSession,
     preloadAd: prepareInterstitialAd,
+    showBannerAd,
+    hideBannerAd,
+    showRewardedAd,
     isNativePlatform,
   };
 }

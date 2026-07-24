@@ -595,6 +595,11 @@ export async function managerRoutes(app: Express): Promise<void> {
           predictionEnabled: updatedMatch.predictionEnabled,
           message: `라운드 ${updatedMatch.currentRound}으로 이동했습니다.`
         });
+
+        broadcastManager.sendToMatch(id, "banner_ad_show", {
+          matchId: id,
+          message: "타자 교체 배너 광고를 표시합니다.",
+        });
       } catch (nextRoundError) {
         console.error("Auto next round failed after result:", nextRoundError);
       }
@@ -677,6 +682,11 @@ export async function managerRoutes(app: Express): Promise<void> {
         overallStats,
         skippedResult: true,
         message: `라운드 ${updatedMatch.currentRound}으로 이동했습니다.`
+      });
+
+      broadcastManager.sendToMatch(id, "banner_ad_show", {
+        matchId: id,
+        message: "타자 교체 배너 광고를 표시합니다.",
       });
 
       return res.json({ 

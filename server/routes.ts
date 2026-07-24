@@ -38,6 +38,7 @@ import { managerRoutes } from "./routes/managerRoutes"
 import predictionRoutes from "./liveMatch/predictionRoutes"
 import matchControlRoutes from "./liveMatch/matchControlRoutes"
 import { healthRoutes } from "./routes/healthRoutes"
+import { apiSportsRoutes } from "./apiSports/routes";
 
 export async function registerRoutes(app: Express): Promise<void> {
   app.use(
@@ -48,6 +49,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   );
 
   await healthRoutes(app)
+  await apiSportsRoutes(app)
   await userRoutes(app)
   await pointRoutes(app)
   await stadiumRoutes(app)

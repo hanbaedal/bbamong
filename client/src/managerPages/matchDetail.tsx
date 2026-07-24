@@ -7,6 +7,8 @@ import { getManagerAccessToken, clearManagerTokens } from "@/lib/managerTokenMan
 import { useManagerAssets } from "@/contexts/ManagerAssetContext";
 import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
+import LiveScoreboard from "@/components/LiveScoreboard";
+import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 
 const WS_BASE_URL = 'wss://ppamong.com';
 
@@ -53,6 +55,7 @@ export default function MatchDetailPage() {
   const [showAdPlayingPopup, setShowAdPlayingPopup] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [managerId, setManagerId] = useState<string | null>(null);
+  const { data: scoreboardPayload } = useLiveScoreboard(id ?? null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const connectFnRef = useRef<(() => void) | null>(null);
@@ -818,6 +821,13 @@ export default function MatchDetailPage() {
             {getMatchStatusText()},{" "}
             {match.matchStatus === "ongoing" ? "경기중" : "대기중"}
           </p>
+        </div>
+
+        <div className="mb-3">
+          <LiveScoreboard scoreboard={scoreboardPayload?.scoreboard ?? null} compact />
+          {scoreboardPayload?.controlMode === "manual" && (
+            <p className="mt-2 text-xs text-red-600 font-medium">비상 수동 제어 모드</p>
+          )}
         </div>
 
         {/* 예측 시작 섹션 */}

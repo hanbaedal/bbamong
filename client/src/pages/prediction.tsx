@@ -14,6 +14,15 @@ import { getAccessToken } from "@/lib/tokenManager";
 import { useToast } from "@/hooks/use-toast";
 import { useAdMob } from "@/hooks/useAdMob";
 import { useMatchWebSocket, WSEventHandlers } from "@/hooks/useMatchWebSocket";
+import LiveScoreboard from "@/components/LiveScoreboard";
+import BetAmountSelector from "@/components/BetAmountSelector";
+import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
+import type { LiveScoreboard as LiveScoreboardType } from "@shared/apiSportsTypes";
+import {
+  DEFAULT_BET_AMOUNT,
+  calculateFixedOddsPayout,
+  type BetAmountOption,
+} from "@shared/predictionOdds";
 type PredictionOption = "1루" | "2루" | "3루" | "홈런" | "아웃";
 
 interface MatchData {
@@ -41,12 +50,24 @@ export default function PredictionPage() {
   const { user, setUser, refetchUser } = useUser();
   const { assets } = useUserAssets();
   const { toast } = useToast();
-  const { startAdSession, stopAdSession, preloadAd, adSessionState, isNativePlatform } = useAdMob();
+  const {
+    startAdSession,
+    stopAdSession,
+    preloadAd,
+    adSessionState,
+    isNativePlatform,
+    showBannerAd,
+    hideBannerAd,
+    showRewardedAd,
+  } = useAdMob();
 
   const [, setLocation] = useLocation();
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [selectedPrediction, setSelectedPrediction] =
     useState<PredictionOption | null>(null);
+  const [selectedBetAmount, setSelectedBetAmount] = useState<BetAmountOption>(DEFAULT_BET_AMOUNT);
+  const [liveScoreboard, setLiveScoreboard] = useState<LiveScoreboardType | null>(null);
+  const pendingRewardKeyRef = useRef<string | null>(null);
   const [showConfirmPopup, setShowConfirmPopup] = useState(false);
   const [showPendingPopup, setShowPendingPopup] = useState(false);
   const [showDonationPopup, setShowDonationPopup] = useState(false);
@@ -103,6 +124,14 @@ export default function PredictionPage() {
     refetchInterval: 3000,
     refetchIntervalInBackground: false,
   });
+
+  const { data: scoreboardData } = useLiveScoreboard(selectedMatch?.id ?? null);
+
+  useEffect(() => {
+    if (scoreboardData?.scoreboard) {
+      setLiveScoreboard(scoreboardData.scoreboard);
+    }
+  }, [scoreboardData]);
 
   useEffect(() => { pollingTimedOutRef.current = pollingTimedOut; }, [pollingTimedOut]);
 
@@ -211,7 +240,8 @@ export default function PredictionPage() {
         round: data.round || 0,
         prediction: data.prediction,
         predictionId: data.predictionId || 0,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        amount: data.amount ?? DEFAULT_BET_AMOUNT,
       };
       setSelectedPrediction(data.prediction as PredictionOption);
       setWaitingForPredictionStart(false);
@@ -232,6 +262,7 @@ export default function PredictionPage() {
       }
 
       stopAdSession();
+      void hideBannerAd();
       setShowAdOverlay(false);
       adSessionLocallyStoppedRef.current = true;
       
@@ -259,7 +290,7 @@ export default function PredictionPage() {
       setShowDonationPopup(false);
       setSelectedPrediction(null);
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, [stopAdSession]),
+    }, [stopAdSession, hideBannerAd]),
 
     onPredictionEnded: useCallback((data: any) => {
       console.log("[WS] 예측 중지:", data);
@@ -441,6 +472,24 @@ export default function PredictionPage() {
       }
     }, [user]),
 
+    onScoreboardUpdate: useCallback((data: any) => {
+      if (data?.scoreboard) {
+        setLiveScoreboard(data.scoreboard);
+      }
+    }, []),
+
+    onRewardedAdOffer: useCallback((data: any) => {
+      pendingRewardKeyRef.current = data?.rewardKey ?? `${data?.matchId ?? "match"}:${Date.now()}`;
+    }, []),
+
+    onBannerAdShow: useCallback(async () => {
+      await showBannerAd();
+    }, [showBannerAd]),
+
+    onBannerAdHide: useCallback(async () => {
+      await hideBannerAd();
+    }, [hideBannerAd]),
+
     onStatsUpdate: useCallback((data: any) => {
       console.log("[WS] 통계 업데이트:", data);
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
@@ -454,14 +503,13 @@ export default function PredictionPage() {
     onAdStarted: useCallback(async (data: any) => {
       console.log("[WS] 광고 시작:", data);
 
-      // 새 광고 세션 시작 알림이므로 로컬 종료 플래그를 즉시 초기화 (guard return 이전에 수행)
       adSessionLocallyStoppedRef.current = false;
       
       if (resultShownRef.current) {
         console.log("[WS] 결과 화면 표시 중 - ad_started 큐잉 + 백그라운드 광고 선행 로드");
         pendingEventsRef.current.push({ type: "ad_started", data });
         if (isNativePlatform) {
-          preloadAd(); // 결과 화면 보는 동안 미리 광고 로드 → 닫히면 즉시 표시
+          preloadAd();
         }
         return;
       }
@@ -476,13 +524,32 @@ export default function PredictionPage() {
       
       if (isNativePlatform) {
         console.log("[AdMob] 네이티브 플랫폼 - 광고 세션 시작");
-        await startAdSession();
+        const { dismissedEarly } = await startAdSession();
+        if (!dismissedEarly && pendingRewardKeyRef.current) {
+          const matchId = data?.matchId;
+          if (matchId) {
+            const rewarded = await showRewardedAd();
+            if (rewarded) {
+              try {
+                await apiRequest("POST", "/api/live-match/ad-reward", {
+                  matchId,
+                  rewardKey: pendingRewardKeyRef.current,
+                });
+                await refetchUser();
+                toast({ description: "광고 시청 보상 500P가 지급되었습니다." });
+              } catch (error) {
+                console.error("[AdReward] failed:", error);
+              }
+            }
+          }
+          pendingRewardKeyRef.current = null;
+        }
       } else {
         console.log("[AdMob] 웹 플랫폼 - 광고 오버레이 표시");
         setAdOverlayMessage("광고가 재생 중입니다...");
         setShowAdOverlay(true);
       }
-    }, [isNativePlatform, startAdSession, preloadAd]),
+    }, [isNativePlatform, startAdSession, preloadAd, showRewardedAd, refetchUser, toast]),
 
     onAdStopped: useCallback((data: any) => {
       console.log("[WS] 광고 중지:", data);
@@ -1081,7 +1148,7 @@ export default function PredictionPage() {
       const response = await apiRequest("POST", "/api/live-match/predictions", {
         matchId: selectedMatch.id,
         prediction: selectedPrediction,
-        amount: 100,
+        amount: selectedBetAmount,
       });
       
       const data = await response.json();
@@ -1091,11 +1158,11 @@ export default function PredictionPage() {
         prediction: selectedPrediction,
         predictionId: data.id,
         timestamp: Date.now(),
-        amount: 100,
+        amount: selectedBetAmount,
       };
 
       if (user) {
-        setUser({ ...user, points: (user.points ?? 0) - 100 });
+        setUser({ ...user, points: (user.points ?? 0) - selectedBetAmount });
       }
     } catch (error: any) {
       console.error("예측 생성 실패:", error);
@@ -1453,6 +1520,17 @@ export default function PredictionPage() {
                 </div>
 
 
+                <div className="mb-4">
+                  <LiveScoreboard scoreboard={liveScoreboard} />
+                </div>
+
+                <BetAmountSelector
+                  value={selectedBetAmount}
+                  onChange={setSelectedBetAmount}
+                  selectedPrediction={selectedPrediction}
+                  disabled={checkingPrediction || waitingForPredictionStart}
+                />
+
                 <h2 className="text-white text-base font-bold mb-2">
                   예측 선택
                 </h2>
@@ -1503,11 +1581,14 @@ export default function PredictionPage() {
           details={[
             { label: "경기구장", value: selectedMatch.stadium },
             { label: "일시", value: selectedMatch.datetime },
-            { label: "예측 참여기록", value: "100" },
+            {
+              label: "배팅 포인트",
+              value: `${selectedBetAmount}P (적중 시 ${calculateFixedOddsPayout(selectedBetAmount, selectedPrediction)}P)`,
+            },
             { label: "예측", value: selectedPrediction },
           ]}
           footerLabel="예측 후 잔여기록"
-          footerValue={`${(user?.points ?? 0) - 100}`}
+          footerValue={`${(user?.points ?? 0) - selectedBetAmount}`}
           onCancel={() => { setShowConfirmPopup(false); setSelectedPrediction(null); }}
           onConfirm={handleConfirm}
         />

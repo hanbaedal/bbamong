@@ -13,6 +13,7 @@ import {
   getUserPredictionByMatchRound,
 } from "./predictionStorage";
 import { insertPredictionSchema } from "@shared/schema";
+import { isValidBetAmount, DEFAULT_BET_AMOUNT } from "@shared/predictionOdds";
 import { z } from "zod";
 import { mongoose, PredictionModel, UserModel, PointTransactionModel, getNextSequence } from "../UserStorage/db";
 import { userAuthMiddleware } from "../middleware/userAuth";
@@ -64,7 +65,10 @@ router.post("/predictions", userAuthMiddleware, async (req: any, res: Response) 
       p => p.userId === userId
     );
 
-    const amount = validatedData.amount ?? 100;
+    const amount = validatedData.amount ?? DEFAULT_BET_AMOUNT;
+    if (!isValidBetAmount(amount)) {
+      return res.status(400).json({ error: "허용되지 않는 배팅 금액입니다." });
+    }
 
     let prediction;
     if (existingPrediction) {

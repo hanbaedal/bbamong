@@ -20,6 +20,7 @@ import { ensureSuperAdmin } from "./bootstrapSuperAdmin";
 import { ensureOperatorsReady, syncOperatorMatchAssignments } from "./managerOperatorService";
 import { startManagerDailyPasswordBatch } from "./managerDailyPasswordBatch";
 import { startPostgresMongoSyncBatch } from "./postgresMongoSyncBatch";
+import { startApiSportsPollBatch } from "./apiSports/pollBatch";
 
 const execAsync = promisify(exec);
 
@@ -240,6 +241,7 @@ app.use((req, res, next) => {
     startSuspendedUserCleanupBatch();
     startManagerDailyPasswordBatch();
     startPostgresMongoSyncBatch();
+    startApiSportsPollBatch();
     
     (async () => {
       try {

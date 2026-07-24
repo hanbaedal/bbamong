@@ -13,6 +13,7 @@ import type {
   Match,
   RoundStatistics,
 } from "@shared/schema";
+import { calculateFixedOddsPayout } from "@shared/predictionOdds";
 import type { ClientSession } from "mongoose";
 
 export async function getUserBalance(userId: string): Promise<number> {
@@ -579,12 +580,8 @@ export async function updateRoundPredictionResult(
     const userWonAmounts = new Map<string, number>();
 
     if (winnerCount > 0) {
-      const losersPool = losers.reduce((sum, p) => sum + p.amount, 0);
-      const rawShare = losersPool / winnerCount;
-      const prize = Math.ceil(rawShare / 10) * 10;
-
       for (const winner of winners) {
-        const payout = winner.amount + prize;
+        const payout = calculateFixedOddsPayout(winner.amount, result);
         userWonAmounts.set(winner.userId, payout);
 
         const updatedUser = await UserModel.findOneAndUpdate(
@@ -599,7 +596,7 @@ export async function updateRoundPredictionResult(
             transactionType: "earned",
             amount: payout,
             balance: updatedUser.points,
-            description: `라운드 ${roundNumber} 예측 성공 보상 (상금 ${prize} + 원금 ${winner.amount})`,
+            description: `라운드 ${roundNumber} 예측 성공 보상 (${winner.amount} × 배당, +${payout}포인트)`,
           });
         }
 
@@ -688,10 +685,9 @@ export async function getRoundDetailsWithStatistics(matchId: string) {
 
       let distributedPoints = 0;
       if (stats.totalWinners > 0) {
-        const winnersOriginalPoints = roundPredictions
+        distributedPoints = roundPredictions
           .filter((p) => p.status === "success")
-          .reduce((sum, p) => sum + p.amount, 0);
-        distributedPoints = stats.totalPoints - winnersOriginalPoints;
+          .reduce((sum, p) => sum + Math.max(0, (p.wonAmount ?? 0) - p.amount), 0);
       }
 
       return {
@@ -725,10 +721,9 @@ export async function getMatchOverallStatistics(matchId: string) {
 
     if (stats.totalWinners > 0) {
       const roundPredictions = await getPredictionsByMatchAndRound(matchId, stats.roundNumber);
-      const winnersOriginalPoints = roundPredictions
+      totalDistributedPoints += roundPredictions
         .filter((p) => p.status === "success")
-        .reduce((sum, p) => sum + p.amount, 0);
-      totalDistributedPoints += stats.totalPoints - winnersOriginalPoints;
+        .reduce((sum, p) => sum + Math.max(0, (p.wonAmount ?? 0) - p.amount), 0);
     }
   }
 

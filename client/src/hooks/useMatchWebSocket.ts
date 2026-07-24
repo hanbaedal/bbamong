@@ -21,6 +21,10 @@ export interface WSEventHandlers {
   onAdStatus?: (data: any) => void;
   onRoundNext?: (data: any) => void;
   onMatchEnd?: (data: any) => void;
+  onScoreboardUpdate?: (data: any) => void;
+  onRewardedAdOffer?: (data: any) => void | Promise<void>;
+  onBannerAdShow?: (data: any) => void;
+  onBannerAdHide?: (data: any) => void;
   onError?: (error: Error) => void;
   onReconnecting?: (attempt: number) => void;
 }
@@ -224,6 +228,21 @@ export function useMatchWebSocket({
               break;
             case "round_next":
               handlersRef.current.onRoundNext?.(message.data);
+              break;
+            case "scoreboard_update":
+              handlersRef.current.onScoreboardUpdate?.(message.data);
+              break;
+            case "rewarded_ad_offer":
+              handlersRef.current.onRewardedAdOffer?.(message.data);
+              break;
+            case "banner_ad_show":
+              handlersRef.current.onBannerAdShow?.(message.data);
+              break;
+            case "banner_ad_hide":
+              handlersRef.current.onBannerAdHide?.(message.data);
+              break;
+            case "match_ended":
+              handlersRef.current.onMatchEnd?.(message.data);
               break;
             case "end":
               handlersRef.current.onMatchEnd?.(message.data);
