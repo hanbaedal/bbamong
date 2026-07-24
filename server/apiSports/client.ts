@@ -69,9 +69,16 @@ async function apiSportsFetch<T>(path: string, params: Record<string, string | n
 }
 
 export async function fetchGamesByDate(date: string, leagueId: number): Promise<ApiSportsGameResponse[]> {
+  // league와 함께 요청 시 season이 필수 (API-SPORTS)
+  const seasonFromEnv = Number(process.env.API_SPORTS_SEASON || "");
+  const season = Number.isFinite(seasonFromEnv) && seasonFromEnv > 2000
+    ? seasonFromEnv
+    : Number(date.slice(0, 4));
+
   return apiSportsFetch<ApiSportsGameResponse[]>("/games", {
     date,
     league: leagueId,
+    season,
     timezone: "Asia/Seoul",
   });
 }
