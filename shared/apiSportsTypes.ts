@@ -36,6 +36,7 @@ export interface ApiSportsTodayGame {
   statusLong: string;
   homeScore: number;
   awayScore: number;
+  venueName?: string;
 }
 
 export interface BettingDistributionItem {

@@ -34,16 +34,27 @@ function matchStatusFromApi(statusShort: string): string {
   return "ongoing";
 }
 
-async function ensureApiDefaultStadium(): Promise<number> {
-  const existing = await StadiumModel.findOne({ name: API_DEFAULT_STADIUM_NAME }).lean();
+async function ensureStadiumByName(name: string): Promise<number> {
+  const trimmed = name.trim() || API_DEFAULT_STADIUM_NAME;
+  const existing = await StadiumModel.findOne({ name: trimmed }).lean();
   if (existing) return existing.id;
 
   const id = await getNextSequence("stadium");
-  await StadiumModel.create({
-    id,
-    name: API_DEFAULT_STADIUM_NAME,
-  });
-  return id;
+  try {
+    await StadiumModel.create({ id, name: trimmed });
+    return id;
+  } catch {
+    // 동시 생성 시 유니크 충돌 → 재조회
+    const again = await StadiumModel.findOne({ name: trimmed }).lean();
+    if (again) return again.id;
+    throw new Error(`구장 생성 실패: ${trimmed}`);
+  }
+}
+
+function venueNameFromGame(game: ApiSportsGameResponse): string {
+  const name = game.venue?.name?.trim();
+  if (name) return name;
+  return API_DEFAULT_STADIUM_NAME;
 }
 
 export function mapTodayGames(games: ApiSportsGameResponse[]): ApiSportsTodayGame[] {
@@ -62,6 +73,7 @@ export function mapTodayGames(games: ApiSportsGameResponse[]): ApiSportsTodayGam
         statusLong: game.status.long,
         homeScore: scoreboard.homeScore,
         awayScore: scoreboard.awayScore,
+        venueName: venueNameFromGame(game),
       };
     });
 }
@@ -87,8 +99,6 @@ export async function syncTodayGamesFromApiSports(date?: string): Promise<{
   if (sortedApi.length === 0) {
     return { created: 0, updated: 0, linked: 0, games: [] };
   }
-
-  const stadiumId = await ensureApiDefaultStadium();
 
   const today = new Date(`${targetDate}T12:00:00`);
   const startOfDay = new Date(today);
@@ -118,6 +128,7 @@ export async function syncTodayGamesFromApiSports(date?: string): Promise<{
     const startTime = gameStartDate(external);
     const endTime = new Date(startTime.getTime() + 4 * 60 * 60 * 1000);
     const matchStatus = matchStatusFromApi(external.status.short);
+    const stadiumId = await ensureStadiumByName(venueNameFromGame(external));
 
     const existing =
       byApiId.get(external.id) ??
@@ -126,7 +137,7 @@ export async function syncTodayGamesFromApiSports(date?: string): Promise<{
 
     const payload = {
       name: matchName,
-      stadiumId: existing?.stadiumId ?? stadiumId,
+      stadiumId,
       matchDate: targetDate,
       startTime,
       endTime,

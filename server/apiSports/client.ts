@@ -26,6 +26,13 @@ export interface ApiSportsGameResponse {
     };
   };
   league?: { id: number; name: string; season?: number };
+  /** API-SPORTS venue (있을 때) */
+  venue?: {
+    id?: number;
+    name?: string;
+    city?: string;
+    country?: string;
+  };
 }
 
 function getApiKey(): string {

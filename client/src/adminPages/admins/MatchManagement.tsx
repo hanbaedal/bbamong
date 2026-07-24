@@ -1,20 +1,28 @@
 import { useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { apiRequest } from "@/lib/adminQueryClient";
 import AdminLayout from "../adminLayout";
-import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
-import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import {
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameMonth,
+  isToday,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
 import { ko } from "date-fns/locale";
 
 interface Stadium {
   id: number;
   name: string;
-  createdAt: string;
 }
 
 interface MatchRow {
@@ -66,13 +74,7 @@ function statusLabel(status: string): string {
 export default function MatchManagement() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { user } = useUser();
   const { assets } = useAdminAssets();
-  const isSuperAdmin = user?.userType === "슈퍼어드민";
-
-  const searchParams = new URLSearchParams(window.location.search);
-  const tabFromUrl = searchParams.get("tab") as "stadiums" | "matches" | null;
-  const [activeTab, setActiveTab] = useState<"stadiums" | "matches">(tabFromUrl || "matches");
 
   const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date | undefined>();
@@ -85,14 +87,7 @@ export default function MatchManagement() {
     linked: number;
   } | null>(null);
 
-  const [showAddStadiumModal, setShowAddStadiumModal] = useState(false);
-  const [stadiumName, setStadiumName] = useState("");
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleteForceConfirmOpen, setDeleteForceConfirmOpen] = useState(false);
-  const [deleteForceMessage, setDeleteForceMessage] = useState("");
-  const [selectedStadium, setSelectedStadium] = useState<Stadium | null>(null);
-
-  const { data: stadiums, isLoading: stadiumsLoading } = useQuery<Stadium[]>({
+  const { data: stadiums } = useQuery<Stadium[]>({
     queryKey: ["/api/admin/stadiums"],
   });
 
@@ -107,6 +102,31 @@ export default function MatchManagement() {
     }
     return set;
   }, [matchesData]);
+
+  const matchCountByDate = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const m of matchesData ?? []) {
+      const key = matchDateKey(m);
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return map;
+  }, [matchesData]);
+
+  const stadiumNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const s of stadiums ?? []) {
+      map.set(s.id, s.name);
+    }
+    return map;
+  }, [stadiums]);
+
+  const calendarDays = useMemo(() => {
+    const monthStart = startOfMonth(calendarMonth);
+    const monthEnd = endOfMonth(calendarMonth);
+    const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
+    const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+    return eachDayOfInterval({ start: gridStart, end: gridEnd });
+  }, [calendarMonth]);
 
   const selectedDateKey = selectedDay ? toDateKey(selectedDay) : null;
 
@@ -170,55 +190,8 @@ export default function MatchManagement() {
     setSelectedDay(day);
     setDayModalOpen(true);
     const dateKey = toDateKey(day);
-    // 조회 = 자동 DB 저장·API 연결
     await syncDate(dateKey, true);
   };
-
-  const createMutation = useMutation({
-    mutationFn: async (name: string) => apiRequest("POST", "/api/admin/stadiums", { name }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stadiums"] });
-      setShowAddStadiumModal(false);
-      setStadiumName("");
-      toast({ description: "구장이 추가되었습니다." });
-    },
-    onError: (err: any) => {
-      toast({ variant: "destructive", description: err?.message || "구장 추가에 실패했습니다." });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async ({ id, force }: { id: number; force?: boolean }) => {
-      const url = force ? `/api/admin/stadiums/${id}?force=true` : `/api/admin/stadiums/${id}`;
-      const res = await fetch(url, { method: "DELETE", credentials: "include" });
-      const data = await res.json();
-      if (!res.ok) throw { status: res.status, ...data };
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stadiums"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
-      setDeleteConfirmOpen(false);
-      setDeleteForceConfirmOpen(false);
-      toast({ description: "구장이 삭제되었습니다." });
-    },
-    onError: (err: any) => {
-      if (err?.status === 409 && err?.requireConfirm) {
-        setDeleteConfirmOpen(false);
-        setDeleteForceMessage(err.message);
-        setDeleteForceConfirmOpen(true);
-        return;
-      }
-      setDeleteConfirmOpen(false);
-      setDeleteForceConfirmOpen(false);
-      toast({ variant: "destructive", description: err?.message || "구장 삭제에 실패했습니다." });
-    },
-  });
-
-  function formatDate(dateString: string) {
-    const date = new Date(dateString);
-    return `${String(date.getFullYear()).slice(-2)}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
-  }
 
   return (
     <AdminLayout>
@@ -232,140 +205,128 @@ export default function MatchManagement() {
         <img src={assets.adListIcon} className="w-8 h-8" alt="" /> 경기 관리
       </h1>
 
-      <div className="flex justify-between mb-6 border-b border-[#E9E9E9]">
-        <div className="flex gap-4">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-[#666] leading-relaxed">
+            달력에서 <strong className="text-[#201E22]">날짜를 클릭</strong>하면 그날 KBO 일정·구장을
+            API에서 읽어 <strong className="text-[#201E22]">DB에 자동 저장·연결</strong>합니다.
+            (하루 최대 5경기 · 구장 수동 등록 불필요)
+          </p>
           <button
             type="button"
-            onClick={() => setActiveTab("matches")}
-            className={`pb-3 px-11 text-base font-medium ${
-              activeTab === "matches"
-                ? "border-b-2 border-[#E11936] text-[#E11936]"
-                : "text-[#BFBFBF]"
-            }`}
-            data-testid="tab-matches"
+            className="px-4 py-2 text-sm rounded-md bg-[#201E22] text-white disabled:opacity-50"
+            disabled={Boolean(syncingDate)}
+            onClick={() => void openDay(new Date())}
+            data-testid="button-open-today"
           >
-            경기
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("stadiums")}
-            className={`pb-3 px-8 text-base font-medium ${
-              activeTab === "stadiums"
-                ? "border-b-2 border-[#E11936] text-[#E11936]"
-                : "text-[#BFBFBF]"
-            }`}
-            data-testid="tab-stadiums"
-          >
-            경기 구장
+            {syncingDate ? "불러오는 중..." : "오늘 날짜 열기"}
           </button>
         </div>
-        {activeTab === "stadiums" && (
-          <button
-            type="button"
-            onClick={() => setShowAddStadiumModal(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 h-[40px] bg-[#E11936] text-white rounded font-medium text-sm mb-3"
-            data-testid="button-add-stadium"
-          >
-            + 구장 추가
-          </button>
-        )}
+
+        <div className="border border-[#D0D0D0] rounded-[12px] bg-white overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[#E9E9E9] bg-[#FAFAFA]">
+            <button
+              type="button"
+              className="w-10 h-10 rounded-lg border border-[#E0E0E0] bg-white flex items-center justify-center hover:border-[#E11936]"
+              onClick={() => setCalendarMonth((m) => addMonths(m, -1))}
+              aria-label="이전 달"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-bold text-[#201E22] tracking-tight">
+              {format(calendarMonth, "yyyy년 M월", { locale: ko })}
+            </h2>
+            <button
+              type="button"
+              className="w-10 h-10 rounded-lg border border-[#E0E0E0] bg-white flex items-center justify-center hover:border-[#E11936]"
+              onClick={() => setCalendarMonth((m) => addMonths(m, 1))}
+              aria-label="다음 달"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+
+          {matchesLoading ? (
+            <div className="h-[520px] animate-pulse bg-[#F3F3F3]" />
+          ) : (
+            <div className="p-3 md:p-4">
+              <div className="grid grid-cols-7 border border-[#D8D8D8] rounded-lg overflow-hidden">
+                {["일", "월", "화", "수", "목", "금", "토"].map((label, i) => (
+                  <div
+                    key={label}
+                    className={`py-3 text-center text-sm font-semibold border-b border-[#D8D8D8] bg-[#F5F5F5] ${
+                      i < 6 ? "border-r border-[#D8D8D8]" : ""
+                    } ${i === 0 ? "text-[#E11936]" : i === 6 ? "text-[#2563EB]" : "text-[#4D4B4E]"}`}
+                  >
+                    {label}
+                  </div>
+                ))}
+                {calendarDays.map((day, idx) => {
+                  const key = toDateKey(day);
+                  const inMonth = isSameMonth(day, calendarMonth);
+                  const count = matchCountByDate.get(key) ?? 0;
+                  const has = datesWithMatches.has(key);
+                  const selected = selectedDay ? isSameDay(day, selectedDay) : false;
+                  const today = isToday(day);
+                  const col = idx % 7;
+                  return (
+                    <button
+                      key={key + String(idx)}
+                      type="button"
+                      onClick={() => void openDay(day)}
+                      className={`min-h-[88px] md:min-h-[100px] p-2 md:p-3 text-left align-top border-b border-[#D8D8D8] transition-colors ${
+                        col < 6 ? "border-r border-[#D8D8D8]" : ""
+                      } ${
+                        selected
+                          ? "bg-[#FFF1F3] ring-2 ring-inset ring-[#E11936]"
+                          : today
+                            ? "bg-[#FFFBEB]"
+                            : inMonth
+                              ? "bg-white hover:bg-[#F9F9F9]"
+                              : "bg-[#F7F7F7] hover:bg-[#F0F0F0]"
+                      }`}
+                      data-testid={`calendar-day-${key}`}
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <span
+                          className={`inline-flex items-center justify-center w-8 h-8 rounded-md text-sm font-semibold ${
+                            today
+                              ? "bg-[#E11936] text-white"
+                              : !inMonth
+                                ? "text-[#BFBFBF]"
+                                : col === 0
+                                  ? "text-[#E11936]"
+                                  : col === 6
+                                    ? "text-[#2563EB]"
+                                    : "text-[#201E22]"
+                          }`}
+                        >
+                          {format(day, "d")}
+                        </span>
+                        {has && (
+                          <span className="text-[10px] md:text-xs font-semibold px-1.5 py-0.5 rounded bg-[#201E22] text-white">
+                            {count}경기
+                          </span>
+                        )}
+                      </div>
+                      {has && (
+                        <div className="mt-2 space-y-1">
+                          <div className="h-1.5 rounded-full bg-[#E11936]/80 w-full" />
+                          <p className="text-[10px] text-[#888] truncate">클릭하여 일정</p>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-xs text-[#888]">
+                노란 칸=오늘 · 빨간 테두리=선택 · 검정 배지=DB에 등록된 경기 수
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
-      {activeTab === "matches" && (
-        <div className="space-y-4">
-          <p className="text-sm text-[#666] leading-relaxed">
-            달력에서 <strong className="text-[#201E22]">날짜를 클릭</strong>하면 그날 KBO 일정을
-            API에서 읽어 <strong className="text-[#201E22]">DB에 자동 저장·연결</strong>합니다.
-            (하루 최대 5경기 · 별도 등록 버튼 불필요)
-          </p>
-
-          <div className="grid grid-cols-1 xl:grid-cols-[auto_1fr] gap-6 items-start">
-            <div className="border border-[#E9E9E9] rounded-[12px] bg-white p-4 inline-block">
-              {matchesLoading ? (
-                <div className="w-[280px] h-[300px] animate-pulse bg-[#F3F3F3] rounded-lg" />
-              ) : (
-                <Calendar
-                  mode="single"
-                  locale={ko}
-                  month={calendarMonth}
-                  onMonthChange={setCalendarMonth}
-                  selected={selectedDay}
-                  onSelect={(day) => void openDay(day)}
-                  modifiers={{
-                    hasMatch: (date) => datesWithMatches.has(toDateKey(date)),
-                  }}
-                  modifiersClassNames={{
-                    hasMatch: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-[#E11936]",
-                  }}
-                  className="rounded-md"
-                />
-              )}
-            </div>
-
-            <div className="border border-[#E9E9E9] rounded-[12px] bg-[#F9F9F9] p-5 min-h-[200px]">
-              <h2 className="text-base font-semibold text-[#201E22] mb-2">이용 안내</h2>
-              <ul className="text-sm text-[#666] space-y-2 list-disc pl-5">
-                <li>빨간 점이 있는 날짜는 이미 DB에 경기가 있습니다.</li>
-                <li>날짜를 열면 API 조회와 동시에 저장·연결됩니다.</li>
-                <li>모달 표에서 모니터링 화면으로 이동할 수 있습니다.</li>
-                <li>사용자 앱에는 구단명 대신 홈팀/원정팀만 표시됩니다.</li>
-              </ul>
-              <button
-                type="button"
-                className="mt-4 px-4 py-2 text-sm rounded-md bg-[#201E22] text-white disabled:opacity-50"
-                disabled={Boolean(syncingDate)}
-                onClick={() => void openDay(new Date())}
-                data-testid="button-open-today"
-              >
-                {syncingDate ? "불러오는 중..." : "오늘 날짜 열기"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "stadiums" && (
-        <>
-          <div className="grid grid-cols-[30%_50%_20%] px-4 py-3 bg-[#F9F9F9] text-sm font-medium text-[#4D4B4E] mb-2">
-            <div>등록일</div>
-            <div>구장명</div>
-            <div>관리</div>
-          </div>
-          <div className="flex-1 overflow-y-auto scrollbar-hide">
-            {stadiumsLoading ? (
-              <div className="py-16 text-center text-[#BFBFBF] text-sm">불러오는 중...</div>
-            ) : !stadiums?.length ? (
-              <div className="py-16 text-center text-[#BFBFBF] text-sm">등록된 구장이 없습니다.</div>
-            ) : (
-              stadiums.map((stadium) => (
-                <div
-                  key={stadium.id}
-                  className="grid grid-cols-[30%_50%_20%] px-4 py-5 bg-white border-b border-[#E9E9E9] items-center h-16"
-                >
-                  <div>{formatDate(stadium.createdAt)}</div>
-                  <div className="truncate">{stadium.name}</div>
-                  <div>
-                    {isSuperAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedStadium(stadium);
-                          setDeleteConfirmOpen(true);
-                        }}
-                        className="px-3 py-1 text-xs font-medium text-[#E11936] border border-[#E11936] rounded"
-                      >
-                        삭제
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </>
-      )}
-
-      {/* 날짜 경기 모달 */}
       {dayModalOpen && selectedDay && selectedDateKey && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
@@ -373,7 +334,7 @@ export default function MatchManagement() {
           data-testid="modal-day-matches"
         >
           <div
-            className="bg-white rounded-[12px] w-full max-w-[820px] max-h-[85vh] overflow-hidden flex flex-col"
+            className="bg-white rounded-[12px] w-full max-w-[960px] max-h-[85vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#E9E9E9]">
@@ -423,6 +384,7 @@ export default function MatchManagement() {
                     <tr className="bg-[#F9F9F9] text-[#4D4B4E] text-left">
                       <th className="px-3 py-2 font-medium">시간</th>
                       <th className="px-3 py-2 font-medium">경기</th>
+                      <th className="px-3 py-2 font-medium">구장</th>
                       <th className="px-3 py-2 font-medium">원정</th>
                       <th className="px-3 py-2 font-medium text-center">스코어</th>
                       <th className="px-3 py-2 font-medium">홈</th>
@@ -435,6 +397,7 @@ export default function MatchManagement() {
                     {dayMatches.map((match, index) => {
                       const away = match.apiSportsAwayTeam || "원정팀";
                       const home = match.apiSportsHomeTeam || "홈팀";
+                      const stadium = stadiumNameById.get(match.stadiumId) || "-";
                       const awayScore = match.liveScoreboard?.awayScore;
                       const homeScore = match.liveScoreboard?.homeScore;
                       const scoreText =
@@ -445,6 +408,9 @@ export default function MatchManagement() {
                         <tr key={match.id} className="border-b border-[#F0F0F0] hover:bg-[#FAFAFA]">
                           <td className="px-3 py-3 whitespace-nowrap">{formatTimeKst(match.startTime)}</td>
                           <td className="px-3 py-3 font-medium text-[#201E22]">{match.name}</td>
+                          <td className="px-3 py-3 text-[#4D4B4E] max-w-[120px] truncate" title={stadium}>
+                            {stadium}
+                          </td>
                           <td className="px-3 py-3">{away}</td>
                           <td className="px-3 py-3 text-center font-semibold">{scoreText}</td>
                           <td className="px-3 py-3">{home}</td>
@@ -485,65 +451,6 @@ export default function MatchManagement() {
             </div>
           </div>
         </div>
-      )}
-
-      {showAddStadiumModal && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]"
-          onClick={() => setShowAddStadiumModal(false)}
-        >
-          <div
-            className="bg-white rounded-[10px] px-6 py-5 w-[420px]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-semibold">경기구장 추가</h2>
-              <button type="button" onClick={() => setShowAddStadiumModal(false)}>
-                ✕
-              </button>
-            </div>
-            <label className="text-sm text-[#4D4B4E]">구장명</label>
-            <input
-              type="text"
-              value={stadiumName}
-              onChange={(e) => setStadiumName(e.target.value)}
-              className="w-full mt-2 mb-6 border-b border-[#373539] py-3 outline-none"
-              placeholder="구장 명을 입력해 주세요"
-            />
-            <button
-              type="button"
-              disabled={!stadiumName.trim()}
-              onClick={() => createMutation.mutate(stadiumName)}
-              className="w-full h-12 bg-[#111] text-white rounded-lg disabled:opacity-50"
-            >
-              추가하기
-            </button>
-          </div>
-        </div>
-      )}
-
-      {deleteConfirmOpen && selectedStadium && (
-        <SimpleConfirmPopup
-          message={`${selectedStadium.name} 구장을 삭제하시겠습니까?`}
-          leftButtonText="취소"
-          rightButtonText="삭제하기"
-          onLeftClick={() => setDeleteConfirmOpen(false)}
-          onRightClick={() =>
-            deleteMutation.mutate({ id: selectedStadium.id })
-          }
-        />
-      )}
-
-      {deleteForceConfirmOpen && selectedStadium && (
-        <SimpleConfirmPopup
-          message={`${deleteForceMessage} 정말 삭제하시겠습니까?`}
-          leftButtonText="취소"
-          rightButtonText="삭제하기"
-          onLeftClick={() => setDeleteForceConfirmOpen(false)}
-          onRightClick={() =>
-            deleteMutation.mutate({ id: selectedStadium.id, force: true })
-          }
-        />
       )}
     </AdminLayout>
   );
