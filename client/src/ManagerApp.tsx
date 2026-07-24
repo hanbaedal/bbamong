@@ -130,6 +130,54 @@ function AppStateManager({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function extractManagerLoginToken(rawUrl: string): string | null {
+  try {
+    const normalized = rawUrl.includes("://")
+      ? rawUrl
+      : `https://dummy${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+    const url = new URL(normalized);
+    const t = url.searchParams.get("t");
+    return t?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function ManagerLoginLinkListener() {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let listenerHandle: { remove: () => void } | null = null;
+
+    const openLoginWithToken = (rawUrl: string) => {
+      const token = extractManagerLoginToken(rawUrl);
+      if (!token) return;
+      setLocation(`/manager/login?t=${encodeURIComponent(token)}`, { replace: true });
+    };
+
+    const setup = async () => {
+      try {
+        const launch = await App.getLaunchUrl();
+        if (launch?.url) openLoginWithToken(launch.url);
+      } catch {
+        /* no launch url */
+      }
+      listenerHandle = await App.addListener("appUrlOpen", (event) => {
+        openLoginWithToken(event.url);
+      });
+    };
+
+    void setup();
+    return () => {
+      listenerHandle?.remove();
+    };
+  }, [setLocation]);
+
+  return null;
+}
+
 function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const [isChecking, setIsChecking] = useState(true);
@@ -139,6 +187,27 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
     const checkAutoLogin = async () => {
       try {
         const currentPath = window.location.pathname;
+        let loginToken = new URLSearchParams(window.location.search).get("t");
+
+        // 네이티브 cold start 딥링크에 토큰이 있으면 우선 처리
+        if (!loginToken && isNative) {
+          try {
+            const launch = await App.getLaunchUrl();
+            if (launch?.url) {
+              loginToken = extractManagerLoginToken(launch.url);
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        if (loginToken?.trim()) {
+          setIsChecking(false);
+          setLocation(`/manager/login?t=${encodeURIComponent(loginToken.trim())}`, {
+            replace: true,
+          });
+          return;
+        }
         
         // 루트 경로 또는 로그인 페이지에서 자동 로그인 체크
         const shouldCheckAutoLogin = 
@@ -213,7 +282,7 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
     };
 
     checkAutoLogin();
-  }, [setLocation]);
+  }, [setLocation, isNative]);
 
   if (isChecking) {
     return (
@@ -224,7 +293,12 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <ManagerLoginLinkListener />
+      {children}
+    </>
+  );
 }
 
 function Router() {

@@ -1,4 +1,4 @@
-import type { Express, Request } from "express";
+import type { Express, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { AdminStorage } from "../storage/adminStorage";
@@ -7,9 +7,11 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAc
 import { broadcastManager } from "../liveMatch/broadcastManager";
 import { startRound, stopRound, updateRoundPredictionResult, nextRound, getMatchOverallStatistics } from "../liveMatch/predictionStorage";
 import { hasActiveSession, createSession, deleteSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
-import { ensureOperatorsReady } from "../managerOperatorService";
+import { consumeLoginLinkToken, ensureOperatorsReady } from "../managerOperatorService";
 
 const adminStorage = new AdminStorage();
+const MANAGER_APP_SCHEME = "ppamongmanager";
+const MANAGER_APP_PACKAGE = "com.ppamong.manager";
 
 function getManagerAccessToken(req: Request): string | null {
   const authHeader = req.headers.authorization;
@@ -19,12 +21,221 @@ function getManagerAccessToken(req: Request): string | null {
   return req.cookies?.managerAccessToken || null;
 }
 
+async function establishManagerSession(
+  res: Response,
+  manager: { id: string; email: string; userType: string; approvalStatus: string },
+): Promise<{ accessToken: string; refreshToken: string }> {
+  const hasSession = await hasActiveSession("manager", manager.id);
+  if (hasSession) {
+    console.log(`[Manager Login] 기존 세션 존재 - force-replace로 기존 세션 삭제: ${manager.id}`);
+    await deleteSession("manager", manager.id);
+    const { wsManager } = await import("../liveMatch/wsManager");
+    wsManager.forceDisconnectBySubjectId("manager", manager.id);
+  }
+
+  const tokenPayload = {
+    adminId: manager.id,
+    email: manager.email,
+    userType: manager.userType,
+    approvalStatus: manager.approvalStatus,
+  };
+
+  const accessToken = generateAccessToken(tokenPayload);
+  const refreshToken = generateRefreshToken(tokenPayload);
+
+  try {
+    await createSession("manager", manager.id, {
+      email: manager.email,
+      userType: manager.userType,
+    });
+    await adminStorage.updateAdminUser(manager.id, {
+      lastLogin: new Date(),
+    });
+  } catch (error) {
+    try {
+      await deleteSession("manager", manager.id);
+    } catch (cleanupError) {
+      console.error("Failed to cleanup session after login failure:", cleanupError);
+    }
+    throw error;
+  }
+
+  res.cookie("managerAccessToken", accessToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    path: "/",
+    maxAge: 15 * 60 * 1000,
+  });
+
+  res.cookie("managerRefreshToken", refreshToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    path: "/",
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  });
+
+  return { accessToken, refreshToken };
+}
+
+function generateManagerLoginLinkBridgeHtml(token: string, origin: string): string {
+  const webFallbackUrl = `${origin}/manager/login?t=${encodeURIComponent(token)}`;
+  const deeplink = `${MANAGER_APP_SCHEME}://login?t=${encodeURIComponent(token)}`;
+  const intentUrl =
+    `intent://login?t=${encodeURIComponent(token)}#Intent;` +
+    `scheme=${MANAGER_APP_SCHEME};package=${MANAGER_APP_PACKAGE};` +
+    `S.browser_fallback_url=${encodeURIComponent(webFallbackUrl)};end`;
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>운영자 앱 로그인</title>
+  <style>
+    body {
+      background: #111;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px;
+      box-sizing: border-box;
+      text-align: center;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #333;
+      border-top-color: #CDFF00;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .message { font-size: 16px; color: #ccc; line-height: 1.5; }
+    .fallback {
+      margin-top: 28px;
+      display: inline-block;
+      padding: 12px 20px;
+      background: #CDFF00;
+      color: #111;
+      text-decoration: none;
+      font-weight: 700;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="spinner"></div>
+  <div class="message">운영자 앱으로 이동 중입니다...<br>앱이 열리면 자동으로 로그인됩니다.</div>
+  <a class="fallback" href="${webFallbackUrl}">앱이 열리지 않으면 여기를 누르세요</a>
+  <script>
+    (function () {
+      var deeplink = ${JSON.stringify(deeplink)};
+      var intentUrl = ${JSON.stringify(intentUrl)};
+      var webFallback = ${JSON.stringify(webFallbackUrl)};
+      var opened = false;
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+      function markOpened() {
+        opened = true;
+      }
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) markOpened();
+      });
+      window.addEventListener("pagehide", markOpened);
+
+      if (isIOS) {
+        window.location.href = deeplink;
+      } else {
+        window.location.href = intentUrl;
+      }
+
+      setTimeout(function () {
+        if (opened) return;
+        window.location.href = webFallback;
+      }, 2500);
+    })();
+  </script>
+</body>
+</html>`;
+}
+
 export async function managerRoutes(app: Express): Promise<void> {
   // 운영자 회원가입 — 관리자 발급 계정만 사용
   app.post("/api/manager/signup", async (_req, res) => {
     return res.status(403).json({
       error: "운영자 계정은 관리자가 발급합니다. 발급받은 아이디와 오늘 비밀번호로 로그인하세요.",
     });
+  });
+
+  // 카톡 등에서 HTTPS 링크 클릭 → 운영자 앱 딥링크 시도 → 웹 폴백
+  app.get("/api/manager/login-link/:token", async (req, res) => {
+    try {
+      const token = String(req.params.token || "").trim();
+      if (!token || token.length < 16 || token.length > 128) {
+        return res.status(400).type("html").send(
+          "<!DOCTYPE html><html><body><p>유효하지 않은 로그인 링크입니다.</p></body></html>",
+        );
+      }
+      const origin =
+        process.env.NODE_ENV === "production"
+          ? "https://ppamong.com"
+          : `${req.protocol}://${req.get("host") || "localhost:5000"}`;
+      res
+        .status(200)
+        .type("html")
+        .set("Cache-Control", "no-store")
+        .send(generateManagerLoginLinkBridgeHtml(token, origin));
+    } catch (error) {
+      console.error("Manager login-link bridge error:", error);
+      return res.status(500).type("html").send(
+        "<!DOCTYPE html><html><body><p>로그인 링크 처리 중 오류가 발생했습니다.</p></body></html>",
+      );
+    }
+  });
+
+  // 일회용 로그인 링크로 세션 발급
+  app.post("/api/manager/login-with-link", async (req, res) => {
+    try {
+      await ensureOperatorsReady();
+      const token = typeof req.body?.token === "string" ? req.body.token : "";
+      if (!token.trim()) {
+        return res.status(400).json({ error: "로그인 토큰이 필요합니다." });
+      }
+
+      let consumed;
+      try {
+        consumed = await consumeLoginLinkToken(token);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "로그인에 실패했습니다.";
+        const deactivated = message.includes("비활성화");
+        return res.status(401).json({ error: message, deactivated });
+      }
+
+      const { accessToken, refreshToken } = await establishManagerSession(res, {
+        id: consumed.managerId,
+        email: consumed.email,
+        userType: consumed.userType,
+        approvalStatus: consumed.approvalStatus,
+      });
+
+      return res.json({
+        success: true,
+        message: "로그인 성공",
+        accessToken,
+        refreshToken,
+      });
+    } catch (error) {
+      console.error("Manager login-with-link error:", error);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
   });
 
   // 매니저 로그인
@@ -80,62 +291,11 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: "이메일 또는 비밀번호가 일치하지 않습니다." });
       }
 
-      const hasSession = await hasActiveSession("manager", manager.id);
-      if (hasSession) {
-        console.log(`[Manager Login] 기존 세션 존재 - force-replace로 기존 세션 삭제: ${manager.id}`);
-        await deleteSession("manager", manager.id);
-        const { wsManager } = await import("../liveMatch/wsManager");
-        wsManager.forceDisconnectBySubjectId("manager", manager.id);
-      }
-
-      // JWT 토큰 생성
-      const tokenPayload = {
-        adminId: manager.id,
+      const { accessToken, refreshToken } = await establishManagerSession(res, {
+        id: manager.id,
         email: manager.email,
         userType: manager.userType,
         approvalStatus: manager.approvalStatus,
-      };
-
-      const accessToken = generateAccessToken(tokenPayload);
-      const refreshToken = generateRefreshToken(tokenPayload);
-
-      // Redis-DB 동기화: Redis 세션을 먼저 생성하여 원자성 보장
-      try {
-        // 1. Redis 세션 생성 (실패 시 즉시 에러)
-        await createSession("manager", manager.id, {
-          email: manager.email,
-          userType: manager.userType,
-        });
-
-        // 2. Redis 성공 후 DB lastLogin 업데이트
-        await adminStorage.updateAdminUser(manager.id, {
-          lastLogin: new Date(),
-        });
-      } catch (error) {
-        // Redis 또는 DB 실패 시 세션 정리
-        try {
-          await deleteSession("manager", manager.id);
-        } catch (cleanupError) {
-          console.error("Failed to cleanup session after login failure:", cleanupError);
-        }
-        throw error;
-      }
-
-      // 쿠키에 토큰 저장 (매니저 전용 쿠키, 모바일 앱을 위해 sameSite: "none" 사용)
-      res.cookie("managerAccessToken", accessToken, {
-        httpOnly: true,
-        secure: true, // sameSite: "none"은 secure: true 필수
-        sameSite: "none",
-        path: "/", // WebSocket 연결 시 쿠키 전송을 위해 루트 경로로 설정
-        maxAge: 15 * 60 * 1000, // 15분
-      });
-
-      res.cookie("managerRefreshToken", refreshToken, {
-        httpOnly: true,
-        secure: true, // sameSite: "none"은 secure: true 필수
-        sameSite: "none",
-        path: "/", // WebSocket 연결 시 쿠키 전송을 위해 루트 경로로 설정
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30일
       });
 
       return res.json({

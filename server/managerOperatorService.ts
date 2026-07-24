@@ -21,6 +21,18 @@ export function generateDailyPassword(length = 8): string {
   return result;
 }
 
+/** URL-safe 일회용 로그인 토큰 */
+export function generateLoginLinkToken(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+/** KST 기준 다음 자정(당일 링크 만료)에 해당하는 UTC Date */
+export function getLoginLinkExpiryDate(): Date {
+  const kstDate = getKstDateKey(); // YYYY-MM-DD
+  // 다음 KST 자정 = 당일 15:00 UTC
+  return new Date(`${kstDate}T15:00:00.000Z`);
+}
+
 function todayRange() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -72,27 +84,99 @@ export async function getTodayMatchesByRegistrationOrder(): Promise<OrderedToday
 async function setOperatorPassword(
   managerId: string,
   plain: string,
-): Promise<void> {
+): Promise<{ loginLinkToken: string }> {
   const hash = await bcrypt.hash(plain, 10);
   const today = getKstDateKey();
+  const loginLinkToken = generateLoginLinkToken();
   await AdminUserModel.updateOne(
     { id: managerId },
-    { password: hash, dailyPasswordPlain: plain, dailyPasswordDate: today },
+    {
+      password: hash,
+      dailyPasswordPlain: plain,
+      dailyPasswordDate: today,
+      loginLinkToken,
+      loginLinkExpiresAt: getLoginLinkExpiryDate(),
+    },
   );
   try {
     await deleteSession("manager", managerId);
   } catch {
     /* 세션 없음 */
   }
+  return { loginLinkToken };
 }
 
-export async function rotateOperatorPassword(operatorId: string): Promise<void> {
+export async function rotateOperatorPassword(operatorId: string): Promise<{ loginLinkToken: string }> {
   const doc = await AdminUserModel.findOne({ id: operatorId, userType: "매니저" }).lean();
   if (!doc || !OPERATOR_USERNAMES.includes(doc.username as (typeof OPERATOR_USERNAMES)[number])) {
     throw new Error("시스템 운영자 계정만 비밀번호를 재발급할 수 있습니다.");
   }
   const plain = generateDailyPassword();
-  await setOperatorPassword(doc.id, plain);
+  return setOperatorPassword(doc.id, plain);
+}
+
+export interface LoginLinkConsumeResult {
+  managerId: string;
+  email: string;
+  userType: string;
+  approvalStatus: string;
+  status: string;
+}
+
+/** 일회용 로그인 링크 토큰 검증 후 즉시 무효화 */
+export async function consumeLoginLinkToken(token: string): Promise<LoginLinkConsumeResult> {
+  const trimmed = token.trim();
+  if (!trimmed) {
+    throw new Error("로그인 링크가 올바르지 않습니다.");
+  }
+
+  const doc = await AdminUserModel.findOne({
+    loginLinkToken: trimmed,
+    userType: "매니저",
+  }).lean();
+
+  if (!doc) {
+    throw new Error("이미 사용되었거나 유효하지 않은 로그인 링크입니다.");
+  }
+
+  if (!OPERATOR_USERNAMES.includes(doc.username as (typeof OPERATOR_USERNAMES)[number])) {
+    throw new Error("시스템 운영자 계정만 링크 로그인을 사용할 수 있습니다.");
+  }
+
+  const expiresAt = (doc as { loginLinkExpiresAt?: Date | null }).loginLinkExpiresAt;
+  if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
+    await AdminUserModel.updateOne(
+      { id: doc.id },
+      { loginLinkToken: "", loginLinkExpiresAt: null },
+    );
+    throw new Error("로그인 링크가 만료되었습니다. 관리자에게 다시 요청하세요.");
+  }
+
+  if (doc.approvalStatus !== "승인") {
+    throw new Error("계정이 승인되지 않았습니다.");
+  }
+
+  if (doc.status === "비활성화") {
+    throw new Error("비활성화된 계정입니다. 관리자에게 문의하세요.");
+  }
+
+  const cleared = await AdminUserModel.findOneAndUpdate(
+    { id: doc.id, loginLinkToken: trimmed },
+    { loginLinkToken: "", loginLinkExpiresAt: null },
+    { new: false },
+  ).lean();
+
+  if (!cleared) {
+    throw new Error("이미 사용되었거나 유효하지 않은 로그인 링크입니다.");
+  }
+
+  return {
+    managerId: doc.id,
+    email: doc.email,
+    userType: doc.userType,
+    approvalStatus: doc.approvalStatus,
+    status: doc.status,
+  };
 }
 
 /** 오늘 경기 등록 순서 1~5 → op1~op5 자동 할당 */
@@ -145,6 +229,8 @@ export async function ensureOperatorsReady(): Promise<void> {
         operatorSlot: slot,
         dailyPasswordPlain: "",
         dailyPasswordDate: "",
+        loginLinkToken: "",
+        loginLinkExpiresAt: null,
       });
       console.log(`[Operators] 계정 생성: ${username} (비밀번호는 관리자 수동 생성 필요)`);
       continue;
@@ -172,6 +258,8 @@ export interface OperatorAccountView {
   status: string;
   dailyPasswordPlain: string;
   dailyPasswordDate: string;
+  loginLinkToken: string;
+  loginLinkActive: boolean;
   lastLogin: Date | null;
   operatorSlot: number;
 }
@@ -189,17 +277,22 @@ export async function listOperatorAccounts(): Promise<{
     userType: "매니저",
   })
     .select(
-      "id username name assignedMatchNumber status dailyPasswordPlain dailyPasswordDate lastLogin operatorSlot",
+      "id username name assignedMatchNumber status dailyPasswordPlain dailyPasswordDate loginLinkToken loginLinkExpiresAt lastLogin operatorSlot",
     )
     .sort({ operatorSlot: 1 })
     .lean();
 
   const operators: OperatorAccountView[] = [];
+  const now = Date.now();
 
   for (const doc of docs) {
     const slot = (doc as { operatorSlot?: number }).operatorSlot ?? 0;
     const plain = (doc as { dailyPasswordPlain?: string }).dailyPasswordPlain ?? "";
     const dateKey = (doc as { dailyPasswordDate?: string }).dailyPasswordDate ?? "";
+    const linkToken = (doc as { loginLinkToken?: string }).loginLinkToken ?? "";
+    const linkExpires = (doc as { loginLinkExpiresAt?: Date | null }).loginLinkExpiresAt;
+    const loginLinkActive =
+      Boolean(linkToken) && (!linkExpires || new Date(linkExpires).getTime() > now);
 
     const match = todayMatches[slot - 1];
     const assignmentLabel = match
@@ -220,6 +313,8 @@ export async function listOperatorAccounts(): Promise<{
       status: doc.status,
       dailyPasswordPlain: plain,
       dailyPasswordDate: dateKey,
+      loginLinkToken: loginLinkActive ? linkToken : "",
+      loginLinkActive,
       lastLogin: doc.lastLogin ?? null,
       operatorSlot: slot,
     });

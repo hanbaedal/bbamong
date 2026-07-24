@@ -219,6 +219,9 @@ const adminUserSchema = new Schema(
     operatorSlot: { type: Number, default: null },
     dailyPasswordPlain: { type: String, default: "" },
     dailyPasswordDate: { type: String, default: "" },
+    /** 카톡용 일회용 자동 로그인 링크 토큰 (사용·만료·재발급 시 비움) */
+    loginLinkToken: { type: String, default: "" },
+    loginLinkExpiresAt: { type: Date, default: null },
     passwordPlain: { type: String, default: "" },
   },
   { versionKey: false },

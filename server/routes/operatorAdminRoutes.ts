@@ -46,9 +46,13 @@ export async function operatorAdminRoutes(app: Express): Promise<void> {
   app.post("/api/admin/operators/:id/rotate-password", adminAuthMiddleware, async (req, res) => {
     try {
       const { id } = req.params;
-      await rotateOperatorPassword(id);
+      const { loginLinkToken } = await rotateOperatorPassword(id);
       const data = await listOperatorAccounts();
-      res.json({ message: "비밀번호가 생성되었습니다.", ...data });
+      res.json({
+        message: "비밀번호와 일회용 로그인 링크가 생성되었습니다.",
+        loginLinkToken,
+        ...data,
+      });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "비밀번호 생성에 실패했습니다.";
       console.error("운영자 비밀번호 생성 실패:", error);

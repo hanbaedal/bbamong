@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,18 +9,96 @@ import { getFullUrl, resetManagerRefreshCooldown } from "@/lib/managerQueryClien
 import { Capacitor } from "@capacitor/core";
 import { setManagerAccessToken, saveManagerRefreshToken } from "@/lib/managerTokenManager";
 
+function extractLoginTokenFromUrl(rawUrl: string): string | null {
+  try {
+    const normalized = rawUrl.includes("://")
+      ? rawUrl
+      : `https://dummy${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+    const url = new URL(normalized);
+    const fromQuery = url.searchParams.get("t");
+    if (fromQuery?.trim()) return fromQuery.trim();
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 export default function ManagerLoginPage() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { assets } = useManagerAssets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [linkLoginMessage, setLinkLoginMessage] = useState("");
   const [errors, setErrors] = useState({
     email: "",
     password: "",
     general: "",
   });
+  const consumedTokensRef = useRef<Set<string>>(new Set());
+
+  const finishLoginSuccess = async (data: { accessToken?: string; refreshToken?: string }) => {
+    resetManagerRefreshCooldown();
+    if (Capacitor.isNativePlatform() && data.accessToken && data.refreshToken) {
+      setManagerAccessToken(data.accessToken);
+      await saveManagerRefreshToken(data.refreshToken);
+    }
+    setLocation("/manager/home", { replace: true });
+  };
+
+  const loginWithLinkToken = async (token: string) => {
+    if (consumedTokensRef.current.has(token)) return;
+    consumedTokensRef.current.add(token);
+    setIsLoading(true);
+    setLinkLoginMessage("자동 로그인 중...");
+    setErrors({ email: "", password: "", general: "" });
+
+    try {
+      window.history.replaceState({}, "", "/manager/login");
+
+      const response = await fetch(getFullUrl("/api/manager/login-with-link"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ token }),
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        await finishLoginSuccess(data);
+        return;
+      }
+
+      consumedTokensRef.current.delete(token);
+      setLinkLoginMessage("");
+      setErrors({
+        email: "",
+        password: "",
+        general: data.error || "자동 로그인에 실패했습니다. 관리자에게 새 링크를 요청하세요.",
+      });
+    } catch {
+      consumedTokensRef.current.delete(token);
+      setLinkLoginMessage("");
+      setErrors({
+        email: "",
+        password: "",
+        general: "자동 로그인 중 오류가 발생했습니다.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // URL ?t= 또는 딥링크로 들어온 토큰으로 자동 로그인
+  useEffect(() => {
+    const token =
+      extractLoginTokenFromUrl(window.location.href) ||
+      extractLoginTokenFromUrl(location);
+    if (token) {
+      void loginWithLinkToken(token);
+    }
+  }, [location]);
 
   const validate = () => {
     const newErrors = { email: "", password: "", general: "" };
@@ -54,12 +132,7 @@ export default function ManagerLoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        resetManagerRefreshCooldown();
-        if (Capacitor.isNativePlatform() && data.accessToken && data.refreshToken) {
-          setManagerAccessToken(data.accessToken);
-          await saveManagerRefreshToken(data.refreshToken);
-        }
-        setLocation("/manager/home", { replace: true });
+        await finishLoginSuccess(data);
       } else {
         setErrors({
           email: "",
@@ -96,7 +169,6 @@ export default function ManagerLoginPage() {
     <div className="h-[100dvh] bg-white flex flex-col overflow-y-auto overscroll-none admin-autofill-dark w-full" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 44px)', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 32px)', WebkitOverflowScrolling: 'touch' }}>
       <div className="flex-1 flex flex-col items-center justify-center px-5 py-8">
         <div className="w-full flex flex-col h-full flex-1">
-          {/* 로고 */}
           <div
             className="flex justify-center mb-16"
             data-testid="logo-container"
@@ -111,12 +183,16 @@ export default function ManagerLoginPage() {
             </div>
           </div>
 
-          {/* 로그인 폼 */}
+          {linkLoginMessage && (
+            <p className="text-center text-sm text-[#666] mb-4" data-testid="text-link-login">
+              {linkLoginMessage}
+            </p>
+          )}
+
           <form
             onSubmit={handleSubmit}
             className="space-y-5 flex-1 flex flex-col justify-between"
           >
-            {/* 아이디 */}
             <div className="flex flex-col gap-8">
               {" "}
               <div className="space-y-2">
@@ -154,7 +230,6 @@ export default function ManagerLoginPage() {
                   </p>
                 )}
               </div>
-              {/* 비밀번호 */}
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-gray-700 text-sm">
                   비밀번호
@@ -215,7 +290,7 @@ export default function ManagerLoginPage() {
               </div>
             </div>
             <p className="text-[#888] text-xs text-center mb-4">
-              관리자가 발급한 아이디와 오늘 비밀번호로 로그인하세요.
+              카톡으로 받은 로그인 링크를 누르면 자동 로그인됩니다. 또는 아이디와 오늘 비밀번호를 입력하세요.
             </p>
             <div className="flex flex-col">
               <Button

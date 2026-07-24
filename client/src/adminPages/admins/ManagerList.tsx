@@ -15,6 +15,8 @@ interface OperatorAccount {
   status: string;
   dailyPasswordPlain: string;
   dailyPasswordDate: string;
+  loginLinkToken: string;
+  loginLinkActive: boolean;
   lastLogin: string | null;
   operatorSlot: number;
 }
@@ -30,6 +32,35 @@ interface TodayMatch {
 interface OperatorsResponse {
   operators: OperatorAccount[];
   todayMatches: TodayMatch[];
+}
+
+function buildLoginLinkUrl(token: string): string {
+  // 카톡으로 보낼 링크는 항상 운영 도메인 (앱 딥링크·실서버 로그인)
+  return `https://ppamong.com/api/manager/login-link/${encodeURIComponent(token)}`;
+}
+
+function buildCopyText(op: OperatorAccount): string {
+  const lines = [
+    `[빠몽 운영자 로그인] ${op.username}`,
+    `담당 경기: ${op.assignedMatchNumber ?? "없음"}`,
+    "",
+    "▼ 아래 링크를 누르면 운영자 앱에 자동 로그인됩니다 (1회용, 당일까지)",
+  ];
+
+  if (op.loginLinkToken) {
+    lines.push(buildLoginLinkUrl(op.loginLinkToken));
+  } else {
+    lines.push("(로그인 링크 없음 — 「생성」을 눌러 새로 발급하세요)");
+  }
+
+  if (op.dailyPasswordPlain) {
+    lines.push("");
+    lines.push("(직접 입력용 백업)");
+    lines.push(`아이디: ${op.username}`);
+    lines.push(`비밀번호: ${op.dailyPasswordPlain}`);
+  }
+
+  return lines.join("\n");
 }
 
 export default function ManagerListPage() {
@@ -65,11 +96,28 @@ export default function ManagerListPage() {
   });
 
   const rotateMutation = useMutation({
-    mutationFn: async (operatorId: string) =>
-      apiRequest("POST", `/api/admin/operators/${operatorId}/rotate-password`, {}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/operators"] });
-      toast({ description: "비밀번호가 생성되었습니다." });
+    mutationFn: async (operatorId: string) => {
+      const res = await apiRequest("POST", `/api/admin/operators/${operatorId}/rotate-password`, {});
+      return res.json() as Promise<OperatorsResponse & { loginLinkToken?: string }>;
+    },
+    onSuccess: async (result, operatorId) => {
+      queryClient.setQueryData(["/api/admin/operators"], {
+        operators: result.operators,
+        todayMatches: result.todayMatches,
+      });
+      const op = result.operators.find((o) => o.id === operatorId);
+      if (op?.loginLinkToken) {
+        try {
+          await navigator.clipboard.writeText(buildCopyText(op));
+          toast({
+            description: "비밀번호·로그인 링크가 생성되어 클립보드에 복사되었습니다. 카톡으로 보내세요.",
+          });
+          return;
+        } catch {
+          /* fall through */
+        }
+      }
+      toast({ description: "비밀번호와 일회용 로그인 링크가 생성되었습니다. 「복사」를 눌러 주세요." });
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : "비밀번호 생성에 실패했습니다.";
@@ -78,10 +126,17 @@ export default function ManagerListPage() {
   });
 
   const copyCredentials = async (op: OperatorAccount) => {
-    const text = `아이디: ${op.username}\n비밀번호: ${op.dailyPasswordPlain}\n담당 경기: ${op.assignedMatchNumber ?? "없음"}`;
+    if (!op.loginLinkToken && !op.dailyPasswordPlain) {
+      toast({ variant: "destructive", description: "먼저 「생성」으로 비밀번호·링크를 발급하세요." });
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(text);
-      toast({ description: `${op.username} 로그인 정보를 복사했습니다.` });
+      await navigator.clipboard.writeText(buildCopyText(op));
+      toast({
+        description: op.loginLinkToken
+          ? `${op.username} 자동 로그인 링크를 복사했습니다.`
+          : `${op.username} 로그인 정보를 복사했습니다.`,
+      });
     } catch {
       toast({ variant: "destructive", description: "복사에 실패했습니다." });
     }
@@ -106,7 +161,7 @@ export default function ManagerListPage() {
               운영자 리스트
             </h1>
             <p className="text-sm text-[#666] mt-1">
-              경기 등록 순서 1~5 → op1~op5 자동 할당 · 비밀번호는 행별 「생성」 버튼으로 발급
+              「생성」→ 자동 복사 → 카톡 전송 → 수신자가 링크 클릭 시 운영자 앱 자동 로그인 (1회용)
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -132,11 +187,12 @@ export default function ManagerListPage() {
         )}
 
         <div className="overflow-x-auto shrink-0">
-          <div className="grid grid-cols-[9%_22%_12%_14%_12%_12%_19%] min-w-[960px] px-2 md:px-4 py-2 md:py-3 bg-[#F5F5F5] border-y border-[#E9E9E9] text-xs md:text-sm font-semibold text-[#201E22]">
+          <div className="grid grid-cols-[9%_20%_11%_12%_10%_10%_10%_18%] min-w-[1020px] px-2 md:px-4 py-2 md:py-3 bg-[#F5F5F5] border-y border-[#E9E9E9] text-xs md:text-sm font-semibold text-[#201E22]">
             <div>아이디</div>
             <div>경기 할당</div>
             <div>담당 경기</div>
             <div>비밀번호</div>
+            <div>로그인 링크</div>
             <div>상태</div>
             <div>최근 로그인</div>
             <div>관리</div>
@@ -154,7 +210,7 @@ export default function ManagerListPage() {
             operators.map((op, index) => (
               <div
                 key={op.id}
-                className="grid grid-cols-[9%_22%_12%_14%_12%_12%_19%] min-w-[960px] px-2 md:px-4 py-3 bg-white border-b border-[#E9E9E9] items-center text-xs md:text-sm text-[#201E22]"
+                className="grid grid-cols-[9%_20%_11%_12%_10%_10%_10%_18%] min-w-[1020px] px-2 md:px-4 py-3 bg-white border-b border-[#E9E9E9] items-center text-xs md:text-sm text-[#201E22]"
                 data-testid={`manager-row-${index}`}
               >
                 <div className="font-medium">{op.username}</div>
@@ -172,6 +228,13 @@ export default function ManagerListPage() {
                   data-testid={`operator-password-${index}`}
                 >
                   {op.dailyPasswordPlain || "—"}
+                </div>
+                <div className="text-xs">
+                  {op.loginLinkActive ? (
+                    <span className="text-[#34A853] font-medium">발급됨</span>
+                  ) : (
+                    <span className="text-[#BFBFBF]">없음</span>
+                  )}
                 </div>
                 <div>{op.status}</div>
                 <div className="text-[#666] text-xs">
