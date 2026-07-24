@@ -79,6 +79,7 @@ export default function MatchManagement() {
   // 경기 탭 페이지네이션 및 확장 상태
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+  const [isSyncingApiSports, setIsSyncingApiSports] = useState(false);
   const pageSize = useResponsivePageSize();
   const itemsPerPage = Math.max(3, Math.floor(pageSize * 64 / 96));
   useEffect(() => { setCurrentPage(1); }, [itemsPerPage]);
@@ -232,18 +233,62 @@ export default function MatchManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
-      setShowAddMatchModal(false);
-      toast({ description: "경기가 등록되었습니다." });
+      toast({
+        description: "경기가 등록되었습니다. 하단에서 API-SPORTS 연결을 진행하세요.",
+      });
     },
     onError: (err: any) => {
       console.error("경기 등록 실패:", err);
-      setShowAddMatchModal(false);
       toast({
         variant: "destructive",
         description: err?.message || "경기 등록에 실패했습니다.",
       });
     },
   });
+
+  const handleSyncApiSports = async () => {
+    if (!matchDate) {
+      toast({ variant: "destructive", description: "날짜를 선택해주세요." });
+      return;
+    }
+
+    const hasRegistered = matchesData?.some((match) => {
+      const m = match as Match & { matchDate?: string | null };
+      if (m.matchDate) return m.matchDate === matchDate;
+      const utcDate = new Date(match.startTime);
+      const kstDate = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
+      const key = `${kstDate.getUTCFullYear()}-${String(kstDate.getUTCMonth() + 1).padStart(2, "0")}-${String(kstDate.getUTCDate()).padStart(2, "0")}`;
+      return key === matchDate;
+    });
+
+    if (!hasRegistered) {
+      toast({
+        variant: "destructive",
+        description: "먼저 해당 날짜 경기를 저장한 뒤 연결해주세요.",
+      });
+      return;
+    }
+
+    setIsSyncingApiSports(true);
+    try {
+      const res = await apiRequest("POST", "/api/admin/matches/sync-from-api-sports", {
+        date: matchDate,
+      });
+      const body = await res.json();
+      toast({
+        description: `API-SPORTS ${body.linked ?? 0}개 경기를 연결했습니다.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
+      setShowAddMatchModal(false);
+    } catch {
+      toast({
+        variant: "destructive",
+        description: "API-SPORTS 연결에 실패했습니다. Secrets/키 설정을 확인하세요.",
+      });
+    } finally {
+      setIsSyncingApiSports(false);
+    }
+  };
 
   const handleAddStadium = () => {
     if (!stadiumName.trim()) {
@@ -839,14 +884,32 @@ export default function MatchManagement() {
               );
             })}
 
-            {/* 저장 버튼 */}
-            <button
-              onClick={handleSaveMatches}
-              className="w-full mt-6 py-3 rounded-[8px] text-[16px] font-semibold bg-black text-white tracking-[-0.025em]"
-              data-testid="button-save-matches"
-            >
-              저장하기
-            </button>
+            {/* 저장 → API 연결 */}
+            <div className="mt-6 space-y-3">
+              <button
+                onClick={handleSaveMatches}
+                disabled={createMatchesMutation.isPending}
+                className="w-full py-3 rounded-[8px] text-[16px] font-semibold bg-black text-white tracking-[-0.025em] disabled:opacity-60"
+                data-testid="button-save-matches"
+              >
+                {createMatchesMutation.isPending ? "저장 중..." : "1. 저장하기"}
+              </button>
+              <button
+                onClick={handleSyncApiSports}
+                disabled={isSyncingApiSports || createMatchesMutation.isPending}
+                className="w-full py-3 rounded-[8px] text-[16px] font-semibold bg-[#E11936] text-white tracking-[-0.025em] disabled:opacity-60"
+                data-testid="button-sync-api-sports"
+              >
+                {isSyncingApiSports
+                  ? "연결 중..."
+                  : "2. API-SPORTS 오늘 경기 연결"}
+              </button>
+              <p className="text-xs text-[#888] text-center leading-relaxed">
+                경기 입력 후 저장 → 연결 순서로 진행하세요.
+                <br />
+                연결되면 이닝·점수가 자동으로 동기화됩니다.
+              </p>
+            </div>
           </div>
         </div>
       )}
