@@ -176,7 +176,7 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
       items: [
         {
           id: "match-management",
-          label: "경기 관리",
+          label: "경기 관리 (API 연결)",
           path: "/admin/match-management",
           iconKey: "adMatchIcon",
         },

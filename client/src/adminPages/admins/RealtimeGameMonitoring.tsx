@@ -202,8 +202,15 @@ export default function RealtimeGameMonitoring() {
       const body = await result.json();
       toast({ description: `API-SPORTS ${body.linked ?? 0}개 경기를 연결했습니다.` });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
-    } catch {
-      toast({ variant: "destructive", description: "API-SPORTS 동기화에 실패했습니다." });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({
+        variant: "destructive",
+        description:
+          message.includes("API_SPORTS_KEY")
+            ? "Replit Secrets에 API_SPORTS_KEY가 없습니다. 추가 후 Redeploy 하세요."
+            : `API-SPORTS 동기화 실패: ${message}`,
+      });
     } finally {
       setIsSyncingApi(false);
     }

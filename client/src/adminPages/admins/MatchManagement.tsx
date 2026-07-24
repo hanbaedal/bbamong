@@ -246,20 +246,28 @@ export default function MatchManagement() {
     },
   });
 
-  const handleSyncApiSports = async () => {
-    if (!matchDate) {
+  const getTodayKstDateKey = () => {
+    const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, "0")}-${String(kst.getUTCDate()).padStart(2, "0")}`;
+  };
+
+  const getMatchDateKey = (match: Match & { matchDate?: string | null }) => {
+    if (match.matchDate) return match.matchDate;
+    const utcDate = new Date(match.startTime);
+    const kstDate = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
+    return `${kstDate.getUTCFullYear()}-${String(kstDate.getUTCMonth() + 1).padStart(2, "0")}-${String(kstDate.getUTCDate()).padStart(2, "0")}`;
+  };
+
+  const handleSyncApiSports = async (dateOverride?: string) => {
+    const targetDate = dateOverride || matchDate || getTodayKstDateKey();
+    if (!targetDate) {
       toast({ variant: "destructive", description: "날짜를 선택해주세요." });
       return;
     }
 
-    const hasRegistered = matchesData?.some((match) => {
-      const m = match as Match & { matchDate?: string | null };
-      if (m.matchDate) return m.matchDate === matchDate;
-      const utcDate = new Date(match.startTime);
-      const kstDate = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
-      const key = `${kstDate.getUTCFullYear()}-${String(kstDate.getUTCMonth() + 1).padStart(2, "0")}-${String(kstDate.getUTCDate()).padStart(2, "0")}`;
-      return key === matchDate;
-    });
+    const hasRegistered = matchesData?.some(
+      (match) => getMatchDateKey(match as Match & { matchDate?: string | null }) === targetDate,
+    );
 
     if (!hasRegistered) {
       toast({
@@ -272,18 +280,22 @@ export default function MatchManagement() {
     setIsSyncingApiSports(true);
     try {
       const res = await apiRequest("POST", "/api/admin/matches/sync-from-api-sports", {
-        date: matchDate,
+        date: targetDate,
       });
       const body = await res.json();
       toast({
-        description: `API-SPORTS ${body.linked ?? 0}개 경기를 연결했습니다.`,
+        description: `API-SPORTS ${body.linked ?? 0}개 경기를 연결했습니다. (${targetDate})`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
       setShowAddMatchModal(false);
-    } catch {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       toast({
         variant: "destructive",
-        description: "API-SPORTS 연결에 실패했습니다. Secrets/키 설정을 확인하세요.",
+        description:
+          message.includes("API_SPORTS_KEY")
+            ? "Replit Secrets에 API_SPORTS_KEY가 없습니다. 추가 후 Redeploy 하세요."
+            : `API-SPORTS 연결 실패: ${message}`,
       });
     } finally {
       setIsSyncingApiSports(false);
@@ -455,17 +467,26 @@ export default function MatchManagement() {
           </button>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3 items-center mb-3">
+          <button
+            type="button"
+            onClick={() => handleSyncApiSports(getTodayKstDateKey())}
+            disabled={isSyncingApiSports}
+            className="flex items-center justify-center gap-2 px-4 py-2 min-w-[160px] h-[40px] bg-[#201E22] text-white rounded font-medium text-sm disabled:opacity-60"
+            data-testid="button-sync-api-sports-page"
+          >
+            {isSyncingApiSports ? "연결 중..." : "오늘 경기 API 연결"}
+          </button>
           <button
             onClick={() => setShowAddMatchModal(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 w-[105px] h-[40px] bg-[#CCF501] text-[#201E22] rounded font-medium text-sm mb-3"
+            className="flex items-center justify-center gap-2 px-4 py-2 w-[105px] h-[40px] bg-[#CCF501] text-[#201E22] rounded font-medium text-sm"
             data-testid="button-add-match"
           >
             + 경기 등록
           </button>
           <button
             onClick={() => setShowAddStadiumModal(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 w-[105px] h-[40px] bg-[#E11936] text-white rounded font-medium text-sm "
+            className="flex items-center justify-center gap-2 px-4 py-2 w-[105px] h-[40px] bg-[#E11936] text-white rounded font-medium text-sm"
             data-testid="button-add-stadium"
           >
             + 구장 추가
@@ -535,6 +556,11 @@ export default function MatchManagement() {
 
       {activeTab === "matches" && (
         <>
+          <p className="text-xs text-[#888] mb-4 leading-relaxed">
+            경기 등록 후 <strong className="text-[#201E22]">오늘 경기 API 연결</strong>을 눌러
+            API-SPORTS와 연결하세요. 날짜 카드를 펼친 뒤 개별 경기를 누르면 실시간 모니터링에서
+            헬스·스코어·수동 전환을 확인할 수 있습니다.
+          </p>
           <div className="flex-1 overflow-y-auto scrollbar-hide">
             {matchesLoading ? (
               <div className="space-y-0">
