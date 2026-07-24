@@ -1,6 +1,7 @@
-import { MatchModel } from "../UserStorage/db";
+import { randomUUID } from "crypto";
+import { MatchModel, StadiumModel, getNextSequence } from "../UserStorage/db";
 import { broadcastManager } from "../liveMatch/broadcastManager";
-import { endMatch } from "../liveMatch/predictionStorage";
+import { finalizeMatchEnd, lockSideBetsForMatch } from "../liveMatch/sideBetStorage";
 import { getKstDateString } from "../utils/dateUtils";
 import { fetchGameById, fetchGamesByDate, type ApiSportsGameResponse } from "./client";
 import { KBO_LEAGUE_ID } from "./constants";
@@ -12,9 +13,37 @@ import {
 } from "./scoreboardParser";
 import type { ApiSportsTodayGame } from "@shared/apiSportsTypes";
 
-function extractMatchNumber(name: string): number {
-  const match = name.match(/\d+/);
-  return match ? parseInt(match[0], 10) : 0;
+const MAX_DAILY_MATCHES = 5;
+const API_DEFAULT_STADIUM_NAME = "API자동";
+
+function gameStartDate(game: ApiSportsGameResponse): Date {
+  if (game.timestamp && Number.isFinite(game.timestamp)) {
+    // API-SPORTS timestamp is unix seconds
+    return new Date(game.timestamp * 1000);
+  }
+  if (game.date && game.time) {
+    return new Date(`${game.date.slice(0, 10)}T${game.time}:00+09:00`);
+  }
+  return new Date(`${getKstDateString()}T18:00:00+09:00`);
+}
+
+function matchStatusFromApi(statusShort: string): string {
+  const short = (statusShort || "").toUpperCase();
+  if (isGameFinished(short)) return "completed";
+  if (short === "NS" || short === "TBD") return "scheduled";
+  return "ongoing";
+}
+
+async function ensureApiDefaultStadium(): Promise<number> {
+  const existing = await StadiumModel.findOne({ name: API_DEFAULT_STADIUM_NAME }).lean();
+  if (existing) return existing.id;
+
+  const id = await getNextSequence("stadium");
+  await StadiumModel.create({
+    id,
+    name: API_DEFAULT_STADIUM_NAME,
+  });
+  return id;
 }
 
 export function mapTodayGames(games: ApiSportsGameResponse[]): ApiSportsTodayGame[] {
@@ -37,13 +66,29 @@ export function mapTodayGames(games: ApiSportsGameResponse[]): ApiSportsTodayGam
     });
 }
 
+/**
+ * 해당일 KBO 일정을 API에서 읽어 DB에 자동 등록(최대 5경기)하고 연결합니다.
+ * 수기 등록 없이 사용 가능. 이미 있으면 시각·팀·API ID를 갱신합니다.
+ */
 export async function syncTodayGamesFromApiSports(date?: string): Promise<{
+  created: number;
+  updated: number;
   linked: number;
   games: ApiSportsTodayGame[];
 }> {
   const targetDate = date ?? getKstDateString();
   const apiGames = await fetchGamesByDate(targetDate, KBO_LEAGUE_ID);
-  const mapped = mapTodayGames(apiGames);
+  const sortedApi = apiGames
+    .slice()
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .slice(0, MAX_DAILY_MATCHES);
+  const mapped = mapTodayGames(sortedApi);
+
+  if (sortedApi.length === 0) {
+    return { created: 0, updated: 0, linked: 0, games: [] };
+  }
+
+  const stadiumId = await ensureApiDefaultStadium();
 
   const today = new Date(`${targetDate}T12:00:00`);
   const startOfDay = new Date(today);
@@ -55,26 +100,67 @@ export async function syncTodayGamesFromApiSports(date?: string): Promise<{
     $or: [{ matchDate: targetDate }, { matchDate: null, startTime: { $gte: startOfDay, $lte: endOfDay } }],
   }).lean();
 
-  const sortedInternal = internalMatches.sort(
-    (a, b) => extractMatchNumber(a.name) - extractMatchNumber(b.name),
+  const byApiId = new Map(
+    internalMatches
+      .filter((m) => m.apiSportsGameId != null)
+      .map((m) => [m.apiSportsGameId as number, m]),
   );
+  const byName = new Map(internalMatches.map((m) => [m.name, m]));
 
+  let created = 0;
+  let updated = 0;
   let linked = 0;
-  for (let i = 0; i < Math.min(sortedInternal.length, mapped.length, 5); i++) {
-    const internal = sortedInternal[i];
-    const external = mapped[i];
-    await MatchModel.updateOne(
-      { id: internal.id },
-      {
-        apiSportsGameId: external.apiSportsGameId,
-        apiSportsHomeTeam: external.homeTeamName,
-        apiSportsAwayTeam: external.awayTeamName,
-      },
-    );
-    linked += 1;
+
+  for (let i = 0; i < sortedApi.length; i++) {
+    const external = sortedApi[i];
+    const scoreboard = parseLiveScoreboard(external);
+    const matchName = `${i + 1}경기`;
+    const startTime = gameStartDate(external);
+    const endTime = new Date(startTime.getTime() + 4 * 60 * 60 * 1000);
+    const matchStatus = matchStatusFromApi(external.status.short);
+
+    const existing =
+      byApiId.get(external.id) ??
+      byName.get(matchName) ??
+      null;
+
+    const payload = {
+      name: matchName,
+      stadiumId: existing?.stadiumId ?? stadiumId,
+      matchDate: targetDate,
+      startTime,
+      endTime,
+      matchStatus: existing?.matchStatus === "completed" ? "completed" : matchStatus,
+      registrationOrder: i + 1,
+      apiSportsGameId: external.id,
+      apiSportsHomeTeam: scoreboard.homeTeamName,
+      apiSportsAwayTeam: scoreboard.awayTeamName,
+      liveScoreboard: scoreboard,
+      lastInningKey: buildInningKey(scoreboard),
+      controlMode: existing?.controlMode ?? "auto",
+      sideBetsLocked:
+        existing?.sideBetsLocked ||
+        scoreboard.inning !== null ||
+        isGameFinished(scoreboard.statusShort),
+    };
+
+    if (existing) {
+      await MatchModel.updateOne({ id: existing.id }, payload);
+      updated += 1;
+      linked += 1;
+    } else {
+      await MatchModel.create({
+        id: randomUUID(),
+        currentRound: 1,
+        predictionEnabled: false,
+        ...payload,
+      });
+      created += 1;
+      linked += 1;
+    }
   }
 
-  return { linked, games: mapped };
+  return { created, updated, linked, games: mapped };
 }
 
 async function handleInningChange(matchId: string, scoreboard: ReturnType<typeof parseLiveScoreboard>) {
@@ -121,6 +207,16 @@ async function syncLinkedMatch(match: any) {
     },
   );
 
+  if (scoreboard.inning !== null && !match.sideBetsLocked) {
+    const locked = await lockSideBetsForMatch(match.id);
+    if (locked) {
+      broadcastManager.sendToMatch(match.id, "side_bets_locked", {
+        matchId: match.id,
+        message: "1회 시작으로 승리팀·스코어 배팅이 마감되었습니다.",
+      });
+    }
+  }
+
   broadcastManager.sendToMatch(match.id, "scoreboard_update", {
     matchId: match.id,
     scoreboard,
@@ -136,7 +232,7 @@ async function syncLinkedMatch(match: any) {
   }
 
   if (controlMode === "auto" && isGameFinished(scoreboard.statusShort) && match.matchStatus !== "completed") {
-    const ended = await endMatch(match.id);
+    const { match: ended } = await finalizeMatchEnd(match.id);
     broadcastManager.sendToMatch(match.id, "match_ended", {
       matchId: match.id,
       message: "API-SPORTS 기준 경기가 종료되었습니다.",

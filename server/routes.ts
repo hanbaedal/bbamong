@@ -36,6 +36,7 @@ import { mallAdminRoutes } from "./UserRoutes/mallAdminRoutes"
 import { mallProductImageRoutes } from "./UserRoutes/mallProductImageRoutes"
 import { managerRoutes } from "./routes/managerRoutes"
 import predictionRoutes from "./liveMatch/predictionRoutes"
+import sideBetRoutes from "./liveMatch/sideBetRoutes"
 import matchControlRoutes from "./liveMatch/matchControlRoutes"
 import { healthRoutes } from "./routes/healthRoutes"
 import { apiSportsRoutes } from "./apiSports/routes";
@@ -94,6 +95,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   
   // 실시간 경기 베팅 라우터 등록
   app.use("/api/live-match", predictionRoutes)
+  app.use("/api/live-match", sideBetRoutes)
   app.use("/api/live-match", matchControlRoutes)
   
 }

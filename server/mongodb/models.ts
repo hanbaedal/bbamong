@@ -66,6 +66,7 @@ const matchSchema = new Schema(
     liveScoreboard: { type: Schema.Types.Mixed, default: null },
     lastInningKey: { type: String, default: null },
     controlMode: { type: String, default: "auto" },
+    sideBetsLocked: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
   },
   { versionKey: false },
@@ -242,6 +243,26 @@ const predictionSchema = new Schema(
 );
 predictionSchema.index({ userId: 1, matchId: 1, roundNumber: 1 }, { unique: true });
 export const PredictionModel = mongoose.model("Prediction", predictionSchema);
+
+const matchSideBetSchema = new Schema(
+  {
+    id: { type: Number, required: true, unique: true },
+    userId: { type: String, required: true },
+    matchId: { type: String, required: true },
+    type: { type: String, required: true, enum: ["winner", "score"] },
+    winnerPick: { type: String, enum: ["home", "away"], default: null },
+    homeScorePick: { type: Number, default: null },
+    awayScorePick: { type: Number, default: null },
+    amount: { type: Number, required: true },
+    odds: { type: Number, required: true },
+    status: { type: String, default: "pending" },
+    wonAmount: { type: Number, default: 0 },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+matchSideBetSchema.index({ userId: 1, matchId: 1, type: 1 }, { unique: true });
+export const MatchSideBetModel = mongoose.model("MatchSideBet", matchSideBetSchema);
 
 const roundStatisticsSchema = new Schema(
   {

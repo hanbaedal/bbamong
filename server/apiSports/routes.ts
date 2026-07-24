@@ -14,6 +14,7 @@ import {
   setMatchControlMode,
   syncTodayGamesFromApiSports,
 } from "./syncService";
+import { syncOperatorMatchAssignments } from "../managerOperatorService";
 
 export async function apiSportsRoutes(app: Express): Promise<void> {
   app.get("/api/api-sports/health", async (_req, res) => {
@@ -35,6 +36,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
     try {
       const body = z.object({ date: z.string().optional() }).parse(req.body ?? {});
       const result = await syncTodayGamesFromApiSports(body.date);
+      await syncOperatorMatchAssignments();
       res.json(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : "동기화 실패";

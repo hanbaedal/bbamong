@@ -7,8 +7,8 @@ import {
   getAllRoundStatistics,
   getMatchOverallStatistics,
   getRoundDetailsWithStatistics,
-  endMatch,
 } from "./predictionStorage";
+import { finalizeMatchEnd } from "./sideBetStorage";
 import { requireAdmin } from "./authMiddleware";
 import { adminAuthMiddleware } from "../middleware/adminAuth";
 
@@ -23,7 +23,7 @@ router.post("/control/:matchId/end", requireAdmin, async (req: Request, res: Res
   try {
     const matchId = req.params.matchId;
 
-    const match = await endMatch(matchId);
+    const { match } = await finalizeMatchEnd(matchId);
 
     broadcastManager.sendToMatch(matchId, "end", {
       matchId,

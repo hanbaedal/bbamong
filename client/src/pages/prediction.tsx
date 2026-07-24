@@ -14,6 +14,7 @@ import { getAccessToken } from "@/lib/tokenManager";
 import { useToast } from "@/hooks/use-toast";
 import { useAdMob } from "@/hooks/useAdMob";
 import { useMatchWebSocket, WSEventHandlers } from "@/hooks/useMatchWebSocket";
+import MatchSideBetsPanel from "@/components/MatchSideBetsPanel";
 import LiveScoreboard from "@/components/LiveScoreboard";
 import BetAmountSelector from "@/components/BetAmountSelector";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
@@ -1521,8 +1522,13 @@ export default function PredictionPage() {
 
 
                 <div className="mb-4">
-                  <LiveScoreboard scoreboard={liveScoreboard} />
+                  <LiveScoreboard scoreboard={liveScoreboard} showTeamNames={false} />
                 </div>
+
+                <MatchSideBetsPanel
+                  matchId={selectedMatch.id}
+                  onSubmitted={() => void refetchUser()}
+                />
 
                 <BetAmountSelector
                   value={selectedBetAmount}

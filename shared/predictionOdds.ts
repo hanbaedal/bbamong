@@ -27,3 +27,26 @@ export function calculateFixedOddsPayout(betAmount: number, result: string): num
   const odds = getPredictionOdds(result);
   return Math.floor(betAmount * odds);
 }
+
+/** 경기 단위 사이드 배팅 (승리팀 / 최종 스코어) */
+export type SideBetType = "winner" | "score";
+export type WinnerSide = "home" | "away";
+
+export const WINNER_ODDS = 2;
+export const EXACT_SCORE_ODDS = 20;
+
+export const SIDE_BET_AMOUNT_OPTIONS = [100, 200, 500, 1000] as const;
+export type SideBetAmountOption = (typeof SIDE_BET_AMOUNT_OPTIONS)[number];
+export const DEFAULT_SIDE_BET_AMOUNT: SideBetAmountOption = 100;
+
+export function isValidSideBetAmount(amount: number): amount is SideBetAmountOption {
+  return (SIDE_BET_AMOUNT_OPTIONS as readonly number[]).includes(amount);
+}
+
+export function getSideBetOdds(type: SideBetType): number {
+  return type === "winner" ? WINNER_ODDS : EXACT_SCORE_ODDS;
+}
+
+export function calculateSideBetPayout(betAmount: number, type: SideBetType): number {
+  return Math.floor(betAmount * getSideBetOdds(type));
+}

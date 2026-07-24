@@ -162,6 +162,18 @@ export default function RealtimeGameMonitoring() {
       return res.json();
     },
   });
+  const { data: sideBetSummary } = useQuery({
+    queryKey: ["/api/live-match/matches", selectedMatch?.id, "side-bets/summary"],
+    enabled: Boolean(selectedMatch?.id),
+    refetchInterval: 5000,
+    queryFn: async () => {
+      const res = await apiRequest(
+        "GET",
+        `/api/live-match/matches/${selectedMatch!.id}/side-bets/summary`,
+      );
+      return res.json();
+    },
+  });
   const [controlMode, setControlMode] = useState<"auto" | "manual">("auto");
   const [isSyncingApi, setIsSyncingApi] = useState(false);
 
@@ -200,8 +212,11 @@ export default function RealtimeGameMonitoring() {
         date: params?.dateKey,
       });
       const body = await result.json();
-      toast({ description: `API-SPORTS ${body.linked ?? 0}개 경기를 연결했습니다.` });
+      toast({
+        description: `API 일정: 신규 ${body.created ?? 0} · 갱신 ${body.updated ?? 0} · 연결 ${body.linked ?? 0}`,
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stadiums"] });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast({
@@ -802,7 +817,7 @@ export default function RealtimeGameMonitoring() {
                   disabled={isSyncingApi}
                   className="px-3 py-1.5 text-xs rounded-md border border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936]"
                 >
-                  {isSyncingApi ? "동기화 중..." : "오늘 경기 API 연결"}
+                  {isSyncingApi ? "불러오는 중..." : "오늘 경기 API에서 등록"}
                 </button>
                 <button
                   type="button"
@@ -850,6 +865,42 @@ export default function RealtimeGameMonitoring() {
                 })}
               </div>
             </div>
+          </div>
+
+          <div className="mb-6 border border-[#E9E9E9] rounded-[10px] p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-[#201E22]">승리팀 · 스코어 배팅</h3>
+              {sideBetSummary?.sideBetsLocked ? (
+                <span className="text-xs text-amber-600 font-medium">1회 시작 마감</span>
+              ) : (
+                <span className="text-xs text-green-600 font-medium">접수 중</span>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-[#666]">
+              <div className="rounded-lg bg-[#F9F9F9] p-3">
+                <p className="font-semibold text-[#201E22] mb-1">승리팀 (2배)</p>
+                <p>
+                  {sideBetSummary?.summary?.winner?.count ?? 0}명 ·{" "}
+                  {sideBetSummary?.summary?.winner?.totalPoints ?? 0}P
+                </p>
+                <p className="mt-1">
+                  홈 {sideBetSummary?.summary?.winner?.home ?? 0} / 원정{" "}
+                  {sideBetSummary?.summary?.winner?.away ?? 0}
+                </p>
+              </div>
+              <div className="rounded-lg bg-[#F9F9F9] p-3">
+                <p className="font-semibold text-[#201E22] mb-1">최종 스코어 (20배)</p>
+                <p>
+                  {sideBetSummary?.summary?.score?.count ?? 0}명 ·{" "}
+                  {sideBetSummary?.summary?.score?.totalPoints ?? 0}P
+                </p>
+              </div>
+            </div>
+            <p className="text-[11px] text-[#888] mt-3">
+              대기 {sideBetSummary?.summary?.pending ?? 0} · 적중 {sideBetSummary?.summary?.won ?? 0} ·
+              미적중 {sideBetSummary?.summary?.lost ?? 0} · 환불{" "}
+              {sideBetSummary?.summary?.refunded ?? 0}
+            </p>
           </div>
 
           {/* Match Info Section - 4열 2행 (작은 화면) / 8열 1행 (큰 화면) */}

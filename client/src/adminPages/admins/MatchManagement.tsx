@@ -1,21 +1,15 @@
-import { useState, useEffect, useRef } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { apiRequest } from "@/lib/adminQueryClient";
 import AdminLayout from "../adminLayout";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
-import AdminPagination from "../components/AdminPagination";
-import { useResponsivePageSize } from "@/hooks/useResponsivePageSize";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
 
 interface Stadium {
   id: number;
@@ -23,160 +17,165 @@ interface Stadium {
   createdAt: string;
 }
 
-interface Match {
+interface MatchRow {
   id: string;
   name: string;
   stadiumId: number;
   startTime: string;
   endTime: string;
   matchStatus: string;
+  matchDate?: string | null;
+  apiSportsGameId?: number | null;
+  apiSportsHomeTeam?: string | null;
+  apiSportsAwayTeam?: string | null;
+  liveScoreboard?: {
+    homeScore?: number;
+    awayScore?: number;
+    statusLong?: string;
+    inningLabel?: string;
+  } | null;
 }
 
-interface MatchForm {
-  id?: string;
-  stadiumId: string;
-  startHour: string;
-  startMinute: string;
-  status: string;
+function toDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function matchDateKey(match: MatchRow): string {
+  if (match.matchDate) return match.matchDate;
+  const utc = new Date(match.startTime);
+  const kst = new Date(utc.getTime() + 9 * 60 * 60 * 1000);
+  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, "0")}-${String(kst.getUTCDate()).padStart(2, "0")}`;
+}
+
+function formatTimeKst(iso: string): string {
+  const utc = new Date(iso);
+  const kst = new Date(utc.getTime() + 9 * 60 * 60 * 1000);
+  return `${String(kst.getUTCHours()).padStart(2, "0")}:${String(kst.getUTCMinutes()).padStart(2, "0")}`;
+}
+
+function statusLabel(status: string): string {
+  if (status === "completed" || status === "종료") return "종료";
+  if (status === "ongoing" || status === "진행") return "진행";
+  if (status === "cancelled" || status === "취소") return "취소";
+  return "예정";
 }
 
 export default function MatchManagement() {
   const queryClient = useQueryClient();
-  // URL 쿼리 파라미터에서 탭 정보 읽기
+  const { toast } = useToast();
+  const { user } = useUser();
+  const { assets } = useAdminAssets();
+  const isSuperAdmin = user?.userType === "슈퍼어드민";
+
   const searchParams = new URLSearchParams(window.location.search);
   const tabFromUrl = searchParams.get("tab") as "stadiums" | "matches" | null;
+  const [activeTab, setActiveTab] = useState<"stadiums" | "matches">(tabFromUrl || "matches");
 
-  const [activeTab, setActiveTab] = useState<"stadiums" | "matches">(
-    tabFromUrl || "matches",
-  );
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
+  const [selectedDay, setSelectedDay] = useState<Date | undefined>();
+  const [dayModalOpen, setDayModalOpen] = useState(false);
+  const [syncingDate, setSyncingDate] = useState<string | null>(null);
+  const [lastSyncMeta, setLastSyncMeta] = useState<{
+    date: string;
+    created: number;
+    updated: number;
+    linked: number;
+  } | null>(null);
+
   const [showAddStadiumModal, setShowAddStadiumModal] = useState(false);
-  const [showAddMatchModal, setShowAddMatchModal] = useState(false);
   const [stadiumName, setStadiumName] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteForceConfirmOpen, setDeleteForceConfirmOpen] = useState(false);
   const [deleteForceMessage, setDeleteForceMessage] = useState("");
   const [selectedStadium, setSelectedStadium] = useState<Stadium | null>(null);
-  const { toast } = useToast();
-  const { user } = useUser();
-  const isSuperAdmin = user?.userType === "슈퍼어드민";
-  const [matchDate, setMatchDate] = useState(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`; // 로컬 시간 기준 yyyy-mm-dd 포맷
-  });
-  const [matches, setMatches] = useState<MatchForm[]>(
-    Array(5)
-      .fill(null)
-      .map(() => ({
-        stadiumId: "",
-        startHour: "",
-        startMinute: "",
-        status: "정상",
-      })),
-  );
-  // 경기 탭 페이지네이션 및 확장 상태
-  const [currentPage, setCurrentPage] = useState(1);
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
-  const [isSyncingApiSports, setIsSyncingApiSports] = useState(false);
-  const pageSize = useResponsivePageSize();
-  const itemsPerPage = Math.max(3, Math.floor(pageSize * 64 / 96));
-  useEffect(() => { setCurrentPage(1); }, [itemsPerPage]);
-  const dateInputRef = useRef<HTMLInputElement>(null);
-  const { assets } = useAdminAssets();
 
-  // 날짜 확장/축소 토글
-  const toggleDateExpand = (dateKey: string) => {
-    setExpandedDates((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(dateKey)) {
-        newSet.delete(dateKey);
-      } else {
-        newSet.add(dateKey);
-      }
-      return newSet;
-    });
-  };
-
-  // 날짜를 "2025년 9월 4일" 형식으로 변환
-  const formatDateToKorean = (dateStr: string) => {
-    if (!dateStr) return "";
-    const date = new Date(dateStr + "T00:00:00");
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    return `${year}년 ${month}월 ${day}일`;
-  };
-
-  const { data: stadiums, isLoading } = useQuery<Stadium[]>({
+  const { data: stadiums, isLoading: stadiumsLoading } = useQuery<Stadium[]>({
     queryKey: ["/api/admin/stadiums"],
   });
 
-  const { data: matchesData, isLoading: matchesLoading } = useQuery<Match[]>({
+  const { data: matchesData, isLoading: matchesLoading } = useQuery<MatchRow[]>({
     queryKey: ["/api/admin/matches"],
   });
 
-  // 날짜가 변경될 때 해당 날짜의 경기를 불러와서 폼에 채우기
-  useEffect(() => {
-    if (matchDate && matchesData) {
-      const selectedDateMatches = matchesData.filter((match) => {
-        // matchDate 필드가 있으면 우선 사용, 없으면 startTime에서 UTC 날짜 추출
-        const matchWithDate = match as Match & { matchDate?: string | null };
-        if (matchWithDate.matchDate) {
-          return matchWithDate.matchDate === matchDate;
-        }
-        // 레거시 데이터: startTime에서 KST 날짜 추출
-        const utcDate = new Date(match.startTime);
-        const kstDate = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
-        const formattedDate = `${kstDate.getUTCFullYear()}-${String(kstDate.getUTCMonth() + 1).padStart(2, "0")}-${String(kstDate.getUTCDate()).padStart(2, "0")}`;
-        return formattedDate === matchDate;
-      });
-
-      // 경기 번호 추출 (예: "1경기" -> 0, "2경기" -> 1)
-      const newMatches: MatchForm[] = Array(5)
-        .fill(null)
-        .map(() => ({
-          id: undefined,
-          stadiumId: "",
-          startHour: "",
-          startMinute: "",
-          status: "정상",
-        }));
-
-      selectedDateMatches.forEach((match) => {
-        const matchNumber = parseInt(match.name.replace("경기", "")) - 1;
-        if (matchNumber >= 0 && matchNumber < 5) {
-          const startTime = new Date(match.startTime);
-
-          const statusMap: Record<string, string> = {
-            scheduled: "정상",
-            cancelled: "취소",
-            postponed: "연기",
-            completed: "종료",
-          };
-
-          const kstTime = new Date(startTime.getTime() + 9 * 60 * 60 * 1000);
-          const rawMinute = kstTime.getUTCMinutes();
-          const roundedMinute = Math.round(rawMinute / 5) * 5 % 60;
-          newMatches[matchNumber] = {
-            id: match.id,
-            stadiumId: match.stadiumId.toString(),
-            startHour: String(kstTime.getUTCHours()).padStart(2, "0"),
-            startMinute: String(roundedMinute).padStart(2, "0"),
-            status: statusMap[match.matchStatus] || "정상",
-          };
-        }
-      });
-
-      setMatches(newMatches);
+  const datesWithMatches = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of matchesData ?? []) {
+      set.add(matchDateKey(m));
     }
-  }, [matchDate, matchesData]);
+    return set;
+  }, [matchesData]);
+
+  const selectedDateKey = selectedDay ? toDateKey(selectedDay) : null;
+
+  const dayMatches = useMemo(() => {
+    if (!selectedDateKey || !matchesData) return [];
+    return matchesData
+      .filter((m) => matchDateKey(m) === selectedDateKey)
+      .sort((a, b) => {
+        const an = parseInt(a.name.replace(/\D/g, ""), 10) || 0;
+        const bn = parseInt(b.name.replace(/\D/g, ""), 10) || 0;
+        return an - bn;
+      });
+  }, [matchesData, selectedDateKey]);
+
+  const syncDate = async (dateKey: string, silentEmpty = false) => {
+    setSyncingDate(dateKey);
+    try {
+      const res = await apiRequest("POST", "/api/admin/matches/sync-from-api-sports", {
+        date: dateKey,
+      });
+      const body = await res.json();
+      const created = body.created ?? 0;
+      const updated = body.updated ?? 0;
+      const linked = body.linked ?? 0;
+      setLastSyncMeta({ date: dateKey, created, updated, linked });
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/stadiums"] });
+
+      if (linked === 0) {
+        if (!silentEmpty) {
+          toast({
+            variant: "destructive",
+            description: `${dateKey} API 경기가 없습니다. (키·시즌·리그 확인)`,
+          });
+        }
+      } else {
+        toast({
+          description: `${dateKey} 반영 · 신규 ${created} · 갱신 ${updated} · 연결 ${linked}`,
+        });
+      }
+      return body;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({
+        variant: "destructive",
+        description:
+          message.includes("API_SPORTS_KEY")
+            ? "Replit Secrets에 API_SPORTS_KEY가 없습니다."
+            : message.includes("Free plans")
+              ? "Free 플랜은 현재 시즌 조회가 불가합니다. Pro 키를 확인하세요."
+              : `일정 불러오기 실패: ${message}`,
+      });
+      throw err;
+    } finally {
+      setSyncingDate(null);
+    }
+  };
+
+  const openDay = async (day: Date | undefined) => {
+    if (!day) return;
+    setSelectedDay(day);
+    setDayModalOpen(true);
+    const dateKey = toDateKey(day);
+    // 조회 = 자동 DB 저장·API 연결
+    await syncDate(dateKey, true);
+  };
 
   const createMutation = useMutation({
-    mutationFn: async (name: string) => {
-      return await apiRequest("POST", "/api/admin/stadiums", { name });
-    },
+    mutationFn: async (name: string) => apiRequest("POST", "/api/admin/stadiums", { name }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stadiums"] });
       setShowAddStadiumModal(false);
@@ -184,12 +183,7 @@ export default function MatchManagement() {
       toast({ description: "구장이 추가되었습니다." });
     },
     onError: (err: any) => {
-      console.error("구장 추가 실패:", err);
-      setShowAddStadiumModal(false);
-      toast({
-        variant: "destructive",
-        description: err?.message || "구장 추가에 실패했습니다.",
-      });
+      toast({ variant: "destructive", description: err?.message || "구장 추가에 실패했습니다." });
     },
   });
 
@@ -198,9 +192,7 @@ export default function MatchManagement() {
       const url = force ? `/api/admin/stadiums/${id}?force=true` : `/api/admin/stadiums/${id}`;
       const res = await fetch(url, { method: "DELETE", credentials: "include" });
       const data = await res.json();
-      if (!res.ok) {
-        throw { status: res.status, ...data };
-      }
+      if (!res.ok) throw { status: res.status, ...data };
       return data;
     },
     onSuccess: () => {
@@ -211,7 +203,6 @@ export default function MatchManagement() {
       toast({ description: "구장이 삭제되었습니다." });
     },
     onError: (err: any) => {
-      console.error("구장 삭제 실패:", err);
       if (err?.status === 409 && err?.requireConfirm) {
         setDeleteConfirmOpen(false);
         setDeleteForceMessage(err.message);
@@ -220,213 +211,13 @@ export default function MatchManagement() {
       }
       setDeleteConfirmOpen(false);
       setDeleteForceConfirmOpen(false);
-      toast({
-        variant: "destructive",
-        description: err?.message || "구장 삭제에 실패했습니다.",
-      });
+      toast({ variant: "destructive", description: err?.message || "구장 삭제에 실패했습니다." });
     },
   });
-
-  const createMatchesMutation = useMutation({
-    mutationFn: async (matchesData: any[]) => {
-      return await apiRequest("POST", "/api/admin/matches/batch", matchesData);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
-      toast({
-        description: "경기가 등록되었습니다. 하단에서 API-SPORTS 연결을 진행하세요.",
-      });
-    },
-    onError: (err: any) => {
-      console.error("경기 등록 실패:", err);
-      toast({
-        variant: "destructive",
-        description: err?.message || "경기 등록에 실패했습니다.",
-      });
-    },
-  });
-
-  const getTodayKstDateKey = () => {
-    const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-    return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, "0")}-${String(kst.getUTCDate()).padStart(2, "0")}`;
-  };
-
-  const getMatchDateKey = (match: Match & { matchDate?: string | null }) => {
-    if (match.matchDate) return match.matchDate;
-    const utcDate = new Date(match.startTime);
-    const kstDate = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
-    return `${kstDate.getUTCFullYear()}-${String(kstDate.getUTCMonth() + 1).padStart(2, "0")}-${String(kstDate.getUTCDate()).padStart(2, "0")}`;
-  };
-
-  const handleSyncApiSports = async (dateOverride?: string) => {
-    const targetDate = dateOverride || matchDate || getTodayKstDateKey();
-    if (!targetDate) {
-      toast({ variant: "destructive", description: "날짜를 선택해주세요." });
-      return;
-    }
-
-    const hasRegistered = matchesData?.some(
-      (match) => getMatchDateKey(match as Match & { matchDate?: string | null }) === targetDate,
-    );
-
-    if (!hasRegistered) {
-      toast({
-        variant: "destructive",
-        description: "먼저 해당 날짜 경기를 저장한 뒤 연결해주세요.",
-      });
-      return;
-    }
-
-    setIsSyncingApiSports(true);
-    try {
-      const res = await apiRequest("POST", "/api/admin/matches/sync-from-api-sports", {
-        date: targetDate,
-      });
-      const body = await res.json();
-      toast({
-        description: `API-SPORTS ${body.linked ?? 0}개 경기를 연결했습니다. (${targetDate})`,
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
-      setShowAddMatchModal(false);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast({
-        variant: "destructive",
-        description:
-          message.includes("API_SPORTS_KEY")
-            ? "Replit Secrets에 API_SPORTS_KEY가 없습니다. 추가 후 Redeploy 하세요."
-            : `API-SPORTS 연결 실패: ${message}`,
-      });
-    } finally {
-      setIsSyncingApiSports(false);
-    }
-  };
-
-  const handleAddStadium = () => {
-    if (!stadiumName.trim()) {
-      toast({ variant: "destructive", description: "구장명을 입력해주세요." });
-      return;
-    }
-    createMutation.mutate(stadiumName);
-  };
-
-  const handleDeleteClick = (stadium: Stadium) => {
-    setSelectedStadium(stadium);
-    setDeleteConfirmOpen(true);
-  };
 
   function formatDate(dateString: string) {
     const date = new Date(dateString);
-    const day = String(date.getDate()).padStart(2, "0");
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const year = String(date.getFullYear()).slice(-2);
-    return `${year}${month}${day}`;
-  }
-
-  function formatMatchDateUTC(dateString: string) {
-    const date = new Date(dateString);
-    const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-    const year = kst.getUTCFullYear();
-    const month = String(kst.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(kst.getUTCDate()).padStart(2, "0");
-    return `${year}. ${month}.${day}`;
-  }
-
-  // 경기 데이터를 날짜별로 그룹화 (matchDate 필드 우선 사용)
-  const groupedMatches =
-    matchesData?.reduce(
-      (acc, match) => {
-        const matchWithDate = match as Match & { matchDate?: string | null };
-        // matchDate 필드 우선 사용, 없으면 startTime에서 UTC 날짜 추출
-        let dateKey: string;
-        if (matchWithDate.matchDate) {
-          dateKey = matchWithDate.matchDate;
-        } else {
-          // 레거시 데이터: startTime에서 KST 날짜 추출
-          const utcDate = new Date(match.startTime);
-          const kstDate = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
-          dateKey = `${kstDate.getUTCFullYear()}-${String(kstDate.getUTCMonth() + 1).padStart(2, "0")}-${String(kstDate.getUTCDate()).padStart(2, "0")}`;
-        }
-
-        if (!acc[dateKey]) {
-          acc[dateKey] = [];
-        }
-        acc[dateKey].push(match);
-        return acc;
-      },
-      {} as Record<string, Match[]>,
-    ) || {};
-
-  const handleDeleteConfirm = () => {
-    if (selectedStadium) {
-      deleteMutation.mutate({ id: selectedStadium.id });
-    }
-  };
-
-  const handleForceDeleteConfirm = () => {
-    if (selectedStadium) {
-      deleteMutation.mutate({ id: selectedStadium.id, force: true });
-    }
-  };
-
-  const handleMatchChange = (
-    index: number,
-    field: keyof MatchForm,
-    value: string,
-  ) => {
-    const newMatches = [...matches];
-    newMatches[index] = { ...newMatches[index], [field]: value };
-    setMatches(newMatches);
-  };
-
-  const handleSaveMatches = () => {
-    if (!matchDate) {
-      toast({ variant: "destructive", description: "날짜를 선택해주세요." });
-      return;
-    }
-
-    // 상태 매핑
-    const statusMap: Record<string, string> = {
-      정상: "scheduled",
-      취소: "cancelled",
-      연기: "postponed",
-      종료: "completed",
-    };
-
-    const validMatchesWithIndex = matches
-      .map((match, originalIndex) => ({ match, originalIndex }))
-      .filter(
-        ({ match }) => match.stadiumId && match.startHour && match.startMinute,
-      );
-
-    const validMatches = validMatchesWithIndex.map(
-      ({ match, originalIndex }) => {
-        const startTime = `${matchDate}T${match.startHour}:${match.startMinute}:00+09:00`;
-        const endTime = startTime;
-
-        return {
-          ...(match.id && { id: match.id }),
-          name: `${originalIndex + 1}경기`,
-          stadiumId: parseInt(match.stadiumId),
-          startTime: startTime,
-          endTime: endTime,
-          matchStatus: statusMap[match.status] || "scheduled",
-          matchDate: matchDate,
-        };
-      },
-    );
-
-    if (validMatches.length === 0) {
-      toast({ variant: "destructive", description: "등록할 경기 정보를 입력해주세요." });
-      return;
-    }
-
-    createMatchesMutation.mutate(validMatches);
-  };
-
-  const hourOptions: string[] = [];
-  for (let h = 0; h < 24; h++) {
-    hourOptions.push(String(h).padStart(2, "0"));
+    return `${String(date.getFullYear()).slice(-2)}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
   }
 
   return (
@@ -438,61 +229,100 @@ export default function MatchManagement() {
         className="text-2xl font-semibold text-[#201E22] mb-6 flex items-center gap-2"
         data-testid="text-page-title"
       >
-        <img src={assets.adListIcon} className="w-8 h-8" alt="icon" /> 경기 관리
+        <img src={assets.adListIcon} className="w-8 h-8" alt="" /> 경기 관리
       </h1>
 
       <div className="flex justify-between mb-6 border-b border-[#E9E9E9]">
         <div className="flex gap-4">
           <button
+            type="button"
             onClick={() => setActiveTab("matches")}
-            className={`pb-3 px-11 text-base font-medium hover:border-b-2 hover:border-[#E11936] hover:text-[#E11936] ${
+            className={`pb-3 px-11 text-base font-medium ${
               activeTab === "matches"
                 ? "border-b-2 border-[#E11936] text-[#E11936]"
-                : "text-[#BFBFBF] border-transparent"
+                : "text-[#BFBFBF]"
             }`}
             data-testid="tab-matches"
           >
             경기
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab("stadiums")}
-            className={`pb-3 px-8 text-base font-medium hover:border-b-2 hover:border-[#E11936] hover:text-[#E11936] ${
+            className={`pb-3 px-8 text-base font-medium ${
               activeTab === "stadiums"
                 ? "border-b-2 border-[#E11936] text-[#E11936]"
-                : "text-[#BFBFBF] border-transparent"
+                : "text-[#BFBFBF]"
             }`}
             data-testid="tab-stadiums"
           >
             경기 구장
           </button>
         </div>
-
-        <div className="flex flex-wrap gap-3 items-center mb-3">
+        {activeTab === "stadiums" && (
           <button
             type="button"
-            onClick={() => handleSyncApiSports(getTodayKstDateKey())}
-            disabled={isSyncingApiSports}
-            className="flex items-center justify-center gap-2 px-4 py-2 min-w-[160px] h-[40px] bg-[#201E22] text-white rounded font-medium text-sm disabled:opacity-60"
-            data-testid="button-sync-api-sports-page"
-          >
-            {isSyncingApiSports ? "연결 중..." : "오늘 경기 API 연결"}
-          </button>
-          <button
-            onClick={() => setShowAddMatchModal(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 w-[105px] h-[40px] bg-[#CCF501] text-[#201E22] rounded font-medium text-sm"
-            data-testid="button-add-match"
-          >
-            + 경기 등록
-          </button>
-          <button
             onClick={() => setShowAddStadiumModal(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 w-[105px] h-[40px] bg-[#E11936] text-white rounded font-medium text-sm"
+            className="flex items-center justify-center gap-2 px-4 py-2 h-[40px] bg-[#E11936] text-white rounded font-medium text-sm mb-3"
             data-testid="button-add-stadium"
           >
             + 구장 추가
           </button>
-        </div>
+        )}
       </div>
+
+      {activeTab === "matches" && (
+        <div className="space-y-4">
+          <p className="text-sm text-[#666] leading-relaxed">
+            달력에서 <strong className="text-[#201E22]">날짜를 클릭</strong>하면 그날 KBO 일정을
+            API에서 읽어 <strong className="text-[#201E22]">DB에 자동 저장·연결</strong>합니다.
+            (하루 최대 5경기 · 별도 등록 버튼 불필요)
+          </p>
+
+          <div className="grid grid-cols-1 xl:grid-cols-[auto_1fr] gap-6 items-start">
+            <div className="border border-[#E9E9E9] rounded-[12px] bg-white p-4 inline-block">
+              {matchesLoading ? (
+                <div className="w-[280px] h-[300px] animate-pulse bg-[#F3F3F3] rounded-lg" />
+              ) : (
+                <Calendar
+                  mode="single"
+                  locale={ko}
+                  month={calendarMonth}
+                  onMonthChange={setCalendarMonth}
+                  selected={selectedDay}
+                  onSelect={(day) => void openDay(day)}
+                  modifiers={{
+                    hasMatch: (date) => datesWithMatches.has(toDateKey(date)),
+                  }}
+                  modifiersClassNames={{
+                    hasMatch: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-[#E11936]",
+                  }}
+                  className="rounded-md"
+                />
+              )}
+            </div>
+
+            <div className="border border-[#E9E9E9] rounded-[12px] bg-[#F9F9F9] p-5 min-h-[200px]">
+              <h2 className="text-base font-semibold text-[#201E22] mb-2">이용 안내</h2>
+              <ul className="text-sm text-[#666] space-y-2 list-disc pl-5">
+                <li>빨간 점이 있는 날짜는 이미 DB에 경기가 있습니다.</li>
+                <li>날짜를 열면 API 조회와 동시에 저장·연결됩니다.</li>
+                <li>모달 표에서 모니터링 화면으로 이동할 수 있습니다.</li>
+                <li>사용자 앱에는 구단명 대신 홈팀/원정팀만 표시됩니다.</li>
+              </ul>
+              <button
+                type="button"
+                className="mt-4 px-4 py-2 text-sm rounded-md bg-[#201E22] text-white disabled:opacity-50"
+                disabled={Boolean(syncingDate)}
+                onClick={() => void openDay(new Date())}
+                data-testid="button-open-today"
+              >
+                {syncingDate ? "불러오는 중..." : "오늘 날짜 열기"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeTab === "stadiums" && (
         <>
@@ -501,47 +331,28 @@ export default function MatchManagement() {
             <div>구장명</div>
             <div>관리</div>
           </div>
-
           <div className="flex-1 overflow-y-auto scrollbar-hide">
-            {isLoading ? (
-              <div className="space-y-0">
-                {Array.from({ length: pageSize }).map((_, idx) => (
-                  <div
-                    key={idx}
-                    className="grid grid-cols-[30%_50%_20%] px-4 py-5 bg-white border-b border-[#E9E9E9] items-center h-16"
-                  >
-                    <div className="h-3.5 bg-[#E9E9E9] rounded w-32 animate-pulse" />
-                    <div className="h-3.5 bg-[#E9E9E9] rounded w-32 animate-pulse" />
-                    <div className="h-3.5 bg-[#E9E9E9] rounded w-16 animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            ) : !stadiums || stadiums.length === 0 ? (
-              <div className="flex items-center justify-center py-16 md:py-24 lg:py-32 text-[#BFBFBF] text-sm">
-                등록된 구장이 없습니다.
-              </div>
+            {stadiumsLoading ? (
+              <div className="py-16 text-center text-[#BFBFBF] text-sm">불러오는 중...</div>
+            ) : !stadiums?.length ? (
+              <div className="py-16 text-center text-[#BFBFBF] text-sm">등록된 구장이 없습니다.</div>
             ) : (
-              stadiums?.map((stadium) => (
+              stadiums.map((stadium) => (
                 <div
                   key={stadium.id}
                   className="grid grid-cols-[30%_50%_20%] px-4 py-5 bg-white border-b border-[#E9E9E9] items-center h-16"
-                  data-testid={`row-stadium-${stadium.id}`}
                 >
-                  <div
-                    className="truncate"
-                    title={formatDate(stadium.createdAt)}
-                  >
-                    {formatDate(stadium.createdAt)}
-                  </div>
-                  <div className="truncate" title={stadium.name}>
-                    {stadium.name}
-                  </div>
+                  <div>{formatDate(stadium.createdAt)}</div>
+                  <div className="truncate">{stadium.name}</div>
                   <div>
                     {isSuperAdmin && (
                       <button
-                        onClick={() => handleDeleteClick(stadium)}
-                        data-testid={`button-delete-${stadium.id}`}
-                        className="px-3 py-1 text-xs font-medium text-[#E11936] border border-[#E11936] rounded hover:bg-[#FDE0E4]"
+                        type="button"
+                        onClick={() => {
+                          setSelectedStadium(stadium);
+                          setDeleteConfirmOpen(true);
+                        }}
+                        className="px-3 py-1 text-xs font-medium text-[#E11936] border border-[#E11936] rounded"
                       >
                         삭제
                       </button>
@@ -554,503 +365,158 @@ export default function MatchManagement() {
         </>
       )}
 
-      {activeTab === "matches" && (
-        <>
-          <p className="text-xs text-[#888] mb-4 leading-relaxed">
-            경기 등록 후 <strong className="text-[#201E22]">오늘 경기 API 연결</strong>을 눌러
-            API-SPORTS와 연결하세요. 날짜 카드를 펼친 뒤 개별 경기를 누르면 실시간 모니터링에서
-            헬스·스코어·수동 전환을 확인할 수 있습니다.
-          </p>
-          <div className="flex-1 overflow-y-auto scrollbar-hide">
-            {matchesLoading ? (
-              <div className="space-y-0">
-                {Array.from({ length: itemsPerPage }).map((_, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between px-4 py-3 mb-3 bg-white border border-[#E9E9E9] rounded-lg"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="h-3.5 bg-[#E9E9E9] rounded w-40 animate-pulse" />
-                      <div className="bg-[#E9E9E9] rounded w-[60px] h-[60px] animate-pulse" />
-                    </div>
-                    <div className="h-5 bg-[#E9E9E9] rounded w-5 animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            ) : !matchesData || matchesData.length === 0 ? (
-              <div className="flex items-center justify-center py-16 md:py-24 lg:py-32 text-[#BFBFBF] text-sm w-full">
-                등록된 경기가 없습니다.
-              </div>
-            ) : (
-              (() => {
-                // 날짜별로 그룹화한 경기 (필터링 제거)
-                const allGroupedMatches = Object.entries(groupedMatches);
-
-                const startIndex = (currentPage - 1) * itemsPerPage;
-                const endIndex = startIndex + itemsPerPage;
-                const paginatedMatches = allGroupedMatches.slice(
-                  startIndex,
-                  endIndex,
-                );
-
-                return (
-                  <>
-                    {paginatedMatches.length === 0 ? (
-                      <div className="flex items-center justify-center py-32 text-[#BFBFBF] text-sm w-full">
-                        등록된 경기가 없습니다.
-                      </div>
-                    ) : (
-                      <div className="flex flex-col h-full gap-4 w-full">
-                        {paginatedMatches.map(([dateKey, dateMatches]) => {
-                          const firstMatch = dateMatches[0];
-                          const isExpanded = expandedDates.has(dateKey);
-
-                          // 경기명 순서대로 정렬 (1경기, 2경기, ...)
-                          const sortedMatches = [...dateMatches].sort(
-                            (a, b) => {
-                              const aNum =
-                                parseInt(a.name.replace("경기", "")) || 0;
-                              const bNum =
-                                parseInt(b.name.replace("경기", "")) || 0;
-                              return aNum - bNum;
-                            },
-                          );
-
-                          return (
-                            <div
-                              key={dateKey}
-                              className="flex items-center gap-3 bg-white min-h-[80px]"
-                              data-testid={`date-group-${dateKey}`}
-                            >
-                              {/* 날짜 카드 (클릭 가능) - 고정 */}
-                              <div
-                                onClick={() => toggleDateExpand(dateKey)}
-                                className="flex-shrink-0 flex items-center justify-center p-4 md:p-6 lg:p-8 cursor-pointer hover:bg-[#F9F9F9] border border-[#E9E9E9] rounded-lg transition h-full min-w-[140px] md:min-w-[160px] lg:min-w-[180px]"
-                                data-testid={`button-toggle-${dateKey}`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <span className="text-sm md:text-base lg:text-[16px] font-semibold text-[#201E22] whitespace-nowrap">
-                                    {formatMatchDateUTC(firstMatch.startTime)}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* 경기 목록 컨테이너 - 오른쪽으로 가로 스크롤 */}
-                              <div
-                                className={`overflow-hidden transition-all duration-300 h-full ${
-                                  isExpanded
-                                    ? "flex-1 opacity-100"
-                                    : "w-0 max-w-0 opacity-0"
-                                }`}
-                              >
-                                <div
-                                  className={`flex gap-3 transition-transform duration-300 h-full overflow-x-auto ${
-                                    isExpanded
-                                      ? "translate-x-0"
-                                      : "-translate-x-full"
-                                  }`}
-                                >
-                                  {sortedMatches.map((match) => {
-                                    const matchIndex = sortedMatches.findIndex(
-                                      (m) => m.id === match.id,
-                                    );
-                                    return (
-                                      <Link
-                                        key={match.id}
-                                        className="flex-shrink-0 min-w-[140px] md:min-w-[160px] lg:min-w-[180px] h-full"
-                                        href={`/admin/match-monitoring/${encodeURIComponent(dateKey)}?matchIndex=${matchIndex}`}
-                                      >
-                                        <div
-                                          className="flex justify-between h-full px-3 md:px-4 lg:px-5 border border-[#F9F9F9] items-center rounded-lg cursor-pointer bg-[#F9F9F9] hover:border-[#E11936] transition min-h-[80px]"
-                                          data-testid={`match-card-${match.id}`}
-                                        >
-                                          {/* 경기명 */}
-                                          <span className="text-sm md:text-base lg:text-[18px] font-medium text-[#201E22] whitespace-nowrap">
-                                            {match.name}
-                                          </span>
-                                          <img
-                                            src={assets.adMatchCharaterIcon}
-                                            className="h-[50px] md:h-[60px] aspect-square pl-1 md:pl-2 ml-2 md:ml-4"
-                                          ></img>
-                                          <div className="flex gap-1 md:gap-[6px] items-center justify-end h-full">
-                                            <img
-                                              src={assets.adRightArrowIcon}
-                                              className="w-4 h-4 md:w-5 md:h-5 object-contain"
-                                            ></img>
-                                          </div>
-                                        </div>
-                                      </Link>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </>
-                );
-              })()
-            )}
-          </div>
-
-          {!matchesLoading &&
-            matchesData &&
-            matchesData.length > 0 &&
-            (() => {
-              const allGroupedMatches = Object.entries(groupedMatches);
-              const totalPages = Math.ceil(
-                allGroupedMatches.length / itemsPerPage,
-              );
-
-              return (
-                <AdminPagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={setCurrentPage}
-                />
-              );
-            })()}
-        </>
-      )}
-
-      {/* 경기 등록 모달 */}
-      {showAddMatchModal && (
+      {/* 날짜 경기 모달 */}
+      {dayModalOpen && selectedDay && selectedDateKey && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]"
-          onClick={() => setShowAddMatchModal(false)}
-          data-testid="modal-match-overlay"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
+          onClick={() => setDayModalOpen(false)}
+          data-testid="modal-day-matches"
         >
           <div
-            className="bg-white rounded-[10px] px-8 py-6 w-[700px] max-h-[80vh] overflow-auto font-sans"
+            className="bg-white rounded-[12px] w-full max-w-[820px] max-h-[85vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 헤더 */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <h2 className="text-[18px] font-semibold text-[#201E22] tracking-[-0.025em]">
-                  야구 경기 등록
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E9E9E9]">
+              <div>
+                <h2 className="text-lg font-semibold text-[#201E22]">
+                  {format(selectedDay, "yyyy년 M월 d일 (EEE)", { locale: ko })} 경기
                 </h2>
-
-                {/* 커스텀 날짜 선택 버튼 */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => dateInputRef.current?.showPicker()}
-                    className="flex items-center justify-center gap-[10px] px-5 py-[10px] w-[200px] h-[42px] bg-[#E11936] rounded"
-                    data-testid="button-match-date"
-                  >
-                    <span className="font-['Pretendard'] font-medium text-[16px] leading-[140%] tracking-[-0.025em] text-white whitespace-nowrap">
-                      {matchDate ? formatDateToKorean(matchDate) : "날짜 선택"}
-                    </span>
-                    <div className="w-5 h-5 flex items-center justify-center">
-                      <img
-                        src={assets.adCalanderIcon}
-                        className="w-5 h-5 object-cover"
-                      ></img>
-                    </div>
-                  </button>
-                  <input
-                    ref={dateInputRef}
-                    type="date"
-                    value={matchDate}
-                    onChange={(e) => setMatchDate(e.target.value)}
-                    className="absolute opacity-0 pointer-events-none"
-                    data-testid="input-match-date"
-                  />
-                </div>
+                <p className="text-xs text-[#888] mt-1">
+                  {syncingDate === selectedDateKey
+                    ? "API에서 일정을 불러와 DB에 저장 중..."
+                    : lastSyncMeta?.date === selectedDateKey
+                      ? `자동 반영됨 · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}`
+                      : "날짜를 열면 API 일정이 자동 저장·연결됩니다."}
+                </p>
               </div>
-              <button
-                onClick={() => setShowAddMatchModal(false)}
-                className="w-6 h-6 flex items-center justify-center"
-                data-testid="button-close-match-modal"
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M6 6L18 18M6 18L18 6"
-                    stroke="#201E22"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            {/* 테이블 헤더 */}
-            <div className="grid grid-cols-[80px_1fr_1fr_1fr_100px] gap-2 mb-2 text-[12px] font-medium text-[#4D4B4E]">
-              <div>경기</div>
-              <div>경기구장</div>
-              <div>시작 시</div>
-              <div>시작 분</div>
-              <div>경기 상태</div>
-            </div>
-
-            {/* 경기 행들 */}
-            {matches.map((match, index) => {
-              const selectedStadiumIds = matches
-                .map((m, i) =>
-                  i !== index && m.stadiumId ? m.stadiumId : null,
-                )
-                .filter((id) => id !== null);
-
-              return (
-                <div
-                  key={index}
-                  className="grid grid-cols-[80px_1fr_1fr_1fr_100px] gap-2 mb-3"
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={syncingDate === selectedDateKey}
+                  onClick={() => void syncDate(selectedDateKey)}
+                  className="px-3 py-1.5 text-xs rounded-md border border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936] disabled:opacity-50"
+                  data-testid="button-force-resync"
                 >
-                  <div className="flex items-center text-[14px] text-[#201E22]">
-                    {index + 1}경기
-                  </div>
+                  {syncingDate === selectedDateKey ? "동기화 중..." : "다시 동기화"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDayModalOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center text-[#201E22]"
+                  aria-label="닫기"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
 
-                  {/* 경기구장 */}
-                  <Select
-                    value={match.stadiumId}
-                    onValueChange={(value) =>
-                      handleMatchChange(index, "stadiumId", value)
-                    }
-                  >
-                    <SelectTrigger
-                      className={`h-[38px] border border-[#E9E9E9] rounded text-[14px] ${
-                        match.stadiumId ? "text-[#201E22]" : "text-[#BFBFBF]"
-                      }`}
-                      data-testid={`select-stadium-${index}`}
-                    >
-                      <SelectValue placeholder="구장 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {stadiums?.map((stadium) => {
-                        const isDisabled = selectedStadiumIds.includes(
-                          stadium.id.toString(),
-                        );
-                        return (
-                          <SelectItem
-                            key={stadium.id}
-                            value={stadium.id.toString()}
-                            disabled={isDisabled}
-                            className={isDisabled ? "text-[#BFBFBF]" : ""}
-                          >
-                            {stadium.name}
-                            {isDisabled ? " (사용 중)" : ""}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-
-                  {/* 시작 시 */}
-                  <Select
-                    value={match.startHour}
-                    onValueChange={(value) =>
-                      handleMatchChange(index, "startHour", value)
-                    }
-                  >
-                    <SelectTrigger
-                      className={`h-[38px] border border-[#E9E9E9] rounded text-[14px] ${
-                        match.startHour ? "text-[#201E22]" : "text-[#BFBFBF]"
-                      }`}
-                      data-testid={`select-start-hour-${index}`}
-                    >
-                      <SelectValue placeholder="시" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[200px]">
-                      {hourOptions.map((h) => (
-                        <SelectItem key={h} value={h}>
-                          {h}시
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* 시작 분 */}
-                  <input
-                    type="number"
-                    min="0"
-                    max="59"
-                    value={match.startMinute}
-                    onChange={(e) => {
-                      let val = e.target.value;
-                      if (val === "") {
-                        handleMatchChange(index, "startMinute", "");
-                        return;
-                      }
-                      const num = parseInt(val, 10);
-                      if (isNaN(num)) return;
-                      if (num > 59) return;
-                      if (num < 0) return;
-                      handleMatchChange(index, "startMinute", String(num).padStart(2, "0"));
-                    }}
-                    placeholder="분"
-                    className={`h-[38px] w-full border border-[#E9E9E9] rounded text-[14px] px-3 outline-none focus:border-[#201E22] ${
-                      match.startMinute ? "text-[#201E22]" : "text-[#BFBFBF]"
-                    }`}
-                    data-testid={`input-start-minute-${index}`}
-                  />
-
-                  {/* 경기 상태 */}
-                  <Select
-                    value={match.status}
-                    onValueChange={(value) =>
-                      handleMatchChange(index, "status", value)
-                    }
-                  >
-                    <SelectTrigger
-                      className="h-[38px] border border-[#E9E9E9] rounded text-[14px] text-[#201E22]"
-                      data-testid={`select-status-${index}`}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="정상">정상</SelectItem>
-                      <SelectItem value="취소">취소</SelectItem>
-                      <SelectItem value="연기">연기</SelectItem>
-                    </SelectContent>
-                  </Select>
+            <div className="overflow-auto px-4 py-3">
+              {syncingDate === selectedDateKey && dayMatches.length === 0 ? (
+                <div className="py-16 text-center text-[#888] text-sm">일정을 불러오는 중...</div>
+              ) : dayMatches.length === 0 ? (
+                <div className="py-16 text-center text-[#888] text-sm">
+                  이 날짜에 등록·연결된 경기가 없습니다.
                 </div>
-              );
-            })}
-
-            {/* 저장 → API 연결 */}
-            <div className="mt-6 space-y-3">
-              <button
-                onClick={handleSaveMatches}
-                disabled={createMatchesMutation.isPending}
-                className="w-full py-3 rounded-[8px] text-[16px] font-semibold bg-black text-white tracking-[-0.025em] disabled:opacity-60"
-                data-testid="button-save-matches"
-              >
-                {createMatchesMutation.isPending ? "저장 중..." : "1. 저장하기"}
-              </button>
-              <button
-                onClick={handleSyncApiSports}
-                disabled={isSyncingApiSports || createMatchesMutation.isPending}
-                className="w-full py-3 rounded-[8px] text-[16px] font-semibold bg-[#E11936] text-white tracking-[-0.025em] disabled:opacity-60"
-                data-testid="button-sync-api-sports"
-              >
-                {isSyncingApiSports
-                  ? "연결 중..."
-                  : "2. API-SPORTS 오늘 경기 연결"}
-              </button>
-              <p className="text-xs text-[#888] text-center leading-relaxed">
-                경기 입력 후 저장 → 연결 순서로 진행하세요.
-                <br />
-                연결되면 이닝·점수가 자동으로 동기화됩니다.
-              </p>
+              ) : (
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-[#F9F9F9] text-[#4D4B4E] text-left">
+                      <th className="px-3 py-2 font-medium">시간</th>
+                      <th className="px-3 py-2 font-medium">경기</th>
+                      <th className="px-3 py-2 font-medium">원정</th>
+                      <th className="px-3 py-2 font-medium text-center">스코어</th>
+                      <th className="px-3 py-2 font-medium">홈</th>
+                      <th className="px-3 py-2 font-medium">상태</th>
+                      <th className="px-3 py-2 font-medium">API</th>
+                      <th className="px-3 py-2 font-medium">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dayMatches.map((match, index) => {
+                      const away = match.apiSportsAwayTeam || "원정팀";
+                      const home = match.apiSportsHomeTeam || "홈팀";
+                      const awayScore = match.liveScoreboard?.awayScore;
+                      const homeScore = match.liveScoreboard?.homeScore;
+                      const scoreText =
+                        awayScore != null && homeScore != null
+                          ? `${awayScore} : ${homeScore}`
+                          : "-";
+                      return (
+                        <tr key={match.id} className="border-b border-[#F0F0F0] hover:bg-[#FAFAFA]">
+                          <td className="px-3 py-3 whitespace-nowrap">{formatTimeKst(match.startTime)}</td>
+                          <td className="px-3 py-3 font-medium text-[#201E22]">{match.name}</td>
+                          <td className="px-3 py-3">{away}</td>
+                          <td className="px-3 py-3 text-center font-semibold">{scoreText}</td>
+                          <td className="px-3 py-3">{home}</td>
+                          <td className="px-3 py-3">
+                            <span
+                              className={`inline-flex px-2 py-0.5 rounded text-xs ${
+                                statusLabel(match.matchStatus) === "진행"
+                                  ? "bg-green-50 text-green-700"
+                                  : statusLabel(match.matchStatus) === "종료"
+                                    ? "bg-gray-100 text-gray-600"
+                                    : "bg-amber-50 text-amber-700"
+                              }`}
+                            >
+                              {match.liveScoreboard?.inningLabel || statusLabel(match.matchStatus)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            {match.apiSportsGameId ? (
+                              <span className="text-green-600 text-xs font-medium">연결</span>
+                            ) : (
+                              <span className="text-[#BFBFBF] text-xs">미연결</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3">
+                            <Link
+                              href={`/admin/match-monitoring/${encodeURIComponent(selectedDateKey)}?matchIndex=${index}`}
+                              className="text-[#E11936] text-xs font-medium hover:underline"
+                            >
+                              모니터링
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* 구장 추가 모달 */}
       {showAddStadiumModal && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]"
           onClick={() => setShowAddStadiumModal(false)}
-          data-testid="modal-overlay"
         >
           <div
-            className="bg-white rounded-[10px] flex flex-col items-center px-5 pb-[39px] pt-0 gap-[60px]"
-            style={{
-              width: "447px",
-              height: "343px",
-              fontFamily: "Pretendard, -apple-system, sans-serif",
-            }}
+            className="bg-white rounded-[10px] px-6 py-5 w-[420px]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="flex flex-col items-center gap-5 w-full pt-0"
-              style={{ width: "407px" }}
-            >
-              <div
-                className="flex items-center justify-between w-full px-2"
-                style={{ height: "60px" }}
-              >
-                <h2
-                  className="text-[18px] font-semibold leading-[140%]"
-                  style={{
-                    color: "#201E22",
-                    letterSpacing: "-0.025em",
-                  }}
-                >
-                  경기구장 추가
-                </h2>
-                <button
-                  onClick={() => setShowAddStadiumModal(false)}
-                  className="w-6 h-6 flex items-center justify-center"
-                  data-testid="button-close-modal"
-                >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M6 6L18 18M6 18L18 6"
-                      stroke="#201E22"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </button>
-              </div>
-
-              <div
-                className="flex flex-col items-start gap-2 w-full"
-                style={{ height: "82px" }}
-              >
-                <label
-                  className="text-[14px] font-medium leading-[140%]"
-                  style={{
-                    color: "#4D4B4E",
-                    letterSpacing: "-0.025em",
-                  }}
-                >
-                  구장명
-                </label>
-                <div
-                  className="flex flex-col justify-center items-center px-2 py-[14px] gap-[10px] w-full bg-white"
-                  style={{
-                    height: "54px",
-                    borderBottom: "1px solid #373539",
-                  }}
-                >
-                  <input
-                    type="text"
-                    placeholder="구장 명을 입력해 주세요"
-                    value={stadiumName}
-                    onChange={(e) => setStadiumName(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") {
-                        handleAddStadium();
-                      }
-                    }}
-                    className="w-full text-[16px] leading-[160%] outline-none"
-                    style={{
-                      color: stadiumName ? "#201E22" : "#BFBFBF",
-                      letterSpacing: "-0.025em",
-                      fontFamily: "Pretendard, -apple-system, sans-serif",
-                    }}
-                    data-testid="input-stadium-name"
-                  />
-                </div>
-              </div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-semibold">경기구장 추가</h2>
+              <button type="button" onClick={() => setShowAddStadiumModal(false)}>
+                ✕
+              </button>
             </div>
-
+            <label className="text-sm text-[#4D4B4E]">구장명</label>
+            <input
+              type="text"
+              value={stadiumName}
+              onChange={(e) => setStadiumName(e.target.value)}
+              className="w-full mt-2 mb-6 border-b border-[#373539] py-3 outline-none"
+              placeholder="구장 명을 입력해 주세요"
+            />
             <button
-              onClick={handleAddStadium}
+              type="button"
               disabled={!stadiumName.trim()}
-              className="flex items-center justify-center px-[14px] py-[10px] rounded-[8px] w-full disabled:opacity-50 mt-4"
-              style={{
-                width: "407px",
-                height: "52px",
-                background: "#111111",
-              }}
-              data-testid="button-submit-stadium"
+              onClick={() => createMutation.mutate(stadiumName)}
+              className="w-full h-12 bg-[#111] text-white rounded-lg disabled:opacity-50"
             >
-              <span
-                className="text-[16px] font-semibold leading-[140%]"
-                style={{
-                  color: "#FFFFFF",
-                  letterSpacing: "-0.025em",
-                }}
-              >
-                추가하기
-              </span>
+              추가하기
             </button>
           </div>
         </div>
@@ -1062,7 +528,9 @@ export default function MatchManagement() {
           leftButtonText="취소"
           rightButtonText="삭제하기"
           onLeftClick={() => setDeleteConfirmOpen(false)}
-          onRightClick={handleDeleteConfirm}
+          onRightClick={() =>
+            deleteMutation.mutate({ id: selectedStadium.id })
+          }
         />
       )}
 
@@ -1072,7 +540,9 @@ export default function MatchManagement() {
           leftButtonText="취소"
           rightButtonText="삭제하기"
           onLeftClick={() => setDeleteForceConfirmOpen(false)}
-          onRightClick={handleForceDeleteConfirm}
+          onRightClick={() =>
+            deleteMutation.mutate({ id: selectedStadium.id, force: true })
+          }
         />
       )}
     </AdminLayout>

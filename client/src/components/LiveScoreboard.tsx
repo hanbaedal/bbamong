@@ -3,9 +3,15 @@ import type { LiveScoreboard } from "@shared/apiSportsTypes";
 interface LiveScoreboardProps {
   scoreboard: LiveScoreboard | null;
   compact?: boolean;
+  /** false면 구단명 대신 홈팀/원정팀만 표시 (사용자 게임 화면용) */
+  showTeamNames?: boolean;
 }
 
-export default function LiveScoreboardBar({ scoreboard, compact = false }: LiveScoreboardProps) {
+export default function LiveScoreboardBar({
+  scoreboard,
+  compact = false,
+  showTeamNames = true,
+}: LiveScoreboardProps) {
   if (!scoreboard) {
     return (
       <div className="rounded-lg border border-[#373539] bg-[#141414] px-3 py-2 text-xs text-[#888]">
@@ -13,6 +19,9 @@ export default function LiveScoreboardBar({ scoreboard, compact = false }: LiveS
       </div>
     );
   }
+
+  const awayLabel = showTeamNames ? scoreboard.awayTeamName : "원정팀";
+  const homeLabel = showTeamNames ? scoreboard.homeTeamName : "홈팀";
 
   return (
     <div
@@ -25,11 +34,11 @@ export default function LiveScoreboardBar({ scoreboard, compact = false }: LiveS
         <span className="text-[#888] text-[10px]">{scoreboard.statusLong}</span>
       </div>
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-white text-sm">
-        <div className="truncate text-right">{scoreboard.awayTeamName}</div>
+        <div className="truncate text-right">{awayLabel}</div>
         <div className="font-bold text-base whitespace-nowrap">
           {scoreboard.awayScore} : {scoreboard.homeScore}
         </div>
-        <div className="truncate">{scoreboard.homeTeamName}</div>
+        <div className="truncate">{homeLabel}</div>
       </div>
       {!compact && (
         <div className="mt-2 text-[10px] text-[#888] flex justify-between">

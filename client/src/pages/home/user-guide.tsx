@@ -2,11 +2,11 @@ import { useLocation } from "wouter";
 import { ChevronLeft } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
-import { PREDICTION_ODDS, BET_AMOUNT_OPTIONS, AD_REWARD_POINTS } from "@shared/predictionOdds";
+import { PREDICTION_ODDS, BET_AMOUNT_OPTIONS, AD_REWARD_POINTS, SIDE_BET_AMOUNT_OPTIONS, WINNER_ODDS, EXACT_SCORE_ODDS } from "@shared/predictionOdds";
 
 const SECTIONS: { title: string; items: string[] }[] = [
   {
-    title: "예측 게임",
+    title: "예측 게임 (타석)",
     items: [
       "홈에서 「경기 참여하기」 또는 로고 옆이 아닌 참여 버튼으로 예측 화면에 들어갑니다.",
       "오늘 경기(1~5경기) 중 하나를 선택합니다.",
@@ -14,6 +14,19 @@ const SECTIONS: { title: string; items: string[] }[] = [
       "배팅 포인트(50~1000)를 선택한 뒤 확인하면 즉시 차감됩니다.",
       "적중 시 선택금액 × 고정배당이 지급되고, 미적중 시 배팅분은 소멸합니다.",
       "같은 라운드에서는 결과 확정 전까지 선택만 바꿀 수 있습니다(추가 차감 없음).",
+    ],
+  },
+  {
+    title: "승리팀 · 최종 스코어",
+    items: [
+      "경기 선택 화면 상단(스코어보드 아래)에서 승리팀·최종 스코어를 별도로 배팅합니다.",
+      "팀 표시는 「홈팀」「원정팀」만 사용합니다 (구단명은 표시하지 않음).",
+      `배팅 금액: ${SIDE_BET_AMOUNT_OPTIONS.join(", ")}P (100P 단위만)`,
+      `승리팀 맞추기: ${WINNER_ODDS}배 (100P → ${100 * WINNER_ODDS}P)`,
+      `최종 스코어 정확히: ${EXACT_SCORE_ODDS}배 (100P → ${100 * EXACT_SCORE_ODDS}P)`,
+      "1회 시작 시 자동 마감 — 이후 신규·변경 불가",
+      "경기 종료 후 API 최종 스코어로 자동 정산",
+      "경기 취소·무승부 시 해당 배팅은 환불",
     ],
   },
   {
