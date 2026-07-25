@@ -12,6 +12,7 @@ import {
   copyOperatorCredentials,
   deliverOperatorCredentials,
   shareOperatorCredentials,
+  type OperatorSharePayload,
 } from "@/lib/operatorCredentialsShare";
 
 interface OperatorAccount {
@@ -66,8 +67,20 @@ function buildCopyText(op: OperatorAccount): string {
   return lines.join("\n");
 }
 
-function shareTitle(op: OperatorAccount): string {
-  return `빠몽 운영자 로그인 (${op.username})`;
+function buildSharePayload(op: OperatorAccount): OperatorSharePayload {
+  const url = op.loginLinkToken ? buildLoginLinkUrl(op.loginLinkToken) : "";
+  const text = [
+    `[빠몽 운영자 로그인] ${op.username}`,
+    `담당 경기: ${op.assignedMatchNumber ?? "없음"}`,
+    "",
+    "▼ 링크를 누르면 운영자 앱에 자동 로그인됩니다 (1회용, 당일까지)",
+  ].join("\n");
+  return {
+    title: `빠몽 운영자 로그인 (${op.username})`,
+    text,
+    url,
+    fullText: buildCopyText(op),
+  };
 }
 
 export default function ManagerListPage() {
@@ -91,7 +104,6 @@ export default function ManagerListPage() {
   });
 
   const operators = data?.operators ?? [];
-  const todayMatches = data?.todayMatches ?? [];
 
   const statusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: "활성화" | "비활성화" }) => {
@@ -119,7 +131,7 @@ export default function ManagerListPage() {
       });
       const op = result.operators.find((o) => o.id === operatorId);
       if (op?.loginLinkToken) {
-        const shareResult = await deliverOperatorCredentials(shareTitle(op), buildCopyText(op));
+        const shareResult = await deliverOperatorCredentials(buildSharePayload(op));
         if (shareResult === "shared") {
           toast({
             description: "생성 완료. 카카오톡을 선택해 보내세요.",
@@ -128,8 +140,14 @@ export default function ManagerListPage() {
         }
         if (shareResult === "copied") {
           toast({
-            description: "생성 후 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요.",
+            description: shareSupported
+              ? "공유 창을 열지 못해 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요."
+              : "생성 후 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요.",
           });
+          return;
+        }
+        if (shareResult === "cancelled") {
+          toast({ description: "공유가 취소되었습니다. 「카톡 공유」 또는 「복사」를 이용하세요." });
           return;
         }
       }
@@ -168,12 +186,24 @@ export default function ManagerListPage() {
       toast({ variant: "destructive", description: "먼저 「생성」으로 로그인 링크를 발급하세요." });
       return;
     }
-    const shareResult = await shareOperatorCredentials(shareTitle(op), buildCopyText(op));
+    const payload = buildSharePayload(op);
+    const shareResult = await shareOperatorCredentials(payload);
     if (shareResult === "shared") {
       toast({ description: `${op.username} — 카카오톡을 선택해 보내세요.` });
       return;
     }
-    toast({ variant: "destructive", description: "공유가 취소되었거나 실패했습니다. 다시 시도해 주세요." });
+    if (shareResult === "cancelled") {
+      toast({ description: "공유가 취소되었습니다." });
+      return;
+    }
+    const copied = await copyOperatorCredentials(payload.fullText);
+    if (copied) {
+      toast({
+        description: "공유를 열 수 없어 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요.",
+      });
+      return;
+    }
+    toast({ variant: "destructive", description: "공유·복사 모두 실패했습니다. 다시 시도해 주세요." });
   };
 
   const copyCredentials = async (op: OperatorAccount) => {
@@ -232,21 +262,6 @@ export default function ManagerListPage() {
             </Button>
           </div>
         </div>
-
-        {todayMatches.length > 0 && (
-          <div className="mb-4 p-3 rounded-lg bg-[#FFF9FA] border border-[#F5D0D6] text-xs md:text-sm shrink-0">
-            <p className="font-semibold text-[#201E22] mb-2">오늘 등록된 경기 (할당 순서)</p>
-            <ol className="list-decimal pl-5 space-y-1 text-[#4D4B4E]">
-              {todayMatches.map((m, idx) => (
-                <li key={m.id}>
-                  {m.name} — {m.stadiumName} (
-                  {new Date(m.startTime).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })})
-                  → <span className="text-[#E11936] font-medium">op{idx + 1}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
 
         <div className="overflow-x-auto shrink-0">
           <div className="grid grid-cols-[10%_20%_12%_10%_8%_14%_26%] min-w-[1040px] px-2 md:px-4 py-2 md:py-3 bg-[#F5F5F5] border-y border-[#E9E9E9] text-xs md:text-sm font-semibold text-[#201E22]">
@@ -312,14 +327,23 @@ export default function ManagerListPage() {
                       생성
                     </button>
                     {shareSupported ? (
-                      <button
-                        type="button"
-                        onClick={() => void shareKakaoCredentials(op)}
-                        className="px-2.5 py-1.5 text-[10px] md:text-xs font-semibold bg-[#FEE500] text-[#3C1E1E] rounded hover:brightness-95"
-                        data-testid={`operator-kakao-share-${index}`}
-                      >
-                        카톡 공유
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void shareKakaoCredentials(op)}
+                          className="px-2.5 py-1.5 text-[10px] md:text-xs font-semibold bg-[#FEE500] text-[#3C1E1E] rounded hover:brightness-95"
+                          data-testid={`operator-kakao-share-${index}`}
+                        >
+                          카톡 공유
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void copyCredentials(op)}
+                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-[#4285F4] border border-[#4285F4] rounded hover:bg-[#F0F7FF]"
+                        >
+                          복사
+                        </button>
+                      </>
                     ) : (
                       <>
                         <button

@@ -1,41 +1,77 @@
 import { Share } from "@capacitor/share";
 import { Capacitor } from "@capacitor/core";
 
-export type ShareCredentialsResult = "shared" | "copied" | "failed";
+export type ShareCredentialsResult = "shared" | "copied" | "failed" | "cancelled";
 
-/** 스마트폰·태블릿 등 OS 공유(카톡 선택) 가능 여부 */
+export interface OperatorSharePayload {
+  title: string;
+  text: string;
+  url: string;
+  fullText: string;
+}
+
+function isMobileBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Android|iPhone|iPad|iPod|Mobile|SamsungBrowser/i.test(navigator.userAgent);
+}
+
+/** 스마트폰·태블릿 등 OS 공유(카톡 선택) — PC Chrome share API는 제외 */
 export function canUseNativeShare(): boolean {
   if (Capacitor.isNativePlatform()) return true;
-  return typeof navigator !== "undefined" && typeof navigator.share === "function";
+  return isMobileBrowser() && typeof navigator.share === "function";
+}
+
+function isShareCancelled(error: unknown): boolean {
+  if (error instanceof Error) {
+    return error.name === "AbortError" || error.message === "Share canceled";
+  }
+  return false;
+}
+
+async function tryWebShare(data: ShareData): Promise<"shared" | "cancelled" | "skip"> {
+  if (typeof navigator.share !== "function") return "skip";
+  try {
+    if (typeof navigator.canShare === "function" && !navigator.canShare(data)) {
+      return "skip";
+    }
+    await navigator.share(data);
+    return "shared";
+  } catch (error) {
+    if (isShareCancelled(error)) return "cancelled";
+    return "skip";
+  }
 }
 
 export async function shareOperatorCredentials(
-  title: string,
-  text: string,
-): Promise<"shared" | "failed"> {
+  payload: OperatorSharePayload,
+): Promise<"shared" | "cancelled" | "failed"> {
+  const { title, text, url } = payload;
+
   if (Capacitor.isNativePlatform()) {
     try {
       await Share.share({
         title,
         text,
+        url,
         dialogTitle: "카카오톡 등으로 보내기",
       });
       return "shared";
     } catch (error) {
-      if ((error as Error).message === "Share canceled") {
-        return "failed";
-      }
-    }
-  } else if (typeof navigator.share === "function") {
-    try {
-      await navigator.share({ title, text });
-      return "shared";
-    } catch (error) {
-      if ((error as Error).name === "AbortError") {
-        return "failed";
-      }
+      if (isShareCancelled(error)) return "cancelled";
     }
   }
+
+  const attempts: ShareData[] = [
+    { title, text, url },
+    { title, text: `${text}\n\n${url}` },
+    { title, url },
+  ];
+
+  for (const data of attempts) {
+    const result = await tryWebShare(data);
+    if (result === "shared" || result === "cancelled") return result;
+  }
+
   return "failed";
 }
 
@@ -55,13 +91,15 @@ export function buildLoginLinkQrImageUrl(loginLinkUrl: string): string {
 
 /** 생성 직후: 공유 가능하면 공유, PC면 복사 */
 export async function deliverOperatorCredentials(
-  title: string,
-  text: string,
+  payload: OperatorSharePayload,
 ): Promise<ShareCredentialsResult> {
   if (canUseNativeShare()) {
-    const shared = await shareOperatorCredentials(title, text);
-    return shared === "shared" ? "shared" : "failed";
+    const shared = await shareOperatorCredentials(payload);
+    if (shared === "shared") return "shared";
+    if (shared === "cancelled") return "cancelled";
+    const copied = await copyOperatorCredentials(payload.fullText);
+    return copied ? "copied" : "failed";
   }
-  const copied = await copyOperatorCredentials(text);
+  const copied = await copyOperatorCredentials(payload.fullText);
   return copied ? "copied" : "failed";
 }
