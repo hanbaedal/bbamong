@@ -67,11 +67,47 @@ const matchSchema = new Schema(
     lastInningKey: { type: String, default: null },
     controlMode: { type: String, default: "auto" },
     sideBetsLocked: { type: Boolean, default: false },
+    /** 운영자 진행 기준 이닝 (1=1회) */
+    gameInning: { type: Number, default: 1 },
+    /** top=초(원정 공격), bottom=말(홈 공격) */
+    inningHalf: { type: String, default: "top" },
+    /** 현재 공수에서 몇 번째 타자 */
+    batterIndexInHalf: { type: Number, default: 1 },
     createdAt: { type: Date, default: Date.now },
   },
   { versionKey: false },
 );
 export const MatchModel = mongoose.model("Match", matchSchema);
+
+const apiSportsScheduleCacheSchema = new Schema(
+  {
+    matchDate: { type: String, required: true },
+    apiSportsGameId: { type: Number, required: true },
+    season: { type: Number, default: null },
+    leagueId: { type: Number, default: 5 },
+    date: { type: String, required: true },
+    time: { type: String, default: "" },
+    timestamp: { type: Number, default: 0 },
+    statusShort: { type: String, default: "NS" },
+    statusLong: { type: String, default: "" },
+    homeTeamId: { type: Number, default: null },
+    homeTeamName: { type: String, required: true },
+    awayTeamId: { type: Number, default: null },
+    awayTeamName: { type: String, required: true },
+    venueName: { type: String, default: "" },
+    venueCity: { type: String, default: "" },
+    homeScore: { type: Number, default: 0 },
+    awayScore: { type: Number, default: 0 },
+    fetchedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+apiSportsScheduleCacheSchema.index({ matchDate: 1, apiSportsGameId: 1 }, { unique: true });
+apiSportsScheduleCacheSchema.index({ matchDate: 1 });
+export const ApiSportsScheduleCacheModel = mongoose.model(
+  "ApiSportsScheduleCache",
+  apiSportsScheduleCacheSchema,
+);
 
 const attendanceSchema = new Schema(
   {
@@ -212,6 +248,8 @@ const adminUserSchema = new Schema(
     status: { type: String, default: "활성화" },
     lastLogin: { type: Date, default: null },
     lastLogout: { type: Date, default: null },
+    lastLoginIp: { type: String, default: "" },
+    lastLoginRegion: { type: String, default: "" },
     logoutAllowed: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
     username: { type: String, required: true, unique: true },
@@ -222,6 +260,8 @@ const adminUserSchema = new Schema(
     /** 카톡용 일회용 자동 로그인 링크 토큰 (사용·만료·재발급 시 비움) */
     loginLinkToken: { type: String, default: "" },
     loginLinkExpiresAt: { type: Date, default: null },
+    /** true: 오늘 경기 할당 + API 스코어 폴링 대상 */
+    apiSyncEnabled: { type: Boolean, default: true },
     passwordPlain: { type: String, default: "" },
   },
   { versionKey: false },

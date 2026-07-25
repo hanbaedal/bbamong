@@ -12,6 +12,8 @@ import {
   parseLiveScoreboard,
 } from "./scoreboardParser";
 import type { ApiSportsTodayGame } from "@shared/apiSportsTypes";
+import { getMaxLinkedGamesForSync, getApiSyncEnabledRegistrationOrders } from "../managerOperatorService";
+import { getScheduleGamesForDate } from "./scheduleCache";
 
 const MAX_DAILY_MATCHES = 5;
 const API_DEFAULT_STADIUM_NAME = "API자동";
@@ -87,17 +89,20 @@ export async function syncTodayGamesFromApiSports(date?: string): Promise<{
   updated: number;
   linked: number;
   games: ApiSportsTodayGame[];
+  source: "cache" | "api";
 }> {
   const targetDate = date ?? getKstDateString();
-  const apiGames = await fetchGamesByDate(targetDate, KBO_LEAGUE_ID);
+  const { games: apiGames, source } = await getScheduleGamesForDate(targetDate);
+
+  const maxLinked = await getMaxLinkedGamesForSync();
   const sortedApi = apiGames
     .slice()
     .sort((a, b) => a.timestamp - b.timestamp)
-    .slice(0, MAX_DAILY_MATCHES);
+    .slice(0, Math.min(MAX_DAILY_MATCHES, maxLinked));
   const mapped = mapTodayGames(sortedApi);
 
   if (sortedApi.length === 0) {
-    return { created: 0, updated: 0, linked: 0, games: [] };
+    return { created: 0, updated: 0, linked: 0, games: [], source };
   }
 
   const today = new Date(`${targetDate}T12:00:00`);
@@ -146,8 +151,11 @@ export async function syncTodayGamesFromApiSports(date?: string): Promise<{
       apiSportsGameId: external.id,
       apiSportsHomeTeam: scoreboard.homeTeamName,
       apiSportsAwayTeam: scoreboard.awayTeamName,
-      liveScoreboard: scoreboard,
-      lastInningKey: buildInningKey(scoreboard),
+      liveScoreboard:
+        existing?.liveScoreboard && existing.matchStatus === "ongoing"
+          ? existing.liveScoreboard
+          : scoreboard,
+      lastInningKey: existing?.lastInningKey ?? buildInningKey(scoreboard),
       controlMode: existing?.controlMode ?? "auto",
       sideBetsLocked:
         existing?.sideBetsLocked ||
@@ -171,7 +179,7 @@ export async function syncTodayGamesFromApiSports(date?: string): Promise<{
     }
   }
 
-  return { created, updated, linked, games: mapped };
+  return { created, updated, linked, games: mapped, source };
 }
 
 async function handleInningChange(matchId: string, scoreboard: ReturnType<typeof parseLiveScoreboard>) {
@@ -255,6 +263,9 @@ async function syncLinkedMatch(match: any) {
 export async function pollLinkedMatchesOnce(): Promise<void> {
   if (!process.env.API_SPORTS_KEY?.trim()) return;
 
+  const enabledOrders = new Set(await getApiSyncEnabledRegistrationOrders());
+  if (enabledOrders.size === 0) return;
+
   const kstToday = getKstDateString();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -264,6 +275,7 @@ export async function pollLinkedMatchesOnce(): Promise<void> {
   const matches = await MatchModel.find({
     apiSportsGameId: { $ne: null },
     matchStatus: { $nin: ["completed", "cancelled"] },
+    registrationOrder: { $in: [...enabledOrders] },
     $or: [{ matchDate: kstToday }, { matchDate: null, startTime: { $gte: today, $lt: tomorrow } }],
   }).lean();
 

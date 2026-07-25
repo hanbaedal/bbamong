@@ -15,6 +15,7 @@ interface OperatorStatus {
   status: "온라인" | "오프라인";
   lastLogin: Date | null;
   lastLogout: Date | null;
+  lastLoginRegion: string;
   sessionDuration: string;
 }
 
@@ -65,9 +66,10 @@ export default function OperatorMonitoringPage() {
 
   function SkeletonRow() {
     return (
-      <div className="grid grid-cols-[12%_15%_18%_18%_17%_20%] px-2 md:px-4 py-2 md:py-5 bg-white border-b border-[#E9E9E9] items-center h-16">
+      <div className="grid grid-cols-[10%_12%_14%_14%_14%_14%_22%] min-w-[980px] px-2 md:px-4 py-2 md:py-5 bg-white border-b border-[#E9E9E9] items-center h-16">
         <div className="h-3 md:h-3.5 bg-[#E9E9E9] rounded w-10 md:w-16 animate-pulse" />
         <div className="h-3 md:h-3.5 bg-[#E9E9E9] rounded w-8 md:w-12 animate-pulse" />
+        <div className="h-3 md:h-3.5 bg-[#E9E9E9] rounded w-20 md:w-32 animate-pulse" />
         <div className="h-3 md:h-3.5 bg-[#E9E9E9] rounded w-20 md:w-32 animate-pulse" />
         <div className="h-3 md:h-3.5 bg-[#E9E9E9] rounded w-20 md:w-32 animate-pulse" />
         <div className="h-3 md:h-3.5 bg-[#E9E9E9] rounded w-16 md:w-24 animate-pulse" />
@@ -105,9 +107,10 @@ export default function OperatorMonitoringPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-[12%_15%_18%_18%_17%_20%] px-2 md:px-4 py-2 md:py-3 bg-[#F9F9F9] text-xs md:text-sm font-medium text-[#4D4B4E] mb-2 flex-shrink-0">
+        <div className="grid grid-cols-[10%_12%_14%_14%_14%_14%_22%] min-w-[980px] px-2 md:px-4 py-2 md:py-3 bg-[#F9F9F9] text-xs md:text-sm font-medium text-[#4D4B4E] mb-2 flex-shrink-0">
           <div>운영자 명칭</div>
           <div>로그인 상태</div>
+          <div>로그인 지역</div>
           <div>마지막 로그인</div>
           <div>마지막 로그아웃</div>
           <div>세션 지속 시간</div>
@@ -130,7 +133,7 @@ export default function OperatorMonitoringPage() {
             {operators.map((operator, index) => (
               <div
                 key={operator.id}
-                className="grid grid-cols-[12%_15%_18%_18%_17%_20%] px-2 md:px-4 bg-white text-xs md:text-sm text-[#201E22] items-center h-16"
+                className="grid grid-cols-[10%_12%_14%_14%_14%_14%_22%] min-w-[980px] px-2 md:px-4 bg-white text-xs md:text-sm text-[#201E22] items-center h-16"
                 data-testid={`operator-row-${index}`}
               >
                 <div className="truncate" title={operator.username}>
@@ -143,6 +146,9 @@ export default function OperatorMonitoringPage() {
                     }`}
                   />
                   <span className="text-sm">{operator.status}</span>
+                </div>
+                <div className="text-sm truncate" title={operator.lastLoginRegion || undefined}>
+                  {operator.lastLoginRegion || "--"}
                 </div>
                 <div className="text-sm whitespace-pre-line">
                   {formatDateTime(operator.lastLogin)}

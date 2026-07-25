@@ -13,6 +13,7 @@ import type {
   Match,
   RoundStatistics,
 } from "@shared/schema";
+import { computeInningHalfSwitch } from "./gamePhase";
 import { calculateFixedOddsPayout } from "@shared/predictionOdds";
 import type { ClientSession } from "mongoose";
 
@@ -492,6 +493,60 @@ export async function nextRound(
   } finally {
     session.endSession();
   }
+}
+
+function readGamePhase(doc: Record<string, unknown>) {
+  return {
+    gameInning: (doc.gameInning as number | undefined) ?? 1,
+    inningHalf: (doc.inningHalf === "bottom" ? "bottom" : "top") as "top" | "bottom",
+    batterIndexInHalf: (doc.batterIndexInHalf as number | undefined) ?? 1,
+  };
+}
+
+/** 다음 타자 / 투수 교체 — 같은 공수, 타순 +1 */
+export async function advanceToNextBatter(
+  matchId: string,
+  force = false,
+): Promise<{ match: Match; predictionAutoStopped: boolean }> {
+  const before = await MatchModel.findOne({ id: matchId }).lean();
+  if (!before) throw new Error("경기를 찾을 수 없습니다.");
+
+  const phase = readGamePhase(before as Record<string, unknown>);
+  const nextPhase = {
+    ...phase,
+    batterIndexInHalf: phase.batterIndexInHalf + 1,
+  };
+
+  const { match, predictionAutoStopped } = await nextRound(matchId, force);
+  const updated = await MatchModel.findOneAndUpdate(
+    { id: matchId },
+    nextPhase,
+    { new: true },
+  ).lean();
+
+  if (!updated) throw new Error("경기를 찾을 수 없습니다.");
+  return { match: updated as Match, predictionAutoStopped };
+}
+
+/** 공수교대 — 초/말 전환, 타순 1부터 */
+export async function advanceInningHalf(
+  matchId: string,
+): Promise<{ match: Match; predictionAutoStopped: boolean }> {
+  const before = await MatchModel.findOne({ id: matchId }).lean();
+  if (!before) throw new Error("경기를 찾을 수 없습니다.");
+
+  const phase = readGamePhase(before as Record<string, unknown>);
+  const nextPhase = computeInningHalfSwitch(phase);
+
+  const { predictionAutoStopped } = await nextRound(matchId, true);
+  const updated = await MatchModel.findOneAndUpdate(
+    { id: matchId },
+    nextPhase,
+    { new: true },
+  ).lean();
+
+  if (!updated) throw new Error("경기를 찾을 수 없습니다.");
+  return { match: updated as Match, predictionAutoStopped };
 }
 
 export async function getMatchInfo(matchId: string): Promise<Match | undefined> {

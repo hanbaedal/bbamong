@@ -1,6 +1,7 @@
 // baMatchRoutes.ts
 import type { Express } from "express";
 import { matchStorage as storage } from "../UserStorage/matchStorage";
+import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { insertMatchSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 
@@ -28,7 +29,10 @@ export async function baMatchRoutes(app: Express): Promise<void> {
       if (!match)
         return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
 
-      return res.json(match);
+      return res.json({
+        ...match,
+        gamePhase: buildGamePhasePayload(match),
+      });
     } catch (error) {
       console.error("Get match error:", error);
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });

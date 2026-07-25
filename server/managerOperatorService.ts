@@ -8,6 +8,29 @@ export const OPERATOR_USERNAMES = ["op1", "op2", "op3", "op4", "op5"] as const;
 const OPERATOR_COUNT = 5;
 const PASSWORD_CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+function defaultApiSyncEnabledForSlot(slot: number): boolean {
+  return slot <= 2;
+}
+
+export async function getApiSyncEnabledRegistrationOrders(): Promise<number[]> {
+  const docs = await AdminUserModel.find({
+    username: { $in: [...OPERATOR_USERNAMES] },
+    userType: "매니저",
+    apiSyncEnabled: { $ne: false },
+  })
+    .select("operatorSlot")
+    .lean();
+
+  return docs
+    .map((doc) => (doc as { operatorSlot?: number }).operatorSlot ?? 0)
+    .filter((slot) => slot > 0)
+    .sort((a, b) => a - b);
+}
+
+export async function getMaxLinkedGamesForSync(): Promise<number> {
+  return getApiSyncEnabledRegistrationOrders().then((orders) => orders.length);
+}
+
 export function getKstDateKey(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
 }
@@ -179,13 +202,32 @@ export async function consumeLoginLinkToken(token: string): Promise<LoginLinkCon
   };
 }
 
-/** 오늘 경기 등록 순서 1~5 → op1~op5 자동 할당 */
+/** 오늘 경기 등록 순서 → API 동기화 ON인 op만 할당 */
 export async function syncOperatorMatchAssignments(): Promise<void> {
   const matches = await getTodayMatchesByRegistrationOrder();
+  const enabledOrders = await getApiSyncEnabledRegistrationOrders();
 
   for (let slot = 1; slot <= OPERATOR_COUNT; slot++) {
-    const match = matches[slot - 1];
     const username = `op${slot}`;
+    const operator = await AdminUserModel.findOne({ username, userType: "매니저" })
+      .select("apiSyncEnabled")
+      .lean();
+    const syncEnabled = (operator as { apiSyncEnabled?: boolean } | null)?.apiSyncEnabled !== false;
+
+    if (!syncEnabled) {
+      await AdminUserModel.updateOne(
+        { username, userType: "매니저" },
+        {
+          assignedMatchNumber: null,
+          name: `${slot}번 운영자 (동기화 OFF)`,
+        },
+      );
+      continue;
+    }
+
+    const enabledIndex = enabledOrders.indexOf(slot);
+    const match = enabledIndex >= 0 ? matches[enabledIndex] : undefined;
+
     if (match) {
       await AdminUserModel.updateOne(
         { username, userType: "매니저" },
@@ -231,6 +273,7 @@ export async function ensureOperatorsReady(): Promise<void> {
         dailyPasswordDate: "",
         loginLinkToken: "",
         loginLinkExpiresAt: null,
+        apiSyncEnabled: defaultApiSyncEnabledForSlot(slot),
       });
       console.log(`[Operators] 계정 생성: ${username} (비밀번호는 관리자 수동 생성 필요)`);
       continue;
@@ -241,6 +284,10 @@ export async function ensureOperatorsReady(): Promise<void> {
       approvalStatus: "승인",
       operatorSlot: slot,
     };
+
+    if ((existing as { apiSyncEnabled?: boolean }).apiSyncEnabled === undefined) {
+      updates.apiSyncEnabled = defaultApiSyncEnabledForSlot(slot);
+    }
 
     await AdminUserModel.updateOne({ id: existing.id }, updates);
   }
@@ -260,6 +307,7 @@ export interface OperatorAccountView {
   dailyPasswordDate: string;
   loginLinkToken: string;
   loginLinkActive: boolean;
+  apiSyncEnabled: boolean;
   lastLogin: Date | null;
   operatorSlot: number;
 }
@@ -277,7 +325,7 @@ export async function listOperatorAccounts(): Promise<{
     userType: "매니저",
   })
     .select(
-      "id username name assignedMatchNumber status dailyPasswordPlain dailyPasswordDate loginLinkToken loginLinkExpiresAt lastLogin operatorSlot",
+      "id username name assignedMatchNumber status dailyPasswordPlain dailyPasswordDate loginLinkToken loginLinkExpiresAt lastLogin operatorSlot apiSyncEnabled",
     )
     .sort({ operatorSlot: 1 })
     .lean();
@@ -293,6 +341,7 @@ export async function listOperatorAccounts(): Promise<{
     const linkExpires = (doc as { loginLinkExpiresAt?: Date | null }).loginLinkExpiresAt;
     const loginLinkActive =
       Boolean(linkToken) && (!linkExpires || new Date(linkExpires).getTime() > now);
+    const apiSyncEnabled = (doc as { apiSyncEnabled?: boolean }).apiSyncEnabled !== false;
 
     const match = todayMatches[slot - 1];
     const assignmentLabel = match
@@ -315,6 +364,7 @@ export async function listOperatorAccounts(): Promise<{
       dailyPasswordDate: dateKey,
       loginLinkToken: loginLinkActive ? linkToken : "",
       loginLinkActive,
+      apiSyncEnabled,
       lastLogin: doc.lastLogin ?? null,
       operatorSlot: slot,
     });
@@ -335,4 +385,13 @@ export async function setOperatorStatus(
     throw new Error("시스템 운영자 계정만 상태를 변경할 수 있습니다.");
   }
   await AdminUserModel.updateOne({ id: operatorId }, { status });
+}
+
+export async function setOperatorApiSyncEnabled(operatorId: string, enabled: boolean): Promise<void> {
+  const operator = await AdminUserModel.findOne({ id: operatorId, userType: "매니저" }).lean();
+  if (!operator || !OPERATOR_USERNAMES.includes(operator.username as (typeof OPERATOR_USERNAMES)[number])) {
+    throw new Error("시스템 운영자 계정만 동기화 설정을 변경할 수 있습니다.");
+  }
+  await AdminUserModel.updateOne({ id: operatorId }, { apiSyncEnabled: enabled });
+  await syncOperatorMatchAssignments();
 }

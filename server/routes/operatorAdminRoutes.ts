@@ -5,6 +5,7 @@ import {
   ensureOperatorsReady,
   listOperatorAccounts,
   rotateOperatorPassword,
+  setOperatorApiSyncEnabled,
   setOperatorStatus,
 } from "../managerOperatorService";
 
@@ -39,6 +40,23 @@ export async function operatorAdminRoutes(app: Express): Promise<void> {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "상태 변경에 실패했습니다.";
       console.error("운영자 상태 변경 실패:", error);
+      res.status(400).json({ message });
+    }
+  });
+
+  app.patch("/api/admin/operators/:id/api-sync", adminAuthMiddleware, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
+      await setOperatorApiSyncEnabled(id, enabled);
+      const data = await listOperatorAccounts();
+      res.json({
+        message: enabled ? "API 동기화가 켜졌습니다." : "API 동기화가 꺼졌습니다.",
+        ...data,
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "동기화 설정 변경에 실패했습니다.";
+      console.error("운영자 API 동기화 설정 실패:", error);
       res.status(400).json({ message });
     }
   });

@@ -85,7 +85,9 @@ export default function MatchManagement() {
     created: number;
     updated: number;
     linked: number;
+    source?: "cache" | "api";
   } | null>(null);
+  const [importingSeason, setImportingSeason] = useState(false);
 
   const { data: stadiums } = useQuery<Stadium[]>({
     queryKey: ["/api/admin/stadiums"],
@@ -151,7 +153,8 @@ export default function MatchManagement() {
       const created = body.created ?? 0;
       const updated = body.updated ?? 0;
       const linked = body.linked ?? 0;
-      setLastSyncMeta({ date: dateKey, created, updated, linked });
+      const source = body.source as "cache" | "api" | undefined;
+      setLastSyncMeta({ date: dateKey, created, updated, linked, source });
       await queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/admin/stadiums"] });
 
@@ -163,8 +166,9 @@ export default function MatchManagement() {
           });
         }
       } else {
+        const sourceLabel = source === "cache" ? "DB 캐시" : source === "api" ? "API 조회" : "동기화";
         toast({
-          description: `${dateKey} 반영 · 신규 ${created} · 갱신 ${updated} · 연결 ${linked}`,
+          description: `${dateKey} ${sourceLabel} · 신규 ${created} · 갱신 ${updated} · 연결 ${linked}`,
         });
       }
       return body;
@@ -182,6 +186,30 @@ export default function MatchManagement() {
       throw err;
     } finally {
       setSyncingDate(null);
+    }
+  };
+
+  const importSeasonSchedule = async () => {
+    const season = new Date().getFullYear();
+    setImportingSeason(true);
+    try {
+      const res = await apiRequest("POST", "/api/admin/matches/import-season-schedule", { season });
+      const body = await res.json();
+      toast({
+        description:
+          body.message ??
+          `${season}시즌 적재 · API ${body.daysFetchedFromApi ?? 0}일 · ${body.gamesCached ?? 0}경기`,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({
+        variant: "destructive",
+        description: message.includes("API_SPORTS_KEY")
+          ? "Replit Secrets에 API_SPORTS_KEY가 없습니다."
+          : `시즌 일정 적재 실패: ${message}`,
+      });
+    } finally {
+      setImportingSeason(false);
     }
   };
 
@@ -208,19 +236,30 @@ export default function MatchManagement() {
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-[#666] leading-relaxed">
-            달력에서 <strong className="text-[#201E22]">날짜를 클릭</strong>하면 그날 KBO 일정·구장을
-            API에서 읽어 <strong className="text-[#201E22]">DB에 자동 저장·연결</strong>합니다.
-            (하루 최대 5경기 · 구장 수동 등록 불필요)
+            일정은 <strong className="text-[#201E22]">DB 캐시 우선</strong>입니다. 해당 날짜 캐시가
+            없을 때만 API를 호출합니다. 달력에서 날짜를 클릭하면 DB 일정을 읽어 경기·구장을
+            자동 연결합니다. (하루 최대 5경기)
           </p>
-          <button
-            type="button"
-            className="px-4 py-2 text-sm rounded-md bg-[#201E22] text-white disabled:opacity-50"
-            disabled={Boolean(syncingDate)}
-            onClick={() => void openDay(new Date())}
-            data-testid="button-open-today"
-          >
-            {syncingDate ? "불러오는 중..." : "오늘 날짜 열기"}
-          </button>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              type="button"
+              className="px-4 py-2 text-sm rounded-md border border-[#E9E9E9] bg-white hover:border-[#E11936] disabled:opacity-50"
+              disabled={importingSeason || Boolean(syncingDate)}
+              onClick={() => void importSeasonSchedule()}
+              data-testid="button-import-season"
+            >
+              {importingSeason ? "시즌 적재 중..." : `${new Date().getFullYear()} 시즌 DB 적재`}
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 text-sm rounded-md bg-[#201E22] text-white disabled:opacity-50"
+              disabled={Boolean(syncingDate) || importingSeason}
+              onClick={() => void openDay(new Date())}
+              data-testid="button-open-today"
+            >
+              {syncingDate ? "불러오는 중..." : "오늘 날짜 열기"}
+            </button>
+          </div>
         </div>
 
         <div className="border border-[#D0D0D0] rounded-[12px] bg-white overflow-hidden shadow-sm">
@@ -344,10 +383,10 @@ export default function MatchManagement() {
                 </h2>
                 <p className="text-xs text-[#888] mt-1">
                   {syncingDate === selectedDateKey
-                    ? "API에서 일정을 불러와 DB에 저장 중..."
+                    ? "DB 일정을 읽어 경기에 반영하는 중..."
                     : lastSyncMeta?.date === selectedDateKey
-                      ? `자동 반영됨 · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}`
-                      : "날짜를 열면 API 일정이 자동 저장·연결됩니다."}
+                      ? `반영됨 (${lastSyncMeta.source === "cache" ? "DB 캐시" : lastSyncMeta.source === "api" ? "API→DB 저장" : "동기화"}) · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}`
+                      : "날짜를 열면 DB 캐시 우선으로 일정을 불러옵니다."}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -358,7 +397,7 @@ export default function MatchManagement() {
                   className="px-3 py-1.5 text-xs rounded-md border border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936] disabled:opacity-50"
                   data-testid="button-force-resync"
                 >
-                  {syncingDate === selectedDateKey ? "동기화 중..." : "다시 동기화"}
+                  {syncingDate === selectedDateKey ? "불러오는 중..." : "DB에서 불러오기"}
                 </button>
                 <button
                   type="button"

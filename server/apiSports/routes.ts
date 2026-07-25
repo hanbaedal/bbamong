@@ -5,9 +5,8 @@ import { userAuthMiddleware } from "../middleware/userAuth";
 import { MatchModel, PredictionModel } from "../UserStorage/db";
 import { getKstDateString } from "../utils/dateUtils";
 import { PREDICTION_ODDS } from "@shared/predictionOdds";
-import { fetchGamesByDate } from "./client";
 import { getApiSportsHealth } from "./healthState";
-import { KBO_LEAGUE_ID } from "./constants";
+import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import {
   linkMatchToApiSports,
   mapTodayGames,
@@ -24,11 +23,28 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
   app.get("/api/api-sports/today-games", adminAuthMiddleware, async (req, res) => {
     try {
       const date = (req.query.date as string) || getKstDateString();
-      const games = await fetchGamesByDate(date, KBO_LEAGUE_ID);
-      res.json(mapTodayGames(games));
+      const { games, source } = await getScheduleGamesForDate(date);
+      res.json({ games: mapTodayGames(games), source });
     } catch (error) {
       const message = error instanceof Error ? error.message : "API-SPORTS 조회 실패";
       res.status(502).json({ error: message, health: getApiSportsHealth() });
+    }
+  });
+
+  app.post("/api/admin/matches/import-season-schedule", adminAuthMiddleware, async (req, res) => {
+    try {
+      const body = z
+        .object({ season: z.number().int().optional() })
+        .parse(req.body ?? {});
+      const season = body.season ?? new Date().getFullYear();
+      const result = await importSeasonScheduleToCache(season);
+      res.json({
+        message: `${season}시즌 일정 적재 완료 (API 호출 ${result.daysFetchedFromApi}일)`,
+        ...result,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "시즌 일정 적재 실패";
+      res.status(502).json({ error: message });
     }
   });
 

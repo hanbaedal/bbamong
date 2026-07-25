@@ -8,6 +8,8 @@ export interface OperatorStatus {
   name: string;
   lastLogin: Date | null;
   lastLogout: Date | null;
+  lastLoginIp: string;
+  lastLoginRegion: string;
   sessionDuration: string;
   userType: string;
   status?: string;
@@ -33,7 +35,7 @@ export class OperatorMonitoringStorage implements IOperatorMonitoringStorage {
     const offset = (page - 1) * limit;
 
     const operators = await AdminUserModel.find({ userType: "매니저" })
-      .select("id username name lastLogin lastLogout userType")
+      .select("id username name lastLogin lastLogout lastLoginIp lastLoginRegion userType")
       .sort({ lastLogin: -1, id: 1 })
       .skip(offset)
       .limit(limit)
@@ -66,6 +68,8 @@ export class OperatorMonitoringStorage implements IOperatorMonitoringStorage {
           status,
           lastLogin: op.lastLogin ?? null,
           lastLogout: op.lastLogout ?? null,
+          lastLoginIp: (op as { lastLoginIp?: string }).lastLoginIp ?? "",
+          lastLoginRegion: (op as { lastLoginRegion?: string }).lastLoginRegion ?? "",
           sessionDuration,
         };
       }),

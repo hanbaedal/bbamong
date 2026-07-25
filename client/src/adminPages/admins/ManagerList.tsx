@@ -13,6 +13,7 @@ interface OperatorAccount {
   assignedMatchDetail: string | null;
   assignmentLabel: string;
   status: string;
+  apiSyncEnabled: boolean;
   dailyPasswordPlain: string;
   dailyPasswordDate: string;
   loginLinkToken: string;
@@ -125,6 +126,24 @@ export default function ManagerListPage() {
     },
   });
 
+  const apiSyncMutation = useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/admin/operators/${id}/api-sync`, { enabled });
+      return res.json() as Promise<OperatorsResponse & { message?: string }>;
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData(["/api/admin/operators"], {
+        operators: result.operators,
+        todayMatches: result.todayMatches,
+      });
+      toast({ description: result.message ?? "API 동기화 설정이 변경되었습니다." });
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "동기화 설정 변경에 실패했습니다.";
+      toast({ variant: "destructive", description: message });
+    },
+  });
+
   const copyCredentials = async (op: OperatorAccount) => {
     if (!op.loginLinkToken && !op.dailyPasswordPlain) {
       toast({ variant: "destructive", description: "먼저 「생성」으로 비밀번호·링크를 발급하세요." });
@@ -161,7 +180,8 @@ export default function ManagerListPage() {
               운영자 리스트
             </h1>
             <p className="text-sm text-[#666] mt-1">
-              「생성」→ 자동 복사 → 카톡 전송 → 수신자가 링크 클릭 시 운영자 앱 자동 로그인 (1회용)
+              「생성」→ 자동 복사 → 카톡 전송 → 링크 클릭 시 운영자 앱 자동 로그인. API 동기화 ON인
+              운영자만 경기 할당·실시간 API 폴링에 포함됩니다.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -187,13 +207,14 @@ export default function ManagerListPage() {
         )}
 
         <div className="overflow-x-auto shrink-0">
-          <div className="grid grid-cols-[9%_20%_11%_12%_10%_10%_10%_18%] min-w-[1020px] px-2 md:px-4 py-2 md:py-3 bg-[#F5F5F5] border-y border-[#E9E9E9] text-xs md:text-sm font-semibold text-[#201E22]">
+          <div className="grid grid-cols-[8%_18%_10%_11%_9%_9%_8%_12%_15%] min-w-[1100px] px-2 md:px-4 py-2 md:py-3 bg-[#F5F5F5] border-y border-[#E9E9E9] text-xs md:text-sm font-semibold text-[#201E22]">
             <div>아이디</div>
             <div>경기 할당</div>
             <div>담당 경기</div>
             <div>비밀번호</div>
             <div>로그인 링크</div>
             <div>상태</div>
+            <div>API동기화</div>
             <div>최근 로그인</div>
             <div>관리</div>
           </div>
@@ -210,7 +231,7 @@ export default function ManagerListPage() {
             operators.map((op, index) => (
               <div
                 key={op.id}
-                className="grid grid-cols-[9%_20%_11%_12%_10%_10%_10%_18%] min-w-[1020px] px-2 md:px-4 py-3 bg-white border-b border-[#E9E9E9] items-center text-xs md:text-sm text-[#201E22]"
+                className="grid grid-cols-[8%_18%_10%_11%_9%_9%_8%_12%_15%] min-w-[1100px] px-2 md:px-4 py-3 bg-white border-b border-[#E9E9E9] items-center text-xs md:text-sm text-[#201E22]"
                 data-testid={`manager-row-${index}`}
               >
                 <div className="font-medium">{op.username}</div>
@@ -237,6 +258,23 @@ export default function ManagerListPage() {
                   )}
                 </div>
                 <div>{op.status}</div>
+                <div>
+                  <button
+                    type="button"
+                    disabled={apiSyncMutation.isPending}
+                    onClick={() =>
+                      apiSyncMutation.mutate({ id: op.id, enabled: !op.apiSyncEnabled })
+                    }
+                    className={`px-2 py-1 rounded text-[10px] md:text-xs font-semibold ${
+                      op.apiSyncEnabled
+                        ? "bg-[#34A853] text-white"
+                        : "bg-[#E9E9E9] text-[#666]"
+                    } disabled:opacity-50`}
+                    data-testid={`operator-api-sync-${index}`}
+                  >
+                    {op.apiSyncEnabled ? "ON" : "OFF"}
+                  </button>
+                </div>
                 <div className="text-[#666] text-xs">
                   {op.lastLogin ? new Date(op.lastLogin).toLocaleString("ko-KR") : "-"}
                 </div>

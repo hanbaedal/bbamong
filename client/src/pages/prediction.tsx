@@ -26,6 +26,19 @@ import {
 } from "@shared/predictionOdds";
 type PredictionOption = "1루" | "2루" | "3루" | "홈런" | "아웃";
 
+function gamePhaseLabelFromPayload(payload: {
+  displayLabel?: string;
+  name?: string;
+  gameInning?: number;
+  inningHalf?: string;
+  batterIndexInHalf?: number;
+}): string | undefined {
+  if (payload.displayLabel) return payload.displayLabel;
+  if (!payload.gameInning) return undefined;
+  const half = payload.inningHalf === "bottom" ? "홈팀 공격" : "원정팀 공격";
+  return `${payload.name ?? "경기"} · ${payload.gameInning}회 · ${half} · ${payload.batterIndexInHalf ?? 1}번째 타자`;
+}
+
 interface MatchData {
   id: string;
   name: string;
@@ -81,6 +94,7 @@ export default function PredictionPage() {
   const [lastBetAmount, setLastBetAmount] = useState<number>(0);
   const [formattedDate, setFormattedDate] = useState("");
   const [waitingForPredictionStart, setWaitingForPredictionStart] = useState(false);
+  const [gamePhaseLabel, setGamePhaseLabel] = useState<string | undefined>();
   const [hasPendingPrediction, _setHasPendingPrediction] = useState(false);
   const setHasPendingPrediction = useCallback((val: boolean) => {
     hasPendingPredictionRef.current = val;
@@ -414,6 +428,10 @@ export default function PredictionPage() {
 
     onRoundNext: useCallback((data: any) => {
       console.log("[WS] 다음 라운드 전환:", data);
+
+      if (data?.gamePhase) {
+        setGamePhaseLabel(gamePhaseLabelFromPayload(data.gamePhase));
+      }
       
       if (resultShownRef.current) {
         console.log("[WS] 결과 화면 표시 중 - round_next 큐잉 (12초 후 강제 처리)");
@@ -694,6 +712,11 @@ export default function PredictionPage() {
         }
         const matchData = await response.json();
         console.log("[Polling] 경기 상태: predictionEnabled=", matchData.predictionEnabled, "matchStatus=", matchData.matchStatus);
+
+        const phaseLabel = gamePhaseLabelFromPayload(matchData.gamePhase ?? matchData);
+        if (phaseLabel) {
+          setGamePhaseLabel(phaseLabel);
+        }
         
         if (stopped) return;
         
@@ -1609,6 +1632,7 @@ export default function PredictionPage() {
           prediction={waitingForPredictionStart ? undefined : (selectedPrediction ?? undefined)}
           onClose={handleClosePending}
           waitingMessage={waitingForPredictionStart ? "다음 타자 예측을 기다리는 중 입니다." : undefined}
+          gamePhaseLabel={gamePhaseLabel}
           matchId={selectedMatch.id}
           hasPendingPrediction={hasPendingPrediction}
           isTimedOut={pollingTimedOut}

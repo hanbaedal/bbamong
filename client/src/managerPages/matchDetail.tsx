@@ -39,10 +39,6 @@ export default function MatchDetailPage() {
   const [selectedResult, setSelectedResult] = useState<string | null>(null);
   const [showConfirmPopup, setShowConfirmPopup] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showNextBatterPopup, setShowNextBatterPopup] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<
-    "공수 교대" | "투수 교체"
-  >("공수 교대");
   const [isAdPlaying, setIsAdPlaying] = useState(false);
   const [adElapsedTime, setAdElapsedTime] = useState(0);
   const adStartTimeRef = useRef<number | null>(null);
@@ -586,56 +582,56 @@ export default function MatchDetailPage() {
     setSelectedResult(null);
   };
 
-  const handleNextBatter = () => {
+  const handlePitcherChange = async () => {
     if (isNextBatterLoading) return;
     if (isAdPlaying) {
       handleStopAd();
       return;
     }
-    setShowNextBatterPopup(true);
-  };
-
-  const handleNextBatterConfirm = async () => {
-    if (isNextBatterLoading) return;
-
     setIsNextBatterLoading(true);
-    setShowNextBatterPopup(false);
-
     try {
-      // 다음 라운드로 이동 (서버에서 라운드 증가)
-      const nextRoundResponse = await managerFetch(
-        `/api/manager/control/${id}/round/next`,
-        {
-          method: "POST",
-        },
-      );
-
-      const responseData = await nextRoundResponse.json();
-
-      if (!nextRoundResponse.ok) {
-        console.error("Failed to advance to next round:", responseData.error);
-        toast({
-          variant: "destructive",
-          description: responseData.error || "공수 교대에 실패했습니다.",
-        });
-        setIsNextBatterLoading(false);
+      const res = await managerFetch(`/api/manager/control/${id}/round/next-batter`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ variant: "destructive", description: data.error || "다음 타자 이동에 실패했습니다." });
         return;
       }
+      setLastAdvanceSkippedResult(true);
+      await fetchMatchDetail();
+    } catch {
+      toast({ variant: "destructive", description: "다음 타자 처리에 실패했습니다." });
+    } finally {
+      setIsNextBatterLoading(false);
+    }
+  };
 
-      if (responseData.adStarted) {
+  const handleSwitchHalf = async () => {
+    if (isNextBatterLoading) return;
+    if (isAdPlaying) {
+      handleStopAd();
+      return;
+    }
+    setIsNextBatterLoading(true);
+    try {
+      const res = await managerFetch(`/api/manager/control/${id}/round/switch-half`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ variant: "destructive", description: data.error || "공수교대에 실패했습니다." });
+        return;
+      }
+      if (data.adStarted) {
         setIsAdPlaying(true);
         adStartTimeRef.current = Date.now();
         setAdElapsedTime(0);
       }
-
       setLastAdvanceSkippedResult(true);
       await fetchMatchDetail();
-    } catch (error) {
-      console.error("Failed to handle offense/defense switch:", error);
-      toast({
-        variant: "destructive",
-        description: "공수 교대 처리에 실패했습니다.",
-      });
+    } catch {
+      toast({ variant: "destructive", description: "공수교대 처리에 실패했습니다." });
     } finally {
       setIsNextBatterLoading(false);
     }
@@ -947,20 +943,26 @@ export default function MatchDetailPage() {
               </span>
             </div>
           )}
-          <button
-            onClick={handleNextBatter}
-            disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
-            data-testid="button-next-round"
-            className={`w-full h-[52px] text-white rounded-[6px] flex items-center justify-center text-[16px] font-semibold leading-[140%] tracking-[-0.025em] disabled:opacity-50 ${isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"}`}
-          >
-            {isNextBatterLoading
-              ? "처리중..."
-              : isAdPlaying
-                ? "광고 종료"
-                : !wsConnected
-                  ? "연결 중..."
-                  : "공수 교대 / 투수 교체"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => (isAdPlaying ? handleStopAd() : void handlePitcherChange())}
+              disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
+              data-testid="button-next-batter"
+              className="flex-1 h-[52px] text-white rounded-[6px] flex items-center justify-center text-[14px] font-semibold leading-[140%] tracking-[-0.025em] disabled:opacity-50 bg-[#4285F4]"
+            >
+              {isNextBatterLoading ? "처리중..." : "다음 타자 / 투수 교체"}
+            </button>
+            <button
+              type="button"
+              onClick={() => (isAdPlaying ? handleStopAd() : void handleSwitchHalf())}
+              disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
+              data-testid="button-switch-half"
+              className={`flex-1 h-[52px] text-white rounded-[6px] flex items-center justify-center text-[14px] font-semibold leading-[140%] tracking-[-0.025em] disabled:opacity-50 ${isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"}`}
+            >
+              {isAdPlaying ? "광고 종료" : isNextBatterLoading ? "처리중..." : "공수 교대"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -974,49 +976,6 @@ export default function MatchDetailPage() {
           onCancel={handleCancelResult}
           onConfirm={handleConfirmResult}
         />
-      )}
-
-      {/* 공수 교대 / 투수 교체 확인 팝업 */}
-      {showNextBatterPopup && (
-        <>
-          <div className="fixed inset-0 bg-black/50 z-[60]" onClick={() => setShowNextBatterPopup(false)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-[400px] bg-white rounded-lg z-[70] overflow-hidden shadow-xl">
-            <div className="px-6 py-5">
-              <h2 className="text-gray-900 text-lg font-bold text-center">
-                공수 교대 / 투수 교체
-              </h2>
-            </div>
-            <div className="px-6 py-5">
-              <p className="text-gray-700 text-sm text-center">
-                공수 교대 / 투수 교체를 진행하시겠습니까?
-              </p>
-            </div>
-            <div className="px-6 pb-5">
-              <div className="flex gap-3">
-                <button
-                  data-testid="button-offense-defense"
-                  onClick={() => {
-                    setSelectedOption("공수 교대");
-                    handleNextBatterConfirm();
-                  }}
-                  className="flex-1 h-11 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold transition-colors"
-                >
-                  공수 교대
-                </button>
-                <button
-                  data-testid="button-pitcher-change"
-                  onClick={() => {
-                    setSelectedOption("투수 교체");
-                    handleNextBatterConfirm();
-                  }}
-                  className="flex-1 h-11 bg-[#E11936] hover:bg-[#C4162E] text-white rounded-lg font-bold transition-colors"
-                >
-                  투수 교체
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
       )}
 
       {/* 예측 미시작 안내 팝업 */}

@@ -20,6 +20,7 @@ interface LoadingOverlayProps {
 
   onDonate?: () => void;
   waitingMessage?: string;
+  gamePhaseLabel?: string;
   matchId?: string;
   hasPendingPrediction?: boolean;
   isTimedOut?: boolean;
@@ -39,6 +40,7 @@ export default function LoadingOverlay({
 
   onDonate,
   waitingMessage,
+  gamePhaseLabel,
   matchId,
   hasPendingPrediction = false,
   isTimedOut = false,
@@ -182,6 +184,12 @@ export default function LoadingOverlay({
           className="w-[150px] h-[150px] object-contain"
           data-testid="img-waiting-screen"
         />
+
+        {gamePhaseLabel && (
+          <p className="text-center text-xs text-[#CDFF00] font-semibold mb-3 px-4" data-testid="text-game-phase">
+            {gamePhaseLabel}
+          </p>
+        )}
 
         <p className="text-center text-sm font-bold mb-2 text-white">
           {firstText}

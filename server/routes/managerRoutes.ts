@@ -5,9 +5,11 @@ import { AdminStorage } from "../storage/adminStorage";
 import { adminMatchStorage } from "../storage/adminMatchStorage";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAccessToken } from "../utils/jwt";
 import { broadcastManager } from "../liveMatch/broadcastManager";
-import { startRound, stopRound, updateRoundPredictionResult, nextRound, getMatchOverallStatistics } from "../liveMatch/predictionStorage";
+import { startRound, stopRound, updateRoundPredictionResult, advanceToNextBatter, advanceInningHalf, getMatchOverallStatistics } from "../liveMatch/predictionStorage";
+import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { hasActiveSession, createSession, deleteSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
 import { consumeLoginLinkToken, ensureOperatorsReady } from "../managerOperatorService";
+import { resolveClientLoginGeo } from "../utils/clientGeo";
 
 const adminStorage = new AdminStorage();
 const MANAGER_APP_SCHEME = "ppamongmanager";
@@ -22,6 +24,7 @@ function getManagerAccessToken(req: Request): string | null {
 }
 
 async function establishManagerSession(
+  req: Request,
   res: Response,
   manager: { id: string; email: string; userType: string; approvalStatus: string },
 ): Promise<{ accessToken: string; refreshToken: string }> {
@@ -48,9 +51,13 @@ async function establishManagerSession(
       email: manager.email,
       userType: manager.userType,
     });
+
+    const { ip, region } = await resolveClientLoginGeo(req);
     await adminStorage.updateAdminUser(manager.id, {
       lastLogin: new Date(),
-    });
+      lastLoginIp: ip,
+      lastLoginRegion: region,
+    } as Parameters<AdminStorage["updateAdminUser"]>[1]);
   } catch (error) {
     try {
       await deleteSession("manager", manager.id);
@@ -219,7 +226,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: message, deactivated });
       }
 
-      const { accessToken, refreshToken } = await establishManagerSession(res, {
+      const { accessToken, refreshToken } = await establishManagerSession(req, res, {
         id: consumed.managerId,
         email: consumed.email,
         userType: consumed.userType,
@@ -291,7 +298,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: "이메일 또는 비밀번호가 일치하지 않습니다." });
       }
 
-      const { accessToken, refreshToken } = await establishManagerSession(res, {
+      const { accessToken, refreshToken } = await establishManagerSession(req, res, {
         id: manager.id,
         email: manager.email,
         userType: manager.userType,
@@ -742,18 +749,19 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: `라운드 ${match.currentRound} 결과: ${result}`
       }, userDataMap);
 
-      // 결과 전송 후 자동으로 다음 라운드로 이동
+      // 결과 전송 후 자동으로 다음 타자(라운드)로 이동
       let nextRoundNumber = match.currentRound;
       try {
-        const { match: updatedMatch } = await nextRound(id);
+        const { match: updatedMatch } = await advanceToNextBatter(id, false);
         nextRoundNumber = updatedMatch.currentRound;
+        const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
-        // SSE로 라운드 증가 이벤트 전송
         broadcastManager.sendToMatch(id, "round_next", {
           matchId: id,
           currentRound: updatedMatch.currentRound,
           predictionEnabled: updatedMatch.predictionEnabled,
-          message: `라운드 ${updatedMatch.currentRound}으로 이동했습니다.`
+          gamePhase,
+          message: `라운드 ${updatedMatch.currentRound}으로 이동했습니다.`,
         });
 
         broadcastManager.sendToMatch(id, "banner_ad_show", {
@@ -786,62 +794,53 @@ export async function managerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 다음 라운드로 이동 (매니저 전용)
-  app.post("/api/manager/control/:id/round/next", async (req, res) => {
+  // 다음 타자 / 투수 교체 (매니저 전용)
+  app.post("/api/manager/control/:id/round/next-batter", async (req, res) => {
     try {
       const accessToken = getManagerAccessToken(req);
-
-      if (!accessToken) {
-        return res.status(401).json({ error: "로그인이 필요합니다." });
-      }
+      if (!accessToken) return res.status(401).json({ error: "로그인이 필요합니다." });
 
       const decoded = verifyAccessToken(accessToken);
-
       if (!decoded || decoded.userType !== "매니저") {
         return res.status(403).json({ error: "매니저 권한이 필요합니다." });
       }
 
       const { id } = req.params;
-      
-      // 경기가 매니저에게 할당되었는지 확인
       const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
 
-      // 다음 라운드로 이동 (force=true: 예측 중이어도 자동 중지 후 진행, 제약 없음)
-      const { match: updatedMatch, predictionAutoStopped } = await nextRound(id, true);
-
+      const { match: updatedMatch, predictionAutoStopped } = await advanceToNextBatter(id, true);
       const overallStats = await getMatchOverallStatistics(id);
+      const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
-      // 예측이 자동 중지된 경우 먼저 prediction_stopped 이벤트 전송 (중지된 라운드 번호: 증가 전)
       if (predictionAutoStopped) {
         broadcastManager.sendToMatch(id, "prediction_stopped", {
           matchId: id,
           currentRound: updatedMatch.currentRound - 1,
           stoppedRound: updatedMatch.currentRound - 1,
-          message: "공수교대/투수교체로 인해 예측이 자동 중지되었습니다."
+          message: "투수 교체로 예측이 자동 중지되었습니다.",
         });
       }
 
-      // 라운드 전환 시 진행 중인 광고 자동 종료
       broadcastManager.clearAdTimer(id);
       if (broadcastManager.isAdPlaying(id)) {
         broadcastManager.setAdPlaying(id, false);
         broadcastManager.sendToMatch(id, "ad_stopped", {
           matchId: id,
-          message: "라운드 전환으로 광고가 중지되었습니다."
+          message: "라운드 전환으로 광고가 중지되었습니다.",
         });
       }
 
-      // SSE로 라운드 증가 이벤트 전송
       broadcastManager.sendToMatch(id, "round_next", {
         matchId: id,
         currentRound: updatedMatch.currentRound,
         predictionEnabled: updatedMatch.predictionEnabled,
         overallStats,
         skippedResult: true,
-        message: `라운드 ${updatedMatch.currentRound}으로 이동했습니다.`
+        gamePhase,
+        message: `다음 타자(라운드 ${updatedMatch.currentRound})`,
       });
 
       broadcastManager.sendToMatch(id, "banner_ad_show", {
@@ -849,21 +848,92 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: "타자 교체 배너 광고를 표시합니다.",
       });
 
-      return res.json({ 
-        success: true, 
-        message: "다음 라운드로 이동했습니다.",
+      return res.json({
+        success: true,
+        message: "다음 타자로 이동했습니다.",
         currentRound: updatedMatch.currentRound,
-        predictionEnabled: updatedMatch.predictionEnabled,
-        overallStats,
-        adStarted: true,
+        gamePhase,
         predictionAutoStopped,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
         return res.status(401).json({ error: "인증이 만료되었습니다." });
       }
-      console.error("Next round error:", error);
-      return res.status(500).json({ error: error.message || "다음 라운드 이동에 실패했습니다." });
+      console.error("Next batter error:", error);
+      const message = error instanceof Error ? error.message : "다음 타자 이동에 실패했습니다.";
+      return res.status(500).json({ error: message });
+    }
+  });
+
+  // 공수교대 (매니저 전용)
+  app.post("/api/manager/control/:id/round/switch-half", async (req, res) => {
+    try {
+      const accessToken = getManagerAccessToken(req);
+      if (!accessToken) return res.status(401).json({ error: "로그인이 필요합니다." });
+
+      const decoded = verifyAccessToken(accessToken);
+      if (!decoded || decoded.userType !== "매니저") {
+        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
+      }
+
+      const { id } = req.params;
+      const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
+      if (!match) {
+        return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
+      }
+
+      const { match: updatedMatch, predictionAutoStopped } = await advanceInningHalf(id);
+      const overallStats = await getMatchOverallStatistics(id);
+      const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
+
+      if (predictionAutoStopped) {
+        broadcastManager.sendToMatch(id, "prediction_stopped", {
+          matchId: id,
+          currentRound: updatedMatch.currentRound - 1,
+          stoppedRound: updatedMatch.currentRound - 1,
+          message: "공수교대로 예측이 자동 중지되었습니다.",
+        });
+      }
+
+      broadcastManager.clearAdTimer(id);
+      if (broadcastManager.isAdPlaying(id)) {
+        broadcastManager.setAdPlaying(id, false);
+        broadcastManager.sendToMatch(id, "ad_stopped", {
+          matchId: id,
+          message: "라운드 전환으로 광고가 중지되었습니다.",
+        });
+      }
+
+      broadcastManager.sendToMatch(id, "round_next", {
+        matchId: id,
+        currentRound: updatedMatch.currentRound,
+        predictionEnabled: updatedMatch.predictionEnabled,
+        overallStats,
+        skippedResult: true,
+        gamePhase,
+        message: `공수교대 — ${gamePhase.displayLabel}`,
+      });
+
+      broadcastManager.sendToMatch(id, "banner_ad_show", {
+        matchId: id,
+        message: "공수교대 배너 광고를 표시합니다.",
+      });
+
+      return res.json({
+        success: true,
+        message: "공수교대가 반영되었습니다.",
+        currentRound: updatedMatch.currentRound,
+        gamePhase,
+        adStarted: true,
+        predictionAutoStopped,
+      });
+    } catch (error: unknown) {
+      if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: "인증이 만료되었습니다." });
+      }
+      console.error("Switch half error:", error);
+      const message = error instanceof Error ? error.message : "공수교대 처리에 실패했습니다.";
+      return res.status(500).json({ error: message });
     }
   });
 
