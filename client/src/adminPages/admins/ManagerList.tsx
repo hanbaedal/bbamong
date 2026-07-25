@@ -1,10 +1,18 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { queryClient, apiRequest, adminFetch } from "@/lib/adminQueryClient";
 import AdminLayout from "../adminLayout";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
-import { shareOperatorCredentials } from "@/lib/operatorCredentialsShare";
+import {
+  buildLoginLinkQrImageUrl,
+  canUseNativeShare,
+  copyOperatorCredentials,
+  deliverOperatorCredentials,
+  shareOperatorCredentials,
+} from "@/lib/operatorCredentialsShare";
 
 interface OperatorAccount {
   id: string;
@@ -65,6 +73,11 @@ function shareTitle(op: OperatorAccount): string {
 export default function ManagerListPage() {
   const { assets } = useAdminAssets();
   const { toast } = useToast();
+  const shareSupported = useMemo(() => canUseNativeShare(), []);
+  const [qrModal, setQrModal] = useState<{
+    username: string;
+    loginLinkUrl: string;
+  } | null>(null);
 
   const { data, isLoading, refetch } = useQuery<OperatorsResponse>({
     queryKey: ["/api/admin/operators"],
@@ -106,10 +119,10 @@ export default function ManagerListPage() {
       });
       const op = result.operators.find((o) => o.id === operatorId);
       if (op?.loginLinkToken) {
-        const shareResult = await shareOperatorCredentials(shareTitle(op), buildCopyText(op));
+        const shareResult = await deliverOperatorCredentials(shareTitle(op), buildCopyText(op));
         if (shareResult === "shared") {
           toast({
-            description: "생성 완료. 카카오톡 등 앱에서 받는 사람을 선택해 보내세요.",
+            description: "생성 완료. 카카오톡을 선택해 보내세요.",
           });
           return;
         }
@@ -120,7 +133,11 @@ export default function ManagerListPage() {
           return;
         }
       }
-      toast({ description: "비밀번호와 일회용 로그인 링크가 생성되었습니다. 「카톡 공유」를 눌러 주세요." });
+      toast({
+        description: shareSupported
+          ? "로그인 링크가 생성되었습니다. 「카톡 공유」를 눌러 주세요."
+          : "로그인 링크가 생성되었습니다. 「복사」 또는 「QR」을 이용하세요.",
+      });
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : "비밀번호 생성에 실패했습니다.";
@@ -153,16 +170,10 @@ export default function ManagerListPage() {
     }
     const shareResult = await shareOperatorCredentials(shareTitle(op), buildCopyText(op));
     if (shareResult === "shared") {
-      toast({ description: `${op.username} 로그인 정보 공유 창을 열었습니다. 카카오톡을 선택하세요.` });
+      toast({ description: `${op.username} — 카카오톡을 선택해 보내세요.` });
       return;
     }
-    if (shareResult === "copied") {
-      toast({
-        description: "공유를 지원하지 않는 환경입니다. 클립보드에 복사했으니 카톡에 붙여넣기 하세요.",
-      });
-      return;
-    }
-    toast({ variant: "destructive", description: "공유에 실패했습니다. 「복사」를 이용해 주세요." });
+    toast({ variant: "destructive", description: "공유가 취소되었거나 실패했습니다. 다시 시도해 주세요." });
   };
 
   const copyCredentials = async (op: OperatorAccount) => {
@@ -170,14 +181,25 @@ export default function ManagerListPage() {
       toast({ variant: "destructive", description: "먼저 「생성」으로 로그인 링크를 발급하세요." });
       return;
     }
-    try {
-      await navigator.clipboard.writeText(buildCopyText(op));
+    const ok = await copyOperatorCredentials(buildCopyText(op));
+    if (ok) {
       toast({
-        description: `${op.username} 자동 로그인 링크를 복사했습니다.`,
+        description: `${op.username} 로그인 링크를 복사했습니다. 카톡에 붙여넣기 하세요.`,
       });
-    } catch {
-      toast({ variant: "destructive", description: "복사에 실패했습니다." });
+      return;
     }
+    toast({ variant: "destructive", description: "복사에 실패했습니다." });
+  };
+
+  const openQrModal = (op: OperatorAccount) => {
+    if (!op.loginLinkToken) {
+      toast({ variant: "destructive", description: "먼저 「생성」으로 로그인 링크를 발급하세요." });
+      return;
+    }
+    setQrModal({
+      username: op.username,
+      loginLinkUrl: buildLoginLinkUrl(op.loginLinkToken),
+    });
   };
 
   return (
@@ -199,8 +221,9 @@ export default function ManagerListPage() {
               운영자 리스트
             </h1>
             <p className="text-sm text-[#666] mt-1">
-              「생성」 후 「카톡 공유」로 바로 보내거나 「복사」로 붙여넣기. 링크 클릭 시 운영자 앱 자동
-              로그인. API 동기화 ON인 운영자만 경기 할당·실시간 API 폴링에 포함됩니다.
+              {shareSupported
+                ? "스마트폰: 「생성」→「카톡 공유」로 바로 전송. 링크 클릭 시 운영자 앱 자동 로그인."
+                : "PC: 「생성」→「복사」 또는 「QR」로 폰 카톡에 전달. 관리 열에서 활성화·API 폴링 설정."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -226,14 +249,12 @@ export default function ManagerListPage() {
         )}
 
         <div className="overflow-x-auto shrink-0">
-          <div className="grid grid-cols-[8%_17%_10%_11%_9%_9%_8%_11%_17%] min-w-[1180px] px-2 md:px-4 py-2 md:py-3 bg-[#F5F5F5] border-y border-[#E9E9E9] text-xs md:text-sm font-semibold text-[#201E22]">
+          <div className="grid grid-cols-[10%_20%_12%_10%_8%_14%_26%] min-w-[1040px] px-2 md:px-4 py-2 md:py-3 bg-[#F5F5F5] border-y border-[#E9E9E9] text-xs md:text-sm font-semibold text-[#201E22]">
             <div>아이디</div>
-            <div>경기 할당</div>
             <div>담당 경기</div>
             <div>비밀번호</div>
             <div>로그인 링크</div>
             <div>상태</div>
-            <div>API동기화</div>
             <div>최근 로그인</div>
             <div>관리</div>
           </div>
@@ -250,17 +271,17 @@ export default function ManagerListPage() {
             operators.map((op, index) => (
               <div
                 key={op.id}
-                className="grid grid-cols-[8%_17%_10%_11%_9%_9%_8%_11%_17%] min-w-[1180px] px-2 md:px-4 py-3 bg-white border-b border-[#E9E9E9] items-center text-xs md:text-sm text-[#201E22]"
+                className="grid grid-cols-[10%_20%_12%_10%_8%_14%_26%] min-w-[1040px] px-2 md:px-4 py-3 bg-white border-b border-[#E9E9E9] items-center text-xs md:text-sm text-[#201E22]"
                 data-testid={`manager-row-${index}`}
               >
                 <div className="font-medium">{op.username}</div>
-                <div className="text-[#666] pr-2" title={op.assignmentLabel}>
-                  {op.assignmentLabel}
-                </div>
                 <div>
-                  <div>{op.assignedMatchNumber ?? "—"}</div>
+                  <div className="font-medium">{op.assignedMatchNumber ?? "—"}</div>
                   {op.assignedMatchDetail && (
                     <div className="text-[10px] text-[#888] mt-0.5">{op.assignedMatchDetail}</div>
+                  )}
+                  {!op.assignedMatchNumber && op.assignmentLabel && (
+                    <div className="text-[10px] text-[#888] mt-0.5">{op.assignmentLabel}</div>
                   )}
                 </div>
                 <div
@@ -277,73 +298,131 @@ export default function ManagerListPage() {
                   )}
                 </div>
                 <div>{op.status}</div>
-                <div>
-                  <button
-                    type="button"
-                    disabled={apiSyncMutation.isPending}
-                    onClick={() =>
-                      apiSyncMutation.mutate({ id: op.id, enabled: !op.apiSyncEnabled })
-                    }
-                    className={`px-2 py-1 rounded text-[10px] md:text-xs font-semibold ${
-                      op.apiSyncEnabled
-                        ? "bg-[#34A853] text-white"
-                        : "bg-[#E9E9E9] text-[#666]"
-                    } disabled:opacity-50`}
-                    data-testid={`operator-api-sync-${index}`}
-                  >
-                    {op.apiSyncEnabled ? "ON" : "OFF"}
-                  </button>
-                </div>
                 <div className="text-[#666] text-xs">
                   {op.lastLogin ? new Date(op.lastLogin).toLocaleString("ko-KR") : "-"}
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    type="button"
-                    onClick={() => rotateMutation.mutate(op.id)}
-                    disabled={rotateMutation.isPending}
-                    className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530] disabled:opacity-50"
-                  >
-                    생성
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void shareKakaoCredentials(op)}
-                    className="px-2 py-1 text-[10px] md:text-xs font-medium bg-[#FEE500] text-[#3C1E1E] rounded hover:brightness-95"
-                    data-testid={`operator-kakao-share-${index}`}
-                  >
-                    카톡 공유
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => copyCredentials(op)}
-                    className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#4285F4] rounded hover:bg-[#357AE8]"
-                  >
-                    복사
-                  </button>
-                  {op.status === "활성화" ? (
+                <div className="flex flex-col gap-2 py-1">
+                  <div className="flex flex-wrap gap-1">
                     <button
                       type="button"
-                      onClick={() => statusMutation.mutate({ id: op.id, status: "비활성화" })}
-                      className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530]"
+                      onClick={() => rotateMutation.mutate(op.id)}
+                      disabled={rotateMutation.isPending}
+                      className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530] disabled:opacity-50"
                     >
-                      비활성화
+                      생성
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => statusMutation.mutate({ id: op.id, status: "활성화" })}
-                      className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#34A853] rounded hover:bg-[#2D8E47]"
-                    >
-                      활성화
-                    </button>
-                  )}
+                    {shareSupported ? (
+                      <button
+                        type="button"
+                        onClick={() => void shareKakaoCredentials(op)}
+                        className="px-2.5 py-1.5 text-[10px] md:text-xs font-semibold bg-[#FEE500] text-[#3C1E1E] rounded hover:brightness-95"
+                        data-testid={`operator-kakao-share-${index}`}
+                      >
+                        카톡 공유
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void copyCredentials(op)}
+                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#4285F4] rounded hover:bg-[#357AE8]"
+                        >
+                          복사
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openQrModal(op)}
+                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-[#201E22] bg-[#E9E9E9] rounded hover:bg-[#D8D8D8]"
+                          data-testid={`operator-qr-${index}`}
+                        >
+                          QR
+                        </button>
+                      </>
+                    )}
+                    {op.status === "활성화" ? (
+                      <button
+                        type="button"
+                        onClick={() => statusMutation.mutate({ id: op.id, status: "비활성화" })}
+                        className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530]"
+                      >
+                        비활성화
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => statusMutation.mutate({ id: op.id, status: "활성화" })}
+                        className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#34A853] rounded hover:bg-[#2D8E47]"
+                      >
+                        활성화
+                      </button>
+                    )}
+                  </div>
+                  <label
+                    className="flex items-center gap-2 text-[10px] md:text-xs text-[#4D4B4E] cursor-pointer"
+                    data-testid={`operator-api-sync-${index}`}
+                  >
+                    <Switch
+                      checked={op.apiSyncEnabled}
+                      disabled={apiSyncMutation.isPending}
+                      onCheckedChange={(enabled) =>
+                        apiSyncMutation.mutate({ id: op.id, enabled })
+                      }
+                      className="data-[state=checked]:bg-[#34A853]"
+                    />
+                    <span>API 폴링 {op.apiSyncEnabled ? "ON" : "OFF"}</span>
+                  </label>
                 </div>
               </div>
             ))
           )}
         </div>
       </div>
+
+      {qrModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
+          onClick={() => setQrModal(null)}
+          data-testid="modal-operator-login-qr"
+        >
+          <div
+            className="bg-white rounded-[12px] w-full max-w-[360px] p-6 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-[#201E22] mb-1">
+              {qrModal.username} 로그인 QR
+            </h2>
+            <p className="text-xs text-[#666] mb-4">
+              폰 카메라로 스캔한 뒤, 운영자에게 카톡으로 보내 주세요.
+            </p>
+            <img
+              src={buildLoginLinkQrImageUrl(qrModal.loginLinkUrl)}
+              alt="운영자 로그인 QR"
+              className="mx-auto w-[240px] h-[240px] border border-[#E9E9E9] rounded-lg"
+            />
+            <p className="mt-3 text-[10px] text-[#888] break-all">{qrModal.loginLinkUrl}</p>
+            <div className="mt-4 flex gap-2 justify-center">
+              <button
+                type="button"
+                className="px-4 py-2 text-sm rounded-md bg-[#4285F4] text-white"
+                onClick={() => {
+                  void copyOperatorCredentials(qrModal.loginLinkUrl).then((ok) => {
+                    if (ok) toast({ description: "링크를 복사했습니다." });
+                  });
+                }}
+              >
+                링크 복사
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 text-sm rounded-md border border-[#E9E9E9]"
+                onClick={() => setQrModal(null)}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
