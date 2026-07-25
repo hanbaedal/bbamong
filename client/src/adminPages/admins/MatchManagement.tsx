@@ -223,144 +223,130 @@ export default function MatchManagement() {
 
   return (
     <AdminLayout>
-      <div className="flex items-center gap-2 mb-6" data-testid="breadcrumb">
-        <span className="text-sm text-[#BFBFBF]">경기 관리</span>
-      </div>
-      <h1
-        className="text-2xl font-semibold text-[#201E22] mb-6 flex items-center gap-2"
-        data-testid="text-page-title"
-      >
-        <img src={assets.adListIcon} className="w-8 h-8" alt="" /> 경기 관리
-      </h1>
-
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-[#666] leading-relaxed">
-            일정은 <strong className="text-[#201E22]">DB 캐시 우선</strong>입니다. 해당 날짜 캐시가
-            없을 때만 API를 호출합니다. 달력에서 날짜를 클릭하면 DB 일정을 읽어 경기·구장을
-            자동 연결합니다. (하루 최대 5경기)
-          </p>
+      <div className="flex flex-col flex-1 min-h-0 h-full w-full max-w-none">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2 shrink-0">
+          <h1
+            className="text-lg lg:text-xl font-semibold text-[#201E22] flex items-center gap-2"
+            data-testid="text-page-title"
+          >
+            <img src={assets.adMatchIcon} className="w-7 h-7 lg:w-8 lg:h-8 object-contain" alt="" />
+            경기관리
+          </h1>
           <div className="flex flex-wrap gap-2 shrink-0">
             <button
               type="button"
-              className="px-4 py-2 text-sm rounded-md border border-[#E9E9E9] bg-white hover:border-[#E11936] disabled:opacity-50"
+              className="px-3 py-1.5 text-xs rounded-md border border-[#E9E9E9] bg-white hover:border-[#E11936] disabled:opacity-50"
               disabled={importingSeason || Boolean(syncingDate)}
               onClick={() => void importSeasonSchedule()}
               data-testid="button-import-season"
             >
-              {importingSeason ? "시즌 적재 중..." : `${new Date().getFullYear()} 시즌 DB 적재`}
+              {importingSeason ? "적재 중..." : `${new Date().getFullYear()} 시즌 DB`}
             </button>
             <button
               type="button"
-              className="px-4 py-2 text-sm rounded-md bg-[#201E22] text-white disabled:opacity-50"
+              className="px-3 py-1.5 text-xs rounded-md bg-[#201E22] text-white disabled:opacity-50"
               disabled={Boolean(syncingDate) || importingSeason}
               onClick={() => void openDay(new Date())}
               data-testid="button-open-today"
             >
-              {syncingDate ? "불러오는 중..." : "오늘 날짜 열기"}
+              {syncingDate ? "불러오는 중..." : "오늘"}
             </button>
           </div>
         </div>
 
-        <div className="border border-[#D0D0D0] rounded-[12px] bg-white overflow-hidden shadow-sm">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#E9E9E9] bg-[#FAFAFA]">
+        <div className="flex flex-col flex-1 min-h-0 border border-[#D0D0D0] rounded-lg bg-white overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[#E9E9E9] bg-[#FAFAFA] shrink-0">
             <button
               type="button"
-              className="w-10 h-10 rounded-lg border border-[#E0E0E0] bg-white flex items-center justify-center hover:border-[#E11936]"
+              className="w-8 h-8 rounded-md border border-[#E0E0E0] bg-white flex items-center justify-center hover:border-[#E11936]"
               onClick={() => setCalendarMonth((m) => addMonths(m, -1))}
               aria-label="이전 달"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
-            <h2 className="text-xl font-bold text-[#201E22] tracking-tight">
+            <h2 className="text-base lg:text-lg font-bold text-[#201E22] tracking-tight">
               {format(calendarMonth, "yyyy년 M월", { locale: ko })}
             </h2>
             <button
               type="button"
-              className="w-10 h-10 rounded-lg border border-[#E0E0E0] bg-white flex items-center justify-center hover:border-[#E11936]"
+              className="w-8 h-8 rounded-md border border-[#E0E0E0] bg-white flex items-center justify-center hover:border-[#E11936]"
               onClick={() => setCalendarMonth((m) => addMonths(m, 1))}
               aria-label="다음 달"
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
           {matchesLoading ? (
-            <div className="h-[520px] animate-pulse bg-[#F3F3F3]" />
+            <div className="flex-1 min-h-[240px] animate-pulse bg-[#F3F3F3]" />
           ) : (
-            <div className="p-3 md:p-4">
-              <div className="grid grid-cols-7 border border-[#D8D8D8] rounded-lg overflow-hidden">
-                {["일", "월", "화", "수", "목", "금", "토"].map((label, i) => (
-                  <div
-                    key={label}
-                    className={`py-3 text-center text-sm font-semibold border-b border-[#D8D8D8] bg-[#F5F5F5] ${
-                      i < 6 ? "border-r border-[#D8D8D8]" : ""
-                    } ${i === 0 ? "text-[#E11936]" : i === 6 ? "text-[#2563EB]" : "text-[#4D4B4E]"}`}
+            <div
+              className="flex-1 min-h-0 p-2 lg:p-3 grid grid-cols-7 border-t border-[#E9E9E9]"
+              style={{
+                gridTemplateRows: `auto repeat(${Math.ceil(calendarDays.length / 7)}, minmax(0, 1fr))`,
+              }}
+            >
+              {["일", "월", "화", "수", "목", "금", "토"].map((label, i) => (
+                <div
+                  key={label}
+                  className={`py-1 text-center text-[11px] lg:text-xs font-semibold border-b border-[#E9E9E9] bg-[#F5F5F5] ${
+                    i < 6 ? "border-r border-[#E9E9E9]" : ""
+                  } ${i === 0 ? "text-[#E11936]" : i === 6 ? "text-[#2563EB]" : "text-[#4D4B4E]"}`}
+                >
+                  {label}
+                </div>
+              ))}
+              {calendarDays.map((day, idx) => {
+                const key = toDateKey(day);
+                const inMonth = isSameMonth(day, calendarMonth);
+                const count = matchCountByDate.get(key) ?? 0;
+                const has = datesWithMatches.has(key);
+                const selected = selectedDay ? isSameDay(day, selectedDay) : false;
+                const today = isToday(day);
+                const col = idx % 7;
+                return (
+                  <button
+                    key={key + String(idx)}
+                    type="button"
+                    onClick={() => void openDay(day)}
+                    className={`min-h-0 h-full p-1 lg:p-1.5 text-left border-b border-[#E9E9E9] transition-colors ${
+                      col < 6 ? "border-r border-[#E9E9E9]" : ""
+                    } ${
+                      selected
+                        ? "bg-[#FFF1F3] ring-2 ring-inset ring-[#E11936]"
+                        : today
+                          ? "bg-[#FFFBEB]"
+                          : inMonth
+                            ? "bg-white hover:bg-[#F9F9F9]"
+                            : "bg-[#F7F7F7] hover:bg-[#F0F0F0]"
+                    }`}
+                    data-testid={`calendar-day-${key}`}
                   >
-                    {label}
-                  </div>
-                ))}
-                {calendarDays.map((day, idx) => {
-                  const key = toDateKey(day);
-                  const inMonth = isSameMonth(day, calendarMonth);
-                  const count = matchCountByDate.get(key) ?? 0;
-                  const has = datesWithMatches.has(key);
-                  const selected = selectedDay ? isSameDay(day, selectedDay) : false;
-                  const today = isToday(day);
-                  const col = idx % 7;
-                  return (
-                    <button
-                      key={key + String(idx)}
-                      type="button"
-                      onClick={() => void openDay(day)}
-                      className={`min-h-[88px] md:min-h-[100px] p-2 md:p-3 text-left align-top border-b border-[#D8D8D8] transition-colors ${
-                        col < 6 ? "border-r border-[#D8D8D8]" : ""
-                      } ${
-                        selected
-                          ? "bg-[#FFF1F3] ring-2 ring-inset ring-[#E11936]"
-                          : today
-                            ? "bg-[#FFFBEB]"
-                            : inMonth
-                              ? "bg-white hover:bg-[#F9F9F9]"
-                              : "bg-[#F7F7F7] hover:bg-[#F0F0F0]"
-                      }`}
-                      data-testid={`calendar-day-${key}`}
-                    >
-                      <div className="flex items-start justify-between gap-1">
-                        <span
-                          className={`inline-flex items-center justify-center w-8 h-8 rounded-md text-sm font-semibold ${
-                            today
-                              ? "bg-[#E11936] text-white"
-                              : !inMonth
-                                ? "text-[#BFBFBF]"
-                                : col === 0
-                                  ? "text-[#E11936]"
-                                  : col === 6
-                                    ? "text-[#2563EB]"
-                                    : "text-[#201E22]"
-                          }`}
-                        >
-                          {format(day, "d")}
-                        </span>
-                        {has && (
-                          <span className="text-[10px] md:text-xs font-semibold px-1.5 py-0.5 rounded bg-[#201E22] text-white">
-                            {count}경기
-                          </span>
-                        )}
-                      </div>
+                    <div className="flex items-start justify-between gap-0.5">
+                      <span
+                        className={`inline-flex items-center justify-center w-6 h-6 lg:w-7 lg:h-7 rounded text-[11px] lg:text-xs font-semibold ${
+                          today
+                            ? "bg-[#E11936] text-white"
+                            : !inMonth
+                              ? "text-[#BFBFBF]"
+                              : col === 0
+                                ? "text-[#E11936]"
+                                : col === 6
+                                  ? "text-[#2563EB]"
+                                  : "text-[#201E22]"
+                        }`}
+                      >
+                        {format(day, "d")}
+                      </span>
                       {has && (
-                        <div className="mt-2 space-y-1">
-                          <div className="h-1.5 rounded-full bg-[#E11936]/80 w-full" />
-                          <p className="text-[10px] text-[#888] truncate">클릭하여 일정</p>
-                        </div>
+                        <span className="text-[9px] lg:text-[10px] font-semibold px-1 py-0.5 rounded bg-[#201E22] text-white leading-none">
+                          {count}
+                        </span>
                       )}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-3 text-xs text-[#888]">
-                노란 칸=오늘 · 빨간 테두리=선택 · 검정 배지=DB에 등록된 경기 수
-              </p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -383,10 +369,10 @@ export default function MatchManagement() {
                 </h2>
                 <p className="text-xs text-[#888] mt-1">
                   {syncingDate === selectedDateKey
-                    ? "DB 일정을 읽어 경기에 반영하는 중..."
+                    ? "일정 불러오는 중..."
                     : lastSyncMeta?.date === selectedDateKey
-                      ? `반영됨 (${lastSyncMeta.source === "cache" ? "DB 캐시" : lastSyncMeta.source === "api" ? "API→DB 저장" : "동기화"}) · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}`
-                      : "날짜를 열면 DB 캐시 우선으로 일정을 불러옵니다."}
+                      ? `반영 · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}`
+                      : "날짜 클릭 시 DB 일정을 경기에 연결합니다."}
                 </p>
               </div>
               <div className="flex items-center gap-2">

@@ -68,20 +68,20 @@ export default function AdminHeader({ onOpenMenu }: AdminHeaderProps) {
           </span>
         </button>
       </div>
-      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           onClick={() => setLocation("/admin/home")}
-          className={`shrink-0 ${
+          className={`shrink-0 h-9 px-2.5 sm:px-3 font-semibold border-[#E11936] ${
             location === "/admin/home"
-              ? "text-[#E11936] bg-[#FFF0F2] hover:bg-[#FFE8EC] hover:text-[#E11936]"
-              : "text-gray-600 hover:text-[#E11936]"
+              ? "bg-[#E11936] text-white hover:bg-[#C91530] hover:text-white"
+              : "bg-white text-[#E11936] hover:bg-[#FFF0F2] hover:text-[#E11936]"
           }`}
           data-testid="button-admin-sitemap"
         >
-          <Map className="w-4 h-4 sm:mr-1.5" />
-          <span className="hidden sm:inline text-sm">사이트맵</span>
+          <Map className="w-4 h-4" />
+          <span className="text-xs sm:text-sm ml-1">사이트맵</span>
         </Button>
         <Button
           variant="ghost"
