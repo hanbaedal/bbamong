@@ -503,7 +503,7 @@ function readGamePhase(doc: Record<string, unknown>) {
   };
 }
 
-/** 다음 타자 / 투수 교체 — 같은 공수, 타순 +1 */
+/** 다음 타자 — 같은 공수, 타순 +1 */
 export async function advanceToNextBatter(
   matchId: string,
   force = false,
@@ -524,6 +524,19 @@ export async function advanceToNextBatter(
     { new: true },
   ).lean();
 
+  if (!updated) throw new Error("경기를 찾을 수 없습니다.");
+  return { match: updated as Match, predictionAutoStopped };
+}
+
+/** 투수 교체 — 같은 공수·같은 타순, 예측 라운드만 진행 */
+export async function advancePitcherChange(
+  matchId: string,
+): Promise<{ match: Match; predictionAutoStopped: boolean }> {
+  const before = await MatchModel.findOne({ id: matchId }).lean();
+  if (!before) throw new Error("경기를 찾을 수 없습니다.");
+
+  const { predictionAutoStopped } = await nextRound(matchId, true);
+  const updated = await MatchModel.findOne({ id: matchId }).lean();
   if (!updated) throw new Error("경기를 찾을 수 없습니다.");
   return { match: updated as Match, predictionAutoStopped };
 }

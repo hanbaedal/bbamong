@@ -582,7 +582,11 @@ export default function MatchDetailPage() {
     setSelectedResult(null);
   };
 
-  const handlePitcherChange = async () => {
+  const handleAdvanceRound = async (
+    path: string,
+    failMessage: string,
+    options?: { onSuccess?: (data: Record<string, unknown>) => void },
+  ) => {
     if (isNextBatterLoading) return;
     if (isAdPlaying) {
       handleStopAd();
@@ -590,52 +594,44 @@ export default function MatchDetailPage() {
     }
     setIsNextBatterLoading(true);
     try {
-      const res = await managerFetch(`/api/manager/control/${id}/round/next-batter`, {
-        method: "POST",
-      });
+      const res = await managerFetch(path, { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        toast({ variant: "destructive", description: data.error || "다음 타자 이동에 실패했습니다." });
+        toast({ variant: "destructive", description: data.error || failMessage });
         return;
       }
       setLastAdvanceSkippedResult(true);
-      await fetchMatchDetail();
-    } catch {
-      toast({ variant: "destructive", description: "다음 타자 처리에 실패했습니다." });
-    } finally {
-      setIsNextBatterLoading(false);
-    }
-  };
-
-  const handleSwitchHalf = async () => {
-    if (isNextBatterLoading) return;
-    if (isAdPlaying) {
-      handleStopAd();
-      return;
-    }
-    setIsNextBatterLoading(true);
-    try {
-      const res = await managerFetch(`/api/manager/control/${id}/round/switch-half`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({ variant: "destructive", description: data.error || "공수교대에 실패했습니다." });
-        return;
-      }
       if (data.adStarted) {
         setIsAdPlaying(true);
         adStartTimeRef.current = Date.now();
         setAdElapsedTime(0);
       }
-      setLastAdvanceSkippedResult(true);
+      options?.onSuccess?.(data);
       await fetchMatchDetail();
     } catch {
-      toast({ variant: "destructive", description: "공수교대 처리에 실패했습니다." });
+      toast({ variant: "destructive", description: failMessage });
     } finally {
       setIsNextBatterLoading(false);
     }
   };
+
+  const handleNextBatter = () =>
+    void handleAdvanceRound(
+      `/api/manager/control/${id}/round/next-batter`,
+      "다음 타자 처리에 실패했습니다.",
+    );
+
+  const handlePitcherChange = () =>
+    void handleAdvanceRound(
+      `/api/manager/control/${id}/round/pitcher-change`,
+      "투수 교체 처리에 실패했습니다.",
+    );
+
+  const handleSwitchHalf = () =>
+    void handleAdvanceRound(
+      `/api/manager/control/${id}/round/switch-half`,
+      "공수교대 처리에 실패했습니다.",
+    );
 
   // 광고 타이머 (서버 시작 시각 기반으로 정확한 경과 시간 계산)
   useEffect(() => {
@@ -943,22 +939,31 @@ export default function MatchDetailPage() {
               </span>
             </div>
           )}
-          <div className="flex gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
-              onClick={() => (isAdPlaying ? handleStopAd() : void handlePitcherChange())}
+              onClick={() => (isAdPlaying ? handleStopAd() : handleNextBatter())}
               disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
               data-testid="button-next-batter"
-              className="flex-1 h-[52px] text-white rounded-[6px] flex items-center justify-center text-[14px] font-semibold leading-[140%] tracking-[-0.025em] disabled:opacity-50 bg-[#4285F4]"
+              className="h-[52px] text-white rounded-[6px] flex items-center justify-center text-[13px] font-semibold leading-tight tracking-[-0.025em] disabled:opacity-50 bg-[#4285F4] px-1"
             >
-              {isNextBatterLoading ? "처리중..." : "다음 타자 / 투수 교체"}
+              {isNextBatterLoading ? "처리중..." : "다음 타자"}
             </button>
             <button
               type="button"
-              onClick={() => (isAdPlaying ? handleStopAd() : void handleSwitchHalf())}
+              onClick={() => (isAdPlaying ? handleStopAd() : handlePitcherChange())}
+              disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
+              data-testid="button-pitcher-change"
+              className="h-[52px] text-white rounded-[6px] flex items-center justify-center text-[13px] font-semibold leading-tight tracking-[-0.025em] disabled:opacity-50 bg-[#5C6BC0] px-1"
+            >
+              {isNextBatterLoading ? "처리중..." : "투수 교체"}
+            </button>
+            <button
+              type="button"
+              onClick={() => (isAdPlaying ? handleStopAd() : handleSwitchHalf())}
               disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
               data-testid="button-switch-half"
-              className={`flex-1 h-[52px] text-white rounded-[6px] flex items-center justify-center text-[14px] font-semibold leading-[140%] tracking-[-0.025em] disabled:opacity-50 ${isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"}`}
+              className={`h-[52px] text-white rounded-[6px] flex items-center justify-center text-[13px] font-semibold leading-tight tracking-[-0.025em] disabled:opacity-50 px-1 ${isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"}`}
             >
               {isAdPlaying ? "광고 종료" : isNextBatterLoading ? "처리중..." : "공수 교대"}
             </button>

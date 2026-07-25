@@ -5,7 +5,7 @@ import { AdminStorage } from "../storage/adminStorage";
 import { adminMatchStorage } from "../storage/adminMatchStorage";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAccessToken } from "../utils/jwt";
 import { broadcastManager } from "../liveMatch/broadcastManager";
-import { startRound, stopRound, updateRoundPredictionResult, advanceToNextBatter, advanceInningHalf, getMatchOverallStatistics } from "../liveMatch/predictionStorage";
+import { startRound, stopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { hasActiveSession, createSession, deleteSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
 import { consumeLoginLinkToken, ensureOperatorsReady, peekLoginLinkToken } from "../managerOperatorService";
@@ -809,7 +809,7 @@ export async function managerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 다음 타자 / 투수 교체 (매니저 전용)
+  // 다음 타자 (매니저 전용)
   app.post("/api/manager/control/:id/round/next-batter", async (req, res) => {
     try {
       const accessToken = getManagerAccessToken(req);
@@ -876,6 +876,77 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       console.error("Next batter error:", error);
       const message = error instanceof Error ? error.message : "다음 타자 이동에 실패했습니다.";
+      return res.status(500).json({ error: message });
+    }
+  });
+
+  // 투수 교체 (매니저 전용) — 타순 유지, 라운드만 진행
+  app.post("/api/manager/control/:id/round/pitcher-change", async (req, res) => {
+    try {
+      const accessToken = getManagerAccessToken(req);
+      if (!accessToken) return res.status(401).json({ error: "로그인이 필요합니다." });
+
+      const decoded = verifyAccessToken(accessToken);
+      if (!decoded || decoded.userType !== "매니저") {
+        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
+      }
+
+      const { id } = req.params;
+      const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
+      if (!match) {
+        return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
+      }
+
+      const { match: updatedMatch, predictionAutoStopped } = await advancePitcherChange(id);
+      const overallStats = await getMatchOverallStatistics(id);
+      const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
+
+      if (predictionAutoStopped) {
+        broadcastManager.sendToMatch(id, "prediction_stopped", {
+          matchId: id,
+          currentRound: updatedMatch.currentRound - 1,
+          stoppedRound: updatedMatch.currentRound - 1,
+          message: "투수 교체로 예측이 자동 중지되었습니다.",
+        });
+      }
+
+      broadcastManager.clearAdTimer(id);
+      if (broadcastManager.isAdPlaying(id)) {
+        broadcastManager.setAdPlaying(id, false);
+        broadcastManager.sendToMatch(id, "ad_stopped", {
+          matchId: id,
+          message: "라운드 전환으로 광고가 중지되었습니다.",
+        });
+      }
+
+      broadcastManager.sendToMatch(id, "round_next", {
+        matchId: id,
+        currentRound: updatedMatch.currentRound,
+        predictionEnabled: updatedMatch.predictionEnabled,
+        overallStats,
+        skippedResult: true,
+        gamePhase,
+        message: `투수 교체 — ${gamePhase.displayLabel}`,
+      });
+
+      broadcastManager.sendToMatch(id, "banner_ad_show", {
+        matchId: id,
+        message: "투수 교체 배너 광고를 표시합니다.",
+      });
+
+      return res.json({
+        success: true,
+        message: "투수 교체가 반영되었습니다.",
+        currentRound: updatedMatch.currentRound,
+        gamePhase,
+        predictionAutoStopped,
+      });
+    } catch (error: unknown) {
+      if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: "인증이 만료되었습니다." });
+      }
+      console.error("Pitcher change error:", error);
+      const message = error instanceof Error ? error.message : "투수 교체 처리에 실패했습니다.";
       return res.status(500).json({ error: message });
     }
   });
