@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Eye, EyeOff } from "lucide-react";
-import { useManagerAssets } from "@/contexts/ManagerAssetContext";
 import { getFullUrl, resetManagerRefreshCooldown } from "@/lib/managerQueryClient";
 import { Capacitor } from "@capacitor/core";
 import { setManagerAccessToken, saveManagerRefreshToken } from "@/lib/managerTokenManager";
+import splashIcon from "@assets/manager/manager-mascot.png";
+import {
+  operatorLoginDuringMessage,
+  operatorLoginSuccessMessage,
+  speakKorean,
+} from "@/lib/operatorLoginMessages";
 
 function extractLoginTokenFromUrl(rawUrl: string): string | null {
   try {
@@ -23,19 +24,14 @@ function extractLoginTokenFromUrl(rawUrl: string): string | null {
   return null;
 }
 
+type LinkLoginPhase = "waiting" | "loading" | "success" | "error";
+
 export default function ManagerLoginPage() {
   const [location, setLocation] = useLocation();
-  const { assets } = useManagerAssets();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [linkLoginMessage, setLinkLoginMessage] = useState("");
-  const [errors, setErrors] = useState({
-    email: "",
-    password: "",
-    general: "",
-  });
+  const [linkLoginPhase, setLinkLoginPhase] = useState<LinkLoginPhase>("waiting");
+  const [linkLoginMessage, setLinkLoginMessage] = useState(
+    "카카오톡으로 받은 로그인 링크를 눌러 주세요.",
+  );
   const consumedTokensRef = useRef<Set<string>>(new Set());
 
   const finishLoginSuccess = async (data: { accessToken?: string; refreshToken?: string }) => {
@@ -50,12 +46,25 @@ export default function ManagerLoginPage() {
   const loginWithLinkToken = async (token: string) => {
     if (consumedTokensRef.current.has(token)) return;
     consumedTokensRef.current.add(token);
-    setIsLoading(true);
-    setLinkLoginMessage("자동 로그인 중...");
-    setErrors({ email: "", password: "", general: "" });
+    setLinkLoginPhase("loading");
+    setLinkLoginMessage(operatorLoginDuringMessage());
 
     try {
       window.history.replaceState({}, "", "/manager/login");
+
+      try {
+        const previewRes = await fetch(
+          getFullUrl(`/api/manager/login-link-preview/${encodeURIComponent(token)}`),
+        );
+        if (previewRes.ok) {
+          const preview = await previewRes.json();
+          setLinkLoginMessage(
+            operatorLoginDuringMessage(preview.assignedMatchNumber, preview.operatorSlot),
+          );
+        }
+      } catch {
+        /* preview optional */
+      }
 
       const response = await fetch(getFullUrl("/api/manager/login-with-link"), {
         method: "POST",
@@ -66,31 +75,29 @@ export default function ManagerLoginPage() {
       const data = await response.json();
 
       if (response.ok) {
+        const successMessage = operatorLoginSuccessMessage(
+          data.assignedMatchNumber,
+          data.operatorSlot,
+        );
+        setLinkLoginPhase("success");
+        setLinkLoginMessage(successMessage);
+        await speakKorean(successMessage);
         await finishLoginSuccess(data);
         return;
       }
 
       consumedTokensRef.current.delete(token);
-      setLinkLoginMessage("");
-      setErrors({
-        email: "",
-        password: "",
-        general: data.error || "자동 로그인에 실패했습니다. 관리자에게 새 링크를 요청하세요.",
-      });
+      setLinkLoginPhase("error");
+      setLinkLoginMessage(
+        data.error || "자동 로그인에 실패했습니다. 관리자에게 새 링크를 요청하세요.",
+      );
     } catch {
       consumedTokensRef.current.delete(token);
-      setLinkLoginMessage("");
-      setErrors({
-        email: "",
-        password: "",
-        general: "자동 로그인 중 오류가 발생했습니다.",
-      });
-    } finally {
-      setIsLoading(false);
+      setLinkLoginPhase("error");
+      setLinkLoginMessage("자동 로그인 중 오류가 발생했습니다. 관리자에게 새 링크를 요청하세요.");
     }
   };
 
-  // URL ?t= 또는 딥링크로 들어온 토큰으로 자동 로그인
   useEffect(() => {
     const token =
       extractLoginTokenFromUrl(window.location.href) ||
@@ -100,211 +107,42 @@ export default function ManagerLoginPage() {
     }
   }, [location]);
 
-  const validate = () => {
-    const newErrors = { email: "", password: "", general: "" };
-
-    if (!email.trim()) newErrors.email = "아이디를 입력해 주세요.";
-    if (!password.trim()) newErrors.password = "비밀번호를 입력해 주세요.";
-
-    setErrors(newErrors);
-    return !newErrors.email && !newErrors.password;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validate()) return;
-
-    setIsLoading(true);
-    setErrors({ email: "", password: "", general: "" });
-
-    try {
-      const response = await fetch(getFullUrl("/api/manager/login"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        await finishLoginSuccess(data);
-      } else {
-        setErrors({
-          email: "",
-          password: "",
-          general: data.error || "로그인에 실패했습니다.",
-        });
-      }
-    } catch (error) {
-      setErrors({
-        email: "",
-        password: "",
-        general: "로그인 중 오류가 발생했습니다.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
-    if (errors.email || errors.general) {
-      setErrors((prev) => ({ ...prev, email: "", general: "" }));
-    }
-  };
-
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPassword(e.target.value);
-    if (errors.password || errors.general) {
-      setErrors((prev) => ({ ...prev, password: "", general: "" }));
-    }
-  };
-
   return (
-    <div className="h-[100dvh] bg-white flex flex-col overflow-y-auto overscroll-none admin-autofill-dark w-full" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 44px)', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 32px)', WebkitOverflowScrolling: 'touch' }}>
-      <div className="flex-1 flex flex-col items-center justify-center px-5 py-8">
-        <div className="w-full flex flex-col h-full flex-1">
-          <div
-            className="flex justify-center mb-16"
-            data-testid="logo-container"
-          >
-            <div className="w-[140px] h-[220px] flex items-center justify-center">
-              <img
-                src={assets.managerLogo}
-                alt="운영자 로고"
-                className="w-full h-full object-contain"
-                data-testid="img-login-logo"
-              />
-            </div>
-          </div>
-
-          {linkLoginMessage && (
-            <p className="text-center text-sm text-[#666] mb-4" data-testid="text-link-login">
-              {linkLoginMessage}
-            </p>
-          )}
-
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-5 flex-1 flex flex-col justify-between"
-          >
-            <div className="flex flex-col gap-8">
-              {" "}
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-700 text-sm">
-                  아이디
-                </Label>
-                <div className="relative flex items-center">
-                  <div className="absolute left-0 w-6 h-6 flex items-center justify-center">
-                    <img
-                      src={assets.iconEmail}
-                      alt=""
-                      className="w-5 h-5 object-contain"
-                      data-testid="icon-email"
-                    />
-                  </div>
-                  <Input
-                    id="email"
-                    type="text"
-                    data-testid="input-manager-email"
-                    placeholder="이메일 또는 아이디를 입력하세요"
-                    value={email}
-                    onChange={handleEmailChange}
-                    className={`h-12 bg-white border-0 border-b text-black placeholder:text-gray-400 rounded-none pl-8 focus:outline-none focus:ring-0 focus-visible:ring-0
-                 ${
-                   errors.email || errors.general
-                     ? "border-b-red-500 focus-visible:border-b-red-500"
-                     : "border-b-gray-300 focus-visible:border-b-gray-600"
-                 }
-               `}
-                  />
-                </div>
-                {errors.email && (
-                  <p className="text-red-500 text-xs" data-testid="error-email">
-                    {errors.email}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-gray-700 text-sm">
-                  비밀번호
-                </Label>
-                <div className="relative flex items-center">
-                  <div className="absolute left-0 w-6 h-6 flex items-center justify-center">
-                    <img
-                      src={assets.iconPassword}
-                      alt=""
-                      className="w-5 h-5 object-contain"
-                      data-testid="icon-password"
-                    />
-                  </div>
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    data-testid="input-manager-password"
-                    placeholder="비밀번호를 입력하세요"
-                    value={password}
-                    onChange={handlePasswordChange}
-                    className={`h-12 bg-white border-0 border-b text-black placeholder:text-gray-400 rounded-none pl-8 pr-12 focus:outline-none focus:ring-0 focus-visible:ring-0
-                 ${
-                   errors.password || errors.general
-                     ? "border-b-red-500 focus-visible:border-b-red-500"
-                     : "border-b-gray-300 focus-visible:border-b-gray-600"
-                 }
-               `}
-                  />
-                  <button
-                    type="button"
-                    data-testid="button-toggle-password"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-5 h-5" />
-                    ) : (
-                      <Eye className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p
-                    className="text-red-500 text-xs"
-                    data-testid="error-password"
-                  >
-                    {errors.password}
-                  </p>
-                )}
-                {errors.general && (
-                  <p
-                    className="text-red-500 text-xs"
-                    data-testid="error-general"
-                  >
-                    {errors.general}
-                  </p>
-                )}
-              </div>
-            </div>
-            <p className="text-[#888] text-xs text-center mb-4">
-              카톡으로 받은 로그인 링크를 누르면 자동 로그인됩니다. 또는 아이디와 오늘 비밀번호를 입력하세요.
-            </p>
-            <div className="flex flex-col">
-              <Button
-                type="submit"
-                disabled={isLoading}
-                data-testid="button-manager-login"
-                className="w-full h-12 bg-[#CDFF00] border-none text-black font-semibold text-base rounded-lg mt-8"
-              >
-                {isLoading ? "로그인 중..." : "로그인"}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
+    <div
+      className="fixed inset-0 bg-[#111111] flex flex-col items-center justify-center px-8"
+      data-testid="link-login-splash"
+      style={{
+        paddingTop: "max(env(safe-area-inset-top, 0px), 44px)",
+        paddingBottom: "max(env(safe-area-inset-bottom, 0px), 32px)",
+      }}
+    >
+      <img
+        src={splashIcon}
+        alt="PPAMONG 운영자"
+        className={`w-32 h-auto mb-6 object-contain ${
+          linkLoginPhase === "loading" ? "animate-pulse" : ""
+        }`}
+        data-testid="img-link-login-mascot"
+      />
+      <p
+        className={`text-lg font-semibold text-center leading-relaxed max-w-[320px] ${
+          linkLoginPhase === "error" ? "text-[#FF8A8A]" : "text-[#E9E9E9]"
+        }`}
+        data-testid="text-link-login-message"
+      >
+        {linkLoginMessage}
+      </p>
+      {linkLoginPhase === "loading" && (
+        <div
+          className="mt-6 w-10 h-10 border-[3px] border-[#333] border-t-[#CDFF00] rounded-full animate-spin"
+          aria-hidden
+        />
+      )}
+      {linkLoginPhase === "waiting" && (
+        <p className="mt-4 text-sm text-[#888] text-center max-w-[280px]">
+          링크는 1회용입니다. 만료되면 관리자에게 새 링크를 요청하세요.
+        </p>
+      )}
     </div>
   );
 }

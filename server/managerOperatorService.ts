@@ -144,10 +144,18 @@ export interface LoginLinkConsumeResult {
   userType: string;
   approvalStatus: string;
   status: string;
+  username: string;
+  assignedMatchNumber: string | null;
+  operatorSlot: number;
 }
 
-/** 일회용 로그인 링크 토큰 검증 후 즉시 무효화 */
-export async function consumeLoginLinkToken(token: string): Promise<LoginLinkConsumeResult> {
+export interface LoginLinkPreview {
+  username: string;
+  assignedMatchNumber: string | null;
+  operatorSlot: number;
+}
+
+async function findValidLoginLinkDoc(token: string) {
   const trimmed = token.trim();
   if (!trimmed) {
     throw new Error("로그인 링크가 올바르지 않습니다.");
@@ -183,6 +191,24 @@ export async function consumeLoginLinkToken(token: string): Promise<LoginLinkCon
     throw new Error("비활성화된 계정입니다. 관리자에게 문의하세요.");
   }
 
+  return doc;
+}
+
+/** 로그인 화면 표시용 — 토큰은 소비하지 않음 */
+export async function peekLoginLinkToken(token: string): Promise<LoginLinkPreview> {
+  const doc = await findValidLoginLinkDoc(token);
+  return {
+    username: doc.username,
+    assignedMatchNumber: doc.assignedMatchNumber ?? null,
+    operatorSlot: (doc as { operatorSlot?: number }).operatorSlot ?? 0,
+  };
+}
+
+/** 일회용 로그인 링크 토큰 검증 후 즉시 무효화 */
+export async function consumeLoginLinkToken(token: string): Promise<LoginLinkConsumeResult> {
+  const trimmed = token.trim();
+  const doc = await findValidLoginLinkDoc(trimmed);
+
   const cleared = await AdminUserModel.findOneAndUpdate(
     { id: doc.id, loginLinkToken: trimmed },
     { loginLinkToken: "", loginLinkExpiresAt: null },
@@ -199,6 +225,9 @@ export async function consumeLoginLinkToken(token: string): Promise<LoginLinkCon
     userType: doc.userType,
     approvalStatus: doc.approvalStatus,
     status: doc.status,
+    username: doc.username,
+    assignedMatchNumber: doc.assignedMatchNumber ?? null,
+    operatorSlot: (doc as { operatorSlot?: number }).operatorSlot ?? 0,
   };
 }
 

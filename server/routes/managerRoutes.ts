@@ -8,7 +8,7 @@ import { broadcastManager } from "../liveMatch/broadcastManager";
 import { startRound, stopRound, updateRoundPredictionResult, advanceToNextBatter, advanceInningHalf, getMatchOverallStatistics } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { hasActiveSession, createSession, deleteSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
-import { consumeLoginLinkToken, ensureOperatorsReady } from "../managerOperatorService";
+import { consumeLoginLinkToken, ensureOperatorsReady, peekLoginLinkToken } from "../managerOperatorService";
 import { resolveClientLoginGeo } from "../utils/clientGeo";
 
 const adminStorage = new AdminStorage();
@@ -208,6 +208,18 @@ export async function managerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // 로그인 링크 미리보기 (토큰 소비 없음 — 로딩 화면 문구용)
+  app.get("/api/manager/login-link-preview/:token", async (req, res) => {
+    try {
+      const token = String(req.params.token || "").trim();
+      const preview = await peekLoginLinkToken(token);
+      return res.json(preview);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "로그인 링크를 확인할 수 없습니다.";
+      return res.status(401).json({ error: message });
+    }
+  });
+
   // 일회용 로그인 링크로 세션 발급
   app.post("/api/manager/login-with-link", async (req, res) => {
     try {
@@ -238,6 +250,9 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: "로그인 성공",
         accessToken,
         refreshToken,
+        username: consumed.username,
+        assignedMatchNumber: consumed.assignedMatchNumber,
+        operatorSlot: consumed.operatorSlot,
       });
     } catch (error) {
       console.error("Manager login-with-link error:", error);
