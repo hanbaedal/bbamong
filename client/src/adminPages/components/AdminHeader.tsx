@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { LogOut, Menu } from "lucide-react";
+import { LogOut, Map, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getFullUrl } from "@/lib/queryClient";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
@@ -10,7 +10,7 @@ interface AdminHeaderProps {
 }
 
 export default function AdminHeader({ onOpenMenu }: AdminHeaderProps) {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { assets } = useAdminAssets();
 
@@ -50,9 +50,9 @@ export default function AdminHeader({ onOpenMenu }: AdminHeaderProps) {
         </Button>
         <button
           type="button"
-          onClick={() => setLocation("/admin/home")}
+          onClick={() => setLocation("/admin/match-management")}
           className="flex items-center gap-2 min-w-0"
-          aria-label="관리자 홈"
+          aria-label="경기 관리"
         >
           <img
             src={assets.adminLogo}
@@ -68,17 +68,33 @@ export default function AdminHeader({ onOpenMenu }: AdminHeaderProps) {
           </span>
         </button>
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleLogout}
-        disabled={isLoggingOut}
-        className="text-gray-600 hover:text-gray-900 shrink-0"
-        data-testid="button-admin-logout"
-      >
-        <LogOut className="w-4 h-4 sm:mr-2" />
-        <span className="hidden sm:inline">{isLoggingOut ? "로그아웃 중..." : "로그아웃"}</span>
-      </Button>
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setLocation("/admin/home")}
+          className={`shrink-0 ${
+            location === "/admin/home"
+              ? "text-[#E11936] bg-[#FFF0F2] hover:bg-[#FFE8EC] hover:text-[#E11936]"
+              : "text-gray-600 hover:text-[#E11936]"
+          }`}
+          data-testid="button-admin-sitemap"
+        >
+          <Map className="w-4 h-4 sm:mr-1.5" />
+          <span className="hidden sm:inline text-sm">사이트맵</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="text-gray-600 hover:text-gray-900 shrink-0"
+          data-testid="button-admin-logout"
+        >
+          <LogOut className="w-4 h-4 sm:mr-2" />
+          <span className="hidden sm:inline">{isLoggingOut ? "로그아웃 중..." : "로그아웃"}</span>
+        </Button>
+      </div>
     </div>
   );
 }

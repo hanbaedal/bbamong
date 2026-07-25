@@ -20,12 +20,6 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
       title: "기본",
       items: [
         {
-          id: "admin-home",
-          label: "관리자 대시보드",
-          path: "/admin/home",
-          iconKey: "adListIcon",
-        },
-        {
           id: "app-home-settings",
           label: "앱 홈 설정",
           path: "/admin/app-home-settings",
@@ -35,43 +29,51 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
     },
     {
       id: "mall",
-      title: "쇼핑몰",
+      title: "쇼핑몰 · 판매",
       items: [
         {
-          id: "mall-preview",
-          label: "쇼핑몰 확인 (작업용)",
-          path: "/admin/mall-preview",
+          id: "mall-group",
+          label: "쇼핑몰",
           iconKey: "adMatchCharaterIcon",
+          children: [
+            {
+              id: "mall-preview",
+              label: "쇼핑몰 확인 (작업용)",
+              path: "/admin/mall-preview",
+            },
+            {
+              id: "mall-management",
+              label: "쇼핑몰 관리",
+              path: "/admin/mall-management",
+            },
+          ],
         },
         {
-          id: "mall-management",
-          label: "쇼핑몰 관리",
-          path: "/admin/mall-management",
-          iconKey: "adMatchCharaterIcon",
-        },
-        {
-          id: "mall-orders",
-          label: "주문 관리",
-          path: "/admin/mall-orders",
-          iconKey: "adMatchCharaterIcon",
-        },
-        {
-          id: "mall-sales",
-          label: "판매 관리",
-          path: "/admin/mall-sales",
-          iconKey: "adMatchCharaterIcon",
-        },
-        {
-          id: "mall-inventory",
-          label: "재고 관리",
-          path: "/admin/mall-inventory",
-          iconKey: "adMatchCharaterIcon",
-        },
-        {
-          id: "mall-purchase",
-          label: "구매 관리",
-          path: "/admin/mall-purchase",
-          iconKey: "adMatchCharaterIcon",
+          id: "mall-sales-group",
+          label: "판매관리",
+          iconKey: "adProfitIcon",
+          children: [
+            {
+              id: "mall-orders",
+              label: "주문 관리",
+              path: "/admin/mall-orders",
+            },
+            {
+              id: "mall-sales",
+              label: "판매 관리",
+              path: "/admin/mall-sales",
+            },
+            {
+              id: "mall-inventory",
+              label: "재고 관리",
+              path: "/admin/mall-inventory",
+            },
+            {
+              id: "mall-purchase",
+              label: "구매 관리",
+              path: "/admin/mall-purchase",
+            },
+          ],
         },
       ],
     },
@@ -237,7 +239,77 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
   return sections.filter((section) => !section.superAdminOnly || isSuperAdmin);
 }
 
-/** 홈 대시보드용 — 홈 페이지 자체는 제외 */
+const EXCLUDED_SITEMAP_PATHS = new Set(["/admin/home", "/admin/monitoring"]);
+
+function stripExcludedSitemapItems(items: AdminMenuItem[]): AdminMenuItem[] {
+  return items
+    .map((item) => {
+      if (item.path && EXCLUDED_SITEMAP_PATHS.has(item.path)) return null;
+      if (item.children) {
+        const children = item.children.filter(
+          (child) => !child.path || !EXCLUDED_SITEMAP_PATHS.has(child.path),
+        );
+        if (children.length === 0 && !item.path) return null;
+        return { ...item, children };
+      }
+      return item;
+    })
+    .filter((item): item is AdminMenuItem => item !== null);
+}
+
+export interface AdminSitemapColumn {
+  id: string;
+  label: string;
+  items: AdminMenuItem[];
+}
+
+/** 사이트맵 5열 — 모니터링·사이트맵 페이지 제외 */
+export function buildAdminSitemapColumns(isSuperAdmin: boolean): AdminSitemapColumn[] {
+  const sections = buildAdminMenuSections(isSuperAdmin);
+  const sectionById = Object.fromEntries(sections.map((section) => [section.id, section]));
+
+  const basicItems = stripExcludedSitemapItems(
+    (sectionById.main?.items ?? []).filter((item) => item.id !== "admin-home"),
+  );
+  const supervisorItems = isSuperAdmin ? (sectionById["staff-ops"]?.items ?? []) : [];
+
+  const mallItems = sectionById.mall?.items ?? [];
+  const mallShopGroup = mallItems.find((item) => item.id === "mall-group");
+  const mallSalesGroup = mallItems.find((item) => item.id === "mall-sales-group");
+
+  return [
+    {
+      id: "basic",
+      label: "기본",
+      items: stripExcludedSitemapItems([...basicItems, ...supervisorItems]),
+    },
+    {
+      id: "mall-shop",
+      label: "쇼핑몰",
+      items: stripExcludedSitemapItems(mallShopGroup?.children ?? []),
+    },
+    {
+      id: "mall-sales",
+      label: "판매관리",
+      items: stripExcludedSitemapItems(mallSalesGroup?.children ?? []),
+    },
+    {
+      id: "match-members",
+      label: "경기·회원",
+      items: stripExcludedSitemapItems(sectionById["match-members"]?.items ?? []),
+    },
+    {
+      id: "ops-support",
+      label: "운영·지원",
+      items: stripExcludedSitemapItems([
+        ...(sectionById["revenue-operator"]?.items ?? []),
+        ...(sectionById["notice-support"]?.items ?? []),
+      ]),
+    },
+  ].filter((column) => column.items.length > 0);
+}
+
+/** 사이트맵용 — 사이트맵 페이지 자체는 제외 */
 export function flattenHomeLinks(sections: AdminMenuSection[]): { label: string; path: string }[] {
   const links: { label: string; path: string }[] = [];
   for (const section of sections) {
