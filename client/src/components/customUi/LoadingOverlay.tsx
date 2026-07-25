@@ -10,6 +10,11 @@ interface WaitingScreen {
   videoUrl: string;
 }
 
+export interface GamePhaseDisplay {
+  line1: string;
+  line2: string;
+}
+
 interface LoadingOverlayProps {
   matchInfo: string;
   datetime: string;
@@ -20,7 +25,7 @@ interface LoadingOverlayProps {
 
   onDonate?: () => void;
   waitingMessage?: string;
-  gamePhaseLabel?: string;
+  gamePhaseDisplay?: GamePhaseDisplay;
   matchId?: string;
   hasPendingPrediction?: boolean;
   isTimedOut?: boolean;
@@ -40,7 +45,7 @@ export default function LoadingOverlay({
 
   onDonate,
   waitingMessage,
-  gamePhaseLabel,
+  gamePhaseDisplay,
   matchId,
   hasPendingPrediction = false,
   isTimedOut = false,
@@ -156,7 +161,7 @@ export default function LoadingOverlay({
         secondText = "";
       }
       stateColor = "text-white";
-      imageSrc = assets.pendingGif;
+      imageSrc = assets.userMascot;
       break;
     case "success":
       topText = "예측결과확인";
@@ -178,25 +183,32 @@ export default function LoadingOverlay({
         className="fixed inset-0 bg-black flex flex-col items-center justify-center z-[68] px-5"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)' }}
       >
+        {gamePhaseDisplay && (
+          <div className="text-center mb-6 px-4 w-full" data-testid="text-game-phase">
+            <p className="text-[32px] sm:text-[36px] font-bold text-[#CDFF00] leading-snug mb-3">
+              {gamePhaseDisplay.line1}
+            </p>
+            <p className="text-[26px] sm:text-[30px] font-bold text-white leading-snug">
+              {gamePhaseDisplay.line2}
+            </p>
+          </div>
+        )}
+
+        <div className="text-center mb-8 px-4 w-full" data-testid="text-waiting-status">
+          <p className="text-lg sm:text-xl font-bold text-white leading-snug">
+            {firstText}
+          </p>
+          {secondText && (
+            <p className="mt-2 text-base sm:text-lg text-white/90 leading-snug">{secondText}</p>
+          )}
+        </div>
+
         <img
-          src={assets.pendingGif}
-          alt="대기 중"
-          className="w-[150px] h-[150px] object-contain"
+          src={assets.userMascot}
+          alt="빠몽이"
+          className="w-[180px] h-[180px] object-contain"
           data-testid="img-waiting-screen"
         />
-
-        {gamePhaseLabel && (
-          <p className="text-center text-xs text-[#CDFF00] font-semibold mb-3 px-4" data-testid="text-game-phase">
-            {gamePhaseLabel}
-          </p>
-        )}
-
-        <p className="text-center text-sm font-bold mb-2 text-white">
-          {firstText}
-        </p>
-        {secondText && (
-          <p className="text-center text-sm text-white">{secondText}</p>
-        )}
 
         {isTimedOut && onRetry && (
           <button

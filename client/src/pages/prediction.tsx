@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import ConfirmPopup from "@/components/customUi/confirmPopup";
-import LoadingOverlay from "@/components/customUi/LoadingOverlay";
+import LoadingOverlay, { type GamePhaseDisplay } from "@/components/customUi/LoadingOverlay";
 import DonationPopup from "@/components/customUi/donationPopup";
 import SimpleInfoPopup from "@/components/customUi/simpleInfoPopup";
 import PageHeader from "@/components/PageHeader";
@@ -26,17 +26,36 @@ import {
 } from "@shared/predictionOdds";
 type PredictionOption = "1루" | "2루" | "3루" | "홈런" | "아웃";
 
-function gamePhaseLabelFromPayload(payload: {
+function gamePhaseDisplayFromPayload(payload: {
   displayLabel?: string;
   name?: string;
   gameInning?: number;
   inningHalf?: string;
   batterIndexInHalf?: number;
-}): string | undefined {
-  if (payload.displayLabel) return payload.displayLabel;
-  if (!payload.gameInning) return undefined;
-  const half = payload.inningHalf === "bottom" ? "홈팀 공격" : "원정팀 공격";
-  return `${payload.name ?? "경기"} · ${payload.gameInning}회 · ${half} · ${payload.batterIndexInHalf ?? 1}번째 타자`;
+}): GamePhaseDisplay | undefined {
+  if (payload.gameInning != null) {
+    const name = payload.name ?? "경기";
+    const half = payload.inningHalf === "bottom" ? "홈팀 공격" : "원정팀 공격";
+    const batter = payload.batterIndexInHalf ?? 1;
+    return {
+      line1: `${name} (${payload.gameInning}회)`,
+      line2: `${half} (${batter}번째 타자)`,
+    };
+  }
+
+  if (payload.displayLabel) {
+    const parts = payload.displayLabel.split(" · ").map((part) => part.trim());
+    if (parts.length >= 4) {
+      const inningPart = parts[1]?.replace(/회$/, "") ?? "1";
+      const batterPart = parts[3]?.replace(/번째 타자$/, "") ?? "1";
+      return {
+        line1: `${parts[0]} (${inningPart}회)`,
+        line2: `${parts[2]} (${batterPart}번째 타자)`,
+      };
+    }
+  }
+
+  return undefined;
 }
 
 interface MatchData {
@@ -94,7 +113,7 @@ export default function PredictionPage() {
   const [lastBetAmount, setLastBetAmount] = useState<number>(0);
   const [formattedDate, setFormattedDate] = useState("");
   const [waitingForPredictionStart, setWaitingForPredictionStart] = useState(false);
-  const [gamePhaseLabel, setGamePhaseLabel] = useState<string | undefined>();
+  const [gamePhaseDisplay, setGamePhaseDisplay] = useState<GamePhaseDisplay | undefined>();
   const [hasPendingPrediction, _setHasPendingPrediction] = useState(false);
   const setHasPendingPrediction = useCallback((val: boolean) => {
     hasPendingPredictionRef.current = val;
@@ -430,7 +449,7 @@ export default function PredictionPage() {
       console.log("[WS] 다음 라운드 전환:", data);
 
       if (data?.gamePhase) {
-        setGamePhaseLabel(gamePhaseLabelFromPayload(data.gamePhase));
+        setGamePhaseDisplay(gamePhaseDisplayFromPayload(data.gamePhase));
       }
       
       if (resultShownRef.current) {
@@ -713,9 +732,9 @@ export default function PredictionPage() {
         const matchData = await response.json();
         console.log("[Polling] 경기 상태: predictionEnabled=", matchData.predictionEnabled, "matchStatus=", matchData.matchStatus);
 
-        const phaseLabel = gamePhaseLabelFromPayload(matchData.gamePhase ?? matchData);
-        if (phaseLabel) {
-          setGamePhaseLabel(phaseLabel);
+        const phaseDisplay = gamePhaseDisplayFromPayload(matchData.gamePhase ?? matchData);
+        if (phaseDisplay) {
+          setGamePhaseDisplay(phaseDisplay);
         }
         
         if (stopped) return;
@@ -753,6 +772,31 @@ export default function PredictionPage() {
       clearInterval(intervalId);
     };
   }, [waitingForPredictionStart, selectedMatch?.id]);
+
+  // 결과 대기(진루 예측) 화면에서도 경기 페이즈 표시
+  useEffect(() => {
+    if (!showPendingPopup || waitingForPredictionStart || !selectedMatch?.id) {
+      return;
+    }
+
+    const refreshGamePhase = async () => {
+      try {
+        const response = await apiRequest("GET", `/api/matches/${selectedMatch.id}`);
+        if (!response.ok) return;
+        const matchData = await response.json();
+        const phaseDisplay = gamePhaseDisplayFromPayload(matchData.gamePhase ?? matchData);
+        if (phaseDisplay) {
+          setGamePhaseDisplay(phaseDisplay);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    refreshGamePhase();
+    const intervalId = setInterval(refreshGamePhase, 5000);
+    return () => clearInterval(intervalId);
+  }, [showPendingPopup, waitingForPredictionStart, selectedMatch?.id]);
 
   // 결과 대기 중일 때 예측 결과 폴링 (WebSocket round_result 이벤트 백업)
   // 핵심: "예측 시작 대기"와 "결과 대기"를 구분하여 처리
@@ -1632,7 +1676,7 @@ export default function PredictionPage() {
           prediction={waitingForPredictionStart ? undefined : (selectedPrediction ?? undefined)}
           onClose={handleClosePending}
           waitingMessage={waitingForPredictionStart ? "다음 타자 예측을 기다리는 중 입니다." : undefined}
-          gamePhaseLabel={gamePhaseLabel}
+          gamePhaseDisplay={gamePhaseDisplay}
           matchId={selectedMatch.id}
           hasPendingPrediction={hasPendingPrediction}
           isTimedOut={pollingTimedOut}
