@@ -31,11 +31,14 @@ function clearAllMatchTimers() {
   }
 }
 
-/** ① 매일 09:00 — 오늘 1~5경기 api-sports → Match DB */
+/** ① 매일 09:00 KST — 오늘 1~5경기 api-sports → Match DB */
 export async function runDailyMatchScheduleSync(): Promise<void> {
   const date = getKstDateString();
-  console.log(`[MatchMgmtSchedule] daily sync ${date}`);
-  await syncTodayGamesFromApiSports(date, { forceApi: true });
+  console.log(`[MatchMgmtSchedule] daily Match sync ${date}`);
+  const result = await syncTodayGamesFromApiSports(date, { forceApi: true });
+  console.log(
+    `[MatchMgmtSchedule] daily ${date}: created ${result.created}, updated ${result.updated}, linked ${result.linked}, source ${result.source}`,
+  );
   await syncOperatorMatchAssignments();
   await rescheduleTodayMatchTimers();
 }

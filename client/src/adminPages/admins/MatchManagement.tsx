@@ -88,6 +88,7 @@ export default function MatchManagement() {
     source?: "cache" | "api";
   } | null>(null);
   const [importingSeason, setImportingSeason] = useState(false);
+  const [importingSeasonMatches, setImportingSeasonMatches] = useState(false);
 
   const { data: stadiums } = useQuery<Stadium[]>({
     queryKey: ["/api/admin/stadiums"],
@@ -193,6 +194,37 @@ export default function MatchManagement() {
     }
   };
 
+  const importSeasonMatches = async () => {
+    const season = new Date().getFullYear();
+    setImportingSeasonMatches(true);
+    try {
+      const res = await apiRequest("POST", "/api/admin/matches/import-season-matches", {
+        season,
+        prefetchScheduleCache: true,
+      });
+      const body = await res.json();
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/stadiums"] });
+      toast({
+        description:
+          body.message ??
+          `${season}시즌 Match · ${body.daysSynced ?? 0}일 · 신규 ${body.created ?? 0} · 갱신 ${body.updated ?? 0}`,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({
+        variant: "destructive",
+        description: message.includes("API_SPORTS_KEY")
+          ? "Replit Secrets에 API_SPORTS_KEY가 없습니다."
+          : message.includes("Free plans")
+            ? "Free 플랜은 현재 시즌 조회가 불가합니다. Pro 키를 확인하세요."
+            : `시즌 Match 등록 실패: ${message}`,
+      });
+    } finally {
+      setImportingSeasonMatches(false);
+    }
+  };
+
   const importSeasonSchedule = async () => {
     const season = new Date().getFullYear();
     setImportingSeason(true);
@@ -240,8 +272,19 @@ export default function MatchManagement() {
           <div className="flex flex-wrap gap-2 shrink-0">
             <button
               type="button"
+              className="px-3 py-1.5 text-xs rounded-md border border-[#E11936] text-[#E11936] bg-white hover:bg-[#FFF1F3] disabled:opacity-50"
+              disabled={importingSeasonMatches || Boolean(syncingDate) || importingSeason}
+              onClick={() => void importSeasonMatches()}
+              data-testid="button-import-season-matches"
+            >
+              {importingSeasonMatches
+                ? "Match 등록 중..."
+                : `${new Date().getFullYear()} 시즌 Match 등록`}
+            </button>
+            <button
+              type="button"
               className="px-3 py-1.5 text-xs rounded-md border border-[#E9E9E9] bg-white hover:border-[#E11936] disabled:opacity-50"
-              disabled={importingSeason || Boolean(syncingDate)}
+              disabled={importingSeason || importingSeasonMatches || Boolean(syncingDate)}
               onClick={() => void importSeasonSchedule()}
               data-testid="button-import-season"
             >
@@ -250,7 +293,7 @@ export default function MatchManagement() {
             <button
               type="button"
               className="px-3 py-1.5 text-xs rounded-md bg-[#201E22] text-white disabled:opacity-50"
-              disabled={Boolean(syncingDate) || importingSeason}
+              disabled={Boolean(syncingDate) || importingSeason || importingSeasonMatches}
               onClick={() => void openDay(new Date(), { sync: false })}
               data-testid="button-open-today"
             >
@@ -377,7 +420,7 @@ export default function MatchManagement() {
                     ? "일정 불러오는 중..."
                     : lastSyncMeta?.date === selectedDateKey
                       ? `${lastSyncMeta.source === "api" ? "API 반영" : "DB 캐시 반영"} · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}`
-                      : "시즌·오늘 이전은 DB 있으면 패스 · 09:00 오늘 · 시작=상태 · 종료=스코어"}
+                      : "시즌 Match 일괄 등록 · 매일 09:00 오늘 경기 자동 저장 · 시작=상태 · 종료=스코어"}
                 </p>
               </div>
               <div className="flex items-center gap-2">

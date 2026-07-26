@@ -11,7 +11,7 @@ import {
   isGameLiveStatus,
   parseLiveScoreboard,
 } from "./scoreboardParser";
-import { getScheduleGamesForDate } from "./scheduleCache";
+import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import { LIVE_SCORE_MAX_REGISTRATION_ORDER } from "./constants";
 
 const MAX_DAILY_MATCHES = 5;
@@ -229,6 +229,98 @@ function currentSeasonYear(): number {
 function seasonRangeStart(season: number): string {
   const mmdd = process.env.MATCH_MGMT_SEASON_START_MM_DD || "03-01";
   return `${season}-${mmdd}`;
+}
+
+function seasonRangeEnd(season: number): string {
+  const mmdd = process.env.MATCH_MGMT_SEASON_END_MM_DD || "10-31";
+  return `${season}-${mmdd}`;
+}
+
+const SEASON_IMPORT_DAY_DELAY_MS = Math.max(
+  0,
+  parseInt(process.env.MATCH_MGMT_SEASON_IMPORT_DELAY_MS || "80", 10) || 80,
+);
+
+/**
+ * 시즌 전체(기본 3/1~10/31) 날짜별 Match DB 등록 — 경기관리 달력용
+ * prefetchScheduleCache=true 이면 ApiSportsScheduleCache 선적재 후 Match 등록(API 절약)
+ */
+export async function importSeasonMatchesFromApiSports(
+  season?: number,
+  options?: { prefetchScheduleCache?: boolean; forceApi?: boolean },
+): Promise<{
+  season: number;
+  daysChecked: number;
+  daysSynced: number;
+  daysEmpty: number;
+  daysFromApi: number;
+  created: number;
+  updated: number;
+  linked: number;
+}> {
+  const targetSeason = season ?? currentSeasonYear();
+  const prefetchScheduleCache = options?.prefetchScheduleCache !== false;
+
+  if (prefetchScheduleCache) {
+    await importSeasonScheduleToCache(targetSeason);
+  }
+
+  let cursor = seasonRangeStart(targetSeason);
+  const end = seasonRangeEnd(targetSeason);
+
+  let daysChecked = 0;
+  let daysSynced = 0;
+  let daysEmpty = 0;
+  let daysFromApi = 0;
+  let created = 0;
+  let updated = 0;
+  let linked = 0;
+
+  while (cursor <= end) {
+    daysChecked += 1;
+
+    let result = await syncTodayGamesFromApiSports(cursor, {
+      forceApi: options?.forceApi ?? false,
+    });
+
+    if (result.games.length === 0 && !options?.forceApi) {
+      result = await syncTodayGamesFromApiSports(cursor, { forceApi: true });
+    }
+
+    if (result.source === "api") {
+      daysFromApi += 1;
+    }
+
+    if (result.games.length === 0) {
+      daysEmpty += 1;
+    } else {
+      daysSynced += 1;
+      created += result.created;
+      updated += result.updated;
+      linked += result.linked;
+    }
+
+    if (SEASON_IMPORT_DAY_DELAY_MS > 0) {
+      await new Promise((resolve) => setTimeout(resolve, SEASON_IMPORT_DAY_DELAY_MS));
+    }
+
+    cursor = addKstDays(cursor, 1);
+  }
+
+  console.log(
+    `[MatchMgmt] season ${targetSeason} Match import: days ${daysSynced}/${daysChecked}, created ${created}, updated ${updated}, apiDays ${daysFromApi}`,
+  );
+
+  return {
+    season: targetSeason,
+    daysChecked,
+    daysSynced,
+    daysEmpty,
+    daysFromApi,
+    created,
+    updated,
+    linked,
+  };
 }
 
 /**

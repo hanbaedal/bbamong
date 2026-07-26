@@ -8,6 +8,7 @@ import { PREDICTION_ODDS } from "@shared/predictionOdds";
 import { getApiSportsHealth } from "./healthState";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import {
+  importSeasonMatchesFromApiSports,
   linkMatchToApiSports,
   mapTodayGames,
   setMatchControlMode,
@@ -49,14 +50,41 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
     }
   });
 
+  app.post("/api/admin/matches/import-season-matches", adminAuthMiddleware, async (req, res) => {
+    try {
+      const body = z
+        .object({
+          season: z.number().int().optional(),
+          prefetchScheduleCache: z.boolean().optional(),
+          forceApi: z.boolean().optional(),
+        })
+        .parse(req.body ?? {});
+      const season = body.season ?? new Date().getFullYear();
+      const result = await importSeasonMatchesFromApiSports(season, {
+        prefetchScheduleCache: body.prefetchScheduleCache,
+        forceApi: body.forceApi,
+      });
+      await syncOperatorMatchAssignments();
+      await rescheduleTodayMatchTimers();
+      res.json({
+        message: `${season}시즌 경기관리 Match 등록 완료 (경기 있는 날 ${result.daysSynced}일)`,
+        ...result,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "시즌 Match 등록 실패";
+      res.status(502).json({ error: message });
+    }
+  });
+
   app.post("/api/admin/matches/sync-from-api-sports", adminAuthMiddleware, async (req, res) => {
     try {
       const body = z
         .object({ date: z.string().optional(), forceApi: z.boolean().optional() })
         .parse(req.body ?? {});
-      const result = await syncTodayGamesFromApiSports(body.date, { forceApi: body.forceApi });
+      const targetDate = body.date ?? getKstDateString();
+      const result = await syncTodayGamesFromApiSports(targetDate, { forceApi: body.forceApi });
       await syncOperatorMatchAssignments();
-      if (body.forceApi) {
+      if (body.forceApi || targetDate === getKstDateString()) {
         await rescheduleTodayMatchTimers();
       }
       res.json(result);
