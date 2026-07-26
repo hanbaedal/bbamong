@@ -18,17 +18,22 @@ export async function createSession(
   userId: string,
   sessionData?: any
 ): Promise<void> {
-  const redis = getRedisClient();
-  const key = getSessionKey(userType, userId);
-  
-  const data = JSON.stringify({
-    userId,
-    userType,
-    loginTime: new Date().toISOString(),
-    ...sessionData,
-  });
+  try {
+    const redis = getRedisClient();
+    const key = getSessionKey(userType, userId);
 
-  await redis.setex(key, SESSION_TTL, data);
+    const data = JSON.stringify({
+      userId,
+      userType,
+      loginTime: new Date().toISOString(),
+      ...sessionData,
+    });
+
+    await redis.setex(key, SESSION_TTL, data);
+  } catch (error) {
+    // Redis 장애 시에도 JWT 로그인(특히 게스트)은 계속 허용
+    console.error(`[Session] Failed to create session for ${userType}:${userId}:`, error);
+  }
 }
 
 /**
@@ -38,10 +43,14 @@ export async function deleteSession(
   userType: UserType,
   userId: string
 ): Promise<void> {
-  const redis = getRedisClient();
-  const key = getSessionKey(userType, userId);
-  await redis.del(key);
-  
+  try {
+    const redis = getRedisClient();
+    const key = getSessionKey(userType, userId);
+    await redis.del(key);
+  } catch (error) {
+    console.error(`[Session] Failed to delete session for ${userType}:${userId}:`, error);
+  }
+
   // WebSocket 연결 강제 종료 (세션 삭제 시 기존 연결 정리)
   try {
     wsManager.forceDisconnectBySubjectId(userType, userId);

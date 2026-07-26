@@ -11,9 +11,9 @@ import Popup from "@/components/customUi/infoPopup";
 import { TermsModal } from "@/components/TermsModal";
 import { Term } from "@shared/schema";
 import { getFullUrl } from "@/lib/queryClient";
-import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
 import { resetRefreshCooldown } from "@/lib/queryClient";
+import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import PageHeader from "@/components/PageHeader";
 
 export default function SocialOnboardingPage() {

@@ -21,6 +21,16 @@ import { hasActiveSession, createSession, deleteSession } from "../sessionManage
 import { getSocialPendingData, deleteSocialPendingData } from "./socialAuthRoutes";
 import { getRedisClient } from "../redis";
 
+const PHONE_REGEX = /^01[0-9]{8,9}$/;
+
+function normalizePhone(phone: string): string {
+  return phone.replace(/-/g, "");
+}
+
+function validatePhoneFormat(phone: string): boolean {
+  return PHONE_REGEX.test(normalizePhone(phone));
+}
+
 export async function userRoutes(app: Express): Promise<void> {
   // 아이디 중복 확인
   app.post("/api/check-username", async (req, res) => {
@@ -108,19 +118,21 @@ export async function userRoutes(app: Express): Promise<void> {
       }
 
       const { username, phone } = result.data;
-      const cleanPhone = phone ? phone.replace(/-/g, "") : phone;
+      const cleanPhone = phone ? normalizePhone(phone) : phone;
 
-      // 전화번호 인증 확인
+      if (cleanPhone && !validatePhoneFormat(cleanPhone)) {
+        return res.status(400).json({ error: "올바른 전화번호 형식이 아닙니다." });
+      }
+
       if (cleanPhone) {
         const redis = getRedisClient();
         const verifiedKey = `phone_verified:${cleanPhone}`;
         const isPhoneVerified = await redis.get(verifiedKey);
-        
+
         if (!isPhoneVerified) {
           return res.status(400).json({ error: "전화번호 인증을 완료해주세요." });
         }
-        
-        // 인증 완료 후 Redis에서 인증 플래그 삭제 (재사용 방지)
+
         await redis.del(verifiedKey);
       }
 
@@ -351,62 +363,29 @@ export async function userRoutes(app: Express): Promise<void> {
 
       await storage.updateVerificationCodeByPhone(cleanPhone, verificationCode, expiry);
 
-      // SMS 발송 (phoneVerificationRoutes.ts의 로직 재사용)
-      const crypto = await import("crypto");
-      const https = await import("https");
-      
-      const SOLAPI_HOST = "api.solapi.com";
-      const apiKey = process.env.SOLAPI_API_KEY || "";
-      const apiSecret = process.env.SOLAPI_API_SECRET || "";
-      const senderPhone = process.env.SOLAPI_SENDER_PHONE || "01049961316";
-      
-      const date = new Date().toISOString();
-      const salt = crypto.randomBytes(32).toString("hex");
-      const signature = crypto.createHmac("sha256", apiSecret).update(date + salt).digest("hex");
-      const authHeader = `HMAC-SHA256 apiKey=${apiKey}, date=${date}, salt=${salt}, signature=${signature}`;
-      
-      const message = { to: cleanPhone, from: senderPhone, text: `[비밀번호 재설정] 인증번호: ${verificationCode}\n유효시간 3분` };
-      const body = Buffer.from(JSON.stringify({ message }), "utf8");
-      
-      const sendSMS = () => new Promise<void>((resolve, reject) => {
-        const req = https.request(
-          { hostname: SOLAPI_HOST, port: 443, method: "POST", path: "/messages/v4/send", headers: { Authorization: authHeader, "Content-Type": "application/json", "Content-Length": body.length }, timeout: 15000 },
-          (res) => {
-            let data = "";
-            res.on("data", (c) => (data += c));
-            res.on("end", () => {
-              try {
-                const json = JSON.parse(data || "{}");
-                if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300 && json.groupId) {
-                  resolve();
-                } else {
-                  reject(new Error(`SMS_SEND_FAILED: ${data}`));
-                }
-              } catch (e) {
-                reject(e);
-              }
-            });
-          }
-        );
-        req.on("timeout", () => req.destroy(new Error("REQUEST_TIMEOUT")));
-        req.on("error", (e) => reject(e));
-        req.write(body.toString());
-        req.end();
-      });
-      
+      const { formatSolapiError, sendSolapiSms } = await import("../utils/solapiSms");
+
       try {
-        await sendSMS();
-        console.log(`[비밀번호 재설정] 인증번호 ${verificationCode}가 ${cleanPhone}로 전송되었습니다.`);
-      } catch (smsError) {
-        console.error("SMS 전송 실패:", smsError);
-        if (!apiKey || !apiSecret) {
+        const smsResult = await sendSolapiSms({
+          to: cleanPhone,
+          text: `[비밀번호 재설정] 인증번호: ${verificationCode}\n유효시간 3분`,
+          logLabel: "password-reset",
+        });
+        if (smsResult.devMode) {
           console.log(`[개발모드] 비밀번호 재설정 인증번호: ${verificationCode} (전화번호: ${cleanPhone})`);
-        } else {
-          return res.status(500).json({ error: "SMS 전송에 실패했습니다. 잠시 후 다시 시도해주세요." });
         }
+      } catch (smsError) {
+        console.error("SMS 전송 실패:", formatSolapiError(smsError), smsError);
+        if (smsError instanceof Error && smsError.message === "SOLAPI_NOT_CONFIGURED") {
+          return res.status(503).json({
+            error:
+              "문자 인증 서비스(SOLAPI)가 설정되지 않았습니다. 관리자에게 문의해 주세요.",
+          });
+        }
+        return res.status(500).json({ error: "SMS 전송에 실패했습니다. 잠시 후 다시 시도해주세요." });
       }
 
-      return res.json({ 
+      return res.json({
         success: true, 
         message: "인증번호가 전송되었습니다.",
         expiresIn: 180
@@ -525,7 +504,11 @@ export async function userRoutes(app: Express): Promise<void> {
       }
 
       if (phone) {
-        const cleanPhone = phone.replace(/-/g, "");
+        const cleanPhone = normalizePhone(phone);
+        if (!validatePhoneFormat(cleanPhone)) {
+          return res.status(400).json({ error: "올바른 전화번호 형식이 아닙니다." });
+        }
+
         const redis = getRedisClient();
         const verifiedKey = `phone_verified:${cleanPhone}`;
         const isPhoneVerified = await redis.get(verifiedKey);
@@ -634,7 +617,11 @@ export async function userRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "이미 사용 중인 이메일입니다." });
       }
 
-      const cleanPhone = phone.replace(/-/g, "");
+      const cleanPhone = normalizePhone(phone);
+      if (!validatePhoneFormat(cleanPhone)) {
+        return res.status(400).json({ error: "올바른 전화번호 형식이 아닙니다." });
+      }
+
       const redis = getRedisClient();
       const verifiedKey = `phone_verified:${cleanPhone}`;
       const isPhoneVerified = await redis.get(verifiedKey);

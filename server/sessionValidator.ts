@@ -16,8 +16,13 @@ export async function hasActiveSession(
   userType: UserType,
   userId: string
 ): Promise<boolean> {
-  const redis = getRedisClient();
-  const key = getSessionKey(userType, userId);
-  const exists = await redis.exists(key);
-  return exists === 1;
+  try {
+    const redis = getRedisClient();
+    const key = getSessionKey(userType, userId);
+    const exists = await redis.exists(key);
+    return exists === 1;
+  } catch (error) {
+    console.error(`[Session] hasActiveSession failed for ${userType}:${userId}:`, error);
+    return false;
+  }
 }

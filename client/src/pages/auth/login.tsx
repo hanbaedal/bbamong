@@ -8,7 +8,7 @@ import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { getFullUrl, apiRequest, resetRefreshCooldown } from "@/lib/queryClient";
 import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
-import { isGuestLoginAllowed, isIntroStaffLoginReturn, clearGuestSessionArtifacts } from "@/lib/shopRoutes";
+import { isIntroStaffLoginReturn, clearGuestSessionArtifacts } from "@/lib/shopRoutes";
 import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
@@ -37,9 +37,7 @@ export default function LoginPage() {
   const [isGuestLoading, setIsGuestLoading] = useState(false);
   const sessionRedirectDoneRef = useRef(false);
 
-  const showGuestLogin = isGuestLoginAllowed();
-
-  // 공개 홈 소개(/)의 구 회원 로그인 링크 → 관리자 로그인 (회원 쇼핑 guest=0 제외)
+  // 공개 홈 소개(/)의 구 회원 로그인 링크 → 관리자 로그인
   useEffect(() => {
     if (isIntroStaffLoginReturn()) {
       window.location.replace("/admin/login");
@@ -57,19 +55,11 @@ export default function LoginPage() {
     ) {
       return;
     }
-    if (user.provider === "guest" && !showGuestLogin) {
-      return;
-    }
-    if (user.provider === "guest" && showGuestLogin) {
-      sessionRedirectDoneRef.current = true;
-      void completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
-      return;
-    }
-    if (user.provider !== "guest") {
+    if (user) {
       sessionRedirectDoneRef.current = true;
       void completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
     }
-  }, [isUserLoaded, user, isGuestLoading, isLoading, setLocation, showGuestLogin]);
+  }, [isUserLoaded, user, isGuestLoading, isLoading, setLocation]);
 
   const handleGuestLogin = async () => {
     if (isGuestLoading || isLoading) return;
@@ -151,6 +141,10 @@ export default function LoginPage() {
         duplicate_login: "이미 다른 곳에서 로그인된 계정입니다.",
         already_logged_in: "이미 다른 기기에서 로그인 중입니다.",
         login_failed: "로그인 처리 중 오류가 발생했습니다.",
+        oauth_not_configured:
+          urlParams.get("provider") === "google"
+            ? "구글 로그인이 설정되지 않았습니다. Replit Secrets에 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET을 등록해 주세요."
+            : "카카오 로그인이 설정되지 않았습니다. Replit Secrets에 KAKAO_CLIENT_ID, KAKAO_CLIENT_SECRET을 등록해 주세요.",
       };
       setErrors((prev) => ({
         ...prev,
@@ -323,7 +317,6 @@ export default function LoginPage() {
     };
   }, []);
 
-  // 카카오 로그인 버튼 클릭 핸들러
   const handleKakaoLogin = async () => {
     try {
       deepLinkHandledRef.current = false;
@@ -331,10 +324,10 @@ export default function LoginPage() {
       socialLoginSucceededRef.current = false;
       const isNative = Capacitor.isNativePlatform();
       const platform = Capacitor.getPlatform();
-      const kakaoAuthUrl = getFullUrl(`/api/auth/kakao${isNative ? `?source=capacitor&platform=${platform}` : ''}`);
+      const kakaoAuthUrl = getFullUrl(`/api/auth/kakao${isNative ? `?source=capacitor&platform=${platform}` : ""}`);
 
       if (isNative) {
-        try { await Browser.close(); } catch (e) {}
+        try { await Browser.close(); } catch { /* ignore */ }
         await Browser.open({ url: kakaoAuthUrl });
       } else {
         window.location.href = kakaoAuthUrl;
@@ -348,7 +341,6 @@ export default function LoginPage() {
     }
   };
 
-  // 구글 로그인 버튼 클릭 핸들러
   const handleGoogleLogin = async () => {
     try {
       deepLinkHandledRef.current = false;
@@ -356,10 +348,10 @@ export default function LoginPage() {
       socialLoginSucceededRef.current = false;
       const isNative = Capacitor.isNativePlatform();
       const platform = Capacitor.getPlatform();
-      const googleAuthUrl = getFullUrl(`/api/auth/google${isNative ? `?source=capacitor&platform=${platform}` : ''}`);
+      const googleAuthUrl = getFullUrl(`/api/auth/google${isNative ? `?source=capacitor&platform=${platform}` : ""}`);
 
       if (isNative) {
-        try { await Browser.close(); } catch (e) {}
+        try { await Browser.close(); } catch { /* ignore */ }
         await Browser.open({ url: googleAuthUrl });
       } else {
         window.location.href = googleAuthUrl;
@@ -373,7 +365,6 @@ export default function LoginPage() {
     }
   };
 
-  // 애플 로그인 버튼 클릭 핸들러
   const handleAppleLogin = async () => {
     try {
       deepLinkHandledRef.current = false;
@@ -381,10 +372,10 @@ export default function LoginPage() {
       socialLoginSucceededRef.current = false;
       const isNative = Capacitor.isNativePlatform();
       const platform = Capacitor.getPlatform();
-      const appleAuthUrl = getFullUrl(`/api/auth/apple${isNative ? `?source=capacitor&platform=${platform}` : ''}`);
+      const appleAuthUrl = getFullUrl(`/api/auth/apple${isNative ? `?source=capacitor&platform=${platform}` : ""}`);
 
       if (isNative) {
-        try { await Browser.close(); } catch (e) {}
+        try { await Browser.close(); } catch { /* ignore */ }
         await Browser.open({ url: appleAuthUrl });
       } else {
         window.location.href = appleAuthUrl;
@@ -639,19 +630,17 @@ export default function LoginPage() {
           {/* 게스트 로그인 및 소셜 로그인 */}
           <div className="flex flex-col">
             <div className="mb-4 space-y-4">
-              {showGuestLogin && (
-                <div className="flex justify-center">
-                  <button
-                    type="button"
-                    onClick={handleGuestLogin}
-                    data-testid="button-guest-login"
-                    disabled={isGuestLoading}
-                    className="text-sm text-[#BFBFBF] hover:text-white transition-colors underline disabled:opacity-50"
-                  >
-                    {isGuestLoading ? "로그인 중..." : "게스트로 로그인"}
-                  </button>
-                </div>
-              )}
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={handleGuestLogin}
+                  data-testid="button-guest-login"
+                  disabled={isGuestLoading}
+                  className="text-sm text-[#BFBFBF] hover:text-white transition-colors underline disabled:opacity-50"
+                >
+                  {isGuestLoading ? "로그인 중..." : "게스트로 로그인"}
+                </button>
+              </div>
 
               {/* 소셜 로그인 버튼 */}
               <div className="flex items-center justify-center gap-4">

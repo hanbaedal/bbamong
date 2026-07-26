@@ -71,14 +71,22 @@ interface OAuthConfig {
   userInfoUrl: string;
 }
 
+function getOAuthBaseUrl(): string {
+  const fromEnv = process.env.BASE_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  return process.env.NODE_ENV === "production" ? "https://ppamong.com" : "http://localhost:5000";
+}
+
+function isOAuthConfigured(provider: "kakao" | "google"): boolean {
+  if (provider === "kakao") {
+    return Boolean(process.env.KAKAO_CLIENT_ID?.trim() && process.env.KAKAO_CLIENT_SECRET?.trim());
+  }
+  return Boolean(process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim());
+}
+
 // 각 플랫폼별 OAuth 설정
 function getOAuthConfig(provider: 'kakao' | 'google' | 'apple'): OAuthConfig {
-  // 개발: http://localhost:5000, 프로덕션: https://ppamong.com
-  const isProduction = process.env.NODE_ENV === 'production';
-  const baseUrl = isProduction 
-    ? 'https://ppamong.com' 
-    : 'http://localhost:5000';
-  
+  const baseUrl = getOAuthBaseUrl();
   switch (provider) {
     case 'kakao':
       return {
@@ -315,6 +323,10 @@ function generateAppleClientSecret(): string {
 export function registerSocialAuthRoutes(app: Express) {
   // 카카오 로그인 시작
   app.get("/api/auth/kakao", (req: Request, res: Response) => {
+    if (!isOAuthConfigured("kakao")) {
+      console.error("[카카오] KAKAO_CLIENT_ID / KAKAO_CLIENT_SECRET 미설정");
+      return res.redirect("/login?error=oauth_not_configured&provider=kakao");
+    }
     const config = getOAuthConfig('kakao');
     const source = req.query.source as string || '';
     const platform = req.query.platform as string || '';
@@ -475,6 +487,10 @@ export function registerSocialAuthRoutes(app: Express) {
 
   // 구글 로그인 시작
   app.get("/api/auth/google", (req: Request, res: Response) => {
+    if (!isOAuthConfigured("google")) {
+      console.error("[구글] GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET 미설정");
+      return res.redirect("/login?error=oauth_not_configured&provider=google");
+    }
     const config = getOAuthConfig('google');
     const source = req.query.source as string || '';
     const platform = req.query.platform as string || '';
