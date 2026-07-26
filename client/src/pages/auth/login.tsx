@@ -75,13 +75,29 @@ export default function LoginPage() {
         body: JSON.stringify(savedGuestId ? { guestId: savedGuestId } : {}),
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get("content-type") ?? "";
+      const data = contentType.includes("application/json")
+        ? await response.json()
+        : { error: "게스트 로그인에 실패했습니다." };
 
       if (!response.ok) {
+        if (savedGuestId && response.status >= 500) {
+          localStorage.removeItem("guest_user_id");
+        }
         if (data.error === "already_logged_in") {
           setErrors({ email: "", password: "", general: "이미 다른 기기에서 로그인 중입니다." });
+        } else if (data.error === "suspended") {
+          setErrors({
+            email: "",
+            password: "",
+            general: data.message || "삭제된 계정입니다. 관리자한테 문의 주세요.",
+          });
         } else {
-          setErrors({ email: "", password: "", general: data.error || "게스트 로그인에 실패했습니다." });
+          setErrors({
+            email: "",
+            password: "",
+            general: data.error || data.message || "게스트 로그인에 실패했습니다.",
+          });
         }
         return;
       }
@@ -95,7 +111,11 @@ export default function LoginPage() {
         setAccessToken(data.accessToken);
       }
       if (data.refreshToken) {
-        await saveRefreshToken(data.refreshToken);
+        try {
+          await saveRefreshToken(data.refreshToken);
+        } catch (tokenError) {
+          console.error("[GuestLogin] refreshToken 저장 실패:", tokenError);
+        }
       }
 
       if (data.user) {

@@ -17,6 +17,7 @@ const userSchema = new Schema(
     phone: { type: String, unique: true, sparse: true },
     email: { type: String, default: null },
     provider: { type: String, default: "local" },
+    /** OAuth·게스트 등 provider별 고유 ID — guest는 반드시 UUID 등 고유값 설정 (null 중복 시 unique index 충돌) */
     providerId: { type: String },
     inviteCode: { type: String, unique: true, sparse: true },
     referralCode: { type: String, default: null },

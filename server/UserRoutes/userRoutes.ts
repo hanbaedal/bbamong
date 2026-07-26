@@ -23,6 +23,24 @@ import { getRedisClient } from "../redis";
 
 const PHONE_REGEX = /^01[0-9]{8,9}$/;
 
+async function ensureGuestProviderId(user: { id: string; provider?: string; providerId?: string | null }) {
+  if (user.provider !== "guest" || user.providerId) {
+    return user;
+  }
+
+  await UserModel.updateOne({ id: user.id }, { providerId: user.id });
+  return { ...user, providerId: user.id };
+}
+
+function isMongoDuplicateKeyError(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: number }).code === 11000,
+  );
+}
+
 function normalizePhone(phone: string): string {
   return phone.replace(/-/g, "");
 }
@@ -283,14 +301,20 @@ export async function userRoutes(app: Express): Promise<void> {
         }
       }
 
+      if (user) {
+        user = await ensureGuestProviderId(user);
+      }
+
       if (!user) {
         const { randomUUID } = await import("crypto");
-        const guestUsername = `guest_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+        const guestProviderId = randomUUID();
+        const guestUsername = `guest_${guestProviderId.replace(/-/g, "").slice(0, 12)}`;
 
         user = await storage.createUser({
           username: guestUsername,
           name: "guest",
           provider: "guest",
+          providerId: guestProviderId,
           password: undefined,
           phone: undefined,
           email: undefined,
@@ -330,6 +354,11 @@ export async function userRoutes(app: Express): Promise<void> {
       });
     } catch (error) {
       console.error("Guest login error:", error);
+      if (isMongoDuplicateKeyError(error)) {
+        return res.status(500).json({
+          error: "게스트 계정을 생성할 수 없습니다. 잠시 후 다시 시도해주세요.",
+        });
+      }
       return res.status(500).json({ error: "게스트 로그인 중 오류가 발생했습니다." });
     }
   });
