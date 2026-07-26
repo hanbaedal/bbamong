@@ -20,7 +20,7 @@ jobs:
           distribution: temurin
           java-version: "21"
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
       - name: Install dependencies
         run: npm ci
       - name: Use user Capacitor config
@@ -39,7 +39,7 @@ jobs:
       - name: Rename APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk bbamong-user.apk
       - name: Upload APK
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: bbamong-user-apk
           path: bbamong-user.apk
@@ -60,7 +60,7 @@ jobs:
           distribution: temurin
           java-version: "21"
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
       - name: Install dependencies
         run: npm ci
       - name: Use manager Capacitor config
@@ -79,7 +79,7 @@ jobs:
       - name: Rename APK
         run: cp android-manager/app/build/outputs/apk/debug/app-debug.apk bbamong-manager.apk
       - name: Upload APK
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: bbamong-manager-apk
           path: bbamong-manager.apk
