@@ -92,11 +92,6 @@ export async function resolveAfterLoginPath(
     return raw;
   }
 
-  const kind = await fetchMemberSessionKind();
-  if (kind === "guest" && raw === fallback) {
-    return GAME_PATH;
-  }
-
   return raw;
 }
 
