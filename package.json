@@ -15,6 +15,8 @@
     "check:db": "node scripts/verify-db-config.mjs",
     "check:admob": "node scripts/check-admob-secrets.mjs",
     "admob:auth": "node scripts/generate-admob-refresh-token.mjs",
+    "admob:write-native": "node scripts/write-admob-native-config.mjs",
+    "admob:seed-config": "node scripts/seed-admob-config.mjs",
     "setup:legacy-pg": "bash scripts/setup-legacy-pg-sync.sh"
   },
   "dependencies": {

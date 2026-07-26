@@ -3,7 +3,10 @@ import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { adminAuthMiddleware } from "../middleware/adminAuth";
 import { createAdmobApiClient } from "../utils/admobClient";
-import { appAdmobConfigStorage } from "../UserStorage/appAdmobConfigStorage";
+import {
+  appAdmobConfigStorage,
+  evaluateAdmobProductionReadiness,
+} from "../UserStorage/appAdmobConfigStorage";
 
 interface ReportRow {
   dimensionValues?: {
@@ -22,9 +25,17 @@ interface ReportResponseItem {
   footer?: { matchingRowCount: string };
 }
 
+const optionalAdMobId = z.string().max(200).optional().default("");
+
 const appConfigSchema = z.object({
-  androidInterstitialAdUnitId: z.string().max(200).optional().default(""),
-  iosInterstitialAdUnitId: z.string().max(200).optional().default(""),
+  androidAppId: optionalAdMobId,
+  iosAppId: optionalAdMobId,
+  androidInterstitialAdUnitId: optionalAdMobId,
+  iosInterstitialAdUnitId: optionalAdMobId,
+  androidRewardedAdUnitId: optionalAdMobId,
+  iosRewardedAdUnitId: optionalAdMobId,
+  androidBannerAdUnitId: optionalAdMobId,
+  iosBannerAdUnitId: optionalAdMobId,
 });
 
 export async function adminAdmobRoutes(app: Express): Promise<void> {
@@ -35,8 +46,14 @@ export async function adminAdmobRoutes(app: Express): Promise<void> {
     } catch (error) {
       console.error("Get public admob config error:", error);
       res.json({
+        androidAppId: "",
+        iosAppId: "",
         androidInterstitialAdUnitId: "",
         iosInterstitialAdUnitId: "",
+        androidRewardedAdUnitId: "",
+        iosRewardedAdUnitId: "",
+        androidBannerAdUnitId: "",
+        iosBannerAdUnitId: "",
       });
     }
   });
@@ -44,7 +61,10 @@ export async function adminAdmobRoutes(app: Express): Promise<void> {
   app.get("/api/admin/admob/app-config", adminAuthMiddleware, async (_req, res) => {
     try {
       const config = await appAdmobConfigStorage.getConfig();
-      res.json(config);
+      res.json({
+        ...config,
+        readiness: evaluateAdmobProductionReadiness(config),
+      });
     } catch (error) {
       console.error("Get admob app config error:", error);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });
@@ -58,7 +78,10 @@ export async function adminAdmobRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: fromZodError(parsed.error).message });
       }
       const config = await appAdmobConfigStorage.updateConfig(parsed.data);
-      res.json(config);
+      res.json({
+        ...config,
+        readiness: evaluateAdmobProductionReadiness(config),
+      });
     } catch (error) {
       console.error("Update admob app config error:", error);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });
@@ -71,8 +94,9 @@ export async function adminAdmobRoutes(app: Express): Promise<void> {
       if (!client) {
         return res.status(200).json({
           configured: false,
+          apps: [],
           adUnits: [],
-          error: "AdMob 자격 증명이 설정되지 않았습니다.",
+          error: "AdMob API 자격 증명이 설정되지 않았습니다.",
         });
       }
 
@@ -84,11 +108,18 @@ export async function adminAdmobRoutes(app: Express): Promise<void> {
       ]);
 
       const platformByAppId = new Map<string, string>();
-      for (const app of appsRes.data.apps ?? []) {
-        if (app.appId) {
-          platformByAppId.set(app.appId, app.platform ?? "UNKNOWN");
+      const apps = (appsRes.data.apps ?? []).map((app) => {
+        const appId = app.appId ?? "";
+        const platform = app.platform ?? "UNKNOWN";
+        if (appId) {
+          platformByAppId.set(appId, platform);
         }
-      }
+        return {
+          displayName: app.name ?? app.linkedAppInfo?.displayName ?? app.manualAppInfo?.displayName ?? "",
+          appId,
+          platform,
+        };
+      });
 
       const adUnits = (unitsRes.data.adUnits ?? []).map((unit) => ({
         displayName: unit.displayName ?? "",
@@ -100,12 +131,14 @@ export async function adminAdmobRoutes(app: Express): Promise<void> {
 
       res.json({
         configured: true,
+        apps,
         adUnits,
       });
     } catch (error: any) {
       console.error("AdMob ad units list failed:", error);
       res.status(200).json({
         configured: false,
+        apps: [],
         adUnits: [],
         error: error.message || "광고 단위 조회 실패",
       });
@@ -117,7 +150,7 @@ export async function adminAdmobRoutes(app: Express): Promise<void> {
       const client = await createAdmobApiClient();
       if (!client) {
         return res.status(200).json({
-          error: "AdMob 자격 증명이 설정되지 않았습니다.",
+          error: "AdMob API 자격 증명이 설정되지 않았습니다.",
           configured: false,
           totalViews: 0,
           totalImpressions: 0,

@@ -1,7 +1,10 @@
 import { AppAdmobConfigModel } from "./db";
+import { isGoogleTestAdMobId, trimAdMobId } from "@shared/admobConstants";
 
 export interface AppAdmobConfig {
   id: string;
+  androidAppId: string;
+  iosAppId: string;
   androidInterstitialAdUnitId: string;
   iosInterstitialAdUnitId: string;
   androidRewardedAdUnitId: string;
@@ -11,8 +14,24 @@ export interface AppAdmobConfig {
   updatedAt: Date;
 }
 
+export interface AdmobProductionReadiness {
+  androidAppIdSet: boolean;
+  iosAppIdSet: boolean;
+  androidInterstitialSet: boolean;
+  iosInterstitialSet: boolean;
+  androidRewardedSet: boolean;
+  iosRewardedSet: boolean;
+  androidBannerSet: boolean;
+  iosBannerSet: boolean;
+  usingTestIds: boolean;
+  readyForAndroidProduction: boolean;
+  readyForIosProduction: boolean;
+}
+
 const DEFAULTS = {
   id: "default",
+  androidAppId: "",
+  iosAppId: "",
   androidInterstitialAdUnitId: "",
   iosInterstitialAdUnitId: "",
   androidRewardedAdUnitId: "",
@@ -20,6 +39,55 @@ const DEFAULTS = {
   androidBannerAdUnitId: "",
   iosBannerAdUnitId: "",
 };
+
+function normalizeConfig(doc: Record<string, unknown>): AppAdmobConfig {
+  return {
+    ...DEFAULTS,
+    ...doc,
+    updatedAt: (doc.updatedAt as Date | undefined) ?? new Date(),
+  } as AppAdmobConfig;
+}
+
+export function evaluateAdmobProductionReadiness(config: AppAdmobConfig): AdmobProductionReadiness {
+  const ids = [
+    config.androidAppId,
+    config.iosAppId,
+    config.androidInterstitialAdUnitId,
+    config.iosInterstitialAdUnitId,
+    config.androidRewardedAdUnitId,
+    config.iosRewardedAdUnitId,
+    config.androidBannerAdUnitId,
+    config.iosBannerAdUnitId,
+  ];
+  const usingTestIds = ids.some((id) => isGoogleTestAdMobId(id));
+
+  const androidAppIdSet = !!trimAdMobId(config.androidAppId);
+  const androidInterstitialSet = !!trimAdMobId(config.androidInterstitialAdUnitId);
+  const androidRewardedSet = !!trimAdMobId(config.androidRewardedAdUnitId);
+
+  const iosAppIdSet = !!trimAdMobId(config.iosAppId);
+  const iosInterstitialSet = !!trimAdMobId(config.iosInterstitialAdUnitId);
+  const iosRewardedSet = !!trimAdMobId(config.iosRewardedAdUnitId);
+
+  return {
+    androidAppIdSet,
+    iosAppIdSet,
+    androidInterstitialSet,
+    iosInterstitialSet,
+    androidRewardedSet,
+    iosRewardedSet,
+    androidBannerSet: !!trimAdMobId(config.androidBannerAdUnitId),
+    iosBannerSet: !!trimAdMobId(config.iosBannerAdUnitId),
+    usingTestIds,
+    readyForAndroidProduction:
+      androidAppIdSet &&
+      androidInterstitialSet &&
+      androidRewardedSet &&
+      !usingTestIds,
+    readyForIosProduction:
+      iosAppIdSet && iosInterstitialSet && iosRewardedSet && !usingTestIds,
+  };
+}
 
 export class AppAdmobConfigStorage {
   async getConfig(): Promise<AppAdmobConfig> {
@@ -29,13 +97,9 @@ export class AppAdmobConfigStorage {
         ...DEFAULTS,
         updatedAt: new Date(),
       });
-      doc = created.toObject() as typeof doc;
+      doc = created.toObject();
     }
-    return {
-      ...DEFAULTS,
-      ...(doc as Record<string, unknown>),
-      updatedAt: (doc as { updatedAt?: Date }).updatedAt ?? new Date(),
-    } as AppAdmobConfig;
+    return normalizeConfig(doc as Record<string, unknown>);
   }
 
   async updateConfig(data: Partial<Omit<AppAdmobConfig, "id" | "updatedAt">>): Promise<AppAdmobConfig> {
@@ -44,18 +108,20 @@ export class AppAdmobConfigStorage {
       { ...data, updatedAt: new Date() },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     ).lean();
-    return { ...DEFAULTS, ...doc } as AppAdmobConfig;
+    return normalizeConfig(doc as Record<string, unknown>);
   }
 
   async getPublicConfig() {
     const config = await this.getConfig();
     return {
-      androidInterstitialAdUnitId: config.androidInterstitialAdUnitId?.trim() || "",
-      iosInterstitialAdUnitId: config.iosInterstitialAdUnitId?.trim() || "",
-      androidRewardedAdUnitId: config.androidRewardedAdUnitId?.trim() || "",
-      iosRewardedAdUnitId: config.iosRewardedAdUnitId?.trim() || "",
-      androidBannerAdUnitId: config.androidBannerAdUnitId?.trim() || "",
-      iosBannerAdUnitId: config.iosBannerAdUnitId?.trim() || "",
+      androidAppId: trimAdMobId(config.androidAppId),
+      iosAppId: trimAdMobId(config.iosAppId),
+      androidInterstitialAdUnitId: trimAdMobId(config.androidInterstitialAdUnitId),
+      iosInterstitialAdUnitId: trimAdMobId(config.iosInterstitialAdUnitId),
+      androidRewardedAdUnitId: trimAdMobId(config.androidRewardedAdUnitId),
+      iosRewardedAdUnitId: trimAdMobId(config.iosRewardedAdUnitId),
+      androidBannerAdUnitId: trimAdMobId(config.androidBannerAdUnitId),
+      iosBannerAdUnitId: trimAdMobId(config.iosBannerAdUnitId),
     };
   }
 }

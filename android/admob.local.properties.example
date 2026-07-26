@@ -1,0 +1,6 @@
+# AdMob Android App ID (ca-app-pub-xxxxxxxx~yyyyyyyy)
+# 1) 관리자 → 동영상 광고 수익 현황에서 Android App ID 선택
+# 2) npm run admob:write-native  (또는 아래 값을 직접 입력)
+# 3) Android APK/AAB 재빌드
+#
+# ADMOB_APP_ID_ANDROID=ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyyyy

@@ -446,6 +446,8 @@ export const GoodsProductModel = mongoose.model("GoodsProduct", goodsProductSche
 const appAdmobConfigSchema = new Schema(
   {
     id: { type: String, required: true, unique: true, default: "default" },
+    androidAppId: { type: String, default: "" },
+    iosAppId: { type: String, default: "" },
     androidInterstitialAdUnitId: { type: String, default: "" },
     iosInterstitialAdUnitId: { type: String, default: "" },
     androidRewardedAdUnitId: { type: String, default: "" },

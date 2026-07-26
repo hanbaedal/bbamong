@@ -12,18 +12,24 @@ import {
   RewardAdPluginEvents,
 } from "@capacitor-community/admob";
 import { AD_EARLY_DISMISS_SECONDS } from "@shared/predictionOdds";
+import { isGoogleTestAdMobId } from "@shared/admobConstants";
 import { getFullUrl } from "@/lib/queryClient";
 
+/** 개발 빌드에서만 Google 테스트 광고 사용 */
 const IS_TESTING = import.meta.env.DEV;
 
-const FALLBACK_AD_ID_ANDROID =
-  import.meta.env.VITE_ADMOB_AD_ID_ANDROID ||
-  "ca-app-pub-3940256099942544/1033173712";
-const FALLBACK_AD_ID_IOS =
-  import.meta.env.VITE_ADMOB_AD_ID_IOS ||
-  "ca-app-pub-3940256099942544/4411468910";
+const DEV_FALLBACK_INTERSTITIAL_ANDROID =
+  import.meta.env.VITE_ADMOB_AD_ID_ANDROID || "ca-app-pub-3940256099942544/1033173712";
+const DEV_FALLBACK_INTERSTITIAL_IOS =
+  import.meta.env.VITE_ADMOB_AD_ID_IOS || "ca-app-pub-3940256099942544/4411468910";
+const DEV_FALLBACK_REWARDED_ANDROID = "ca-app-pub-3940256099942544/5224354917";
+const DEV_FALLBACK_REWARDED_IOS = "ca-app-pub-3940256099942544/1712485313";
+const DEV_FALLBACK_BANNER_ANDROID = "ca-app-pub-3940256099942544/6300978111";
+const DEV_FALLBACK_BANNER_IOS = "ca-app-pub-3940256099942544/2934735716";
 
 interface RuntimeAdConfig {
+  androidAppId?: string;
+  iosAppId?: string;
   androidInterstitialAdUnitId: string;
   iosInterstitialAdUnitId: string;
   androidRewardedAdUnitId?: string;
@@ -54,60 +60,108 @@ async function loadRuntimeAdConfig(): Promise<void> {
   await runtimeAdConfigPromise;
 }
 
+function resolveAdUnitId(
+  runtimeId: string | undefined,
+  envId: string | undefined,
+  devFallback: string,
+  label: string,
+): string {
+  const runtime = runtimeId?.trim();
+  if (runtime) {
+    if (!import.meta.env.DEV && isGoogleTestAdMobId(runtime)) {
+      console.error(`[AdMob] 운영 빌드에 테스트 ${label} ID가 설정되어 있습니다. 관리자에서 실제 ID를 선택하세요.`);
+      return "";
+    }
+    return runtime;
+  }
+
+  const env = envId?.trim();
+  if (env) {
+    if (!import.meta.env.DEV && isGoogleTestAdMobId(env)) {
+      console.error(`[AdMob] 운영 빌드 VITE 환경변수에 테스트 ${label} ID가 있습니다.`);
+      return "";
+    }
+    return env;
+  }
+
+  if (import.meta.env.DEV) {
+    return devFallback;
+  }
+
+  console.error(
+    `[AdMob] 운영 빌드 ${label} ID 미설정 — 관리자 → 동영상 광고 수익 현황에서 설정하세요.`,
+  );
+  return "";
+}
+
 function warnIfProductionAdIdsMissing() {
   if (import.meta.env.DEV || !Capacitor.isNativePlatform()) return;
   const platform = Capacitor.getPlatform();
-  const fromRuntime =
-    platform === "ios"
-      ? runtimeAdConfig?.iosInterstitialAdUnitId
-      : runtimeAdConfig?.androidInterstitialAdUnitId;
-  const fromEnv =
-    platform === "ios"
-      ? import.meta.env.VITE_ADMOB_AD_ID_IOS
-      : import.meta.env.VITE_ADMOB_AD_ID_ANDROID;
-  if (!fromRuntime?.trim() && !fromEnv) {
-    console.warn(
-      "[AdMob] 광고 단위 ID 미설정 — 테스트 ID 사용 중. 관리자 → 동영상 광고 수익 현황에서 앱 광고 단위를 선택하세요.",
-    );
+  const interstitial = getAdId();
+  const rewarded = getRewardedAdId();
+  if (!interstitial) {
+    console.warn("[AdMob] 전면 광고 단위 ID 없음 — 광고 대신 오버레이로 대체됩니다.");
+  }
+  if (!rewarded) {
+    console.warn("[AdMob] 리워드 광고 단위 ID 없음 — 500P 보상 광고가 표시되지 않습니다.");
+  }
+  if (platform === "android" && !runtimeAdConfig?.androidAppId?.trim()) {
+    console.warn("[AdMob] Android App ID가 서버에 없습니다. APK 빌드 시 Manifest App ID를 확인하세요.");
   }
 }
 
 function getAdId(): string {
   const platform = Capacitor.getPlatform();
-  const fromRuntime =
-    platform === "ios"
-      ? runtimeAdConfig?.iosInterstitialAdUnitId?.trim()
-      : runtimeAdConfig?.androidInterstitialAdUnitId?.trim();
-  if (fromRuntime) return fromRuntime;
-
   if (platform === "ios") {
-    return import.meta.env.VITE_ADMOB_AD_ID_IOS?.trim() || FALLBACK_AD_ID_IOS;
+    return resolveAdUnitId(
+      runtimeAdConfig?.iosInterstitialAdUnitId,
+      import.meta.env.VITE_ADMOB_AD_ID_IOS,
+      DEV_FALLBACK_INTERSTITIAL_IOS,
+      "전면",
+    );
   }
-  return import.meta.env.VITE_ADMOB_AD_ID_ANDROID?.trim() || FALLBACK_AD_ID_ANDROID;
+  return resolveAdUnitId(
+    runtimeAdConfig?.androidInterstitialAdUnitId,
+    import.meta.env.VITE_ADMOB_AD_ID_ANDROID,
+    DEV_FALLBACK_INTERSTITIAL_ANDROID,
+    "전면",
+  );
 }
 
 function getRewardedAdId(): string {
   const platform = Capacitor.getPlatform();
-  const fromRuntime =
-    platform === "ios"
-      ? runtimeAdConfig?.iosRewardedAdUnitId?.trim()
-      : runtimeAdConfig?.androidRewardedAdUnitId?.trim();
-  if (fromRuntime) return fromRuntime;
-  return platform === "ios"
-    ? "ca-app-pub-3940256099942544/1712485313"
-    : "ca-app-pub-3940256099942544/5224354917";
+  if (platform === "ios") {
+    return resolveAdUnitId(
+      runtimeAdConfig?.iosRewardedAdUnitId,
+      import.meta.env.VITE_ADMOB_REWARDED_ID_IOS,
+      DEV_FALLBACK_REWARDED_IOS,
+      "리워드",
+    );
+  }
+  return resolveAdUnitId(
+    runtimeAdConfig?.androidRewardedAdUnitId,
+    import.meta.env.VITE_ADMOB_REWARDED_ID_ANDROID,
+    DEV_FALLBACK_REWARDED_ANDROID,
+    "리워드",
+  );
 }
 
 function getBannerAdId(): string {
   const platform = Capacitor.getPlatform();
-  const fromRuntime =
-    platform === "ios"
-      ? runtimeAdConfig?.iosBannerAdUnitId?.trim()
-      : runtimeAdConfig?.androidBannerAdUnitId?.trim();
-  if (fromRuntime) return fromRuntime;
-  return platform === "ios"
-    ? "ca-app-pub-3940256099942544/2934735716"
-    : "ca-app-pub-3940256099942544/6300978111";
+  if (platform === "ios") {
+    return resolveAdUnitId(
+      runtimeAdConfig?.iosBannerAdUnitId,
+      import.meta.env.VITE_ADMOB_BANNER_ID_IOS,
+      DEV_FALLBACK_BANNER_IOS,
+      "배너",
+    );
+  }
+  return resolveAdUnitId(
+    runtimeAdConfig?.androidBannerAdUnitId,
+    import.meta.env.VITE_ADMOB_BANNER_ID_ANDROID,
+    DEV_FALLBACK_BANNER_ANDROID,
+    "배너",
+  );
 }
 
 export type AdSessionState = "idle" | "preparing" | "showing" | "overlay";
@@ -174,12 +228,20 @@ export function useAdMob(): UseAdMobResult {
       return;
     }
 
+    const adId = getAdId();
+    if (!adId) {
+      lastLoadFailedRef.current = true;
+      setIsAdReady(false);
+      resolveAdReady(false);
+      return;
+    }
+
     lastLoadFailedRef.current = false;
 
     try {
       isLoadingAd.current = true;
       const options: AdOptions = {
-        adId: getAdId(),
+        adId,
         isTesting: IS_TESTING,
       };
 
@@ -417,9 +479,14 @@ export function useAdMob(): UseAdMobResult {
       setIsBannerVisible(true);
       return;
     }
+    const adId = getBannerAdId();
+    if (!adId) {
+      console.warn("[AdMob] 배너 ID 없음 — 배너를 표시하지 않습니다.");
+      return;
+    }
     if (!isInitialized.current) await initializeAdMob();
     const options: BannerAdOptions = {
-      adId: getBannerAdId(),
+      adId,
       adSize: BannerAdSize.ADAPTIVE_BANNER,
       position: BannerAdPosition.BOTTOM_CENTER,
       isTesting: IS_TESTING,
@@ -442,6 +509,11 @@ export function useAdMob(): UseAdMobResult {
   const showRewardedAd = useCallback(async (): Promise<boolean> => {
     if (!isNativePlatform) {
       return true;
+    }
+    const adId = getRewardedAdId();
+    if (!adId) {
+      console.warn("[AdMob] 리워드 ID 없음 — 보상 광고를 건너뜁니다.");
+      return false;
     }
     if (!isInitialized.current) await initializeAdMob();
 
@@ -471,7 +543,7 @@ export function useAdMob(): UseAdMobResult {
       });
 
       const options: RewardAdOptions = {
-        adId: getRewardedAdId(),
+        adId,
         isTesting: IS_TESTING,
       };
       AdMob.prepareRewardVideoAd(options)
