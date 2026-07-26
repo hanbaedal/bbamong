@@ -3,10 +3,12 @@ import { getKstDateString } from "../utils/dateUtils";
 import { scheduleDailyKst } from "../utils/kstSchedule";
 import { syncOperatorMatchAssignments } from "../managerOperatorService";
 import {
+  backfillSeasonMatchesBeforeToday,
   refreshMatchFromApiAtEnd,
   refreshMatchFromApiAtStart,
   syncTodayGamesFromApiSports,
 } from "./syncService";
+import { scheduleLiveScoreSync, stopLiveScoreSync } from "./liveScoreSync";
 
 const MAX_DAILY_MATCHES = 5;
 
@@ -92,6 +94,7 @@ export async function rescheduleTodayMatchTimers(): Promise<void> {
   }
 
   console.log(`[MatchMgmtSchedule] scheduled start/end for ${matches.length} match(es)`);
+  await scheduleLiveScoreSync();
 }
 
 async function maybeRunMissedDailySync(): Promise<void> {
@@ -109,6 +112,11 @@ async function maybeRunMissedDailySync(): Promise<void> {
   await rescheduleTodayMatchTimers();
 }
 
+async function runStartupMatchManagementSync(): Promise<void> {
+  await backfillSeasonMatchesBeforeToday();
+  await maybeRunMissedDailySync();
+}
+
 export function startMatchManagementSchedule(): void {
   if (!process.env.API_SPORTS_KEY?.trim()) {
     console.log("[MatchMgmtSchedule] API_SPORTS_KEY 없음 — 경기관리 스케줄 비활성");
@@ -122,12 +130,12 @@ export function startMatchManagementSchedule(): void {
 
   cancelDailySchedule = scheduleDailyKst(hour, minute, () => runDailyMatchScheduleSync());
 
-  void maybeRunMissedDailySync().catch((error) => {
+  void runStartupMatchManagementSync().catch((error) => {
     console.error("[MatchMgmtSchedule] startup sync failed:", error);
   });
 
   console.log(
-    `[MatchMgmtSchedule] daily KST ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} + per-match start/end (api-sports 3단계)`,
+    `[MatchMgmtSchedule] daily KST ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} · backfill · start=status · end=score · live=1경기`,
   );
 }
 
@@ -135,4 +143,5 @@ export function stopMatchManagementSchedule(): void {
   cancelDailySchedule?.();
   cancelDailySchedule = null;
   clearAllMatchTimers();
+  stopLiveScoreSync();
 }

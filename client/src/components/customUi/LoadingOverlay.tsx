@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { useQuery } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import LineScoreTable from "@/components/LineScoreTable";
+import type { LiveScoreboard } from "@shared/apiSportsTypes";
 
 interface WaitingScreen {
   id: number;
@@ -10,10 +11,15 @@ interface WaitingScreen {
   videoUrl: string;
 }
 
+/** 다음 타자 예측 대기 화면 상단 정보 */
 export interface GamePhaseDisplay {
-  line1: string;
-  line2: string;
+  matchTitle: string;
+  inningText: string;
+  batterText: string;
 }
+
+/** pending 대기 화면 종류 */
+export type PendingWaitingMode = "next_batter" | "result";
 
 interface LoadingOverlayProps {
   matchInfo: string;
@@ -25,7 +31,11 @@ interface LoadingOverlayProps {
 
   onDonate?: () => void;
   waitingMessage?: string;
+  /** next_batter=스코어표 O, result=스코어표 X + 예측 정보 */
+  pendingWaitingMode?: PendingWaitingMode;
+  betAmount?: number;
   gamePhaseDisplay?: GamePhaseDisplay;
+  liveScoreboard?: LiveScoreboard | null;
   matchId?: string;
   hasPendingPrediction?: boolean;
   isTimedOut?: boolean;
@@ -45,7 +55,10 @@ export default function LoadingOverlay({
 
   onDonate,
   waitingMessage,
+  pendingWaitingMode,
+  betAmount,
   gamePhaseDisplay,
+  liveScoreboard,
   matchId,
   hasPendingPrediction = false,
   isTimedOut = false,
@@ -178,22 +191,106 @@ export default function LoadingOverlay({
   }
 
   if (predictState === "pending") {
+    const useWaitingGameLayout = Boolean(
+      gamePhaseDisplay &&
+        !isTimedOut &&
+        (pendingWaitingMode === "next_batter" || pendingWaitingMode === "result"),
+    );
+
+    if (useWaitingGameLayout && gamePhaseDisplay) {
+      const awayScore = liveScoreboard?.awayScore ?? 0;
+      const homeScore = liveScoreboard?.homeScore ?? 0;
+      const isResultWait = pendingWaitingMode === "result";
+      const statusMessage =
+        waitingMessage ??
+        (isResultWait ? "예측 결과를 기다리는 중입니다." : "다음타자 예측을 기다리는 중입니다.");
+
+      return (
+        <div
+          className="fixed inset-0 bg-white flex flex-col z-[68]"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)" }}
+          data-testid={isResultWait ? "waiting-result-screen" : "waiting-prediction-screen"}
+        >
+          <div className="flex-shrink-0 pt-10 px-5 text-center">
+            <p
+              className="text-[28px] sm:text-[32px] font-bold text-[#1F9E1F] leading-tight"
+              data-testid="text-game-phase-title"
+            >
+              {gamePhaseDisplay.matchTitle}
+            </p>
+            <p className="mt-5 text-base sm:text-lg text-black" data-testid="text-game-inning">
+              {gamePhaseDisplay.inningText}
+            </p>
+            <p className="mt-2 text-base sm:text-lg text-black" data-testid="text-game-score">
+              원정팀 {awayScore} - {homeScore} 홈팀
+            </p>
+
+            {isResultWait ? (
+              <>
+                <p
+                  className="mt-8 text-lg sm:text-xl font-bold text-black"
+                  data-testid="text-game-batter"
+                >
+                  {gamePhaseDisplay.batterText}
+                </p>
+                <p
+                  className="mt-4 text-lg sm:text-xl font-bold text-black"
+                  data-testid="text-waiting-status"
+                >
+                  {statusMessage}
+                </p>
+                <div
+                  className="mt-6 mx-auto max-w-[280px] rounded-lg border border-[#CCCCCC] bg-[#F8F8F8] px-4 py-3 text-left"
+                  data-testid="submitted-prediction-summary"
+                >
+                  <p className="text-sm text-black">
+                    <span className="text-[#666666]">포인트</span>{" "}
+                    <span className="font-bold">{betAmount ?? 0}P</span>
+                  </p>
+                  <p className="mt-2 text-sm text-black">
+                    <span className="text-[#666666]">예측</span>{" "}
+                    <span className="font-bold">{prediction ?? "—"}</span>
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p
+                  className="mt-8 text-lg sm:text-xl font-bold text-black"
+                  data-testid="text-game-batter"
+                >
+                  {gamePhaseDisplay.batterText}
+                </p>
+                <p className="mt-4 text-lg sm:text-xl font-bold text-black" data-testid="text-waiting-status">
+                  {statusMessage}
+                </p>
+              </>
+            )}
+          </div>
+
+          <div className="flex-1 flex items-center justify-center min-h-[120px] px-5">
+            <img
+              src={assets.userMascot}
+              alt="빠몽이"
+              className="w-[min(220px,55vw)] h-auto object-contain"
+              data-testid="img-waiting-screen"
+            />
+          </div>
+
+          {!isResultWait && (
+            <div className="flex-shrink-0 px-4 pb-2" data-testid="waiting-line-score">
+              <LineScoreTable scoreboard={liveScoreboard} fixedInningColumns />
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div
         className="fixed inset-0 bg-black flex flex-col items-center justify-center z-[68] px-5"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)' }}
       >
-        {gamePhaseDisplay && (
-          <div className="text-center mb-6 px-4 w-full" data-testid="text-game-phase">
-            <p className="text-[32px] sm:text-[36px] font-bold text-[#CDFF00] leading-snug mb-3">
-              {gamePhaseDisplay.line1}
-            </p>
-            <p className="text-[26px] sm:text-[30px] font-bold text-white leading-snug">
-              {gamePhaseDisplay.line2}
-            </p>
-          </div>
-        )}
-
         <div className="text-center mb-8 px-4 w-full" data-testid="text-waiting-status">
           <p className="text-lg sm:text-xl font-bold text-white leading-snug">
             {firstText}

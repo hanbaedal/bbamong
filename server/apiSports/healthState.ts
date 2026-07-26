@@ -1,5 +1,6 @@
 import type { ApiSportsHealthStatus } from "@shared/apiSportsTypes";
-import { HEALTH_STALE_MS, MATCH_MGMT_SCHEDULED_SYNC_MS } from "./constants";
+import { HEALTH_STALE_MS, LIVE_SCORE_SYNC_INTERVAL_MS, MATCH_MGMT_SCHEDULED_SYNC_MS } from "./constants";
+import { isLiveScoreSyncActive } from "./liveScoreSync";
 
 interface HealthState {
   lastSuccessAt: Date | null;
@@ -39,7 +40,7 @@ export function getApiSportsHealth(): ApiSportsHealthStatus {
     lastSuccessAt: state.lastSuccessAt?.toISOString() ?? null,
     lastErrorAt: state.lastErrorAt?.toISOString() ?? null,
     lastError: state.lastError,
-    pollIntervalMs: MATCH_MGMT_SCHEDULED_SYNC_MS,
+    pollIntervalMs: isLiveScoreSyncActive() ? LIVE_SCORE_SYNC_INTERVAL_MS : MATCH_MGMT_SCHEDULED_SYNC_MS,
     latencyMs: state.lastLatencyMs,
     apiKeyConfigured,
   };

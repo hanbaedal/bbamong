@@ -1,5 +1,8 @@
 export type MatchControlMode = "auto" | "manual";
 
+/** api-sports innings 키( "1"~"9", "extra" 등 ) → 해당 이닝 득점 */
+export type InningRunsMap = Record<string, number | null>;
+
 export interface LiveScoreboard {
   homeTeamName: string;
   awayTeamName: string;
@@ -9,6 +12,9 @@ export interface LiveScoreboard {
   awayHits: number;
   homeErrors: number;
   awayErrors: number;
+  /** 이닝별 득점 (api-sports scores.*.innings) */
+  homeInnings?: InningRunsMap;
+  awayInnings?: InningRunsMap;
   inning: number | null;
   inningLabel: string;
   statusShort: string;

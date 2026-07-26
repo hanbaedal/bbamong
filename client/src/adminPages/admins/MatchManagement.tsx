@@ -377,7 +377,7 @@ export default function MatchManagement() {
                     ? "일정 불러오는 중..."
                     : lastSyncMeta?.date === selectedDateKey
                       ? `${lastSyncMeta.source === "api" ? "API 반영" : "DB 캐시 반영"} · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}`
-                      : "매일 09:00 API 저장 · 시작·종료 시각에 상태·스코어 갱신"}
+                      : "시즌·오늘 이전은 DB 있으면 패스 · 09:00 오늘 · 시작=상태 · 종료=스코어"}
                 </p>
               </div>
               <div className="flex items-center gap-2">

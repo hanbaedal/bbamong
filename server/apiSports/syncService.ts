@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { MatchModel, StadiumModel, getNextSequence } from "../UserStorage/db";
 import { finalizeMatchEnd } from "../liveMatch/sideBetStorage";
-import { getKstDateString } from "../utils/dateUtils";
+import { addKstDays, getKstDateString } from "../utils/dateUtils";
 import { fetchGameById, type ApiSportsGameResponse } from "./client";
 import { markApiSportsError } from "./healthState";
 import type { ApiSportsTodayGame, LiveScoreboard } from "@shared/apiSportsTypes";
@@ -12,6 +12,7 @@ import {
   parseLiveScoreboard,
 } from "./scoreboardParser";
 import { getScheduleGamesForDate } from "./scheduleCache";
+import { LIVE_SCORE_MAX_REGISTRATION_ORDER } from "./constants";
 
 const MAX_DAILY_MATCHES = 5;
 const API_DEFAULT_STADIUM_NAME = "API자동";
@@ -112,7 +113,7 @@ export function mapTodayGames(games: ApiSportsGameResponse[]): ApiSportsTodayGam
  */
 export async function syncTodayGamesFromApiSports(
   date?: string,
-  options?: { forceApi?: boolean },
+  options?: { forceApi?: boolean; skipExisting?: boolean },
 ): Promise<{
   created: number;
   updated: number;
@@ -170,6 +171,11 @@ export async function syncTodayGamesFromApiSports(
       byName.get(matchName) ??
       null;
 
+    if (options?.skipExisting && existing?.apiSportsGameId === external.id) {
+      linked += 1;
+      continue;
+    }
+
     const payload = {
       name: matchName,
       stadiumId,
@@ -214,27 +220,123 @@ export async function syncTodayGamesFromApiSports(
   return { created, updated, linked, games: mapped, source };
 }
 
-async function updateMatchFromApiGame(
+function currentSeasonYear(): number {
+  const fromEnv = Number(process.env.API_SPORTS_SEASON || "");
+  if (Number.isFinite(fromEnv) && fromEnv > 2000) return fromEnv;
+  return Number(getKstDateString().slice(0, 4));
+}
+
+function seasonRangeStart(season: number): string {
+  const mmdd = process.env.MATCH_MGMT_SEASON_START_MM_DD || "03-01";
+  return `${season}-${mmdd}`;
+}
+
+/**
+ * 2026(시즌) 오늘 이전 날짜 — DB에 없으면 api-sports(캐시 우선)로 Match 등록, 있으면 패스
+ */
+export async function backfillSeasonMatchesBeforeToday(season?: number): Promise<{
+  season: number;
+  daysSkipped: number;
+  daysFilled: number;
+  daysEmpty: number;
+  created: number;
+}> {
+  const targetSeason = season ?? currentSeasonYear();
+  const today = getKstDateString();
+  let cursor = seasonRangeStart(targetSeason);
+
+  let daysSkipped = 0;
+  let daysFilled = 0;
+  let daysEmpty = 0;
+  let created = 0;
+
+  while (cursor < today) {
+    const existingCount = await MatchModel.countDocuments({
+      matchDate: cursor,
+      apiSportsGameId: { $ne: null },
+    });
+
+    if (existingCount > 0) {
+      daysSkipped += 1;
+      cursor = addKstDays(cursor, 1);
+      continue;
+    }
+
+    let result = await syncTodayGamesFromApiSports(cursor, {
+      forceApi: false,
+      skipExisting: true,
+    });
+
+    if (result.games.length === 0) {
+      result = await syncTodayGamesFromApiSports(cursor, {
+        forceApi: true,
+        skipExisting: true,
+      });
+    }
+
+    if (result.games.length === 0) {
+      daysEmpty += 1;
+    } else {
+      daysFilled += 1;
+      created += result.created;
+    }
+
+    cursor = addKstDays(cursor, 1);
+  }
+
+  console.log(
+    `[MatchMgmtSchedule] backfill ${targetSeason} before ${today}: skip ${daysSkipped}, fill ${daysFilled}, empty ${daysEmpty}, created ${created}`,
+  );
+
+  return { season: targetSeason, daysSkipped, daysFilled, daysEmpty, created };
+}
+
+async function updateMatchStatusFromApiGame(
   match: {
     id: string;
     matchStatus?: string;
     startTime?: Date | null;
-    sideBetsLocked?: boolean;
+    liveScoreboard?: LiveScoreboard | null;
   },
   game: ApiSportsGameResponse,
 ): Promise<string> {
   const scoreboard = parseLiveScoreboard(game);
   const previousStatus = match.matchStatus ?? "scheduled";
   const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, scoreboard, match.startTime);
+  const prevBoard = (match.liveScoreboard ?? {}) as LiveScoreboard;
 
   await MatchModel.updateOne(
     { id: match.id },
     {
+      matchStatus: nextStatus,
+      liveScoreboard: {
+        ...prevBoard,
+        statusShort: scoreboard.statusShort,
+        statusLong: scoreboard.statusLong,
+        inningLabel: scoreboard.inningLabel,
+        syncedAt: scoreboard.syncedAt,
+      },
+    },
+  );
+
+  return nextStatus;
+}
+
+async function updateMatchScoreFromApiGame(
+  match: { id: string; matchStatus?: string; sideBetsLocked?: boolean },
+  game: ApiSportsGameResponse,
+): Promise<string> {
+  const scoreboard = parseLiveScoreboard(game);
+  const nextStatus = isGameFinished(scoreboard.statusShort) ? "completed" : (match.matchStatus ?? "ongoing");
+
+  await MatchModel.updateOne(
+    { id: match.id },
+    {
+      matchStatus: nextStatus,
       liveScoreboard: scoreboard,
       apiSportsHomeTeam: scoreboard.homeTeamName,
       apiSportsAwayTeam: scoreboard.awayTeamName,
       lastInningKey: buildInningKey(scoreboard),
-      matchStatus: nextStatus,
       sideBetsLocked:
         match.sideBetsLocked ||
         scoreboard.inning !== null ||
@@ -245,7 +347,7 @@ async function updateMatchFromApiGame(
   return nextStatus;
 }
 
-/** ② 경기 시작 시각 — api-sports 1회 → 상태(취소·연기·진행 등) */
+/** ② 경기 시작 시각 — api-sports 1회 → 경기상태만 */
 export async function refreshMatchFromApiAtStart(matchId: string): Promise<void> {
   if (!process.env.API_SPORTS_KEY?.trim()) return;
 
@@ -257,7 +359,7 @@ export async function refreshMatchFromApiAtStart(matchId: string): Promise<void>
     const game = await fetchGameById(match.apiSportsGameId);
     if (!game) return;
 
-    const nextStatus = await updateMatchFromApiGame(match, game);
+    const nextStatus = await updateMatchStatusFromApiGame(match, game);
     console.log(`[MatchMgmtSchedule] start ${match.name} (${matchId}) → ${nextStatus}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown sync error";
@@ -266,7 +368,7 @@ export async function refreshMatchFromApiAtStart(matchId: string): Promise<void>
   }
 }
 
-/** ③ 경기 종료 시각 — api-sports 1회 → 최종 스코어·completed */
+/** ③ 경기 종료 시각 — api-sports 1회 → 스코어만 갱신 */
 export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
   if (!process.env.API_SPORTS_KEY?.trim()) return;
 
@@ -279,15 +381,67 @@ export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
     if (!game) return;
 
     const previousStatus = match.matchStatus ?? "scheduled";
-    const nextStatus = await updateMatchFromApiGame(match, game);
+    const nextStatus = await updateMatchScoreFromApiGame(match, game);
 
     if (nextStatus === "completed" && previousStatus !== "completed") {
       await finalizeMatchEnd(matchId);
-      console.log(`[MatchMgmtSchedule] end ${match.name} (${matchId}) → completed`);
+      console.log(`[MatchMgmtSchedule] end ${match.name} (${matchId}) → completed (score updated)`);
       return;
     }
 
-    console.log(`[MatchMgmtSchedule] end ${match.name} (${matchId}) → ${nextStatus}`);
+    console.log(`[MatchMgmtSchedule] end ${match.name} (${matchId}) → score updated (${nextStatus})`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown sync error";
+    markApiSportsError(message);
+    throw error;
+  }
+}
+
+/**
+ * 1경기(registrationOrder≤LIVE_SCORE_MAX) live sync — api-sports → Match DB 전체 스코어보드
+ * @returns true면 live sync 중단(종료·취소·대상 아님)
+ */
+export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boolean> {
+  if (!process.env.API_SPORTS_KEY?.trim()) return true;
+
+  const match = await MatchModel.findOne({ id: matchId }).lean();
+  if (!match?.apiSportsGameId) return true;
+  if (match.matchStatus === "completed" || match.matchStatus === "cancelled") return true;
+
+  const order = match.registrationOrder ?? 99;
+  if (order > LIVE_SCORE_MAX_REGISTRATION_ORDER) return true;
+
+  try {
+    const game = await fetchGameById(match.apiSportsGameId);
+    if (!game) return false;
+
+    const scoreboard = parseLiveScoreboard(game);
+    const previousStatus = match.matchStatus ?? "scheduled";
+    const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, scoreboard, match.startTime);
+
+    await MatchModel.updateOne(
+      { id: matchId },
+      {
+        matchStatus: nextStatus,
+        liveScoreboard: scoreboard,
+        apiSportsHomeTeam: scoreboard.homeTeamName,
+        apiSportsAwayTeam: scoreboard.awayTeamName,
+        lastInningKey: buildInningKey(scoreboard),
+        sideBetsLocked:
+          match.sideBetsLocked ||
+          scoreboard.inning !== null ||
+          isGameFinished(scoreboard.statusShort),
+      },
+    );
+
+    if (nextStatus === "completed" && previousStatus !== "completed") {
+      await finalizeMatchEnd(matchId);
+      console.log(`[LiveScoreSync] ${match.name} (${matchId}) → completed`);
+      return true;
+    }
+
+    if (isGameFinished(scoreboard.statusShort)) return true;
+    return false;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown sync error";
     markApiSportsError(message);

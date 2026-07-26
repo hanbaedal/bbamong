@@ -15,3 +15,10 @@ export function getKstDateString(date: Date = new Date()): string {
   
   return formatter.format(date);
 }
+
+/** KST 기준 YYYY-MM-DD에 days일 더하기 */
+export function addKstDays(dateKey: string, days: number): string {
+  const base = new Date(`${dateKey}T12:00:00+09:00`);
+  base.setDate(base.getDate() + days);
+  return getKstDateString(base);
+}

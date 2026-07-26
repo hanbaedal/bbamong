@@ -1,4 +1,5 @@
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import LineScoreTable, { collectInningColumns } from "@/components/LineScoreTable";
 
 interface LiveScoreboardProps {
   scoreboard: LiveScoreboard | null;
@@ -22,6 +23,8 @@ export default function LiveScoreboardBar({
 
   const awayLabel = showTeamNames ? scoreboard.awayTeamName : "원정팀";
   const homeLabel = showTeamNames ? scoreboard.homeTeamName : "홈팀";
+  const inningColumns = collectInningColumns(scoreboard.awayInnings, scoreboard.homeInnings);
+  const showInningGrid = !compact && inningColumns.length > 0;
 
   return (
     <div
@@ -40,13 +43,27 @@ export default function LiveScoreboardBar({
         </div>
         <div className="truncate">{homeLabel}</div>
       </div>
-      {!compact && (
+
+      {showInningGrid && (
+        <LineScoreTable
+          scoreboard={scoreboard}
+          className="mt-3 [&_table]:text-[10px] [&_th]:text-[#888] [&_td]:text-[#CCC] [&_th]:border-[#373539] [&_td]:border-[#373539] [&_th]:bg-transparent [&_td]:bg-transparent"
+        />
+      )}
+
+      {!compact && !showInningGrid && (
         <div className="mt-2 text-[10px] text-[#888] flex justify-between">
           <span>
             H {scoreboard.awayHits}-{scoreboard.homeHits} / E {scoreboard.awayErrors}-
             {scoreboard.homeErrors}
           </span>
           <span>{new Date(scoreboard.syncedAt).toLocaleTimeString("ko-KR")} 갱신</span>
+        </div>
+      )}
+
+      {!compact && showInningGrid && (
+        <div className="mt-2 text-[10px] text-[#888] text-right">
+          {new Date(scoreboard.syncedAt).toLocaleTimeString("ko-KR")} 갱신
         </div>
       )}
     </div>

@@ -35,6 +35,8 @@ export function parseLiveScoreboard(game: ApiSportsGameResponse): LiveScoreboard
     awayHits: game.scores?.away?.hits ?? 0,
     homeErrors: game.scores?.home?.errors ?? 0,
     awayErrors: game.scores?.away?.errors ?? 0,
+    homeInnings: game.scores?.home?.innings ?? undefined,
+    awayInnings: game.scores?.away?.innings ?? undefined,
     inning,
     inningLabel: label,
     statusShort: game.status.short,

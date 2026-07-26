@@ -32,34 +32,56 @@ import {
 } from "@shared/gamePhaseTypes";
 type PredictionOption = "1루" | "2루" | "3루" | "홈런" | "아웃";
 
-function gamePhaseDisplayFromPayload(payload: {
-  displayLabel?: string;
-  name?: string;
-  gameInning?: number;
-  inningHalf?: string;
-  batterIndexInHalf?: number;
-}): GamePhaseDisplay | undefined {
+function formatMatchTitle(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.startsWith("제 ")) return trimmed;
+  return `제 ${trimmed}`;
+}
+
+function waitingScreenFromPayload(
+  payload: {
+    displayLabel?: string;
+    name?: string;
+    gameInning?: number;
+    inningHalf?: string;
+    batterIndexInHalf?: number;
+  },
+  fallbackName?: string,
+): GamePhaseDisplay | undefined {
+  const rawName = payload.name ?? fallbackName ?? "1경기";
+  const matchTitle = formatMatchTitle(rawName);
+
   if (payload.gameInning != null) {
-    const name = payload.name ?? "경기";
     const half = parseInningHalf(payload.inningHalf);
     const batter = payload.batterIndexInHalf ?? 1;
     return {
-      line1: `${name} (${formatInningWithHalf(payload.gameInning, half)})`,
-      line2: `${battingSideLabel(half)} · ${batter}번째 타자`,
+      matchTitle,
+      inningText: formatInningWithHalf(payload.gameInning, half),
+      batterText: `${battingSideLabel(half)} ${batter}번째 타자`,
     };
   }
 
   if (payload.displayLabel) {
     const parts = payload.displayLabel.split(" · ").map((part) => part.trim());
     if (parts.length >= 3) {
+      const halfMatch = parts[1]?.match(/(\d+)회\s*(초|말)/);
+      const batterMatch = parts[2]?.match(/(\d+)번째\s*타자/);
+      const halfFromLabel = halfMatch?.[2] === "말" ? "bottom" : "top";
       return {
-        line1: `${parts[0]} (${parts[1]})`,
-        line2: parts[2] ?? "",
+        matchTitle,
+        inningText: parts[1] ?? "—",
+        batterText:
+          parts[2] ??
+          `${battingSideLabel(parseInningHalf(halfFromLabel as "top" | "bottom"))} ${batterMatch?.[1] ?? 1}번째 타자`,
       };
     }
   }
 
-  return undefined;
+  return {
+    matchTitle,
+    inningText: "—",
+    batterText: "—",
+  };
 }
 
 interface MatchData {
@@ -460,7 +482,7 @@ export default function PredictionPage() {
       console.log("[WS] 다음 라운드 전환:", data);
 
       if (data?.gamePhase) {
-        setGamePhaseDisplay(gamePhaseDisplayFromPayload(data.gamePhase));
+        setGamePhaseDisplay(waitingScreenFromPayload(data.gamePhase, selectedMatch?.title));
       }
       
       if (resultShownRef.current) {
@@ -746,7 +768,10 @@ export default function PredictionPage() {
         const matchData = await response.json();
         console.log("[Polling] 경기 상태: predictionEnabled=", matchData.predictionEnabled, "matchStatus=", matchData.matchStatus);
 
-        const phaseDisplay = gamePhaseDisplayFromPayload(matchData.gamePhase ?? matchData);
+        const phaseDisplay = waitingScreenFromPayload(
+          matchData.gamePhase ?? matchData,
+          selectedMatch?.title,
+        );
         if (phaseDisplay) {
           setGamePhaseDisplay(phaseDisplay);
         }
@@ -787,6 +812,23 @@ export default function PredictionPage() {
     };
   }, [waitingForPredictionStart, selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus]);
 
+  useEffect(() => {
+    if (!waitingForPredictionStart || !selectedMatch) return;
+    setGamePhaseDisplay(
+      (prev) =>
+        prev ?? waitingScreenFromPayload({ name: selectedMatch.title }, selectedMatch.title),
+    );
+  }, [waitingForPredictionStart, selectedMatch?.id, selectedMatch?.title]);
+
+  useEffect(() => {
+    if (!showPendingPopup || waitingForPredictionStart || !selectedMatch) return;
+    if (predictionResult !== "pending") return;
+    setGamePhaseDisplay(
+      (prev) =>
+        prev ?? waitingScreenFromPayload({ name: selectedMatch.title }, selectedMatch.title),
+    );
+  }, [showPendingPopup, waitingForPredictionStart, predictionResult, selectedMatch?.id, selectedMatch?.title]);
+
   // 결과 대기(진루 예측) 화면에서도 경기 페이즈 표시 — 시작 1분 전부터
   useEffect(() => {
     if (!showPendingPopup || waitingForPredictionStart || !selectedMatch?.id) {
@@ -801,7 +843,10 @@ export default function PredictionPage() {
         const response = await apiRequest("GET", `/api/matches/${selectedMatch.id}`);
         if (!response.ok) return;
         const matchData = await response.json();
-        const phaseDisplay = gamePhaseDisplayFromPayload(matchData.gamePhase ?? matchData);
+        const phaseDisplay = waitingScreenFromPayload(
+          matchData.gamePhase ?? matchData,
+          selectedMatch?.title,
+        );
         if (phaseDisplay) {
           setGamePhaseDisplay(phaseDisplay);
         }
@@ -1691,10 +1736,33 @@ export default function PredictionPage() {
           matchInfo={selectedMatch.stadium}
           datetime={selectedMatch.datetime}
           predictState={predictionResult}
-          prediction={waitingForPredictionStart ? undefined : (selectedPrediction ?? undefined)}
+          prediction={
+            waitingForPredictionStart
+              ? undefined
+              : (activeBet.current?.prediction ?? selectedPrediction ?? undefined)
+          }
+          betAmount={
+            waitingForPredictionStart
+              ? undefined
+              : (activeBet.current?.amount ?? selectedBetAmount)
+          }
           onClose={handleClosePending}
-          waitingMessage={waitingForPredictionStart ? "다음 타자 예측을 기다리는 중 입니다." : undefined}
+          pendingWaitingMode={
+            waitingForPredictionStart
+              ? "next_batter"
+              : predictionResult === "pending"
+                ? "result"
+                : undefined
+          }
+          waitingMessage={
+            waitingForPredictionStart
+              ? "다음타자 예측을 기다리는 중입니다."
+              : predictionResult === "pending"
+                ? "예측 결과를 기다리는 중입니다."
+                : undefined
+          }
           gamePhaseDisplay={gamePhaseDisplay}
+          liveScoreboard={liveScoreboard}
           matchId={selectedMatch.id}
           hasPendingPrediction={hasPendingPrediction}
           isTimedOut={pollingTimedOut}
