@@ -14,6 +14,7 @@ import {
   syncTodayGamesFromApiSports,
 } from "./syncService";
 import { syncOperatorMatchAssignments } from "../managerOperatorService";
+import { rescheduleTodayMatchTimers } from "./matchManagementSchedule";
 
 export async function apiSportsRoutes(app: Express): Promise<void> {
   app.get("/api/api-sports/health", async (_req, res) => {
@@ -55,6 +56,9 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
         .parse(req.body ?? {});
       const result = await syncTodayGamesFromApiSports(body.date, { forceApi: body.forceApi });
       await syncOperatorMatchAssignments();
+      if (body.forceApi) {
+        await rescheduleTodayMatchTimers();
+      }
       res.json(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : "동기화 실패";

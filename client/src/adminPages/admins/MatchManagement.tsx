@@ -217,12 +217,13 @@ export default function MatchManagement() {
     }
   };
 
-  const openDay = async (day: Date | undefined, forceApi = false) => {
+  const openDay = async (day: Date | undefined, options?: { forceApi?: boolean; sync?: boolean }) => {
     if (!day) return;
     setSelectedDay(day);
     setDayModalOpen(true);
+    if (options?.sync === false) return;
     const dateKey = toDateKey(day);
-    await syncDate(dateKey, { silentEmpty: true, forceApi });
+    await syncDate(dateKey, { silentEmpty: true, forceApi: options?.forceApi });
   };
 
   return (
@@ -250,7 +251,7 @@ export default function MatchManagement() {
               type="button"
               className="px-3 py-1.5 text-xs rounded-md bg-[#201E22] text-white disabled:opacity-50"
               disabled={Boolean(syncingDate) || importingSeason}
-              onClick={() => void openDay(new Date(), true)}
+              onClick={() => void openDay(new Date(), { sync: false })}
               data-testid="button-open-today"
             >
               {syncingDate ? "불러오는 중..." : "오늘"}
@@ -375,19 +376,19 @@ export default function MatchManagement() {
                   {syncingDate === selectedDateKey
                     ? "일정 불러오는 중..."
                     : lastSyncMeta?.date === selectedDateKey
-                      ? `반영 · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}`
-                      : "날짜 클릭 시 DB 일정을 경기에 연결합니다."}
+                      ? `${lastSyncMeta.source === "api" ? "API 반영" : "DB 캐시 반영"} · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}`
+                      : "매일 09:00 API 저장 · 시작·종료 시각에 상태·스코어 갱신"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   disabled={syncingDate === selectedDateKey}
-                  onClick={() => void syncDate(selectedDateKey)}
+                  onClick={() => selectedDateKey && void syncDate(selectedDateKey, { forceApi: true })}
                   className="px-3 py-1.5 text-xs rounded-md border border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936] disabled:opacity-50"
                   data-testid="button-force-resync"
                 >
-                  {syncingDate === selectedDateKey ? "불러오는 중..." : "DB에서 불러오기"}
+                  {syncingDate === selectedDateKey ? "불러오는 중..." : "API에서 갱신"}
                 </button>
                 <button
                   type="button"

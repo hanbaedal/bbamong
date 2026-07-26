@@ -51,3 +51,11 @@ export function isGameFinished(statusShort: string): boolean {
   const short = statusShort.toUpperCase();
   return short === "FT" || short === "FIN" || short === "AOT" || short.startsWith("POST");
 }
+
+/** NS/TBD가 아니고 종료도 아니면 live(진행)로 간주 */
+export function isGameLiveStatus(statusShort: string): boolean {
+  const short = (statusShort || "").toUpperCase();
+  if (short === "NS" || short === "TBD") return false;
+  if (isGameFinished(short)) return false;
+  return true;
+}
