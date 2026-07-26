@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { AdminStorage } from "../storage/adminStorage";
@@ -8,6 +7,12 @@ import { adminAuthMiddleware, superAdminAuthMiddleware } from "../middleware/adm
 import { broadcastManager } from "../liveMatch/broadcastManager";
 import { adminMatchStorage } from "../storage/adminMatchStorage";
 import { hasActiveSession, createSession, deleteSession } from "../sessionManager";
+import {
+  encodePasswordAscii,
+  resolveAdminPasswordPlain,
+  verifyAdminPassword,
+} from "../utils/passwordAscii";
+import { getNextStaffUsername } from "../utils/staffUsername";
 
 const adminStorage = new AdminStorage();
 
@@ -15,10 +20,7 @@ function resolveStaffPasswordPlain(admin: {
   password?: string;
   passwordPlain?: string | null;
 }): string {
-  if (admin.passwordPlain) return admin.passwordPlain;
-  const pw = admin.password ?? "";
-  if (pw && !pw.startsWith("$2")) return pw;
-  return "";
+  return resolveAdminPasswordPlain(admin.password, admin.passwordPlain);
 }
 
 function toStaffAdminView<T extends { password?: string; passwordPlain?: string | null }>(
@@ -80,29 +82,14 @@ export async function adminRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: "이메일 또는 비밀번호가 일치하지 않습니다." });
       }
 
-      const isBcryptHash = admin.password.startsWith("$2b$") || admin.password.startsWith("$2a$");
-      let passwordMatch = false;
-
-      if (isBcryptHash) {
-        passwordMatch = await bcrypt.compare(password, admin.password);
-      } else {
-        passwordMatch = password === admin.password;
-        if (passwordMatch) {
-          const hashedPassword = await bcrypt.hash(password, 10);
-          await adminStorage.updateAdminUser(admin.id, {
-            password: hashedPassword,
-            passwordPlain: password,
-          } as Parameters<AdminStorage["updateAdminUser"]>[1]);
-          console.log(`[Admin Login] 평문 비밀번호를 bcrypt로 자동 변환: ${admin.email}`);
-        }
-      }
+      const passwordMatch = await verifyAdminPassword(admin.password, password);
 
       if (!passwordMatch) {
         return res.status(401).json({ error: "이메일 또는 비밀번호가 일치하지 않습니다." });
       }
 
       await adminStorage.updateAdminUser(admin.id, {
-        passwordPlain: password,
+        passwordPlain: encodePasswordAscii(password),
       } as Parameters<AdminStorage["updateAdminUser"]>[1]);
 
       if (admin.userType !== "슈퍼어드민" && admin.userType !== "일반어드민") {
@@ -550,13 +537,13 @@ export async function adminRoutes(app: Express): Promise<void> {
   });
 
   const createStaffSchema = z.object({
-    username: z.string().min(2, "아이디는 2자 이상이어야 합니다."),
     email: z.string().email("올바른 이메일 형식이 아닙니다."),
     name: z.string().min(1, "이름을 입력해주세요."),
     password: z.string().min(6, "비밀번호는 6자 이상이어야 합니다."),
     phone: z.string().min(10, "전화번호를 입력해주세요."),
     department: z.string().optional().nullable(),
     position: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
   });
 
   const updateStaffSchema = z.object({
@@ -565,18 +552,30 @@ export async function adminRoutes(app: Express): Promise<void> {
     phone: z.string().min(10).optional(),
     department: z.string().optional().nullable(),
     position: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
     password: z.string().min(6).optional(),
     status: z.enum(["활성화", "비활성화"]).optional(),
+  });
+
+  app.get("/api/admin/staff/next-username", superAdminAuthMiddleware, async (_req, res) => {
+    try {
+      const username = await getNextStaffUsername();
+      return res.json({ username });
+    } catch (error) {
+      console.error("Get next staff username error:", error);
+      return res.status(500).json({ error: "다음 아이디를 생성하지 못했습니다." });
+    }
   });
 
   // 슈퍼바이저 — 관리자 등록 (즉시 승인)
   app.post("/api/admin/staff", superAdminAuthMiddleware, async (req, res) => {
     try {
       const data = createStaffSchema.parse(req.body);
+      const username = await getNextStaffUsername();
 
       const [byEmail, byUsername, byPhone] = await Promise.all([
         adminStorage.getAdminUserByEmail(data.email),
-        adminStorage.getAdminUserByUsername(data.username),
+        adminStorage.getAdminUserByUsername(username),
         adminStorage.getAdminUserByPhone(data.phone.replace(/-/g, "")),
       ]);
 
@@ -584,28 +583,27 @@ export async function adminRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "이미 사용 중인 이메일입니다." });
       }
       if (byUsername) {
-        return res.status(400).json({ error: "이미 사용 중인 아이디입니다." });
+        return res.status(409).json({ error: "아이디가 이미 사용 중입니다. 페이지를 새로고침 후 다시 시도해주세요." });
       }
       if (byPhone) {
         return res.status(400).json({ error: "이미 사용 중인 전화번호입니다." });
       }
 
-      const hashedPassword = await bcrypt.hash(data.password, 10);
+      const asciiPassword = encodePasswordAscii(data.password);
       const newAdmin = await adminStorage.createAdminUser({
-        username: data.username.trim(),
+        username,
         email: data.email.trim(),
         name: data.name.trim(),
-        password: hashedPassword,
+        password: asciiPassword,
         phone: data.phone.replace(/-/g, ""),
         department: data.department?.trim() || null,
         position: data.position?.trim() || null,
+        notes: data.notes?.trim() || "",
         userType: "일반어드민",
         approvalStatus: "승인",
         status: "활성화",
-      });
-      await adminStorage.updateAdminUser(newAdmin.id, {
-        passwordPlain: data.password,
-      } as Parameters<AdminStorage["updateAdminUser"]>[1]);
+        passwordPlain: asciiPassword,
+      } as Parameters<AdminStorage["createAdminUser"]>[0]);
       const adminWithPlain = await adminStorage.getAdminUserById(newAdmin.id);
 
       const { password: _pw, ...adminWithoutPassword } = adminWithPlain ?? newAdmin;
@@ -660,9 +658,11 @@ export async function adminRoutes(app: Express): Promise<void> {
         }
         updatePayload.email = data.email.trim();
       }
+      if (data.notes !== undefined) updatePayload.notes = data.notes?.trim() || "";
       if (data.password) {
-        updatePayload.password = await bcrypt.hash(data.password, 10);
-        updatePayload.passwordPlain = data.password;
+        const asciiPassword = encodePasswordAscii(data.password);
+        updatePayload.password = asciiPassword;
+        updatePayload.passwordPlain = asciiPassword;
       }
 
       const updated = await adminStorage.updateAdminUser(id, updatePayload);

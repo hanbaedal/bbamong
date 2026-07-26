@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import multer from "multer";
 import path from "path";
-import { superAdminAuthMiddleware } from "../middleware/adminAuth";
+import { adminAuthMiddleware } from "../middleware/adminAuth";
 import {
   createAppReleaseReadStream,
   getAppReleaseFilePath,
@@ -40,7 +40,7 @@ function handleUploadError(err: unknown, res: Response): boolean {
 }
 
 export async function appReleaseRoutes(app: Express): Promise<void> {
-  app.get("/api/admin/ops/app-releases", superAdminAuthMiddleware, async (_req, res) => {
+  app.get("/api/admin/ops/app-releases", adminAuthMiddleware, async (_req, res) => {
     try {
       const releases = await listAppReleases();
       res.json({ releases });
@@ -50,7 +50,7 @@ export async function appReleaseRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.post("/api/admin/ops/app-releases/import-github", superAdminAuthMiddleware, async (req, res) => {
+  app.post("/api/admin/ops/app-releases/import-github", adminAuthMiddleware, async (req, res) => {
     try {
       const runId = typeof req.body?.runId === "string" ? req.body.runId.trim() : undefined;
       const result = await importAppReleasesFromGithubRun({
@@ -67,7 +67,7 @@ export async function appReleaseRoutes(app: Express): Promise<void> {
 
   app.post(
     "/api/admin/ops/app-releases/:appKind/upload",
-    superAdminAuthMiddleware,
+    adminAuthMiddleware,
     (req, res, next) => {
       upload.single("file")(req, res, (err) => {
         if (handleUploadError(err, res)) return;
@@ -108,7 +108,7 @@ export async function appReleaseRoutes(app: Express): Promise<void> {
 
   app.get(
     "/api/admin/ops/app-releases/:appKind/download",
-    superAdminAuthMiddleware,
+    adminAuthMiddleware,
     async (req, res) => {
       try {
         const appKind = req.params.appKind;

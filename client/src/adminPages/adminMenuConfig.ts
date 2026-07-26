@@ -107,12 +107,6 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
           iconKey: "adTermIcon",
           children: [
             {
-              id: "app-releases",
-              label: "앱 파일 등록/다운로드",
-              path: "/admin/ops/app-releases",
-              iconKey: "adTermIcon",
-            },
-            {
               id: "db-backup",
               label: "디비 백업하기",
               path: "/admin/ops/db-backup",
@@ -206,6 +200,18 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
               iconKey: "adDonationPointIcon",
             },
           ],
+        },
+      ],
+    },
+    {
+      id: "ops-tools",
+      title: "업무 관리",
+      items: [
+        {
+          id: "app-releases",
+          label: "앱 파일 등록/다운로드",
+          path: "/admin/ops/app-releases",
+          iconKey: "adTermIcon",
         },
       ],
     },
@@ -308,6 +314,7 @@ export function buildAdminSitemapColumns(isSuperAdmin: boolean): AdminSitemapCol
       id: "ops-support",
       label: "운영·지원",
       items: stripExcludedSitemapItems([
+        ...(sectionById["ops-tools"]?.items ?? []),
         ...(sectionById["revenue-operator"]?.items ?? []),
         ...(sectionById["notice-support"]?.items ?? []),
       ]),

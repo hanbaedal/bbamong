@@ -263,6 +263,7 @@ const adminUserSchema = new Schema(
     /** true: 오늘 경기 할당 + API 스코어 폴링 대상 */
     apiSyncEnabled: { type: Boolean, default: true },
     passwordPlain: { type: String, default: "" },
+    notes: { type: String, default: "" },
   },
   { versionKey: false },
 );

@@ -143,13 +143,14 @@ export default function AppReleaseManagementPage() {
   const [uploadingKind, setUploadingKind] = useState<AppReleaseKind | null>(null);
   const [githubRunId, setGithubRunId] = useState("28147934591");
 
-  const isSuperAdmin = user?.userType === "슈퍼어드민";
+  const isAdmin =
+    user?.userType === "슈퍼어드민" || user?.userType === "일반어드민";
 
   useEffect(() => {
-    if (isUserLoaded && !isSuperAdmin) {
-      setLocation("/admin/members/list");
+    if (isUserLoaded && !isAdmin) {
+      setLocation("/admin/login");
     }
-  }, [isUserLoaded, isSuperAdmin, setLocation]);
+  }, [isUserLoaded, isAdmin, setLocation]);
 
   const { data, isLoading } = useQuery<{ releases: AppReleaseManifest }>({
     queryKey: ["/api/admin/ops/app-releases"],
@@ -158,7 +159,7 @@ export default function AppReleaseManagementPage() {
       if (!res.ok) throw new Error("앱 파일 목록 조회 실패");
       return res.json();
     },
-    enabled: isUserLoaded && isSuperAdmin,
+    enabled: isUserLoaded && isAdmin,
   });
 
   const uploadMutation = useMutation({
@@ -256,7 +257,7 @@ export default function AppReleaseManagementPage() {
     }
   };
 
-  if (!isUserLoaded || !isSuperAdmin) {
+  if (!isUserLoaded || !isAdmin) {
     return null;
   }
 
@@ -267,8 +268,6 @@ export default function AppReleaseManagementPage() {
       <div className="flex flex-col h-screen">
         <div className="flex-shrink-0">
           <div className="flex items-center gap-2 mb-6">
-            <span className="text-sm text-[#BFBFBF]">슈퍼바이저</span>
-            <span className="text-sm text-[#BFBFBF]">&gt;</span>
             <span className="text-sm text-[#BFBFBF]">업무 관리</span>
             <span className="text-sm text-[#BFBFBF]">&gt;</span>
             <span className="text-sm text-[#201E22]">앱 파일 등록/다운로드</span>
@@ -279,7 +278,7 @@ export default function AppReleaseManagementPage() {
             앱 파일 등록/다운로드
           </h1>
           <p className="text-sm text-[#888] mb-6">
-            사용자·운영자 Android APK/AAB를 등록하고 슈퍼바이저가 다운로드합니다. (최대 150MB)
+            사용자·운영자 Android APK/AAB를 등록하고 관리자가 다운로드합니다. (최대 150MB)
           </p>
         </div>
 
@@ -341,7 +340,7 @@ export default function AppReleaseManagementPage() {
           )}
 
           <div className="p-4 rounded-lg border border-[#E9E9E9] bg-[#FAFAFA] text-xs text-[#666] space-y-1">
-            <p>· 슈퍼바이저만 접근할 수 있습니다.</p>
+            <p>· 슈퍼어드민·일반어드민이 접근할 수 있습니다.</p>
             <p>· 파일은 서버 디스크(data/app-releases)에 저장됩니다. Replit 재배포 시 유지되도록 볼륨/백업을 확인하세요.</p>
             <p>· Play Store 출시 전 내부 배포용으로 사용하세요.</p>
           </div>
