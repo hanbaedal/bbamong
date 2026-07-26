@@ -27,6 +27,7 @@ import {adminMatchRoutes} from "./routes/adminMatchRoutes"
 import {managerMatchAssignmentRoutes} from "./routes/managerMatchAssignmentRoutes"
 import {operatorMonitoringRoutes} from "./routes/operatorMonitoringRoutes"
 import { superAdminOpsRoutes } from "./routes/superAdminOpsRoutes"
+import { appReleaseRoutes } from "./routes/appReleaseRoutes"
 import {adminWaitingScreenRoutes} from "./routes/adminWaitingScreenRoutes"
 import {adminAdvertisementRoutes} from "./routes/adminAdvertisementRoutes"
 import {adminAdmobRoutes} from "./routes/adminAdmobRoutes"
@@ -86,6 +87,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   await managerMatchAssignmentRoutes(app)
   await operatorMonitoringRoutes(app)
   await superAdminOpsRoutes(app)
+  await appReleaseRoutes(app)
   await adminWaitingScreenRoutes(app)
   await adminAdvertisementRoutes(app)
   await adminAdmobRoutes(app)

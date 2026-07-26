@@ -107,6 +107,12 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
           iconKey: "adTermIcon",
           children: [
             {
+              id: "app-releases",
+              label: "앱 파일 등록/다운로드",
+              path: "/admin/ops/app-releases",
+              iconKey: "adTermIcon",
+            },
+            {
               id: "db-backup",
               label: "디비 백업하기",
               path: "/admin/ops/db-backup",

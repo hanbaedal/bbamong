@@ -41,6 +41,7 @@ import customerSupport from "@/adminPages/CustomerSupport";
 import NoticesPage from "@/adminPages/Notices";
 import TermsManagementPage from "@/adminPages/TermsManagement";
 import DbBackupPage from "@/adminPages/ops/DbBackup";
+import AppReleaseManagementPage from "@/adminPages/ops/AppReleaseManagement";
 import AdminLoginStatusPage from "@/adminPages/ops/AdminLoginStatus";
 import ManagerLoginStatusPage from "@/adminPages/ops/ManagerLoginStatus";
 import AdminMallPreviewPage from "@/adminPages/AdminMallPreview";
@@ -117,6 +118,7 @@ function Router() {
       {/* 기타 페이지 */}
       <Route path="/admin/notices" component={NoticesPage} />
       <Route path="/admin/terms" component={TermsManagementPage} />
+      <Route path="/admin/ops/app-releases" component={AppReleaseManagementPage} />
       <Route path="/admin/ops/db-backup" component={DbBackupPage} />
       <Route path="/admin/ops/admin-login-status" component={AdminLoginStatusPage} />
       <Route path="/admin/ops/manager-login-status" component={ManagerLoginStatusPage} />
