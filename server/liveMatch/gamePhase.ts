@@ -1,8 +1,11 @@
-import type { InningHalf } from "@shared/gamePhaseTypes";
+import {
+  battingSideLabel,
+  formatInningWithHalf,
+  parseInningHalf,
+  type InningHalf,
+} from "@shared/gamePhaseTypes";
 
-export function battingSideLabel(half: InningHalf): string {
-  return half === "top" ? "원정팀 공격" : "홈팀 공격";
-}
+export { battingSideLabel, formatInningWithHalf, inningHalfShortLabel } from "@shared/gamePhaseTypes";
 
 export function buildGamePhaseDisplay(input: {
   name: string;
@@ -10,7 +13,7 @@ export function buildGamePhaseDisplay(input: {
   inningHalf: InningHalf;
   batterIndexInHalf: number;
 }): string {
-  return `${input.name} · ${input.gameInning}회 · ${battingSideLabel(input.inningHalf)} · ${input.batterIndexInHalf}번째 타자`;
+  return `${input.name} · ${formatInningWithHalf(input.gameInning, input.inningHalf)} · ${input.batterIndexInHalf}번째 타자`;
 }
 
 export function buildGamePhasePayload(match: {
@@ -21,7 +24,7 @@ export function buildGamePhasePayload(match: {
   currentRound?: number;
 }) {
   const gameInning = match.gameInning ?? 1;
-  const inningHalf: InningHalf = match.inningHalf === "bottom" ? "bottom" : "top";
+  const inningHalf = parseInningHalf(match.inningHalf);
   const batterIndexInHalf = match.batterIndexInHalf ?? 1;
   return {
     gameInning,

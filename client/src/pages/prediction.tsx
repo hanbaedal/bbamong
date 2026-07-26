@@ -24,6 +24,11 @@ import {
   calculateFixedOddsPayout,
   type BetAmountOption,
 } from "@shared/predictionOdds";
+import {
+  battingSideLabel,
+  formatInningWithHalf,
+  parseInningHalf,
+} from "@shared/gamePhaseTypes";
 type PredictionOption = "1루" | "2루" | "3루" | "홈런" | "아웃";
 
 function gamePhaseDisplayFromPayload(payload: {
@@ -35,22 +40,20 @@ function gamePhaseDisplayFromPayload(payload: {
 }): GamePhaseDisplay | undefined {
   if (payload.gameInning != null) {
     const name = payload.name ?? "경기";
-    const half = payload.inningHalf === "bottom" ? "홈팀 공격" : "원정팀 공격";
+    const half = parseInningHalf(payload.inningHalf);
     const batter = payload.batterIndexInHalf ?? 1;
     return {
-      line1: `${name} (${payload.gameInning}회)`,
-      line2: `${half} (${batter}번째 타자)`,
+      line1: `${name} (${formatInningWithHalf(payload.gameInning, half)})`,
+      line2: `${battingSideLabel(half)} · ${batter}번째 타자`,
     };
   }
 
   if (payload.displayLabel) {
     const parts = payload.displayLabel.split(" · ").map((part) => part.trim());
-    if (parts.length >= 4) {
-      const inningPart = parts[1]?.replace(/회$/, "") ?? "1";
-      const batterPart = parts[3]?.replace(/번째 타자$/, "") ?? "1";
+    if (parts.length >= 3) {
       return {
-        line1: `${parts[0]} (${inningPart}회)`,
-        line2: `${parts[2]} (${batterPart}번째 타자)`,
+        line1: `${parts[0]} (${parts[1]})`,
+        line2: parts[2] ?? "",
       };
     }
   }
