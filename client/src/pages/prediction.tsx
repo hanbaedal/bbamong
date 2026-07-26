@@ -18,6 +18,7 @@ import MatchSideBetsPanel from "@/components/MatchSideBetsPanel";
 import LiveScoreboard from "@/components/LiveScoreboard";
 import BetAmountSelector from "@/components/BetAmountSelector";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
+import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import type { LiveScoreboard as LiveScoreboardType } from "@shared/apiSportsTypes";
 import {
   DEFAULT_BET_AMOUNT,
@@ -79,6 +80,7 @@ interface Match {
   subtitle: string;
   stadium: string;
   datetime: string;
+  startTime: string;
   matchStatus: string;
 }
 
@@ -158,11 +160,17 @@ export default function PredictionPage() {
   const { data: matchesData, isLoading } = useQuery<MatchData[]>({
     queryKey: ["/api/matches"],
     refetchOnMount: "always",
-    refetchInterval: 3000,
+    refetchInterval: selectedMatch
+      && shouldClientPollMatch(selectedMatch.startTime, selectedMatch.matchStatus)
+      ? 3000
+      : false,
     refetchIntervalInBackground: false,
   });
 
-  const { data: scoreboardData } = useLiveScoreboard(selectedMatch?.id ?? null);
+  const { data: scoreboardData } = useLiveScoreboard(selectedMatch?.id ?? null, {
+    startTime: selectedMatch?.startTime,
+    matchStatus: selectedMatch?.matchStatus,
+  });
 
   useEffect(() => {
     if (scoreboardData?.scoreboard) {
@@ -713,9 +721,12 @@ export default function PredictionPage() {
     }
   }, [selectedMatch?.id]);
 
-  // 대기 화면에서 경기 상태 폴링 (WebSocket 이벤트 백업)
+  // 대기 화면에서 경기 상태 폴링 (WebSocket 이벤트 백업) — 시작 1분 전부터
   useEffect(() => {
     if (!waitingForPredictionStart || !selectedMatch?.id) {
+      return;
+    }
+    if (!shouldClientPollMatch(selectedMatch.startTime, selectedMatch.matchStatus)) {
       return;
     }
 
@@ -774,11 +785,14 @@ export default function PredictionPage() {
       console.log("[Polling] 경기 상태 폴링 종료");
       clearInterval(intervalId);
     };
-  }, [waitingForPredictionStart, selectedMatch?.id]);
+  }, [waitingForPredictionStart, selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus]);
 
-  // 결과 대기(진루 예측) 화면에서도 경기 페이즈 표시
+  // 결과 대기(진루 예측) 화면에서도 경기 페이즈 표시 — 시작 1분 전부터
   useEffect(() => {
     if (!showPendingPopup || waitingForPredictionStart || !selectedMatch?.id) {
+      return;
+    }
+    if (!shouldClientPollMatch(selectedMatch.startTime, selectedMatch.matchStatus)) {
       return;
     }
 
@@ -799,7 +813,7 @@ export default function PredictionPage() {
     refreshGamePhase();
     const intervalId = setInterval(refreshGamePhase, 5000);
     return () => clearInterval(intervalId);
-  }, [showPendingPopup, waitingForPredictionStart, selectedMatch?.id]);
+  }, [showPendingPopup, waitingForPredictionStart, selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus]);
 
   // 결과 대기 중일 때 예측 결과 폴링 (WebSocket round_result 이벤트 백업)
   // 핵심: "예측 시작 대기"와 "결과 대기"를 구분하여 처리
@@ -1022,6 +1036,7 @@ export default function PredictionPage() {
         subtitle: `경기 #${match.id}`,
         stadium: match.stadiumName,
         datetime: formattedTime,
+        startTime: match.startTime,
         matchStatus: match.matchStatus,
       };
     }) || [];

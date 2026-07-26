@@ -151,7 +151,9 @@ export default function RealtimeGameMonitoring() {
 
   const selectedMatch = currentDateMatches[selectedMatchIndex];
   const { data: apiHealth } = useApiSportsHealth();
-  const { data: scoreboardPayload } = useLiveScoreboard(selectedMatch?.id ?? null);
+  const { data: scoreboardPayload } = useLiveScoreboard(selectedMatch?.id ?? null, {
+    alwaysPoll: true,
+  });
   const { data: bettingDistribution } = useQuery({
     queryKey: ["/api/live-match/matches", selectedMatch?.id, "betting-distribution"],
     enabled: Boolean(selectedMatch?.id),

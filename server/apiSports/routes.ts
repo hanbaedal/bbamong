@@ -50,8 +50,10 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
 
   app.post("/api/admin/matches/sync-from-api-sports", adminAuthMiddleware, async (req, res) => {
     try {
-      const body = z.object({ date: z.string().optional() }).parse(req.body ?? {});
-      const result = await syncTodayGamesFromApiSports(body.date);
+      const body = z
+        .object({ date: z.string().optional(), forceApi: z.boolean().optional() })
+        .parse(req.body ?? {});
+      const result = await syncTodayGamesFromApiSports(body.date, { forceApi: body.forceApi });
       await syncOperatorMatchAssignments();
       res.json(result);
     } catch (error) {

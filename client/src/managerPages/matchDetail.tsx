@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
 import LiveScoreboard from "@/components/LiveScoreboard";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
+import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
 
 const WS_BASE_URL = 'wss://ppamong.com';
 
@@ -51,7 +52,10 @@ export default function MatchDetailPage() {
   const [showAdPlayingPopup, setShowAdPlayingPopup] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [managerId, setManagerId] = useState<string | null>(null);
-  const { data: scoreboardPayload } = useLiveScoreboard(id ?? null);
+  const { data: scoreboardPayload } = useLiveScoreboard(id ?? null, {
+    startTime: match?.startTime,
+    matchStatus: match?.matchStatus,
+  });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const connectFnRef = useRef<(() => void) | null>(null);
@@ -386,15 +390,38 @@ export default function MatchDetailPage() {
     }
   }, [id]);
 
-  // 10초마다 경기 정보 폴링 - WS 이벤트 없어도 최신 상태 유지
+  // 경기 시작 1분 전부터 MongoDB 폴링 (선택 경기 1건)
   useEffect(() => {
-    if (!id) return;
-    const pollingIntervalId = setInterval(() => {
+    if (!id || !match?.startTime) return;
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const startPolling = () => {
+      if (!shouldClientPollMatch(match.startTime, match.matchStatus)) return;
       console.log("[Manager] 폴링: 경기 정보 갱신");
       fetchMatchDetail(true);
-    }, 10000);
-    return () => clearInterval(pollingIntervalId);
-  }, [id, fetchMatchDetail]);
+      intervalId = setInterval(() => {
+        console.log("[Manager] 폴링: 경기 정보 갱신");
+        fetchMatchDetail(true);
+      }, 10000);
+    };
+
+    if (shouldClientPollMatch(match.startTime, match.matchStatus)) {
+      startPolling();
+      return () => {
+        if (intervalId) clearInterval(intervalId);
+      };
+    }
+
+    const delay = msUntilMatchPollWindow(match.startTime);
+    if (delay == null) return;
+
+    const timerId = setTimeout(startPolling, delay);
+    return () => {
+      clearTimeout(timerId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [id, match?.startTime, match?.matchStatus, fetchMatchDetail]);
 
   const handleLogout = async () => {
     try {

@@ -71,10 +71,19 @@ export async function upsertScheduleCacheFromApiGames(
   }
 }
 
-/** DB 캐시 우선. 해당 날짜 캐시가 없을 때만 API 호출 */
+/** DB 캐시 우선. forceApi=true 이면 api-baseball에서 다시 읽어 캐시·경기 등록에 반영 */
 export async function getScheduleGamesForDate(
   matchDate: string,
+  options?: { forceApi?: boolean },
 ): Promise<{ games: ApiSportsGameResponse[]; source: "cache" | "api" }> {
+  if (options?.forceApi) {
+    const apiGames = await fetchGamesByDate(matchDate, KBO_LEAGUE_ID);
+    if (apiGames.length > 0) {
+      await upsertScheduleCacheFromApiGames(matchDate, apiGames);
+    }
+    return { games: apiGames, source: "api" };
+  }
+
   const cached = await ApiSportsScheduleCacheModel.find({ matchDate })
     .sort({ timestamp: 1, apiSportsGameId: 1 })
     .lean();

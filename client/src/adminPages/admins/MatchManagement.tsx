@@ -143,11 +143,15 @@ export default function MatchManagement() {
       });
   }, [matchesData, selectedDateKey]);
 
-  const syncDate = async (dateKey: string, silentEmpty = false) => {
+  const syncDate = async (
+    dateKey: string,
+    options?: { silentEmpty?: boolean; forceApi?: boolean },
+  ) => {
     setSyncingDate(dateKey);
     try {
       const res = await apiRequest("POST", "/api/admin/matches/sync-from-api-sports", {
         date: dateKey,
+        forceApi: options?.forceApi,
       });
       const body = await res.json();
       const created = body.created ?? 0;
@@ -159,7 +163,7 @@ export default function MatchManagement() {
       await queryClient.invalidateQueries({ queryKey: ["/api/admin/stadiums"] });
 
       if (linked === 0) {
-        if (!silentEmpty) {
+        if (!options?.silentEmpty) {
           toast({
             variant: "destructive",
             description: `${dateKey} API 경기가 없습니다. (키·시즌·리그 확인)`,
@@ -213,12 +217,12 @@ export default function MatchManagement() {
     }
   };
 
-  const openDay = async (day: Date | undefined) => {
+  const openDay = async (day: Date | undefined, forceApi = false) => {
     if (!day) return;
     setSelectedDay(day);
     setDayModalOpen(true);
     const dateKey = toDateKey(day);
-    await syncDate(dateKey, true);
+    await syncDate(dateKey, { silentEmpty: true, forceApi });
   };
 
   return (
@@ -246,7 +250,7 @@ export default function MatchManagement() {
               type="button"
               className="px-3 py-1.5 text-xs rounded-md bg-[#201E22] text-white disabled:opacity-50"
               disabled={Boolean(syncingDate) || importingSeason}
-              onClick={() => void openDay(new Date())}
+              onClick={() => void openDay(new Date(), true)}
               data-testid="button-open-today"
             >
               {syncingDate ? "불러오는 중..." : "오늘"}

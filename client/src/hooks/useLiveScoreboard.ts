@@ -1,12 +1,26 @@
 import { useQuery } from "@tanstack/react-query";
 import { getFullUrl } from "@/lib/queryClient";
+import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 
-export function useLiveScoreboard(matchId?: string | null, pollMs = 3000) {
+type LiveScoreboardOptions = {
+  pollMs?: number;
+  startTime?: string | Date | null;
+  matchStatus?: string | null;
+  /** 관리자 실시간 모니터링 등 — 시작 1분 전 규칙 무시 */
+  alwaysPoll?: boolean;
+};
+
+export function useLiveScoreboard(matchId?: string | null, options?: LiveScoreboardOptions) {
+  const pollMs = options?.pollMs ?? 3000;
+  const alwaysPoll = options?.alwaysPoll ?? false;
+  const shouldPoll =
+    alwaysPoll || shouldClientPollMatch(options?.startTime, options?.matchStatus);
+
   return useQuery<{ scoreboard: LiveScoreboard | null; controlMode: string; linked: boolean }>({
     queryKey: ["/api/matches", matchId, "scoreboard"],
     enabled: Boolean(matchId),
-    refetchInterval: pollMs,
+    refetchInterval: shouldPoll ? pollMs : false,
     queryFn: async () => {
       const res = await fetch(getFullUrl(`/api/matches/${matchId}/scoreboard`));
       if (!res.ok) throw new Error("스코어보드 조회 실패");

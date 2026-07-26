@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { clearManagerTokens } from "@/lib/managerTokenManager";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
+import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 
 interface ManagerInfo {
   id: string;
@@ -50,9 +51,15 @@ export default function ManagerHomePage() {
       }
       return response.json();
     },
-    staleTime: 0, // 항상 stale 상태로 간주
-    refetchOnWindowFocus: true, // 화면 포커스 시 자동 refetch
-    refetchInterval: 10000, // 10초마다 자동 refetch
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      const data = query.state.data as Match[] | undefined;
+      if (!data?.some((m) => shouldClientPollMatch(m.startTime, m.matchStatus))) {
+        return false;
+      }
+      return 10000;
+    },
   });
 
   useEffect(() => {

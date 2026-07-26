@@ -4,7 +4,7 @@ import { broadcastManager } from "../liveMatch/broadcastManager";
 import { finalizeMatchEnd, lockSideBetsForMatch } from "../liveMatch/sideBetStorage";
 import { getKstDateString } from "../utils/dateUtils";
 import { fetchGameById, fetchGamesByDate, type ApiSportsGameResponse } from "./client";
-import { KBO_LEAGUE_ID, POLL_START_BEFORE_MS } from "./constants";
+import { KBO_LEAGUE_ID, MAX_LIVE_POLL_GAMES, POLL_START_BEFORE_MS } from "./constants";
 import { markApiSportsError } from "./healthState";
 import {
   buildInningKey,
@@ -84,7 +84,10 @@ export function mapTodayGames(games: ApiSportsGameResponse[]): ApiSportsTodayGam
  * 해당일 KBO 일정을 API에서 읽어 DB에 자동 등록(최대 5경기)하고 연결합니다.
  * 수기 등록 없이 사용 가능. 이미 있으면 시각·팀·API ID를 갱신합니다.
  */
-export async function syncTodayGamesFromApiSports(date?: string): Promise<{
+export async function syncTodayGamesFromApiSports(
+  date?: string,
+  options?: { forceApi?: boolean },
+): Promise<{
   created: number;
   updated: number;
   linked: number;
@@ -92,7 +95,9 @@ export async function syncTodayGamesFromApiSports(date?: string): Promise<{
   source: "cache" | "api";
 }> {
   const targetDate = date ?? getKstDateString();
-  const { games: apiGames, source } = await getScheduleGamesForDate(targetDate);
+  const { games: apiGames, source } = await getScheduleGamesForDate(targetDate, {
+    forceApi: options?.forceApi,
+  });
 
   const maxLinked = await getMaxLinkedGamesForSync();
   const sortedApi = apiGames
@@ -279,6 +284,32 @@ export function shouldPollMatchNow(match: {
   return true;
 }
 
+type PollCandidate = {
+  startTime?: Date | null;
+  endTime?: Date | null;
+  matchStatus?: string;
+  registrationOrder?: number | null;
+};
+
+/** live api-baseball: 동시에 최대 MAX_LIVE_POLL_GAMES(기본 1)경기만 — 1경기 종료 후 다음 경기 */
+export function pickLivePollMatches<T extends PollCandidate>(candidates: T[]): T[] {
+  const sorted = candidates
+    .slice()
+    .sort((a, b) => {
+      const aLive = a.matchStatus === "ongoing" ? 0 : 1;
+      const bLive = b.matchStatus === "ongoing" ? 0 : 1;
+      if (aLive !== bLive) return aLive - bLive;
+
+      const ar = a.registrationOrder ?? 99;
+      const br = b.registrationOrder ?? 99;
+      if (ar !== br) return ar - br;
+
+      return new Date(a.startTime ?? 0).getTime() - new Date(b.startTime ?? 0).getTime();
+    });
+
+  return sorted.slice(0, MAX_LIVE_POLL_GAMES);
+}
+
 export async function pollLinkedMatchesOnce(): Promise<void> {
   if (!process.env.API_SPORTS_KEY?.trim()) return;
 
@@ -298,8 +329,10 @@ export async function pollLinkedMatchesOnce(): Promise<void> {
     $or: [{ matchDate: kstToday }, { matchDate: null, startTime: { $gte: today, $lt: tomorrow } }],
   }).lean();
 
-  for (const match of matches) {
-    if (!shouldPollMatchNow(match)) continue;
+  const inWindow = matches.filter((match) => shouldPollMatchNow(match));
+  const toPoll = pickLivePollMatches(inWindow);
+
+  for (const match of toPoll) {
     try {
       await syncLinkedMatch(match);
     } catch (error) {
