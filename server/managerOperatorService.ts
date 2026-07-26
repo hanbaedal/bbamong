@@ -8,8 +8,11 @@ export const OPERATOR_USERNAMES = ["op1", "op2", "op3", "op4", "op5"] as const;
 const OPERATOR_COUNT = 5;
 const PASSWORD_CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+const API_SYNC_POLICY_VERSION = 2;
+
+/** API 폴링 기본 ON: 1경기(op1)만 */
 function defaultApiSyncEnabledForSlot(slot: number): boolean {
-  return slot <= 2;
+  return slot === 1;
 }
 
 export async function getApiSyncEnabledRegistrationOrders(): Promise<number[]> {
@@ -312,6 +315,7 @@ export async function ensureOperatorsReady(): Promise<void> {
         loginLinkToken: "",
         loginLinkExpiresAt: null,
         apiSyncEnabled: defaultApiSyncEnabledForSlot(slot),
+        apiSyncDefaultPolicy: API_SYNC_POLICY_VERSION,
       });
       console.log(`[Operators] 계정 생성: ${username} (비밀번호는 관리자 수동 생성 필요)`);
       continue;
@@ -325,6 +329,13 @@ export async function ensureOperatorsReady(): Promise<void> {
 
     if ((existing as { apiSyncEnabled?: boolean }).apiSyncEnabled === undefined) {
       updates.apiSyncEnabled = defaultApiSyncEnabledForSlot(slot);
+    }
+
+    const policyVersion =
+      (existing as { apiSyncDefaultPolicy?: number }).apiSyncDefaultPolicy ?? 1;
+    if (policyVersion < API_SYNC_POLICY_VERSION) {
+      updates.apiSyncEnabled = defaultApiSyncEnabledForSlot(slot);
+      updates.apiSyncDefaultPolicy = API_SYNC_POLICY_VERSION;
     }
 
     await AdminUserModel.updateOne({ id: existing.id }, updates);

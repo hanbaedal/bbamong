@@ -260,8 +260,10 @@ const adminUserSchema = new Schema(
     /** 카톡용 일회용 자동 로그인 링크 토큰 (사용·만료·재발급 시 비움) */
     loginLinkToken: { type: String, default: "" },
     loginLinkExpiresAt: { type: Date, default: null },
-    /** true: 오늘 경기 할당 + API 스코어 폴링 대상 */
-    apiSyncEnabled: { type: Boolean, default: true },
+    /** true: 오늘 경기 할당 + API 스코어 폴링 대상 (기본 op1만) */
+    apiSyncEnabled: { type: Boolean, default: false },
+    /** apiSyncEnabled 기본 정책 버전 (일회 마이그레이션용) */
+    apiSyncDefaultPolicy: { type: Number, default: 1 },
     passwordPlain: { type: String, default: "" },
     notes: { type: String, default: "" },
   },
