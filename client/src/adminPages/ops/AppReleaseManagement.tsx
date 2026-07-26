@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import AdminLayout from "../adminLayout";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import { useUser } from "@/contexts/UserContext";
-import { adminFetch, apiRequest, getFullUrl } from "@/lib/adminQueryClient";
+import { adminFetch, getFullUrl } from "@/lib/adminQueryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +19,15 @@ interface AppReleaseMeta {
   sizeBytes: number;
   uploadedAt: string;
   uploadedBy?: string;
+}
+
+interface GithubImportStatus {
+  tokenConfigured: boolean;
+  repo: string;
+  workflowName: string;
+  workflowFile: string;
+  latestRunId: string | null;
+  message?: string;
 }
 
 interface AppReleaseManifest {
@@ -141,7 +150,8 @@ export default function AppReleaseManagementPage() {
   const [userVersion, setUserVersion] = useState("");
   const [managerVersion, setManagerVersion] = useState("");
   const [uploadingKind, setUploadingKind] = useState<AppReleaseKind | null>(null);
-  const [githubRunId, setGithubRunId] = useState("28147934591");
+  const [githubRunId, setGithubRunId] = useState("");
+  const [githubRunIdTouched, setGithubRunIdTouched] = useState(false);
 
   const isAdmin =
     user?.userType === "슈퍼어드민" || user?.userType === "일반어드민";
@@ -151,6 +161,21 @@ export default function AppReleaseManagementPage() {
       setLocation("/admin/login");
     }
   }, [isUserLoaded, isAdmin, setLocation]);
+
+  const { data: githubStatus } = useQuery<GithubImportStatus>({
+    queryKey: ["/api/admin/ops/app-releases/github-import-status"],
+    queryFn: async () => {
+      const res = await adminFetch("/api/admin/ops/app-releases/github-import-status");
+      if (!res.ok) throw new Error("GitHub 연동 상태 조회 실패");
+      return res.json();
+    },
+    enabled: isUserLoaded && isAdmin,
+  });
+
+  useEffect(() => {
+    if (githubRunIdTouched || !githubStatus?.latestRunId) return;
+    setGithubRunId(githubStatus.latestRunId);
+  }, [githubStatus?.latestRunId, githubRunIdTouched]);
 
   const { data, isLoading } = useQuery<{ releases: AppReleaseManifest }>({
     queryKey: ["/api/admin/ops/app-releases"],
@@ -203,8 +228,10 @@ export default function AppReleaseManagementPage() {
 
   const importGithubMutation = useMutation({
     mutationFn: async (runId: string) => {
-      const res = await apiRequest("POST", "/api/admin/ops/app-releases/import-github", {
-        runId: runId.trim() || undefined,
+      const res = await adminFetch("/api/admin/ops/app-releases/import-github", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ runId: runId.trim() || undefined }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -218,8 +245,10 @@ export default function AppReleaseManagementPage() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/ops/app-releases"] });
+      const skippedNote =
+        result.skipped.length > 0 ? ` (건너뜀: ${result.skipped.join(", ")})` : "";
       toast({
-        description: `GitHub Actions run ${result.runId}에서 ${result.imported.length}개 APK를 등록했습니다.`,
+        description: `GitHub Actions run ${result.runId}에서 ${result.imported.length}개 APK를 등록했습니다.${skippedNote}`,
       });
     },
     onError: (err: unknown) => {
@@ -286,27 +315,63 @@ export default function AppReleaseManagementPage() {
           <div className="bg-white border border-[#E9E9E9] rounded-lg p-6">
             <h3 className="text-base font-semibold text-[#201E22] mb-1">GitHub Actions에서 가져오기</h3>
             <p className="text-xs text-[#888] mb-4">
-              hanbaedal/bbamong · Build APKs 워크플로 아티팩트(bbamong-user-apk, bbamong-manager-apk)를 서버에 등록합니다.
-              서버에 <code className="text-[#555]">GITHUB_TOKEN</code> Secret이 필요합니다.
+              {githubStatus?.repo ?? "hanbaedal/bbamong"} · {githubStatus?.workflowName ?? "Build APKs"} 워크플로
+              아티팩트(bamong-user-apk, bbamong-manager-apk)를 서버에 등록합니다.
+              서버 Replit Secrets에 <code className="text-[#555]">GITHUB_TOKEN</code>이 필요합니다.
             </p>
+
+            {githubStatus && (
+              <div
+                className={`mb-4 p-3 rounded-lg border text-sm ${
+                  githubStatus.tokenConfigured && !githubStatus.message
+                    ? "bg-[#F1F8E9] border-[#C5E1A5] text-[#33691E]"
+                    : "bg-[#FFF3E0] border-[#FFE0B2] text-[#E65100]"
+                }`}
+              >
+                <p>
+                  GitHub 토큰: {githubStatus.tokenConfigured ? "설정됨" : "미설정"}
+                  {githubStatus.latestRunId ? ` · 최신 성공 Run ID: ${githubStatus.latestRunId}` : ""}
+                </p>
+                {githubStatus.message ? <p className="mt-1">{githubStatus.message}</p> : null}
+              </div>
+            )}
+
             <div className="flex flex-wrap items-end gap-3">
               <div>
-                <label className="block text-xs font-medium text-[#666] mb-1">Actions Run ID</label>
+                <label className="block text-xs font-medium text-[#666] mb-1">
+                  Actions Run ID (비우면 최신 성공 빌드)
+                </label>
                 <Input
                   value={githubRunId}
-                  onChange={(e) => setGithubRunId(e.target.value)}
-                  placeholder="28147934591"
-                  className="w-48"
+                  onChange={(e) => {
+                    setGithubRunIdTouched(true);
+                    setGithubRunId(e.target.value);
+                  }}
+                  placeholder={githubStatus?.latestRunId ?? "최신 성공 빌드 자동 선택"}
+                  className="w-56"
                 />
               </div>
               <Button
                 type="button"
                 variant="outline"
-                disabled={importGithubMutation.isPending}
+                disabled={importGithubMutation.isPending || githubStatus?.tokenConfigured === false}
                 onClick={() => importGithubMutation.mutate(githubRunId)}
               >
                 {importGithubMutation.isPending ? "가져오는 중..." : "GitHub에서 APK 가져오기"}
               </Button>
+              {githubStatus?.latestRunId ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-xs"
+                  onClick={() => {
+                    setGithubRunIdTouched(false);
+                    setGithubRunId(githubStatus.latestRunId ?? "");
+                  }}
+                >
+                  최신 Run ID 사용
+                </Button>
+              ) : null}
             </div>
           </div>
 

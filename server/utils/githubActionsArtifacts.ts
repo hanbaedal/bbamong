@@ -37,14 +37,43 @@ export interface ImportGithubRunResult {
   skipped: string[];
 }
 
+function resolveGithubRepo(options?: { owner?: string; repo?: string }) {
+  return {
+    owner: options?.owner ?? process.env.GITHUB_REPO_OWNER?.trim() ?? DEFAULT_OWNER,
+    repo: options?.repo ?? process.env.GITHUB_REPO_NAME?.trim() ?? DEFAULT_REPO,
+  };
+}
+
+function resolveWorkflowFile(): string {
+  const fromEnv = process.env.GITHUB_WORKFLOW_FILE?.trim();
+  return fromEnv || "build-apk.yml";
+}
+
+export function isGithubTokenConfigured(): boolean {
+  return Boolean(process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim());
+}
+
 function getGithubToken(): string {
   const token = process.env.GITHUB_TOKEN?.trim() || process.env.GH_TOKEN?.trim();
   if (!token) {
     throw new Error(
-      "GITHUB_TOKEN 또는 GH_TOKEN 환경 변수가 필요합니다. (GitHub → Settings → Developer settings → Personal access tokens, actions:read 권한)",
+      "GITHUB_TOKEN 또는 GH_TOKEN 환경 변수가 필요합니다. Replit Secrets(또는 .env)에 PAT를 설정하세요. private repo면 repo 권한, public repo면 actions:read 권한이 필요합니다.",
     );
   }
   return token;
+}
+
+function formatGithubApiError(status: number, body: string): string {
+  if (status === 401) {
+    return "GitHub 토큰이 유효하지 않습니다. GITHUB_TOKEN을 다시 발급·설정하세요.";
+  }
+  if (status === 403) {
+    return "GitHub API 접근이 거부되었습니다. 토큰에 actions:read(및 private repo면 repo) 권한이 있는지 확인하세요.";
+  }
+  if (status === 404) {
+    return "GitHub Actions run을 찾을 수 없습니다. Run ID를 확인하거나 비워 두고 최신 성공 빌드를 사용하세요.";
+  }
+  return `GitHub API 오류 (${status}): ${body || "알 수 없는 오류"}`;
 }
 
 async function githubFetch<T>(url: string, token: string): Promise<T> {
@@ -58,7 +87,7 @@ async function githubFetch<T>(url: string, token: string): Promise<T> {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`GitHub API 오류 (${res.status}): ${body || res.statusText}`);
+    throw new Error(formatGithubApiError(res.status, body));
   }
 
   return res.json() as Promise<T>;
@@ -68,8 +97,7 @@ export async function fetchRunArtifacts(
   runId: string,
   options?: { owner?: string; repo?: string; token?: string },
 ): Promise<GithubRunArtifactsResponse> {
-  const owner = options?.owner ?? DEFAULT_OWNER;
-  const repo = options?.repo ?? DEFAULT_REPO;
+  const { owner, repo } = resolveGithubRepo(options);
   const token = options?.token ?? getGithubToken();
   const url = `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/artifacts`;
   return githubFetch<GithubRunArtifactsResponse>(url, token);
@@ -78,13 +106,58 @@ export async function fetchRunArtifacts(
 export async function fetchLatestSuccessfulBuildRunId(
   options?: { owner?: string; repo?: string; token?: string },
 ): Promise<string | null> {
-  const owner = options?.owner ?? DEFAULT_OWNER;
-  const repo = options?.repo ?? DEFAULT_REPO;
+  const { owner, repo } = resolveGithubRepo(options);
   const token = options?.token ?? getGithubToken();
-  const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/build-apk.yml/runs?status=success&per_page=1`;
+  const workflowFile = resolveWorkflowFile();
+  const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowFile}/runs?status=success&per_page=1`;
   const data = await githubFetch<{ workflow_runs: Array<{ id: number }> }>(url, token);
   const latest = data.workflow_runs?.[0];
   return latest ? String(latest.id) : null;
+}
+
+export interface GithubImportStatus {
+  tokenConfigured: boolean;
+  repo: string;
+  workflowName: string;
+  workflowFile: string;
+  latestRunId: string | null;
+  message?: string;
+}
+
+export async function getGithubImportStatus(): Promise<GithubImportStatus> {
+  const { owner, repo } = resolveGithubRepo();
+  const workflowFile = resolveWorkflowFile();
+  const base: GithubImportStatus = {
+    tokenConfigured: isGithubTokenConfigured(),
+    repo: `${owner}/${repo}`,
+    workflowName: WORKFLOW_NAME,
+    workflowFile,
+    latestRunId: null,
+  };
+
+  if (!base.tokenConfigured) {
+    return {
+      ...base,
+      message:
+        "GITHUB_TOKEN이 설정되지 않았습니다. Replit Secrets 또는 .env에 PAT(actions:read, private repo면 repo)를 추가하세요.",
+    };
+  }
+
+  try {
+    const latestRunId = await fetchLatestSuccessfulBuildRunId({ owner, repo });
+    return {
+      ...base,
+      latestRunId,
+      message: latestRunId
+        ? undefined
+        : "Build APKs 워크플로의 성공 실행 기록을 찾지 못했습니다. GitHub Actions에서 먼저 빌드를 실행하세요.",
+    };
+  } catch (error) {
+    return {
+      ...base,
+      message: error instanceof Error ? error.message : "GitHub 상태 확인에 실패했습니다.",
+    };
+  }
 }
 
 async function downloadArtifactZip(artifact: GithubArtifactInfo, token: string): Promise<Buffer> {
@@ -192,7 +265,8 @@ export async function importAppReleasesFromGithubRun(params: {
 }
 
 export function getDefaultGithubRepoLabel(): string {
-  return `${DEFAULT_OWNER}/${DEFAULT_REPO}`;
+  const { owner, repo } = resolveGithubRepo();
+  return `${owner}/${repo}`;
 }
 
 export function getDefaultWorkflowName(): string {

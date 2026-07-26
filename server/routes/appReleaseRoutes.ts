@@ -9,7 +9,7 @@ import {
   listAppReleases,
   saveAppRelease,
 } from "../storage/appReleaseStorage";
-import { importAppReleasesFromGithubRun } from "../utils/githubActionsArtifacts";
+import { importAppReleasesFromGithubRun, getGithubImportStatus } from "../utils/githubActionsArtifacts";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -47,6 +47,16 @@ export async function appReleaseRoutes(app: Express): Promise<void> {
     } catch (error) {
       console.error("[AppRelease] list error:", error);
       res.status(500).json({ error: "앱 파일 목록 조회에 실패했습니다." });
+    }
+  });
+
+  app.get("/api/admin/ops/app-releases/github-import-status", adminAuthMiddleware, async (_req, res) => {
+    try {
+      const status = await getGithubImportStatus();
+      res.json(status);
+    } catch (error) {
+      console.error("[AppRelease] github-import-status error:", error);
+      res.status(500).json({ error: "GitHub 연동 상태 조회에 실패했습니다." });
     }
   });
 
