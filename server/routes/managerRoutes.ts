@@ -8,7 +8,7 @@ import { broadcastManager } from "../liveMatch/broadcastManager";
 import { startRound, stopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { hasActiveSession, createSession, deleteSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
-import { consumeLoginLinkToken, ensureOperatorsReady, peekLoginLinkToken } from "../managerOperatorService";
+import { burnLoginLinkToken, ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken } from "../managerOperatorService";
 import { resolveClientLoginGeo } from "../utils/clientGeo";
 
 const adminStorage = new AdminStorage();
@@ -146,28 +146,14 @@ function generateManagerLoginLinkBridgeHtml(token: string, origin: string): stri
     (function () {
       var deeplink = ${JSON.stringify(deeplink)};
       var intentUrl = ${JSON.stringify(intentUrl)};
-      var webFallback = ${JSON.stringify(webFallbackUrl)};
-      var opened = false;
-      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-      function markOpened() {
-        opened = true;
-      }
-      document.addEventListener("visibilitychange", function () {
-        if (document.hidden) markOpened();
-      });
-      window.addEventListener("pagehide", markOpened);
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
       if (isIOS) {
         window.location.href = deeplink;
       } else {
         window.location.href = intentUrl;
       }
-
-      setTimeout(function () {
-        if (opened) return;
-        window.location.href = webFallback;
-      }, 2500);
     })();
   </script>
 </body>
@@ -229,30 +215,45 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "로그인 토큰이 필요합니다." });
       }
 
-      let consumed;
+      let resolved;
       try {
-        consumed = await consumeLoginLinkToken(token);
+        resolved = await resolveLoginLinkToken(token);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "로그인에 실패했습니다.";
         const deactivated = message.includes("비활성화");
         return res.status(401).json({ error: message, deactivated });
       }
 
-      const { accessToken, refreshToken } = await establishManagerSession(req, res, {
-        id: consumed.managerId,
-        email: consumed.email,
-        userType: consumed.userType,
-        approvalStatus: consumed.approvalStatus,
-      });
+      let accessToken: string;
+      let refreshToken: string;
+      try {
+        ({ accessToken, refreshToken } = await establishManagerSession(req, res, {
+          id: resolved.managerId,
+          email: resolved.email,
+          userType: resolved.userType,
+          approvalStatus: resolved.approvalStatus,
+        }));
+      } catch (sessionError) {
+        console.error("Manager login-with-link session error:", sessionError);
+        return res.status(500).json({
+          error: "로그인 세션을 만들지 못했습니다. 같은 링크로 다시 시도해 주세요.",
+        });
+      }
+
+      try {
+        await burnLoginLinkToken(resolved.managerId, token);
+      } catch (burnError) {
+        console.warn("Manager login-with-link token burn after session:", burnError);
+      }
 
       return res.json({
         success: true,
         message: "로그인 성공",
         accessToken,
         refreshToken,
-        username: consumed.username,
-        assignedMatchNumber: consumed.assignedMatchNumber,
-        operatorSlot: consumed.operatorSlot,
+        username: resolved.username,
+        assignedMatchNumber: resolved.assignedMatchNumber,
+        operatorSlot: resolved.operatorSlot,
       });
     } catch (error) {
       console.error("Manager login-with-link error:", error);

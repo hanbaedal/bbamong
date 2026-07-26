@@ -34,12 +34,20 @@ export function speakKorean(text: string): Promise<void> {
       resolve();
       return;
     }
+    const finish = () => resolve();
+    const timeout = window.setTimeout(finish, 2500);
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "ko-KR";
     utterance.rate = 0.95;
-    utterance.onend = () => resolve();
-    utterance.onerror = () => resolve();
+    utterance.onend = () => {
+      window.clearTimeout(timeout);
+      finish();
+    };
+    utterance.onerror = () => {
+      window.clearTimeout(timeout);
+      finish();
+    };
     window.speechSynthesis.speak(utterance);
   });
 }

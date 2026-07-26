@@ -26,6 +26,8 @@ function extractLoginTokenFromUrl(rawUrl: string): string | null {
 
 type LinkLoginPhase = "waiting" | "loading" | "success" | "error";
 
+const loginLinkInFlight = new Map<string, Promise<void>>();
+
 export default function ManagerLoginPage() {
   const [location, setLocation] = useLocation();
   const [linkLoginPhase, setLinkLoginPhase] = useState<LinkLoginPhase>("waiting");
@@ -44,57 +46,71 @@ export default function ManagerLoginPage() {
   };
 
   const loginWithLinkToken = async (token: string) => {
-    if (consumedTokensRef.current.has(token)) return;
-    consumedTokensRef.current.add(token);
-    setLinkLoginPhase("loading");
-    setLinkLoginMessage(operatorLoginDuringMessage());
+    const existing = loginLinkInFlight.get(token);
+    if (existing) {
+      await existing.catch(() => undefined);
+      return;
+    }
 
-    try {
-      window.history.replaceState({}, "", "/manager/login");
+    const run = (async () => {
+      if (consumedTokensRef.current.has(token)) return;
+      consumedTokensRef.current.add(token);
+      setLinkLoginPhase("loading");
+      setLinkLoginMessage(operatorLoginDuringMessage());
 
       try {
-        const previewRes = await fetch(
-          getFullUrl(`/api/manager/login-link-preview/${encodeURIComponent(token)}`),
-        );
-        if (previewRes.ok) {
-          const preview = await previewRes.json();
-          setLinkLoginMessage(
-            operatorLoginDuringMessage(preview.assignedMatchNumber, preview.operatorSlot),
+        try {
+          const previewRes = await fetch(
+            getFullUrl(`/api/manager/login-link-preview/${encodeURIComponent(token)}`),
           );
+          if (previewRes.ok) {
+            const preview = await previewRes.json();
+            setLinkLoginMessage(
+              operatorLoginDuringMessage(preview.assignedMatchNumber, preview.operatorSlot),
+            );
+          }
+        } catch {
+          /* preview optional */
         }
-      } catch {
-        /* preview optional */
-      }
 
-      const response = await fetch(getFullUrl("/api/manager/login-with-link"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ token }),
-      });
-      const data = await response.json();
+        const response = await fetch(getFullUrl("/api/manager/login-with-link"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ token }),
+        });
+        const data = await response.json();
 
-      if (response.ok) {
-        const successMessage = operatorLoginSuccessMessage(
-          data.assignedMatchNumber,
-          data.operatorSlot,
+        if (response.ok) {
+          window.history.replaceState({}, "", "/manager/login");
+          const successMessage = operatorLoginSuccessMessage(
+            data.assignedMatchNumber,
+            data.operatorSlot,
+          );
+          setLinkLoginPhase("success");
+          setLinkLoginMessage(successMessage);
+          void speakKorean(successMessage);
+          await finishLoginSuccess(data);
+          return;
+        }
+
+        consumedTokensRef.current.delete(token);
+        setLinkLoginPhase("error");
+        setLinkLoginMessage(
+          data.error || "자동 로그인에 실패했습니다. 관리자에게 새 링크를 요청하세요.",
         );
-        setLinkLoginPhase("success");
-        setLinkLoginMessage(successMessage);
-        await speakKorean(successMessage);
-        await finishLoginSuccess(data);
-        return;
+      } catch {
+        consumedTokensRef.current.delete(token);
+        setLinkLoginPhase("error");
+        setLinkLoginMessage("자동 로그인 중 오류가 발생했습니다. 관리자에게 새 링크를 요청하세요.");
       }
+    })();
 
-      consumedTokensRef.current.delete(token);
-      setLinkLoginPhase("error");
-      setLinkLoginMessage(
-        data.error || "자동 로그인에 실패했습니다. 관리자에게 새 링크를 요청하세요.",
-      );
-    } catch {
-      consumedTokensRef.current.delete(token);
-      setLinkLoginPhase("error");
-      setLinkLoginMessage("자동 로그인 중 오류가 발생했습니다. 관리자에게 새 링크를 요청하세요.");
+    loginLinkInFlight.set(token, run);
+    try {
+      await run;
+    } finally {
+      loginLinkInFlight.delete(token);
     }
   };
 

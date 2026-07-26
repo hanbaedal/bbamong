@@ -204,21 +204,9 @@ export async function peekLoginLinkToken(token: string): Promise<LoginLinkPrevie
   };
 }
 
-/** 일회용 로그인 링크 토큰 검증 후 즉시 무효화 */
-export async function consumeLoginLinkToken(token: string): Promise<LoginLinkConsumeResult> {
-  const trimmed = token.trim();
-  const doc = await findValidLoginLinkDoc(trimmed);
-
-  const cleared = await AdminUserModel.findOneAndUpdate(
-    { id: doc.id, loginLinkToken: trimmed },
-    { loginLinkToken: "", loginLinkExpiresAt: null },
-    { new: false },
-  ).lean();
-
-  if (!cleared) {
-    throw new Error("이미 사용되었거나 유효하지 않은 로그인 링크입니다.");
-  }
-
+/** 일회용 로그인 링크 검증 (토큰 소비 없음) */
+export async function resolveLoginLinkToken(token: string): Promise<LoginLinkConsumeResult> {
+  const doc = await findValidLoginLinkDoc(token.trim());
   return {
     managerId: doc.id,
     email: doc.email,
@@ -229,6 +217,27 @@ export async function consumeLoginLinkToken(token: string): Promise<LoginLinkCon
     assignedMatchNumber: doc.assignedMatchNumber ?? null,
     operatorSlot: (doc as { operatorSlot?: number }).operatorSlot ?? 0,
   };
+}
+
+/** 로그인 성공 후 링크 토큰 무효화 */
+export async function burnLoginLinkToken(managerId: string, token: string): Promise<void> {
+  const trimmed = token.trim();
+  const cleared = await AdminUserModel.findOneAndUpdate(
+    { id: managerId, loginLinkToken: trimmed },
+    { loginLinkToken: "", loginLinkExpiresAt: null },
+    { new: false },
+  ).lean();
+
+  if (!cleared) {
+    throw new Error("이미 사용되었거나 유효하지 않은 로그인 링크입니다.");
+  }
+}
+
+/** @deprecated resolveLoginLinkToken + burnLoginLinkToken 사용 */
+export async function consumeLoginLinkToken(token: string): Promise<LoginLinkConsumeResult> {
+  const resolved = await resolveLoginLinkToken(token);
+  await burnLoginLinkToken(resolved.managerId, token);
+  return resolved;
 }
 
 /** 오늘 경기 등록 순서 → API 동기화 ON인 op만 할당 */
