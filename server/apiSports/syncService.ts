@@ -4,7 +4,7 @@ import { broadcastManager } from "../liveMatch/broadcastManager";
 import { finalizeMatchEnd, lockSideBetsForMatch } from "../liveMatch/sideBetStorage";
 import { getKstDateString } from "../utils/dateUtils";
 import { fetchGameById, fetchGamesByDate, type ApiSportsGameResponse } from "./client";
-import { KBO_LEAGUE_ID } from "./constants";
+import { KBO_LEAGUE_ID, POLL_START_BEFORE_MS } from "./constants";
 import { markApiSportsError } from "./healthState";
 import {
   buildInningKey,
@@ -260,6 +260,25 @@ async function syncLinkedMatch(match: any) {
   }
 }
 
+/** api-baseball live 폴링: 경기 시작 1분 전 ~ endTime 까지만 */
+export function shouldPollMatchNow(match: {
+  startTime?: Date | null;
+  endTime?: Date | null;
+}): boolean {
+  if (!match.startTime) return false;
+
+  const now = Date.now();
+  const startMs = new Date(match.startTime).getTime();
+  if (now < startMs - POLL_START_BEFORE_MS) return false;
+
+  if (match.endTime) {
+    const endMs = new Date(match.endTime).getTime();
+    if (now > endMs) return false;
+  }
+
+  return true;
+}
+
 export async function pollLinkedMatchesOnce(): Promise<void> {
   if (!process.env.API_SPORTS_KEY?.trim()) return;
 
@@ -280,6 +299,7 @@ export async function pollLinkedMatchesOnce(): Promise<void> {
   }).lean();
 
   for (const match of matches) {
+    if (!shouldPollMatchNow(match)) continue;
     try {
       await syncLinkedMatch(match);
     } catch (error) {
