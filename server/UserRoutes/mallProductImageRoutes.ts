@@ -7,6 +7,7 @@ import {
   isObjectStorageConfigured,
   saveMallProductImageLocal,
 } from "../lib/mallProductImageStorage";
+import { isR2Configured, uploadMallProductImageToR2 } from "../lib/r2MallImageStorage";
 import { ObjectStorageService } from "../objectStorage";
 import { getMallProductImageLimits } from "@shared/mallProduct";
 
@@ -18,6 +19,8 @@ const uploadSchema = z.object({
 const uploadUrlSchema = z.object({
   kind: z.enum(["cover", "detail"]).optional().default("cover"),
 });
+
+type MallImageStorage = "r2" | "gcs" | "local";
 
 function decodeBase64Image(payload: string): Buffer {
   const normalized = payload.includes(",") ? payload.split(",").pop()! : payload;
@@ -33,6 +36,34 @@ async function uploadToObjectStorage(
   return objectStorage.uploadPublicProductImage("mall-products", buffer, contentType, extension);
 }
 
+/** 우선순위: R2 → GCS → local */
+async function persistMallProductImage(
+  buffer: Buffer,
+  contentType: string,
+  extension: string,
+): Promise<{ url: string; storage: MallImageStorage }> {
+  if (isR2Configured()) {
+    try {
+      const url = await uploadMallProductImageToR2(buffer, contentType, extension);
+      return { url, storage: "r2" };
+    } catch (r2Error) {
+      console.warn("R2 upload failed, trying GCS/local:", r2Error);
+    }
+  }
+
+  if (isObjectStorageConfigured()) {
+    try {
+      const url = await uploadToObjectStorage(buffer, contentType, extension);
+      return { url, storage: "gcs" };
+    } catch (gcsError) {
+      console.warn("GCS upload failed, using local storage:", gcsError);
+    }
+  }
+
+  const url = await saveMallProductImageLocal(buffer, extension);
+  return { url, storage: "local" };
+}
+
 export async function mallProductImageRoutes(app: Express): Promise<void> {
   app.post("/api/admin/mall/product-images/upload-url", adminAuthMiddleware, async (req, res) => {
     try {
@@ -40,7 +71,8 @@ export async function mallProductImageRoutes(app: Express): Promise<void> {
       const kind = parsed.success ? parsed.data.kind : "cover";
       const { maxBytes } = getMallProductImageLimits(kind);
 
-      if (!isObjectStorageConfigured()) {
+      // R2는 서버 업로드(direct)만 사용 — 브라우저→R2 CORS 설정 불필요
+      if (isR2Configured() || !isObjectStorageConfigured()) {
         return res.json({ mode: "direct" as const, kind, maxBytes });
       }
 
@@ -79,24 +111,11 @@ export async function mallProductImageRoutes(app: Express): Promise<void> {
       }
 
       const compressed = await compressProductImage(input, kind);
-      let url: string;
-      let storage: "gcs" | "local" = "local";
-
-      if (isObjectStorageConfigured()) {
-        try {
-          url = await uploadToObjectStorage(
-            compressed.buffer,
-            compressed.contentType,
-            compressed.extension,
-          );
-          storage = "gcs";
-        } catch (gcsError) {
-          console.warn("GCS upload failed, using local storage:", gcsError);
-          url = await saveMallProductImageLocal(compressed.buffer, compressed.extension);
-        }
-      } else {
-        url = await saveMallProductImageLocal(compressed.buffer, compressed.extension);
-      }
+      const { url, storage } = await persistMallProductImage(
+        compressed.buffer,
+        compressed.contentType,
+        compressed.extension,
+      );
 
       res.json({
         url,

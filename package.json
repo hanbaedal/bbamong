@@ -21,6 +21,7 @@
     "setup:legacy-pg": "bash scripts/setup-legacy-pg-sync.sh"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1096.0",
     "@capacitor-community/admob": "^7.2.0",
     "@capacitor-community/http": "^1.4.1",
     "@capacitor/android": "^7.4.4",
