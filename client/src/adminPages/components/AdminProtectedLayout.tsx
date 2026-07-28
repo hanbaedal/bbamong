@@ -7,23 +7,20 @@ const PUBLIC_PATHS = new Set(["/admin/login", "/admin/signup", "/admin/waiting"]
 
 export function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoaded } = useUser();
-  const [, setLocation] = useLocation();
-  const path = window.location.pathname;
+  const [location, setLocation] = useLocation();
+  const isPublic = PUBLIC_PATHS.has(location);
+  const isAdmin =
+    !!user && (!user.userType || ADMIN_TYPES.has(user.userType));
 
   useEffect(() => {
-    if (!isUserLoaded || PUBLIC_PATHS.has(path)) return;
+    if (!isUserLoaded || isPublic) return;
 
-    if (!user) {
-      setLocation("/admin/login");
-      return;
-    }
-
-    if (user.userType && !ADMIN_TYPES.has(user.userType)) {
+    if (!user || (user.userType && !ADMIN_TYPES.has(user.userType))) {
       setLocation("/admin/login");
     }
-  }, [user, isUserLoaded, path, setLocation]);
+  }, [user, isUserLoaded, isPublic, setLocation]);
 
-  if (!isUserLoaded && !PUBLIC_PATHS.has(path)) {
+  if (!isPublic && (!isUserLoaded || !isAdmin)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="w-8 h-8 border-2 border-[#E11936] border-t-transparent rounded-full animate-spin" />

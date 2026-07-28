@@ -31,7 +31,7 @@ const emptyForm: StaffFormData = {
   notes: "",
 };
 
-function FormRow({
+function FormField({
   label,
   required,
   children,
@@ -41,13 +41,15 @@ function FormRow({
   children: React.ReactNode;
 }) {
   return (
-    <tr className="border-b border-[#E9E9E9] last:border-b-0">
-      <th className="w-32 md:w-40 bg-[#FAFAFA] text-left text-sm font-medium text-[#414141] px-4 py-3 align-middle whitespace-nowrap">
-        {label}
-        {required ? <span className="text-[#E11936] ml-0.5">*</span> : null}
-      </th>
-      <td className="px-4 py-3">{children}</td>
-    </tr>
+    <div className="flex flex-col sm:flex-row sm:items-start border-b border-[#E9E9E9] last:border-b-0">
+      <div className="sm:w-36 md:w-40 shrink-0 bg-[#FAFAFA] px-3 py-2.5 sm:px-4 sm:py-3 sm:min-h-[3.25rem] sm:flex sm:items-center">
+        <span className="text-xs sm:text-sm font-medium text-[#414141]">
+          {label}
+          {required ? <span className="text-[#E11936] ml-0.5">*</span> : null}
+        </span>
+      </div>
+      <div className="flex-1 min-w-0 px-3 py-2.5 sm:px-4 sm:py-3">{children}</div>
+    </div>
   );
 }
 
@@ -126,126 +128,124 @@ export default function StaffRegisterPage() {
 
   return (
     <AdminLayout>
-      <div className="flex flex-col h-full min-h-0 w-full max-w-3xl">
-        <div className="flex items-center gap-2 mb-4 shrink-0" data-testid="breadcrumb">
-          <span className="text-xs md:text-sm text-[#BFBFBF]">관리자 관리</span>
-          <span className="text-xs md:text-sm text-[#BFBFBF]">&gt;</span>
-          <span className="text-xs md:text-sm text-[#201E22]">관리자 등록</span>
-        </div>
-
-        <div className="flex flex-col items-center mb-8 shrink-0">
-          <div className="w-[100px] h-[100px] flex items-center justify-center mb-4">
-            <img
-              src={assets.adminLogo}
-              alt="PPAMONG"
-              className="w-full h-full object-contain"
-              data-testid="img-staff-register-logo"
-            />
-          </div>
-          <h1 className="text-xl md:text-2xl font-semibold text-[#201E22]" data-testid="text-page-title">
+      <div className="w-full max-w-3xl mx-auto flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-1 px-1">
+        <div className="flex items-center gap-2 mb-4 sm:mb-6">
+          <img
+            src={assets.adminLogo}
+            alt=""
+            className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
+            data-testid="img-staff-register-logo"
+          />
+          <h1
+            className="text-lg sm:text-xl md:text-2xl font-semibold text-[#201E22]"
+            data-testid="text-page-title"
+          >
             관리자 등록
           </h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <form onSubmit={handleSubmit} className="flex flex-col pb-8">
           <div className="border border-[#E9E9E9] rounded-lg overflow-hidden bg-white">
-            <table className="w-full border-collapse">
-              <tbody>
-                <FormRow label="아이디" required>
-                  <Input
-                    value={isUsernameLoading ? "불러오는 중..." : nextUsername}
-                    readOnly
-                    className="bg-[#FAFAFA] text-[#201E22] font-medium"
-                    data-testid="input-username"
-                  />
-                  <p className="text-[11px] text-[#888] mt-1">ppamong.01 형식으로 자동 부여됩니다.</p>
-                </FormRow>
+            <FormField label="아이디" required>
+              <Input
+                value={isUsernameLoading ? "불러오는 중..." : nextUsername}
+                readOnly
+                className="bg-[#FAFAFA] text-[#201E22] font-medium h-10 sm:h-11 text-sm"
+                data-testid="input-username"
+              />
+              <p className="text-[11px] text-[#888] mt-1">ppamong.01 형식으로 자동 부여됩니다.</p>
+            </FormField>
 
-                <FormRow label="비밀번호" required>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      required
-                      minLength={6}
-                      autoComplete="new-password"
-                      className="pr-10"
-                      data-testid="input-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#414141]"
-                      aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </FormRow>
+            <FormField label="비밀번호" required>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                  className="pr-10 h-10 sm:h-11 text-sm"
+                  data-testid="input-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#414141] p-1"
+                  aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </FormField>
 
-                <FormRow label="이름" required>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                    data-testid="input-name"
-                  />
-                </FormRow>
+            <FormField label="이름" required>
+              <Input
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                className="h-10 sm:h-11 text-sm"
+                data-testid="input-name"
+              />
+            </FormField>
 
-                <FormRow label="전화번호" required>
-                  <Input
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="01012345678"
-                    required
-                    data-testid="input-phone"
-                  />
-                </FormRow>
+            <FormField label="전화번호" required>
+              <Input
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="01012345678"
+                required
+                inputMode="tel"
+                className="h-10 sm:h-11 text-sm"
+                data-testid="input-phone"
+              />
+            </FormField>
 
-                <FormRow label="이메일" required>
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                    data-testid="input-email"
-                  />
-                </FormRow>
+            <FormField label="이메일" required>
+              <Input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
+                className="h-10 sm:h-11 text-sm"
+                data-testid="input-email"
+              />
+            </FormField>
 
-                <FormRow label="부서">
-                  <Input
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    data-testid="input-department"
-                  />
-                </FormRow>
+            <FormField label="부서">
+              <Input
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                className="h-10 sm:h-11 text-sm"
+                data-testid="input-department"
+              />
+            </FormField>
 
-                <FormRow label="직책">
-                  <Input
-                    value={formData.position}
-                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                    data-testid="input-position"
-                  />
-                </FormRow>
+            <FormField label="직책">
+              <Input
+                value={formData.position}
+                onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                className="h-10 sm:h-11 text-sm"
+                data-testid="input-position"
+              />
+            </FormField>
 
-                <FormRow label="참고">
-                  <Textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    rows={3}
-                    className="resize-none"
-                    data-testid="input-notes"
-                  />
-                </FormRow>
-              </tbody>
-            </table>
+            <FormField label="참고">
+              <Textarea
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                rows={3}
+                className="resize-y min-h-[72px] text-sm"
+                data-testid="input-notes"
+              />
+            </FormField>
           </div>
 
-          <div className="flex gap-2 justify-center mt-8 shrink-0">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 justify-center mt-6 sm:mt-8">
             <Button
               type="button"
               variant="outline"
+              className="w-full sm:w-auto h-11"
               onClick={() => setLocation("/admin/staff/list")}
               data-testid="button-cancel"
             >
@@ -253,7 +253,7 @@ export default function StaffRegisterPage() {
             </Button>
             <Button
               type="submit"
-              className="bg-[#E11936] hover:bg-[#B71C1C] text-white min-w-[88px]"
+              className="w-full sm:w-auto h-11 bg-[#E11936] hover:bg-[#B71C1C] text-white min-w-[88px]"
               disabled={createMutation.isPending || isUsernameLoading || !nextUsername}
               data-testid="button-submit"
             >

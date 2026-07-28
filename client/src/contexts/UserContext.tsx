@@ -236,6 +236,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
 
     if (!userRef.current) {
+      // 보호 경로 진입 시 가드가 세션 확인 전에 로그인으로 튕기지 않도록 로딩 표시
+      setIsUserLoaded(false);
       void fetchUser();
       return;
     }
@@ -247,6 +249,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (newUser) {
       isLoggedOutRef.current = false;
     }
+    // location 변경 effect가 같은 틱에서 userRef를 읽으므로 동기 반영
+    userRef.current = newUser;
     setUser(newUser);
   }, []);
 

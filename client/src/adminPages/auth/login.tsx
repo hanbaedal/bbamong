@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,8 +55,12 @@ export default function AdminLoginPage() {
       const data = await response.json();
 
       if (response.ok) {
+        // setUser가 커밋되기 전에 setLocation이 먼저 반영되면
+        // AdminProtectedLayout이 user=null로 보고 /admin/login으로 되돌림
         if (data.admin) {
-          setUser(mapSessionUserFromAdmin(data.admin as Record<string, unknown>));
+          flushSync(() => {
+            setUser(mapSessionUserFromAdmin(data.admin as Record<string, unknown>));
+          });
         } else {
           await refetchUser();
         }
