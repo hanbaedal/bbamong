@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { managerFetch, managerQueryClient, getFullUrl } from "@/lib/managerQueryClient";
+import { managerFetch, managerQueryClient, getFullUrl, dispatchManagerMatchEnded } from "@/lib/managerQueryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
@@ -41,6 +41,7 @@ export default function ManagerHomePage() {
   const [manager, setManager] = useState<ManagerInfo | null>(null);
   const [isLoadingManager, setIsLoadingManager] = useState(true);
   const { toast } = useToast();
+  const matchEndedLogoutRef = useRef(false);
 
   // 경기 목록 조회 - 항상 최신 데이터 유지
   const { data: matches = [], isLoading: isLoadingMatches } = useQuery<Match[]>({
@@ -77,7 +78,27 @@ export default function ManagerHomePage() {
       setLocation("/manager/login");
     };
     
+    const handleMatchEnded = async (event: Event) => {
+      const message =
+        (event as CustomEvent<{ message?: string }>).detail?.message ??
+        "담당 경기가 종료되어 로그아웃되었습니다.";
+      try {
+        sessionStorage.setItem("manager-match-ended-message", message);
+      } catch {
+        /* ignore */
+      }
+      await clearManagerTokens();
+      managerQueryClient.clear();
+      if (!Capacitor.isNativePlatform()) {
+        fetch(getFullUrl("/api/manager/clear-session"), { method: "POST", credentials: "include" }).catch(() => {});
+      }
+      setManager(null);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      setLocation("/manager/login");
+    };
+    
     window.addEventListener("manager-session-expired", handleSessionExpired);
+    window.addEventListener("manager-match-ended", handleMatchEnded);
 
     let appListenerHandle: { remove: () => void } | null = null;
     let isMounted = true;
@@ -98,11 +119,27 @@ export default function ManagerHomePage() {
     return () => {
       isMounted = false;
       window.removeEventListener("manager-session-expired", handleSessionExpired);
+      window.removeEventListener("manager-match-ended", handleMatchEnded);
       if (appListenerHandle) {
         appListenerHandle.remove();
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (isLoadingMatches || matchEndedLogoutRef.current) return;
+    const assignedEnded = matches.some(
+      (m) => m.matchStatus === "completed" || m.matchStatus === "cancelled",
+    );
+    if (assignedEnded) {
+      matchEndedLogoutRef.current = true;
+      toast({
+        variant: "destructive",
+        description: "담당 경기가 종료되어 로그아웃됩니다.",
+      });
+      dispatchManagerMatchEnded();
+    }
+  }, [matches, isLoadingMatches, toast]);
 
   const fetchManagerInfo = async () => {
     try {

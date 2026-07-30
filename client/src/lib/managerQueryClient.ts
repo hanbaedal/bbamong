@@ -45,6 +45,37 @@ export function resetManagerRefreshCooldown(): void {
   refreshPromise = null;
 }
 
+const MATCH_ENDED_MESSAGE = "담당 경기가 종료되어 로그아웃되었습니다.";
+
+export function dispatchManagerMatchEnded(message = MATCH_ENDED_MESSAGE): void {
+  window.dispatchEvent(new CustomEvent("manager-match-ended", { detail: { message } }));
+}
+
+async function handleManagerAuthFailure(res: Response | null): Promise<void> {
+  refreshFailedAt = Date.now();
+  await clearManagerTokens();
+  managerQueryClient.clear();
+  if (!isNative) {
+    fetch(getFullUrl("/api/manager/clear-session"), { method: "POST", credentials: "include" }).catch(() => {});
+  }
+
+  let matchEnded = false;
+  if (res) {
+    try {
+      const body = await res.clone().json();
+      matchEnded = body.matchEnded === true;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (matchEnded) {
+    dispatchManagerMatchEnded();
+  } else {
+    window.dispatchEvent(new CustomEvent("manager-session-expired"));
+  }
+}
+
 export async function refreshAccessToken(): Promise<boolean> {
   if (refreshFailedAt && Date.now() - refreshFailedAt < REFRESH_COOLDOWN_MS) {
     return false;
@@ -83,12 +114,7 @@ export async function refreshAccessToken(): Promise<boolean> {
       }
       
       refreshFailedAt = Date.now();
-      await clearManagerTokens();
-      managerQueryClient.clear();
-      if (!isNative) {
-        fetch(getFullUrl("/api/manager/clear-session"), { method: "POST", credentials: "include" }).catch(() => {});
-      }
-      window.dispatchEvent(new CustomEvent("manager-session-expired"));
+      await handleManagerAuthFailure(res);
       return false;
     } catch (error) {
       networkFailCount++;

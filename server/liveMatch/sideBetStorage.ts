@@ -361,5 +361,8 @@ export async function finalizeMatchEnd(matchId: string): Promise<{
   const { endMatch } = await import("./predictionStorage");
   const ended = await endMatch(matchId);
 
+  const { revokeOperatorAccessForMatchEnd } = await import("../managerOperatorService");
+  await revokeOperatorAccessForMatchEnd(matchId);
+
   return { match: ended, sideBetSettled: settled, sideBetRefunded: refunded };
 }

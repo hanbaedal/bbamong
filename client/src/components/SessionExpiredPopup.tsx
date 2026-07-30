@@ -33,6 +33,26 @@ export function SessionExpiredPopup() {
       setLocation("/manager/login");
     };
 
+    const handleManagerMatchEnded = async (event: Event) => {
+      if (isProcessingRef.current) return;
+      isProcessingRef.current = true;
+      const message =
+        (event as CustomEvent<{ message?: string }>).detail?.message ??
+        "담당 경기가 종료되어 로그아웃되었습니다.";
+      try {
+        sessionStorage.setItem("manager-match-ended-message", message);
+      } catch {
+        /* ignore */
+      }
+      await clearManagerTokens();
+      managerQueryClient.clear();
+      if (!Capacitor.isNativePlatform()) {
+        fetch(getFullUrl("/api/manager/clear-session"), { method: "POST", credentials: "include" }).catch(() => {});
+      }
+      isProcessingRef.current = false;
+      setLocation("/manager/login");
+    };
+
     const handleUserSessionExpired = () => {
       if (isProcessingRef.current) return;
       isProcessingRef.current = true;
@@ -68,6 +88,7 @@ export function SessionExpiredPopup() {
 
     window.addEventListener("admin-session-expired", handleAdminSessionExpired);
     window.addEventListener("manager-session-expired", handleManagerSessionExpired);
+    window.addEventListener("manager-match-ended", handleManagerMatchEnded);
     window.addEventListener("user-session-expired", handleUserSessionExpired);
     window.addEventListener("admin-duplicate-login", handleAdminDuplicateLogin);
     window.addEventListener("manager-duplicate-login", handleManagerDuplicateLogin);
@@ -76,6 +97,7 @@ export function SessionExpiredPopup() {
     return () => {
       window.removeEventListener("admin-session-expired", handleAdminSessionExpired);
       window.removeEventListener("manager-session-expired", handleManagerSessionExpired);
+      window.removeEventListener("manager-match-ended", handleManagerMatchEnded);
       window.removeEventListener("user-session-expired", handleUserSessionExpired);
       window.removeEventListener("admin-duplicate-login", handleAdminDuplicateLogin);
       window.removeEventListener("manager-duplicate-login", handleManagerDuplicateLogin);

@@ -54,8 +54,9 @@ function buildCopyText(op: OperatorAccount): string {
   const lines = [
     `[빠몽 운영자 로그인] ${op.username}`,
     `담당 경기: ${op.assignedMatchNumber ?? "없음"}`,
+    `비밀번호: ${op.dailyPasswordPlain || "(생성 버튼으로 발급)"}`,
     "",
-    "▼ 아래 링크를 누르면 운영자 앱에 자동 로그인됩니다 (1회용, 당일까지)",
+    "▼ 아래 링크를 누르면 운영자 앱에 자동 로그인됩니다 (경기 종료 전까지 사용 가능)",
   ];
 
   if (op.loginLinkToken) {
@@ -72,8 +73,9 @@ function buildSharePayload(op: OperatorAccount): OperatorSharePayload {
   const text = [
     `[빠몽 운영자 로그인] ${op.username}`,
     `담당 경기: ${op.assignedMatchNumber ?? "없음"}`,
+    `비밀번호: ${op.dailyPasswordPlain || "(생성 버튼으로 발급)"}`,
     "",
-    "▼ 링크를 누르면 운영자 앱에 자동 로그인됩니다 (1회용, 당일까지)",
+    "▼ 링크를 누르면 운영자 앱에 자동 로그인됩니다 (경기 종료 전까지 사용 가능)",
   ].join("\n");
   return {
     title: `빠몽 운영자 로그인 (${op.username})`,

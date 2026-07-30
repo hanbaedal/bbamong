@@ -1,5 +1,6 @@
 import { MatchModel } from "./UserStorage/db";
 import { getKstDateString } from "./utils/dateUtils";
+import { revokeOperatorAccessForMatchEnd } from "./managerOperatorService";
 
 const BATCH_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -9,6 +10,17 @@ async function closeExpiredMatches(): Promise<void> {
   try {
     const kstToday = getKstDateString();
     const now = new Date();
+
+    const expiredMatches = await MatchModel.find({
+      matchStatus: { $in: ["scheduled", "ongoing"] },
+      $or: [{ matchDate: { $lt: kstToday } }, { matchDate: null, endTime: { $lt: now } }],
+    })
+      .select("id")
+      .lean();
+
+    for (const match of expiredMatches) {
+      await revokeOperatorAccessForMatchEnd(match.id);
+    }
 
     const result = await MatchModel.updateMany(
       {

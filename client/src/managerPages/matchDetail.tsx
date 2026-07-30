@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
 import AdminConfirmPopup from "@/components/customUi/AdminConfirmPopup";
-import { managerFetch, refreshAccessToken } from "@/lib/managerQueryClient";
+import { managerFetch, refreshAccessToken, dispatchManagerMatchEnded } from "@/lib/managerQueryClient";
 import { getManagerAccessToken } from "@/lib/managerTokenManager";
 import { useManagerAssets } from "@/contexts/ManagerAssetContext";
 import { useToast } from "@/hooks/use-toast";
@@ -77,6 +77,7 @@ export default function MatchDetailPage() {
   const duplicateLoginRef = useRef(false);
   const isUnmountingRef = useRef(false);
   const threeOutsSpokenRef = useRef(false);
+  const matchEndedLogoutRef = useRef(false);
   const HEARTBEAT_INTERVAL = 25000; // 25초마다 ping
   const PONG_TIMEOUT = 10000; // 10초 내 pong 없으면 재연결
 
@@ -103,6 +104,16 @@ export default function MatchDetailPage() {
       }
     };
     fetchManagerInfo();
+  }, [toast]);
+
+  const logoutOnMatchEnded = useCallback(() => {
+    if (matchEndedLogoutRef.current) return;
+    matchEndedLogoutRef.current = true;
+    toast({
+      variant: "destructive",
+      description: "담당 경기가 종료되어 로그아웃됩니다.",
+    });
+    dispatchManagerMatchEnded();
   }, [toast]);
 
   // WebSocket 연결 및 관리
@@ -221,6 +232,10 @@ export default function MatchDetailPage() {
             case "stats_update":
               fetchMatchDetail();
               break;
+            case "end":
+            case "match_ended":
+              logoutOnMatchEnded();
+              break;
             default:
               console.log("[Manager WS] 알 수 없는 메시지:", type);
           }
@@ -335,7 +350,7 @@ export default function MatchDetailPage() {
         wsRef.current.close(1000, "Component unmounted");
       }
     };
-  }, [id, managerId, toast]);
+  }, [id, managerId, toast, logoutOnMatchEnded]);
 
   const fetchMatchDetail = useCallback(async (isPolling = false) => {
     try {
@@ -345,12 +360,8 @@ export default function MatchDetailPage() {
 
       if (response.ok) {
         const data = await response.json();
-        if (data.matchStatus === "completed") {
-          toast({
-            variant: "destructive",
-            description: "종료된 경기입니다.",
-          });
-          setLocation("/manager/home");
+        if (data.matchStatus === "completed" || data.matchStatus === "cancelled") {
+          logoutOnMatchEnded();
           return;
         }
         setMatch(data);
@@ -399,7 +410,7 @@ export default function MatchDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [id, toast, setLocation]);
+  }, [id, toast, setLocation, logoutOnMatchEnded]);
 
   useEffect(() => {
     if (id) {

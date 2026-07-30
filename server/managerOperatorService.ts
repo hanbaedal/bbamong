@@ -47,16 +47,173 @@ export function generateDailyPassword(length = 8): string {
   return result;
 }
 
-/** URL-safe 일회용 로그인 토큰 */
+/** URL-safe 로그인 링크 토큰 */
 export function generateLoginLinkToken(): string {
   return randomBytes(24).toString("base64url");
 }
 
-/** KST 기준 다음 자정(당일 링크 만료)에 해당하는 UTC Date */
+/** KST 기준 다음 자정 — 담당 경기 없을 때 fallback 만료 */
 export function getLoginLinkExpiryDate(): Date {
   const kstDate = getKstDateKey(); // YYYY-MM-DD
   // 다음 KST 자정 = 당일 15:00 UTC
   return new Date(`${kstDate}T15:00:00.000Z`);
+}
+
+/** 운영자 슬롯에 배정된 오늘 경기 종료 시각 (없으면 KST 자정) */
+export async function getOperatorCredentialsExpiryDate(operatorSlot: number): Promise<Date> {
+  if (operatorSlot <= 0) {
+    return getLoginLinkExpiryDate();
+  }
+  const matches = await getTodayMatchesByRegistrationOrder();
+  const match = matches[operatorSlot - 1];
+  if (!match || match.matchStatus === "completed" || match.matchStatus === "cancelled") {
+    return getLoginLinkExpiryDate();
+  }
+  return new Date(match.endTime);
+}
+
+function isMatchEnded(matchStatus: string): boolean {
+  return matchStatus === "completed" || matchStatus === "cancelled";
+}
+
+async function getAssignedMatchForOperator(doc: {
+  operatorSlot?: number;
+}): Promise<{ id: string; endTime: Date; matchStatus: string } | null> {
+  const slot = doc.operatorSlot ?? 0;
+  if (slot <= 0) return null;
+
+  const matches = await getTodayMatchesByRegistrationOrder();
+  const summary = matches[slot - 1];
+  if (!summary) return null;
+
+  return {
+    id: summary.id,
+    endTime: summary.endTime,
+    matchStatus: summary.matchStatus,
+  };
+}
+
+/** 시스템 운영자(op1~op5) 로그인 정보가 담당 경기 종료 전인지 확인 */
+export async function assertOperatorLoginAllowed(doc: {
+  id?: string;
+  username: string;
+  operatorSlot?: number;
+}): Promise<void> {
+  if (!OPERATOR_USERNAMES.includes(doc.username as (typeof OPERATOR_USERNAMES)[number])) {
+    return;
+  }
+
+  const credDoc = doc.id
+    ? await AdminUserModel.findOne({ id: doc.id })
+        .select("dailyPasswordPlain operatorSlot username")
+        .lean()
+    : await AdminUserModel.findOne({ username: doc.username, userType: "매니저" })
+        .select("dailyPasswordPlain operatorSlot username")
+        .lean();
+
+  if (!(credDoc as { dailyPasswordPlain?: string } | null)?.dailyPasswordPlain) {
+    throw new Error("로그인 정보가 만료되었습니다. 관리자에게 새 정보를 요청하세요.");
+  }
+
+  const slot =
+    (credDoc as { operatorSlot?: number } | null)?.operatorSlot ?? doc.operatorSlot ?? 0;
+  const match = await getAssignedMatchForOperator({ operatorSlot: slot });
+  if (!match) {
+    throw new Error("오늘 배정된 경기가 없습니다. 관리자에게 문의하세요.");
+  }
+  if (isMatchEnded(match.matchStatus)) {
+    throw new Error("담당 경기가 종료되어 로그인 정보가 만료되었습니다. 관리자에게 새 정보를 요청하세요.");
+  }
+  if (new Date(match.endTime).getTime() < Date.now()) {
+    throw new Error("로그인 정보가 만료되었습니다. 관리자에게 새 정보를 요청하세요.");
+  }
+}
+
+async function invalidateOperatorCredentials(managerId: string): Promise<void> {
+  const placeholder = await bcrypt.hash(randomBytes(32).toString("hex"), 10);
+  await AdminUserModel.updateOne(
+    { id: managerId },
+    {
+      password: placeholder,
+      dailyPasswordPlain: "",
+      dailyPasswordDate: "",
+      loginLinkToken: "",
+      loginLinkExpiresAt: null,
+    },
+  );
+}
+
+/** 경기 종료 시 담당 운영자 자격·세션 무효화 (당일 ID/PW·링크 재사용 불가) */
+export async function revokeOperatorAccessForMatchEnd(matchId: string): Promise<string[]> {
+  const match = await MatchModel.findOne({ id: matchId })
+    .select("name registrationOrder")
+    .lean();
+  if (!match) return [];
+
+  const operatorIds: string[] = [];
+  const seen = new Set<string>();
+
+  const byAssignment = await AdminUserModel.find({
+    userType: "매니저",
+    username: { $in: [...OPERATOR_USERNAMES] },
+    assignedMatchNumber: match.name,
+  })
+    .select("id")
+    .lean();
+
+  for (const op of byAssignment) {
+    if (!seen.has(op.id)) {
+      seen.add(op.id);
+      operatorIds.push(op.id);
+    }
+  }
+
+  const order = (match as { registrationOrder?: number | null }).registrationOrder;
+  if (order != null && order >= 1 && order <= OPERATOR_COUNT) {
+    const slotOp = await AdminUserModel.findOne({
+      username: `op${order}`,
+      userType: "매니저",
+    })
+      .select("id")
+      .lean();
+    if (slotOp && !seen.has(slotOp.id)) {
+      seen.add(slotOp.id);
+      operatorIds.push(slotOp.id);
+    }
+  }
+
+  for (const operatorId of operatorIds) {
+    await invalidateOperatorCredentials(operatorId);
+    await deleteSession("manager", operatorId);
+  }
+
+  if (operatorIds.length > 0) {
+    console.log(
+      `[Operators] 경기 종료 — ${operatorIds.length}명 운영자 자격·세션 무효화 (${match.name})`,
+    );
+  }
+
+  return operatorIds;
+}
+
+export async function isOperatorCredentialsActive(managerId: string): Promise<boolean> {
+  const doc = await AdminUserModel.findOne({ id: managerId })
+    .select("username operatorSlot")
+    .lean();
+  if (!doc) return false;
+  if (!OPERATOR_USERNAMES.includes(doc.username as (typeof OPERATOR_USERNAMES)[number])) {
+    return true;
+  }
+  try {
+    await assertOperatorLoginAllowed({
+      id: doc.id,
+      username: doc.username,
+      operatorSlot: (doc as { operatorSlot?: number }).operatorSlot,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function todayRange() {
@@ -82,6 +239,8 @@ export interface OrderedTodayMatch {
   id: string;
   name: string;
   startTime: Date;
+  endTime: Date;
+  matchStatus: string;
   stadiumName: string;
   registrationOrder: number;
 }
@@ -100,6 +259,8 @@ export async function getTodayMatchesByRegistrationOrder(): Promise<OrderedToday
       id: row.id,
       name: row.name,
       startTime: row.startTime,
+      endTime: row.endTime,
+      matchStatus: (row as { matchStatus?: string }).matchStatus ?? "scheduled",
       stadiumName: stadium?.name ?? "",
       registrationOrder: (row as { registrationOrder?: number }).registrationOrder ?? i + 1,
     });
@@ -111,6 +272,10 @@ async function setOperatorPassword(
   managerId: string,
   plain: string,
 ): Promise<{ loginLinkToken: string }> {
+  const operator = await AdminUserModel.findOne({ id: managerId })
+    .select("operatorSlot")
+    .lean();
+  const slot = (operator as { operatorSlot?: number } | null)?.operatorSlot ?? 0;
   const hash = await bcrypt.hash(plain, 10);
   const today = getKstDateKey();
   const loginLinkToken = generateLoginLinkToken();
@@ -121,7 +286,7 @@ async function setOperatorPassword(
       dailyPasswordPlain: plain,
       dailyPasswordDate: today,
       loginLinkToken,
-      loginLinkExpiresAt: getLoginLinkExpiryDate(),
+      loginLinkExpiresAt: await getOperatorCredentialsExpiryDate(slot),
     },
   );
   try {
@@ -170,21 +335,14 @@ async function findValidLoginLinkDoc(token: string) {
   }).lean();
 
   if (!doc) {
-    throw new Error("이미 사용되었거나 유효하지 않은 로그인 링크입니다.");
+    throw new Error("유효하지 않은 로그인 링크입니다.");
   }
 
   if (!OPERATOR_USERNAMES.includes(doc.username as (typeof OPERATOR_USERNAMES)[number])) {
     throw new Error("시스템 운영자 계정만 링크 로그인을 사용할 수 있습니다.");
   }
 
-  const expiresAt = (doc as { loginLinkExpiresAt?: Date | null }).loginLinkExpiresAt;
-  if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
-    await AdminUserModel.updateOne(
-      { id: doc.id },
-      { loginLinkToken: "", loginLinkExpiresAt: null },
-    );
-    throw new Error("로그인 링크가 만료되었습니다. 관리자에게 다시 요청하세요.");
-  }
+  await assertOperatorLoginAllowed(doc);
 
   if (doc.approvalStatus !== "승인") {
     throw new Error("계정이 승인되지 않았습니다.");
@@ -207,7 +365,7 @@ export async function peekLoginLinkToken(token: string): Promise<LoginLinkPrevie
   };
 }
 
-/** 일회용 로그인 링크 검증 (토큰 소비 없음) */
+/** 로그인 링크 검증 (토큰은 로그인 후에도 경기 종료 전까지 재사용 가능) */
 export async function resolveLoginLinkToken(token: string): Promise<LoginLinkConsumeResult> {
   const doc = await findValidLoginLinkDoc(token.trim());
   return {
@@ -387,9 +545,12 @@ export async function listOperatorAccounts(): Promise<{
     const plain = (doc as { dailyPasswordPlain?: string }).dailyPasswordPlain ?? "";
     const dateKey = (doc as { dailyPasswordDate?: string }).dailyPasswordDate ?? "";
     const linkToken = (doc as { loginLinkToken?: string }).loginLinkToken ?? "";
-    const linkExpires = (doc as { loginLinkExpiresAt?: Date | null }).loginLinkExpiresAt;
-    const loginLinkActive =
-      Boolean(linkToken) && (!linkExpires || new Date(linkExpires).getTime() > now);
+    const assignedMatch = slot > 0 ? todayMatches[slot - 1] : undefined;
+    const matchEnded = assignedMatch ? isMatchEnded(assignedMatch.matchStatus) : false;
+    const matchExpired = assignedMatch
+      ? new Date(assignedMatch.endTime).getTime() <= now
+      : false;
+    const loginLinkActive = Boolean(linkToken) && !matchEnded && !matchExpired;
     const apiSyncEnabled = (doc as { apiSyncEnabled?: boolean }).apiSyncEnabled !== false;
 
     const match = todayMatches[slot - 1];

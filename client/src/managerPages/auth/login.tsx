@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { getFullUrl, resetManagerRefreshCooldown } from "@/lib/managerQueryClient";
 import { Capacitor } from "@capacitor/core";
@@ -34,7 +34,19 @@ export default function ManagerLoginPage() {
   const [linkLoginMessage, setLinkLoginMessage] = useState(
     "카카오톡으로 받은 로그인 링크를 눌러 주세요.",
   );
-  const consumedTokensRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const endedMessage = sessionStorage.getItem("manager-match-ended-message");
+      if (endedMessage) {
+        sessionStorage.removeItem("manager-match-ended-message");
+        setLinkLoginMessage(endedMessage);
+        setLinkLoginPhase("error");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const finishLoginSuccess = async (data: { accessToken?: string; refreshToken?: string }) => {
     resetManagerRefreshCooldown();
@@ -53,8 +65,6 @@ export default function ManagerLoginPage() {
     }
 
     const run = (async () => {
-      if (consumedTokensRef.current.has(token)) return;
-      consumedTokensRef.current.add(token);
       setLinkLoginPhase("loading");
       setLinkLoginMessage(operatorLoginDuringMessage());
 
@@ -94,13 +104,11 @@ export default function ManagerLoginPage() {
           return;
         }
 
-        consumedTokensRef.current.delete(token);
         setLinkLoginPhase("error");
         setLinkLoginMessage(
           data.error || "자동 로그인에 실패했습니다. 관리자에게 새 링크를 요청하세요.",
         );
       } catch {
-        consumedTokensRef.current.delete(token);
         setLinkLoginPhase("error");
         setLinkLoginMessage("자동 로그인 중 오류가 발생했습니다. 관리자에게 새 링크를 요청하세요.");
       }
@@ -156,7 +164,7 @@ export default function ManagerLoginPage() {
       )}
       {linkLoginPhase === "waiting" && (
         <p className="mt-4 text-sm text-[#888] text-center max-w-[280px]">
-          링크는 1회용입니다. 만료되면 관리자에게 새 링크를 요청하세요.
+          카카오톡으로 받은 링크·비밀번호는 담당 경기가 끝나기 전까지 사용할 수 있습니다.
         </p>
       )}
     </div>

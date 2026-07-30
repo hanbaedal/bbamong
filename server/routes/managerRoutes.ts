@@ -8,7 +8,7 @@ import { broadcastManager } from "../liveMatch/broadcastManager";
 import { startRound, stopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { hasActiveSession, createSession, deleteSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
-import { burnLoginLinkToken, ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken } from "../managerOperatorService";
+import { ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken, assertOperatorLoginAllowed, isOperatorCredentialsActive, OPERATOR_USERNAMES } from "../managerOperatorService";
 import { resolveClientLoginGeo } from "../utils/clientGeo";
 
 const adminStorage = new AdminStorage();
@@ -164,7 +164,7 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 운영자 회원가입 — 관리자 발급 계정만 사용
   app.post("/api/manager/signup", async (_req, res) => {
     return res.status(403).json({
-      error: "운영자 계정은 관리자가 발급합니다. 발급받은 아이디와 오늘 비밀번호로 로그인하세요.",
+      error: "운영자 계정은 관리자가 발급합니다. 발급받은 아이디와 비밀번호로 로그인하세요.",
     });
   });
 
@@ -206,7 +206,7 @@ export async function managerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 일회용 로그인 링크로 세션 발급
+  // 로그인 링크로 세션 발급 (링크·비밀번호는 담당 경기 종료 전까지 재사용)
   app.post("/api/manager/login-with-link", async (req, res) => {
     try {
       await ensureOperatorsReady();
@@ -236,14 +236,8 @@ export async function managerRoutes(app: Express): Promise<void> {
       } catch (sessionError) {
         console.error("Manager login-with-link session error:", sessionError);
         return res.status(500).json({
-          error: "로그인 세션을 만들지 못했습니다. 같은 링크로 다시 시도해 주세요.",
+          error: "로그인 세션을 만들지 못했습니다. 잠시 후 같은 링크로 다시 시도해 주세요.",
         });
-      }
-
-      try {
-        await burnLoginLinkToken(resolved.managerId, token);
-      } catch (burnError) {
-        console.warn("Manager login-with-link token burn after session:", burnError);
       }
 
       return res.json({
@@ -294,6 +288,22 @@ export async function managerRoutes(app: Express): Promise<void> {
       // 비활성화 상태 확인
       if (manager.status === "비활성화") {
         return res.status(403).json({ error: "비활성화된 계정입니다. 관리자에게 문의하세요.", deactivated: true });
+      }
+
+      if (OPERATOR_USERNAMES.includes(manager.username as (typeof OPERATOR_USERNAMES)[number])) {
+        try {
+          await assertOperatorLoginAllowed({
+            id: manager.id,
+            username: manager.username,
+            operatorSlot: (manager as { operatorSlot?: number }).operatorSlot,
+          });
+        } catch (credError: unknown) {
+          const message =
+            credError instanceof Error
+              ? credError.message
+              : "로그인 정보가 만료되었습니다. 관리자에게 새 정보를 요청하세요.";
+          return res.status(401).json({ error: message });
+        }
       }
 
       const isBcryptHash = manager.password.startsWith("$2b$") || manager.password.startsWith("$2a$");
@@ -372,6 +382,16 @@ export async function managerRoutes(app: Express): Promise<void> {
         res.clearCookie("managerAccessToken", { path: "/" });
         res.clearCookie("managerRefreshToken", { path: "/" });
         return res.status(403).json({ error: "비활성화된 계정입니다.", deactivated: true });
+      }
+
+      if (!(await isOperatorCredentialsActive(manager.id))) {
+        await deleteSession("manager", manager.id);
+        res.clearCookie("managerAccessToken", { path: "/" });
+        res.clearCookie("managerRefreshToken", { path: "/" });
+        return res.status(401).json({
+          error: "담당 경기가 종료되어 로그인이 만료되었습니다.",
+          matchEnded: true,
+        });
       }
 
       const sessionExists = await hasActiveSession("manager", decoded.adminId);
@@ -503,6 +523,16 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       if (!manager) {
         return res.status(404).json({ error: "사용자를 찾을 수 없습니다." });
+      }
+
+      if (!(await isOperatorCredentialsActive(manager.id))) {
+        await deleteSession("manager", manager.id);
+        res.clearCookie("managerAccessToken", { path: "/" });
+        res.clearCookie("managerRefreshToken", { path: "/" });
+        return res.status(401).json({
+          error: "담당 경기가 종료되어 로그인이 만료되었습니다.",
+          matchEnded: true,
+        });
       }
 
       // 비밀번호 제외하고 반환 (클라이언트가 { manager: ... } 형태를 기대함)

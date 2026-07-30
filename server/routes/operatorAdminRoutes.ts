@@ -67,7 +67,7 @@ export async function operatorAdminRoutes(app: Express): Promise<void> {
       const { loginLinkToken } = await rotateOperatorPassword(id);
       const data = await listOperatorAccounts();
       res.json({
-        message: "비밀번호와 일회용 로그인 링크가 생성되었습니다.",
+        message: "비밀번호와 로그인 링크가 생성되었습니다 (담당 경기 종료 전까지 유효).",
         loginLinkToken,
         ...data,
       });
