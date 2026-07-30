@@ -5,13 +5,13 @@ export interface FieldPoint {
   top: string;
 }
 
-/** 그라운드 라벨·캐릭터 이동 좌표 (% 기준) — 나중에 미세 조정 */
+/** 그라운드 라벨·캐릭터 이동 좌표 (% 기준) — 시안 mockup 기준 */
 export const FIELD_POSITIONS: Record<PredictionOption, FieldPoint> = {
-  홈런: { left: "58%", top: "18%" },
-  "3루": { left: "72%", top: "38%" },
-  "2루": { left: "58%", top: "48%" },
-  "1루": { left: "72%", top: "58%" },
-  아웃: { left: "50%", top: "68%" },
+  홈런: { left: "62%", top: "22%" },
+  "3루": { left: "68%", top: "40%" },
+  "2루": { left: "54%", top: "50%" },
+  "1루": { left: "68%", top: "60%" },
+  아웃: { left: "48%", top: "72%" },
 };
 
 export const HOME_PLATE = FIELD_POSITIONS.아웃;

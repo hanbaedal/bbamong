@@ -12,6 +12,7 @@ import { Capacitor } from "@capacitor/core";
 import splashIcon from "@assets/user/user-mascot.png";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
 import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
+import GameOrientationManager from "@/components/game/GameOrientationManager";
 import { preloadUserAssets } from "@/lib/userAssetPreloader";
 import LoginPage from "@/pages/auth/login";
 import SignupPage from "@/pages/auth/signup";
@@ -323,6 +324,7 @@ function UserApp() {
         <UserProvider>
           <TooltipProvider>
             <AppStateManager>
+              <GameOrientationManager />
               <AutoLoginWrapper>
                 <Toaster />
                 <Router />
