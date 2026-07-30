@@ -16,6 +16,9 @@ export const FIELD_POSITIONS: Record<PredictionOption, FieldPoint> = {
 
 export const HOME_PLATE = FIELD_POSITIONS.아웃;
 
+/** 투수 마운드 — 발 위치 기준 (% ) */
+export const PITCHERS_MOUND: FieldPoint = { left: "51%", top: "57%" };
+
 export const FIELD_LABEL_TEXT: Record<PredictionOption, string> = {
   홈런: "홈런",
   "3루": "3",

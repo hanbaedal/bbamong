@@ -3,7 +3,8 @@ import pyamongWaiting from "@assets/game/pyamong-waiting.png";
 import pyamongSuccess from "@assets/game/pyamong-success.png";
 import batterWaiting from "@assets/game/batter-waiting.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
-import { getRunPath, HOME_PLATE, pathToCssKeyframes } from "./fieldPositions";
+import { getRunPath, HOME_PLATE, PITCHERS_MOUND, pathToCssKeyframes } from "./fieldPositions";
+import GameThoughtBubble from "./GameThoughtBubble";
 import "./gameAnimations.css";
 
 interface GameCharacterLayerProps {
@@ -35,6 +36,7 @@ export default function GameCharacterLayer({
   }, [phase, runDurationSec, onRunComplete]);
 
   const home = HOME_PLATE;
+  const mound = PITCHERS_MOUND;
 
   return (
     <>
@@ -42,22 +44,20 @@ export default function GameCharacterLayer({
 
       {phase === "wait_start" && (
         <div
-          className="absolute z-[15] pointer-events-none"
-          style={{ left: "44%", top: "58%" }}
+          className="absolute z-[15] pointer-events-none flex flex-row items-end gap-1 sm:gap-2"
+          style={{ left: mound.left, top: mound.top, transform: "translate(-50%, -100%)" }}
         >
           <img
             src={pyamongWaiting}
             alt=""
-            className="w-[min(9vw,72px)] h-auto game-sprite animate-pyamong-idle"
-            style={{ transform: "translate(-50%, -50%)" }}
+            className="w-[min(9vw,72px)] h-auto game-sprite animate-pyamong-idle shrink-0"
+            style={{ transformOrigin: "bottom center" }}
             data-testid="char-pyamong-waiting"
           />
-          <p
-            className="absolute left-1/2 -translate-x-1/2 top-full mt-1 whitespace-nowrap text-white text-[10px] sm:text-xs font-semibold drop-shadow-lg text-center max-w-[70vw]"
-            data-testid="text-wait-start"
-          >
-            다음 타자 예측을 기다리는 중입니다...
-          </p>
+          <GameThoughtBubble
+            text="다음타자 예측을 기다립니다.."
+            className="mb-[min(4vw,28px)] -ml-1"
+          />
         </div>
       )}
 

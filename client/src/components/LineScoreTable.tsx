@@ -12,12 +12,15 @@ interface LineScoreTableProps {
   className?: string;
   /** 대기 화면 등 — 항상 1~9회 컬럼 표시 */
   fixedInningColumns?: boolean;
+  /** 가로 게임 화면 — 투명 배경 + 흰 글씨 */
+  variant?: "default" | "transparent";
 }
 
 export default function LineScoreTable({
   scoreboard,
   className = "",
   fixedInningColumns = false,
+  variant = "default",
 }: LineScoreTableProps) {
   const awayInnings = scoreboard?.awayInnings;
   const homeInnings = scoreboard?.homeInnings;
@@ -45,59 +48,66 @@ export default function LineScoreTable({
   const awayErrors = scoreboard?.awayErrors ?? 0;
   const homeErrors = scoreboard?.homeErrors ?? 0;
 
+  const transparent = variant === "transparent";
+  const cellBorder = transparent ? "border border-white/40" : "border border-[#CCCCCC]";
+  const cellBg = transparent ? "bg-transparent" : "bg-white";
+  const cellText = transparent ? "text-white" : "text-black";
+  const thBase = `${cellBorder} ${cellBg} ${cellText}`;
+  const tdBase = `${cellBorder} ${cellBg} ${cellText}`;
+
   return (
     <div className={`overflow-x-auto ${className}`}>
-      <table className="w-full min-w-[300px] text-sm text-black border-collapse">
+      <table className={`w-full min-w-[300px] text-sm border-collapse ${cellText}`}>
         <thead>
           <tr>
-            <th className="border border-[#CCCCCC] bg-white px-2 py-1.5 font-normal text-left w-12">
+            <th className={`${thBase} px-2 py-1.5 font-normal text-left w-12`}>
               팀
             </th>
             {inningColumns.map((key) => (
               <th
                 key={key}
-                className="border border-[#CCCCCC] bg-white px-1 py-1.5 font-normal text-center min-w-[1.5rem]"
+                className={`${thBase} px-1 py-1.5 font-normal text-center min-w-[1.5rem]`}
               >
                 {key}
               </th>
             ))}
-            <th className="border border-[#CCCCCC] bg-white px-1 py-1.5 font-semibold text-center">
+            <th className={`${thBase} px-1 py-1.5 font-semibold text-center`}>
               R
             </th>
-            <th className="border border-[#CCCCCC] bg-white px-1 py-1.5 font-semibold text-center">
+            <th className={`${thBase} px-1 py-1.5 font-semibold text-center`}>
               H
             </th>
-            <th className="border border-[#CCCCCC] bg-white px-1 py-1.5 font-semibold text-center">
+            <th className={`${thBase} px-1 py-1.5 font-semibold text-center`}>
               E
             </th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td className="border border-[#CCCCCC] bg-white px-2 py-1.5">원정</td>
+            <td className={`${tdBase} px-2 py-1.5`}>원정</td>
             {inningColumns.map((key) => (
-              <td key={`away-${key}`} className="border border-[#CCCCCC] bg-white px-1 py-1.5 text-center">
+              <td key={`away-${key}`} className={`${tdBase} px-1 py-1.5 text-center`}>
                 {cellRuns(awayInnings?.[key])}
               </td>
             ))}
-            <td className="border border-[#CCCCCC] bg-white px-1 py-1.5 text-center font-semibold">
+            <td className={`${tdBase} px-1 py-1.5 text-center font-semibold`}>
               {awayScore}
             </td>
-            <td className="border border-[#CCCCCC] bg-white px-1 py-1.5 text-center">{awayHits}</td>
-            <td className="border border-[#CCCCCC] bg-white px-1 py-1.5 text-center">{awayErrors}</td>
+            <td className={`${tdBase} px-1 py-1.5 text-center`}>{awayHits}</td>
+            <td className={`${tdBase} px-1 py-1.5 text-center`}>{awayErrors}</td>
           </tr>
           <tr>
-            <td className="border border-[#CCCCCC] bg-white px-2 py-1.5">홈</td>
+            <td className={`${tdBase} px-2 py-1.5`}>홈</td>
             {inningColumns.map((key) => (
-              <td key={`home-${key}`} className="border border-[#CCCCCC] bg-white px-1 py-1.5 text-center">
+              <td key={`home-${key}`} className={`${tdBase} px-1 py-1.5 text-center`}>
                 {cellRuns(homeInnings?.[key])}
               </td>
             ))}
-            <td className="border border-[#CCCCCC] bg-white px-1 py-1.5 text-center font-semibold">
+            <td className={`${tdBase} px-1 py-1.5 text-center font-semibold`}>
               {homeScore}
             </td>
-            <td className="border border-[#CCCCCC] bg-white px-1 py-1.5 text-center">{homeHits}</td>
-            <td className="border border-[#CCCCCC] bg-white px-1 py-1.5 text-center">{homeErrors}</td>
+            <td className={`${tdBase} px-1 py-1.5 text-center`}>{homeHits}</td>
+            <td className={`${tdBase} px-1 py-1.5 text-center`}>{homeErrors}</td>
           </tr>
         </tbody>
       </table>

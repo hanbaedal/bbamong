@@ -7,7 +7,7 @@ interface LineScoreTableLandscapeProps {
   compact?: boolean;
 }
 
-/** 가로 게임 화면용 — 반투명 배경 + 흰 테두리 스코어보드 */
+/** 가로 게임 화면용 — 투명 배경 + 흰 글씨 스코어보드 */
 export default function LineScoreTableLandscape({
   scoreboard,
   className = "",
@@ -15,12 +15,13 @@ export default function LineScoreTableLandscape({
 }: LineScoreTableLandscapeProps) {
   return (
     <div
-      className={`rounded-sm bg-black/40 backdrop-blur-[2px] px-0.5 py-0.5 ${className}`}
+      className={`rounded-sm px-0.5 py-0.5 ${className}`}
       data-testid="landscape-line-score"
     >
       <LineScoreTable
         scoreboard={scoreboard}
         fixedInningColumns
+        variant="transparent"
         className={compact ? "text-[10px] leading-tight" : "text-xs"}
       />
     </div>

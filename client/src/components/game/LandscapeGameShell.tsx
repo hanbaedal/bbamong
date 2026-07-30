@@ -5,6 +5,7 @@ import GameFieldLabels from "./GameFieldLabels";
 import GameMenuPanel from "./GameMenuPanel";
 import GameCharacterLayer from "./GameCharacterLayer";
 import GameConfetti from "./GameConfetti";
+import GameBottomStatusBar from "./GameBottomStatusBar";
 import GameBetModal from "./GameBetModal";
 import GameResultBanner from "./GameResultBanner";
 import ConfirmPopup from "@/components/customUi/confirmPopup";
@@ -44,6 +45,10 @@ interface LandscapeGameShellProps {
   lastWonAmount: number;
   lastBetAmount: number;
   resultCountdown: number | null;
+  onMatchTitleClick?: () => void;
+  onStadiumNameClick?: () => void;
+  matchSelectEnabled?: boolean;
+  stadiumSelectEnabled?: boolean;
 }
 
 export default function LandscapeGameShell({
@@ -77,6 +82,10 @@ export default function LandscapeGameShell({
   lastWonAmount,
   lastBetAmount,
   resultCountdown,
+  onMatchTitleClick,
+  onStadiumNameClick,
+  matchSelectEnabled,
+  stadiumSelectEnabled,
 }: LandscapeGameShellProps) {
   const storyLinks = [
     { label: "승리현황", href: "/victory-history", testId: "link-victory-history" },
@@ -128,6 +137,10 @@ export default function LandscapeGameShell({
               batterText={batterText}
               scoreboard={scoreboard}
               isLoading={scoreLoading}
+              onMatchTitleClick={onMatchTitleClick}
+              onStadiumNameClick={onStadiumNameClick}
+              matchSelectEnabled={matchSelectEnabled}
+              stadiumSelectEnabled={stadiumSelectEnabled}
             />
 
             <GameFieldLabels
@@ -146,6 +159,8 @@ export default function LandscapeGameShell({
             />
 
             <GameConfetti active={screenPhase === "success_celebrate"} />
+
+            <GameBottomStatusBar />
 
             {(screenPhase === "success_celebrate" || screenPhase === "fail") && (
               <GameResultBanner
