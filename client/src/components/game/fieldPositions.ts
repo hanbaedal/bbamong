@@ -22,6 +22,40 @@ export const HOME_PLATE = FIELD_POSITIONS.아웃;
 /** 투수 마운드 — 발 위치 (시안) */
 export const PITCHERS_MOUND: FieldPoint = { left: "50%", top: "54%" };
 
+export type DefenseRole = "P" | "C" | "1B" | "2B" | "3B" | "SS" | "LF" | "CF" | "RF";
+
+export interface DefensePosition {
+  role: DefenseRole;
+  point: FieldPoint;
+  /** 필드 방향(deg) — SVG 캐릭터 회전 */
+  facing?: number;
+}
+
+/** 수비 포지션 (% 기준) — 라벨·베이스와 겹치지 않게 약간 오프셋 */
+export const DEFENSE_POSITIONS: DefensePosition[] = [
+  { role: "P", point: PITCHERS_MOUND, facing: 0 },
+  { role: "C", point: { left: "50%", top: "84%" }, facing: 0 },
+  { role: "1B", point: { left: "74%", top: "54%" }, facing: -25 },
+  { role: "2B", point: { left: "52%", top: "42%" }, facing: 0 },
+  { role: "3B", point: { left: "26%", top: "42%" }, facing: 25 },
+  { role: "SS", point: { left: "38%", top: "48%" }, facing: 15 },
+  { role: "LF", point: { left: "22%", top: "20%" }, facing: 20 },
+  { role: "CF", point: { left: "50%", top: "11%" }, facing: 0 },
+  { role: "RF", point: { left: "78%", top: "20%" }, facing: -20 },
+];
+
+export type TeamSide = "home" | "away";
+
+/** 내야 수비만 표시 (외야 3명 제외 — 필드가 덜 복잡하게) */
+export const INFIELD_DEFENSE_POSITIONS: DefensePosition[] = DEFENSE_POSITIONS.filter(
+  (p) => p.role !== "LF" && p.role !== "CF" && p.role !== "RF",
+);
+
+/** 초=원정 공격 → 홈 수비(붉은 유니폼), 말=홈 공격 → 원정 수비(하얀 유니폼) */
+export function defendingSideFromInningHalf(half: "top" | "bottom" | undefined): TeamSide {
+  return half === "bottom" ? "away" : "home";
+}
+
 export const FIELD_LABEL_TEXT: Record<PredictionOption, string> = {
   홈런: "홈런",
   "3루": "3루",

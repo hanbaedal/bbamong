@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useMatchWebSocket, type WSEventHandlers } from "@/hooks/useMatchWebSocket";
+import { useAdMob } from "@/hooks/useAdMob";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useUser } from "@/contexts/UserContext";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
@@ -9,7 +10,13 @@ import {
   calculateFixedOddsPayout,
   type BetAmountOption,
 } from "@shared/predictionOdds";
-import type { GameScreenPhase, PredictionOption, PredictionResult } from "@/components/game/gameTypes";
+import type {
+  GameScreenPhase,
+  PredictionOption,
+  PredictionResult,
+  RoundAdvanceType,
+} from "@/components/game/gameTypes";
+import { GAME_EVENT_SHOW_MS } from "@/components/game/gameTypes";
 
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 
@@ -56,6 +63,9 @@ export function useLandscapePredictionFlow(
   const [lastWonAmount, setLastWonAmount] = useState(0);
   const [lastBetAmount, setLastBetAmount] = useState(0);
   const [resultCountdown, setResultCountdown] = useState<number | null>(null);
+  const [eventCountdown, setEventCountdown] = useState<number | null>(null);
+  const [eventSubtitle, setEventSubtitle] = useState("");
+  const [showAdOverlay, setShowAdOverlay] = useState(false);
 
   const activeBetRef = useRef<ActiveBet | null>(null);
   const waitingResultRef = useRef(false);
@@ -64,11 +74,30 @@ export function useLandscapePredictionFlow(
   const acknowledgedResultIdRef = useRef<number | null>(null);
   const resultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const eventTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const eventCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingRewardKeyRef = useRef<string | null>(null);
+  const adSessionActiveRef = useRef(false);
   const predictionEnabledRef = useRef(false);
+  const screenPhaseRef = useRef<GameScreenPhase>("wait_start");
+
+  const {
+    startAdSession,
+    stopAdSession,
+    showRewardedAd,
+    showBannerAd,
+    hideBannerAd,
+    adSessionState,
+    isNativePlatform,
+  } = useAdMob();
 
   useEffect(() => {
     predictionEnabledRef.current = predictionEnabled;
   }, [predictionEnabled]);
+
+  useEffect(() => {
+    screenPhaseRef.current = screenPhase;
+  }, [screenPhase]);
 
   const clearResultTimers = useCallback(() => {
     if (resultTimerRef.current) {
@@ -82,8 +111,21 @@ export function useLandscapePredictionFlow(
     setResultCountdown(null);
   }, []);
 
-  const resetToWaitStart = useCallback(() => {
+  const clearEventTimers = useCallback(() => {
+    if (eventTimerRef.current) {
+      clearTimeout(eventTimerRef.current);
+      eventTimerRef.current = null;
+    }
+    if (eventCountdownIntervalRef.current) {
+      clearInterval(eventCountdownIntervalRef.current);
+      eventCountdownIntervalRef.current = null;
+    }
+    setEventCountdown(null);
+  }, []);
+
+  const goToWaitStart = useCallback(() => {
     clearResultTimers();
+    clearEventTimers();
     resultShownRef.current = false;
     waitingResultRef.current = false;
     activeBetRef.current = null;
@@ -93,8 +135,35 @@ export function useLandscapePredictionFlow(
     setShowConfirmModal(false);
     setLastWonAmount(0);
     setLastBetAmount(0);
+    setPredictionEnabled(false);
+    setEventSubtitle("");
     setScreenPhase("wait_start");
-  }, [clearResultTimers]);
+  }, [clearResultTimers, clearEventTimers]);
+
+  const finishAdAndWaitStart = useCallback(() => {
+    adSessionActiveRef.current = false;
+    stopAdSession();
+    setShowAdOverlay(false);
+    pendingRewardKeyRef.current = null;
+    goToWaitStart();
+  }, [stopAdSession, goToWaitStart]);
+
+  const scheduleEventDismiss = useCallback(
+    (ms: number) => {
+      clearEventTimers();
+      const sec = Math.ceil(ms / 1000);
+      setEventCountdown(sec);
+      eventCountdownIntervalRef.current = setInterval(() => {
+        setEventCountdown((prev) => (prev != null && prev > 1 ? prev - 1 : prev));
+      }, 1000);
+      eventTimerRef.current = setTimeout(() => {
+        clearEventTimers();
+        setEventSubtitle("");
+        setScreenPhase("wait_start");
+      }, ms);
+    },
+    [clearEventTimers],
+  );
 
   const applyCheckResponse = useCallback(
     (data: {
@@ -351,7 +420,6 @@ export function useLandscapePredictionFlow(
         setScreenPhase("wait_result");
         return;
       }
-      // 예측 미제출: 다음 타자/교체/공수교대 대기(빠몽이) — 별도 팝업 없음
       setSelectedPrediction(null);
       setScreenPhase("wait_start");
     }, []),
@@ -396,22 +464,147 @@ export function useLandscapePredictionFlow(
       handleRoundResult(data);
     }, [handleRoundResult]),
 
-    onRoundNext: useCallback((data: { predictionEnabled?: boolean; gamePhase?: unknown }) => {
+    onRoundNext: useCallback((data: {
+      predictionEnabled?: boolean;
+      gamePhase?: { displayLabel?: string };
+      skippedResult?: boolean;
+      advanceType?: RoundAdvanceType;
+    }) => {
       if (data.gamePhase) onGamePhaseRef.current?.(data.gamePhase);
+
+      const hadPendingBet =
+        waitingResultRef.current ||
+        activeBetRef.current != null ||
+        screenPhaseRef.current === "wait_result" ||
+        screenPhaseRef.current === "success_running" ||
+        screenPhaseRef.current === "success_celebrate";
+
+      if (data.skippedResult && hadPendingBet) {
+        toast({
+          description: "이번 라운드 결과가 생략되었습니다.",
+          duration: 4000,
+        });
+      }
+
       acknowledgedResultIdRef.current = null;
       lastResultPredictionIdRef.current = null;
       resultDismissScheduledRef.current = false;
       clearResultTimers();
-      resetToWaitStart();
-      if (data.predictionEnabled) {
-        setPredictionEnabled(true);
-        setScreenPhase("picking");
-      } else {
-        setPredictionEnabled(false);
-        setScreenPhase("wait_start");
-      }
+      clearEventTimers();
+      resultShownRef.current = false;
+      waitingResultRef.current = false;
+      activeBetRef.current = null;
+      setSelectedPrediction(null);
+      setPredictionResult("pending");
+      setShowBetModal(false);
+      setShowConfirmModal(false);
+      setLastWonAmount(0);
+      setLastBetAmount(0);
+      setPredictionEnabled(false);
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, [resetToWaitStart, clearResultTimers]),
+
+      const advanceType = data.advanceType ?? "next_batter";
+      if (advanceType === "pitcher_change") {
+        setEventSubtitle("");
+        setScreenPhase("pitcher_change_event");
+        scheduleEventDismiss(GAME_EVENT_SHOW_MS);
+        return;
+      }
+      if (advanceType === "switch_half") {
+        setEventSubtitle(data.gamePhase?.displayLabel ?? "");
+        setScreenPhase("inning_switch_event");
+        scheduleEventDismiss(GAME_EVENT_SHOW_MS);
+        return;
+      }
+      setEventSubtitle("");
+      setScreenPhase("wait_start");
+    }, [clearResultTimers, clearEventTimers, scheduleEventDismiss, toast]),
+
+    onRewardedAdOffer: useCallback((data: { rewardKey?: string; matchId?: string }) => {
+      pendingRewardKeyRef.current = data?.rewardKey ?? `${data?.matchId ?? "match"}:${Date.now()}`;
+    }, []),
+
+    onBannerAdShow: useCallback(async () => {
+      await showBannerAd();
+    }, [showBannerAd]),
+
+    onBannerAdHide: useCallback(async () => {
+      await hideBannerAd();
+    }, [hideBannerAd]),
+
+    onAdStarted: useCallback(async (data: { matchId?: string }) => {
+      if (resultShownRef.current) return;
+
+      adSessionActiveRef.current = true;
+      setShowBetModal(false);
+      setShowConfirmModal(false);
+      setScreenPhase("ad_playing");
+
+      if (isNativePlatform) {
+        const { dismissedEarly } = await startAdSession();
+        if (dismissedEarly || !adSessionActiveRef.current) {
+          finishAdAndWaitStart();
+          return;
+        }
+
+        if (pendingRewardKeyRef.current && data?.matchId) {
+          const rewarded = await showRewardedAd();
+          if (!rewarded || !adSessionActiveRef.current) {
+            finishAdAndWaitStart();
+            return;
+          }
+          try {
+            const res = await apiRequest("POST", "/api/live-match/ad-reward", {
+              matchId: data.matchId,
+              rewardKey: pendingRewardKeyRef.current,
+            });
+            if (res.ok) {
+              const rewardData = await res.json();
+              if (user && typeof rewardData.balance === "number") {
+                setUser({ ...user, points: rewardData.balance });
+              }
+              toast({ description: "광고 시청 보상 500P가 지급되었습니다." });
+            }
+          } catch {
+            /* ignore */
+          }
+          pendingRewardKeyRef.current = null;
+        }
+        return;
+      }
+
+      setShowAdOverlay(true);
+    }, [
+      isNativePlatform,
+      startAdSession,
+      showRewardedAd,
+      finishAdAndWaitStart,
+      user,
+      setUser,
+      toast,
+    ]),
+
+    onAdStopped: useCallback(() => {
+      finishAdAndWaitStart();
+    }, [finishAdAndWaitStart]),
+
+    onAdStatus: useCallback(async (data: { isPlaying?: boolean }) => {
+      if (data.isPlaying) {
+        if (resultShownRef.current || adSessionActiveRef.current) return;
+        adSessionActiveRef.current = true;
+        setScreenPhase("ad_playing");
+        if (isNativePlatform) {
+          const { dismissedEarly } = await startAdSession();
+          if (dismissedEarly) finishAdAndWaitStart();
+        } else {
+          setShowAdOverlay(true);
+        }
+        return;
+      }
+      if (adSessionActiveRef.current) {
+        finishAdAndWaitStart();
+      }
+    }, [isNativePlatform, startAdSession, finishAdAndWaitStart]),
 
     onScoreboardUpdate: useCallback((data: { scoreboard?: LiveScoreboard }) => {
       if (data?.scoreboard) onScoreboardRef.current?.(data.scoreboard);
@@ -427,14 +620,12 @@ export function useLandscapePredictionFlow(
 
   const handleFieldSelect = useCallback(
     (option: PredictionOption) => {
-      if (screenPhase !== "picking" || !predictionEnabled) {
-        toast({ description: "아직 예측이 시작되지 않았습니다.", variant: "destructive" });
-        return;
-      }
+      if (screenPhase !== "picking") return;
+      if (!predictionEnabled) return;
       setSelectedPrediction(option);
       setShowBetModal(true);
     },
-    [screenPhase, predictionEnabled, toast],
+    [screenPhase, predictionEnabled],
   );
 
   const handleBetNext = useCallback(() => {
@@ -505,6 +696,11 @@ export function useLandscapePredictionFlow(
     lastWonAmount,
     lastBetAmount,
     resultCountdown,
+    eventCountdown,
+    eventSubtitle,
+    showAdOverlay,
+    adSessionState,
+    isNativePlatform,
     labelsVisible,
     labelsInteractive,
     blinkPrediction,

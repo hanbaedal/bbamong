@@ -18,11 +18,12 @@ import { useLandscapePredictionFlow } from "@/hooks/useLandscapePredictionFlow";
 import { lockGameLandscape, unlockGameLandscape } from "@/lib/gameOrientation";
 import { navigateToHome, openMallFromApp } from "@/lib/appNavigation";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
-import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import type { InningHalf } from "@shared/gamePhaseTypes";
+import { parseInningHalf } from "@shared/gamePhaseTypes";
 
 interface GamePhasePayload {
   gameInning?: number;
-  inningHalf?: string;
+  inningHalf?: InningHalf | string;
   batterIndexInHalf?: number;
   displayLabel?: string;
   name?: string;
@@ -246,10 +247,16 @@ export default function PredictionPage() {
         lastWonAmount={flow.lastWonAmount}
         lastBetAmount={flow.lastBetAmount}
         resultCountdown={flow.resultCountdown}
+        eventCountdown={flow.eventCountdown}
+        eventSubtitle={flow.eventSubtitle}
+        showAdOverlay={flow.showAdOverlay}
+        adSessionState={flow.adSessionState}
+        isNativePlatform={flow.isNativePlatform}
         onMatchTitleClick={() => setMatchModalOpen(true)}
         onStadiumNameClick={() => setStadiumModalOpen(true)}
         matchSelectEnabled={canSelectMatch}
         stadiumSelectEnabled={canSelectStadium}
+        inningHalf={gamePhase?.inningHalf != null ? parseInningHalf(String(gamePhase.inningHalf)) : undefined}
       />
 
       <GameSelectModal

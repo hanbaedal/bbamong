@@ -4,11 +4,15 @@ import GameTopScorePanel from "./GameTopScorePanel";
 import GameFieldLabels from "./GameFieldLabels";
 import GameMenuPanel from "./GameMenuPanel";
 import GameCharacterLayer from "./GameCharacterLayer";
+import GameDefenseLayer from "./GameDefenseLayer";
 import GameConfetti from "./GameConfetti";
 import GameBottomStatusBar from "./GameBottomStatusBar";
 import GameBetModal from "./GameBetModal";
 import GameResultBanner from "./GameResultBanner";
+import GameEventOverlay from "./GameEventOverlay";
+import GameAdOverlay from "./GameAdOverlay";
 import ConfirmPopup from "@/components/customUi/confirmPopup";
+import type { AdSessionState } from "@/hooks/useAdMob";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import { calculateFixedOddsPayout, type BetAmountOption } from "@shared/predictionOdds";
@@ -45,10 +49,16 @@ interface LandscapeGameShellProps {
   lastWonAmount: number;
   lastBetAmount: number;
   resultCountdown: number | null;
+  eventCountdown?: number | null;
+  eventSubtitle?: string;
+  showAdOverlay?: boolean;
+  adSessionState?: AdSessionState;
+  isNativePlatform?: boolean;
   onMatchTitleClick?: () => void;
   onStadiumNameClick?: () => void;
   matchSelectEnabled?: boolean;
   stadiumSelectEnabled?: boolean;
+  inningHalf?: "top" | "bottom";
 }
 
 export default function LandscapeGameShell({
@@ -82,10 +92,16 @@ export default function LandscapeGameShell({
   lastWonAmount,
   lastBetAmount,
   resultCountdown,
+  eventCountdown,
+  eventSubtitle,
+  showAdOverlay,
+  adSessionState,
+  isNativePlatform,
   onMatchTitleClick,
   onStadiumNameClick,
   matchSelectEnabled,
   stadiumSelectEnabled,
+  inningHalf,
 }: LandscapeGameShellProps) {
   const storyLinks = [
     { label: "승리현황", href: "/victory-history", testId: "link-victory-history" },
@@ -144,6 +160,11 @@ export default function LandscapeGameShell({
               onSelect={onFieldSelect}
             />
 
+            <GameDefenseLayer
+              visible={screenPhase === "wait_start" || screenPhase === "picking"}
+              inningHalf={inningHalf}
+            />
+
             <GameCharacterLayer
               phase={screenPhase}
               selectedPrediction={selectedPrediction}
@@ -163,9 +184,36 @@ export default function LandscapeGameShell({
                 countdown={resultCountdown}
               />
             )}
+
+            {screenPhase === "pitcher_change_event" && (
+              <GameEventOverlay
+                type="pitcher_change"
+                countdown={eventCountdown}
+              />
+            )}
+
+            {screenPhase === "inning_switch_event" && (
+              <GameEventOverlay
+                type="switch_half"
+                subtitle={eventSubtitle}
+                countdown={eventCountdown}
+              />
+            )}
           </>
         )}
       </GameFieldViewport>
+
+      {((showAdOverlay && !isNativePlatform) ||
+        (isNativePlatform &&
+          (adSessionState === "preparing" || adSessionState === "overlay"))) && (
+        <GameAdOverlay
+          message={
+            isNativePlatform && adSessionState === "preparing"
+              ? "광고 준비 중입니다..."
+              : "광고가 재생 중입니다..."
+          }
+        />
+      )}
 
       <GameMenuPanel
         panel={activePanel === "story" || activePanel === "info" ? activePanel : null}

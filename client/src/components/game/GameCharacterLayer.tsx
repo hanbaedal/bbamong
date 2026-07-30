@@ -5,6 +5,7 @@ import batterWaiting from "@assets/game/batter-waiting.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import { getRunPath, getRunDurationSec, HOME_PLATE, PITCHERS_MOUND, pathToCssKeyframes } from "./fieldPositions";
 import GameThoughtBubble from "./GameThoughtBubble";
+import { PYAMONG_BATTER_WIDTH } from "./gameLayoutSizes";
 import "./gameAnimations.css";
 
 interface GameCharacterLayerProps {
@@ -44,19 +45,19 @@ export default function GameCharacterLayer({
 
       {phase === "wait_start" && (
         <div
-          className="absolute z-[15] pointer-events-none flex flex-row items-end gap-0.5 sm:gap-1"
-          style={{ left: mound.left, top: mound.top, transform: "translate(-50%, -100%)" }}
+          className="absolute z-[15] pointer-events-none flex flex-col items-center"
+          style={{ left: home.left, top: home.top, transform: "translate(-50%, -100%)" }}
         >
-          <img
-            src={pyamongWaiting}
-            alt=""
-            className="w-[min(13vw,100px)] h-auto game-sprite animate-pyamong-idle shrink-0"
-            style={{ transformOrigin: "bottom center" }}
-            data-testid="char-pyamong-waiting"
-          />
           <GameThoughtBubble
             text="다음타자 예측을 기다리고 있습니다."
-            className="mb-[min(5vw,36px)] -ml-0.5 sm:-ml-1"
+            className="mb-0.5 sm:mb-1"
+          />
+          <img
+            src={batterWaiting}
+            alt=""
+            className="h-auto game-sprite animate-pyamong-idle shrink-0"
+            style={{ width: PYAMONG_BATTER_WIDTH, transformOrigin: "bottom center" }}
+            data-testid="char-pyamong-waiting"
           />
         </div>
       )}
@@ -128,6 +129,40 @@ export default function GameCharacterLayer({
             className="w-[min(5vw,48px)] h-auto game-sprite opacity-80"
             style={{ transform: "translate(-50%, -100%)" }}
             data-testid="char-batter-fail"
+          />
+        </div>
+      )}
+
+      {phase === "pitcher_change_event" && (
+        <div
+          className="absolute z-[20] pointer-events-none flex flex-col items-center"
+          style={{ left: mound.left, top: mound.top, transform: "translate(-50%, -100%)" }}
+        >
+          <img
+            src={pyamongWaiting}
+            alt=""
+            className="w-[min(14vw,110px)] h-auto game-sprite animate-pyamong-pitcher-change shrink-0"
+            style={{ transformOrigin: "bottom center" }}
+            data-testid="char-pyamong-pitcher-change"
+          />
+          <GameThoughtBubble
+            text="투수가 교체됩니다!"
+            className="mt-1 -mb-[min(4vw,28px)]"
+          />
+        </div>
+      )}
+
+      {phase === "inning_switch_event" && (
+        <div
+          className="absolute z-[15] pointer-events-none flex flex-row items-end gap-0.5 sm:gap-1 opacity-70"
+          style={{ left: mound.left, top: mound.top, transform: "translate(-50%, -100%)" }}
+        >
+          <img
+            src={pyamongWaiting}
+            alt=""
+            className="w-[min(11vw,88px)] h-auto game-sprite animate-pyamong-idle shrink-0"
+            style={{ transformOrigin: "bottom center" }}
+            data-testid="char-pyamong-inning-switch"
           />
         </div>
       )}
