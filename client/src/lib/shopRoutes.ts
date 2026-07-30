@@ -2,8 +2,8 @@ import { MALL_BASE_PATH } from "@shared/mallConfig";
 
 export type SiteMode = "user" | "mall" | "admin";
 
-/** return URL 없을 때 로그인 후 기본 경로 (가로 게임 화면) */
-export const DEFAULT_POST_LOGIN_FALLBACK = "/prediction";
+/** return URL 없을 때 로그인 후 기본 경로 (홈) */
+export const DEFAULT_POST_LOGIN_FALLBACK = "/home";
 
 export interface ShopRoutes {
   home: string;
