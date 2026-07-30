@@ -3,7 +3,7 @@ import pyamongWaiting from "@assets/game/pyamong-waiting.png";
 import pyamongSuccess from "@assets/game/pyamong-success.png";
 import batterWaiting from "@assets/game/batter-waiting.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
-import { getRunPath, HOME_PLATE, PITCHERS_MOUND, pathToCssKeyframes } from "./fieldPositions";
+import { getRunPath, getRunDurationSec, HOME_PLATE, PITCHERS_MOUND, pathToCssKeyframes } from "./fieldPositions";
 import GameThoughtBubble from "./GameThoughtBubble";
 import "./gameAnimations.css";
 
@@ -21,7 +21,7 @@ export default function GameCharacterLayer({
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
   const runTarget = selectedPrediction ?? "1루";
   const runPath = useMemo(() => getRunPath(runTarget), [runTarget]);
-  const runDurationSec = Math.max(0.8, runPath.length * 0.55);
+  const runDurationSec = useMemo(() => getRunDurationSec(runTarget), [runTarget]);
 
   const keyframesCss = useMemo(
     () => pathToCssKeyframes(runStyleId, runPath),
@@ -44,19 +44,19 @@ export default function GameCharacterLayer({
 
       {phase === "wait_start" && (
         <div
-          className="absolute z-[15] pointer-events-none flex flex-row items-end gap-1 sm:gap-2"
+          className="absolute z-[15] pointer-events-none flex flex-row items-end gap-0.5 sm:gap-1"
           style={{ left: mound.left, top: mound.top, transform: "translate(-50%, -100%)" }}
         >
           <img
             src={pyamongWaiting}
             alt=""
-            className="w-[min(9vw,72px)] h-auto game-sprite animate-pyamong-idle shrink-0"
+            className="w-[min(13vw,100px)] h-auto game-sprite animate-pyamong-idle shrink-0"
             style={{ transformOrigin: "bottom center" }}
             data-testid="char-pyamong-waiting"
           />
           <GameThoughtBubble
-            text="다음타자 예측을 기다립니다.."
-            className="mb-[min(4vw,28px)] -ml-1"
+            text="다음타자 예측을 기다리고 있습니다."
+            className="mb-[min(5vw,36px)] -ml-0.5 sm:-ml-1"
           />
         </div>
       )}

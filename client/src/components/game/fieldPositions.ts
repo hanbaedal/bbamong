@@ -5,25 +5,28 @@ export interface FieldPoint {
   top: string;
 }
 
-/** 그라운드 라벨·캐릭터 이동 좌표 (% 기준) — 시안 mockup 기준 */
+/**
+ * 그라운드 라벨·주루 좌표 (% 기준) — 첨부 시안 mockup 위치
+ * (홈→1루 우측, 3루 좌측, 2루 중앙, 홈런 외야 중앙, 아웃 홈플ate 하단)
+ */
 export const FIELD_POSITIONS: Record<PredictionOption, FieldPoint> = {
-  홈런: { left: "62%", top: "22%" },
-  "3루": { left: "68%", top: "40%" },
-  "2루": { left: "54%", top: "50%" },
-  "1루": { left: "68%", top: "60%" },
-  아웃: { left: "48%", top: "72%" },
+  홈런: { left: "50%", top: "16%" },
+  "3루": { left: "29%", top: "40%" },
+  "2루": { left: "50%", top: "45%" },
+  "1루": { left: "71%", top: "57%" },
+  아웃: { left: "50%", top: "79%" },
 };
 
 export const HOME_PLATE = FIELD_POSITIONS.아웃;
 
-/** 투수 마운드 — 발 위치 기준 (% ) */
-export const PITCHERS_MOUND: FieldPoint = { left: "51%", top: "57%" };
+/** 투수 마운드 — 발 위치 (시안) */
+export const PITCHERS_MOUND: FieldPoint = { left: "50%", top: "54%" };
 
 export const FIELD_LABEL_TEXT: Record<PredictionOption, string> = {
   홈런: "홈런",
-  "3루": "3",
-  "2루": "2",
-  "1루": "1",
+  "3루": "3루",
+  "2루": "2루",
+  "1루": "1루",
   아웃: "아웃",
 };
 
@@ -49,6 +52,15 @@ export function getRunPath(target: PredictionOption): FieldPoint[] {
     default:
       return [home];
   }
+}
+
+/** 베이스 간 주루 시간(초). 실제 타구 후 1루 도달 약 4초 — UI는 3.5초/베이스 */
+export const RUN_SECONDS_PER_BASE = 3.5;
+
+/** 예측 결과(1루·2루·3루·홈런)에 따른 주루 애니메이션 총 시간(초) */
+export function getRunDurationSec(target: PredictionOption): number {
+  const segments = Math.max(1, getRunPath(target).length - 1);
+  return segments * RUN_SECONDS_PER_BASE;
 }
 
 export function pathToCssKeyframes(name: string, points: FieldPoint[]): string {

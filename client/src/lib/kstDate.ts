@@ -17,5 +17,5 @@ export function formatKstDisplayDate(date: Date = new Date()): string {
   const month = parts.find((p) => p.type === "month")?.value ?? "";
   const day = parts.find((p) => p.type === "day")?.value ?? "";
   const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
-  return `${year}년 ${month}월 ${day}일 (${weekday})`;
+  return `${year}년 ${month}월 ${day}일(${weekday})`;
 }

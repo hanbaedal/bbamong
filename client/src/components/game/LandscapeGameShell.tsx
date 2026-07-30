@@ -1,4 +1,4 @@
-import stadiumBg from "@assets/game/game-stadium-bg.png";
+import GameFieldViewport from "./GameFieldViewport";
 import GameLeftMenu, { type GameMenuAction } from "./GameLeftMenu";
 import GameTopScorePanel from "./GameTopScorePanel";
 import GameFieldLabels from "./GameFieldLabels";
@@ -112,15 +112,7 @@ export default function LandscapeGameShell({
     >
       <GameLeftMenu activePanel={activePanel} onSelect={onMenuSelect} />
 
-      <div className="relative flex-1 min-w-0 min-h-0">
-        <img
-          src={stadiumBg}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover object-center"
-          draggable={false}
-        />
-        <div className="absolute inset-0 bg-black/10" />
-
+      <GameFieldViewport>
         {matchesLoading ? (
           <div className="absolute inset-0 flex items-center justify-center z-10">
             <p className="text-white text-sm drop-shadow-lg">경기 정보를 불러오는 중...</p>
@@ -173,7 +165,7 @@ export default function LandscapeGameShell({
             )}
           </>
         )}
-      </div>
+      </GameFieldViewport>
 
       <GameMenuPanel
         panel={activePanel === "story" || activePanel === "info" ? activePanel : null}

@@ -37,9 +37,9 @@ export default function GameFieldLabels({
             type="button"
             disabled={!interactive}
             onClick={() => onSelect?.(key)}
-            className={`absolute -translate-x-1/2 -translate-y-1/2 font-bold text-sm sm:text-base md:text-lg drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)] transition-transform ${
-              isSelected ? "text-[#FFE566] scale-110" : "text-[#E11936]"
-            } ${isBlink ? "animate-label-blink" : ""} ${interactive ? "cursor-pointer hover:scale-110 active:scale-95" : ""}`}
+            className={`absolute -translate-x-1/2 -translate-y-1/2 font-bold text-sm sm:text-base drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] transition-transform ${
+              isSelected ? "text-[#FFE566] scale-110" : "text-[#FFE566]"
+            } ${isBlink ? "animate-label-blink text-[#E11936]" : ""} ${interactive ? "cursor-pointer hover:scale-110 active:scale-95" : ""}`}
             style={{ left: pos.left, top: pos.top }}
             data-testid={`field-label-${key}`}
           >

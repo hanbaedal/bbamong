@@ -57,7 +57,7 @@ export default function GameConfetti({ active, count = 48 }: GameConfettiProps) 
             width: p.size,
             height: p.size * 1.4,
             backgroundColor: p.color,
-            animation: `confetti-fall ${p.duration} linear ${p.delay} infinite`,
+            animation: `confetti-fall ${p.duration} linear ${p.delay} 1 forwards`,
           }}
         />
       ))}

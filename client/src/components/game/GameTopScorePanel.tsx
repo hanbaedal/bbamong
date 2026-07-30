@@ -13,6 +13,10 @@ interface GameTopScorePanelProps {
   stadiumSelectEnabled?: boolean;
 }
 
+const titleShadow = "drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]";
+const clickable =
+  "hover:text-[#CDFF00] transition-colors underline-offset-2 hover:underline cursor-pointer";
+
 export default function GameTopScorePanel({
   matchTitle,
   stadiumName,
@@ -25,64 +29,68 @@ export default function GameTopScorePanel({
   stadiumSelectEnabled = false,
 }: GameTopScorePanelProps) {
   return (
-    <div
-      className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 z-20 origin-top-right scale-[0.7]"
-      data-testid="game-top-score-panel"
-    >
-      <div className="flex flex-row items-start gap-2 sm:gap-3">
-        {/* 스코어판 왼쪽: 제 N경기 + n번째 타자 */}
-        <div className="flex flex-col justify-center gap-1 pt-1 shrink-0 text-white drop-shadow-md min-w-[4.5rem]">
-          {matchSelectEnabled && onMatchTitleClick ? (
-            <button
-              type="button"
-              onClick={onMatchTitleClick}
-              className="text-sm sm:text-base font-bold leading-tight whitespace-nowrap text-left hover:text-[#CDFF00] transition-colors underline-offset-2 hover:underline"
-              data-testid="game-match-title"
-            >
-              {matchTitle}
-            </button>
-          ) : (
-            <p
-              className="text-sm sm:text-base font-bold leading-tight whitespace-nowrap"
-              data-testid="game-match-title"
-            >
-              {matchTitle}
-            </p>
-          )}
-          <p
-            className="text-xs sm:text-sm font-bold leading-tight whitespace-nowrap"
-            data-testid="game-batter-text"
+    <>
+      {/* 상단 중앙: 제 N경기 + 경기장 이름 (시안) */}
+      <div
+        className="absolute top-2 sm:top-2.5 left-1/2 -translate-x-1/2 z-20 text-center text-white pointer-events-none max-w-[55%]"
+        data-testid="game-match-header"
+      >
+        {matchSelectEnabled && onMatchTitleClick ? (
+          <button
+            type="button"
+            onClick={onMatchTitleClick}
+            className={`pointer-events-auto block w-full text-lg sm:text-xl font-bold leading-tight whitespace-nowrap ${titleShadow} ${clickable}`}
+            data-testid="game-match-title"
           >
-            {batterText}
+            {matchTitle}
+          </button>
+        ) : (
+          <p
+            className={`text-lg sm:text-xl font-bold leading-tight whitespace-nowrap ${titleShadow}`}
+            data-testid="game-match-title"
+          >
+            {matchTitle}
           </p>
-        </div>
+        )}
 
-        {/* 스코어판 + 아래 중앙 경기장 이름 (표만 약 2칸 왼쪽) */}
-        <div className="flex flex-col items-center min-w-0 -translate-x-12 sm:-translate-x-[3.25rem]">
-          {isLoading ? (
-            <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
-          ) : (
-            <LineScoreTableLandscape scoreboard={scoreboard} className="max-w-full" compact />
-          )}
-          {stadiumSelectEnabled && onStadiumNameClick ? (
-            <button
-              type="button"
-              onClick={onStadiumNameClick}
-              className="text-[10px] sm:text-xs text-white/95 font-normal drop-shadow-md mt-1 text-center w-full whitespace-nowrap hover:text-[#CDFF00] transition-colors underline-offset-2 hover:underline"
-              data-testid="game-stadium-name"
-            >
-              {stadiumName || "경기장 이름"}
-            </button>
-          ) : (
-            <p
-              className="text-[10px] sm:text-xs text-white/95 font-normal drop-shadow-md mt-1 text-center w-full whitespace-nowrap"
-              data-testid="game-stadium-name"
-            >
-              {stadiumName || "경기장 이름"}
-            </p>
-          )}
-        </div>
+        {stadiumSelectEnabled && onStadiumNameClick ? (
+          <button
+            type="button"
+            onClick={onStadiumNameClick}
+            className={`pointer-events-auto block w-full mt-0.5 text-xs sm:text-sm font-normal text-white/95 whitespace-nowrap ${titleShadow} ${clickable}`}
+            data-testid="game-stadium-name"
+          >
+            {stadiumName || "경기장 이름"}
+          </button>
+        ) : (
+          <p
+            className={`mt-0.5 text-xs sm:text-sm font-normal text-white/95 whitespace-nowrap ${titleShadow}`}
+            data-testid="game-stadium-name"
+          >
+            {stadiumName || "경기장 이름"}
+          </p>
+        )}
       </div>
-    </div>
+
+      {/* 우측 상단: 스코어보드 */}
+      <div
+        className="absolute top-1.5 right-1 sm:top-2 sm:right-1.5 z-20 origin-top-right scale-[0.68] sm:scale-[0.72]"
+        data-testid="game-top-score-panel"
+      >
+        {isLoading ? (
+          <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
+        ) : (
+          <LineScoreTableLandscape scoreboard={scoreboard} className="max-w-full" compact />
+        )}
+      </div>
+
+      {/* 우측 관중석 위: n번째 타자 (시안) */}
+      <p
+        className={`absolute right-[4%] sm:right-[5%] top-[22%] sm:top-[24%] z-20 text-sm sm:text-base font-bold text-white whitespace-nowrap ${titleShadow}`}
+        data-testid="game-batter-text"
+      >
+        {batterText}
+      </p>
+    </>
   );
 }
