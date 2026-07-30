@@ -1,5 +1,6 @@
 import LineScoreTableLandscape from "./LineScoreTableLandscape";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import type { InningHalf } from "@shared/gamePhaseTypes";
 
 interface GameTopScorePanelProps {
   matchTitle: string;
@@ -7,6 +8,7 @@ interface GameTopScorePanelProps {
   batterText: string;
   scoreboard: LiveScoreboard | null;
   isLoading?: boolean;
+  battingHalf?: InningHalf | null;
   onMatchTitleClick?: () => void;
   onStadiumNameClick?: () => void;
   matchSelectEnabled?: boolean;
@@ -23,6 +25,7 @@ export default function GameTopScorePanel({
   batterText,
   scoreboard,
   isLoading,
+  battingHalf = null,
   onMatchTitleClick,
   onStadiumNameClick,
   matchSelectEnabled = false,
@@ -83,7 +86,7 @@ export default function GameTopScorePanel({
         {isLoading ? (
           <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
         ) : (
-          <LineScoreTableLandscape scoreboard={scoreboard} className="max-w-full" compact />
+          <LineScoreTableLandscape scoreboard={scoreboard} className="max-w-full" compact battingHalf={battingHalf} />
         )}
       </div>
 

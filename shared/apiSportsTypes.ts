@@ -1,3 +1,5 @@
+import type { InningHalf } from "./gamePhaseTypes";
+
 export type MatchControlMode = "auto" | "manual";
 
 /** api-sports innings 키( "1"~"9", "extra" 등 ) → 해당 이닝 득점 */
@@ -16,6 +18,8 @@ export interface LiveScoreboard {
   homeInnings?: InningRunsMap;
   awayInnings?: InningRunsMap;
   inning: number | null;
+  /** API status에서 파싱 — top=초(원정 공격), bottom=말(홈 공격) */
+  inningHalf?: InningHalf | null;
   inningLabel: string;
   statusShort: string;
   statusLong: string;

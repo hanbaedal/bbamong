@@ -497,6 +497,8 @@ async function updateMatchStatusFromApiGame(
         ...prevBoard,
         statusShort: scoreboard.statusShort,
         statusLong: scoreboard.statusLong,
+        inning: scoreboard.inning,
+        inningHalf: scoreboard.inningHalf,
         inningLabel: scoreboard.inningLabel,
         syncedAt: scoreboard.syncedAt,
       },

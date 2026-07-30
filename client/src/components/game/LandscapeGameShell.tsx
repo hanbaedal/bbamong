@@ -145,6 +145,7 @@ export default function LandscapeGameShell({
               batterText={batterText}
               scoreboard={scoreboard}
               isLoading={scoreLoading}
+              battingHalf={inningHalf ?? null}
               onMatchTitleClick={onMatchTitleClick}
               onStadiumNameClick={onStadiumNameClick}
               matchSelectEnabled={matchSelectEnabled}
