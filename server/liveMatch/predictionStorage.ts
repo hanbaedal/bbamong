@@ -554,7 +554,7 @@ export async function advanceInningHalf(
   const { predictionAutoStopped } = await nextRound(matchId, true);
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },
-    nextPhase,
+    { ...nextPhase, outsInHalf: 0 },
     { new: true },
   ).lean();
 
@@ -711,6 +711,36 @@ export async function getRoundStatistics(
 export async function getAllRoundStatistics(matchId: string): Promise<RoundStatistics[]> {
   const docs = await RoundStatisticsModel.find({ matchId }).sort({ roundNumber: 1 }).lean();
   return docs as RoundStatistics[];
+}
+
+/** 예측 시작했으나 결과 미전송 — 다음 타자·공수교대 불가 */
+export async function assertRoundResultSentOrAllowAdvance(
+  matchId: string,
+  roundNumber: number,
+): Promise<void> {
+  const stats = await RoundStatisticsModel.findOne({ matchId, roundNumber }).lean();
+  if (stats?.isPredictionStarted && !stats.isResultSent) {
+    throw new Error("먼저 예측 결과를 전송해 주세요.");
+  }
+}
+
+/** 아웃 결과 시 공수 누적 아웃 +1 */
+export async function incrementOutsInHalfOnResult(
+  matchId: string,
+  result: string,
+): Promise<{ outsInHalf: number; threeOutsReached: boolean }> {
+  if (result !== "아웃") {
+    const doc = await MatchModel.findOne({ id: matchId }).select("outsInHalf").lean();
+    const outsInHalf = (doc?.outsInHalf as number | undefined) ?? 0;
+    return { outsInHalf, threeOutsReached: outsInHalf >= 3 };
+  }
+  const updated = await MatchModel.findOneAndUpdate(
+    { id: matchId },
+    { $inc: { outsInHalf: 1 } },
+    { new: true },
+  ).lean();
+  const outsInHalf = (updated?.outsInHalf as number | undefined) ?? 0;
+  return { outsInHalf, threeOutsReached: outsInHalf >= 3 };
 }
 
 export async function createOrUpdateRoundStatistics(

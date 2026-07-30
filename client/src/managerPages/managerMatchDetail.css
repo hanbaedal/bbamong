@@ -187,6 +187,29 @@
   color: #b45309;
 }
 
+.manager-match-notice--three-outs {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+@keyframes manager-switch-half-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(225, 25, 54, 0.55);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(225, 25, 54, 0);
+    transform: scale(1.03);
+  }
+}
+
+.manager-match-bottom-btn--pulse {
+  animation: manager-switch-half-pulse 1.1s ease-in-out infinite;
+}
+
 .manager-match-bottom-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

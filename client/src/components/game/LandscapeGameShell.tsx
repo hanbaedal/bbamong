@@ -161,7 +161,7 @@ export default function LandscapeGameShell({
             />
 
             <GameDefenseLayer
-              visible={screenPhase === "wait_start" || screenPhase === "picking"}
+              visible={screenPhase === "picking"}
               inningHalf={inningHalf}
             />
 

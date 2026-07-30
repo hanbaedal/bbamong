@@ -74,6 +74,8 @@ const matchSchema = new Schema(
     inningHalf: { type: String, default: "top" },
     /** 현재 공수에서 몇 번째 타자 */
     batterIndexInHalf: { type: Number, default: 1 },
+    /** 현재 공수(초/말) 누적 아웃 — 공수교대 시 0 */
+    outsInHalf: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now },
   },
   { versionKey: false },

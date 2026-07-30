@@ -17,6 +17,7 @@ import type {
   RoundAdvanceType,
 } from "@/components/game/gameTypes";
 import { GAME_EVENT_SHOW_MS } from "@/components/game/gameTypes";
+import { speakGameVoice, USER_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
 
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 
@@ -401,6 +402,7 @@ export function useLandscapePredictionFlow(
     }, []),
 
     onPredictionStarted: useCallback(() => {
+      void speakGameVoice(USER_GAME_VOICE.predictionStarted);
       if (waitingResultRef.current || activeBetRef.current) {
         setScreenPhase("wait_result");
         return;
@@ -413,6 +415,7 @@ export function useLandscapePredictionFlow(
     }, []),
 
     onPredictionEnded: useCallback(() => {
+      void speakGameVoice(USER_GAME_VOICE.predictionStopped);
       setPredictionEnabled(false);
       setShowBetModal(false);
       setShowConfirmModal(false);

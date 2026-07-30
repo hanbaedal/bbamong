@@ -124,14 +124,27 @@ export class AdminMatchStorage implements IAdminMatchStorage {
         matchId: match.id,
         roundNumber: match.currentRound,
       })
-        .select("predictionStartTime predictionStopTime")
+        .select(
+          "predictionStartTime predictionStopTime isPredictionStarted isPredictionStopped isResultSent",
+        )
         .lean(),
     ]);
+
+    const doc = match as Record<string, unknown>;
+    const outsInHalf = (doc.outsInHalf as number | undefined) ?? 0;
+    const needsResultBeforeAdvance = Boolean(
+      roundStats?.isPredictionStarted && !roundStats.isResultSent,
+    );
 
     return {
       ...(match as Match),
       predictionStartTime: roundStats?.predictionStartTime ?? null,
       predictionStopTime: roundStats?.predictionStopTime ?? null,
+      isResultSent: roundStats?.isResultSent ?? false,
+      isPredictionStarted: roundStats?.isPredictionStarted ?? false,
+      needsResultBeforeAdvance,
+      outsInHalf,
+      showThreeOutsHint: outsInHalf >= 3,
       stadium: { id: stadium?.id ?? match.stadiumId, name: stadium?.name ?? "" },
     };
   }

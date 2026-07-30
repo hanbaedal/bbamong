@@ -5,7 +5,7 @@ import { AdminStorage } from "../storage/adminStorage";
 import { adminMatchStorage } from "../storage/adminMatchStorage";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAccessToken } from "../utils/jwt";
 import { broadcastManager } from "../liveMatch/broadcastManager";
-import { startRound, stopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics } from "../liveMatch/predictionStorage";
+import { startRound, stopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { hasActiveSession, createSession, deleteSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
 import { burnLoginLinkToken, ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken } from "../managerOperatorService";
@@ -754,6 +754,7 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       // 예측 결과 업데이트 (포인트 지급 포함) - 유저별 wonAmount 맵 반환
       const userWonAmounts = await updateRoundPredictionResult(id, match.currentRound, result);
+      const { outsInHalf, threeOutsReached } = await incrementOutsInHalfOnResult(id, result);
 
       // 유저별 wonAmount를 포함한 개인화된 round_result 전송
       const userDataMap = new Map<string, any>();
@@ -798,6 +799,8 @@ export async function managerRoutes(app: Express): Promise<void> {
         roundNumber: match.currentRound,
         result,
         nextRound: nextRoundNumber,
+        outsInHalf,
+        threeOutsReached,
         adStarted: false,
         adDelaySeconds: 0
       });
@@ -830,6 +833,8 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
+
+      await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
 
       const { match: updatedMatch, predictionAutoStopped } = await advanceToNextBatter(id, true);
       const overallStats = await getMatchOverallStatistics(id);
@@ -882,6 +887,9 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       console.error("Next batter error:", error);
       const message = error instanceof Error ? error.message : "다음 타자 이동에 실패했습니다.";
+      if (message.includes("결과를 전송")) {
+        return res.status(400).json({ error: message });
+      }
       return res.status(500).json({ error: message });
     }
   });
@@ -975,6 +983,8 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
 
+      await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
+
       const { match: updatedMatch, predictionAutoStopped } = await advanceInningHalf(id);
       const overallStats = await getMatchOverallStatistics(id);
       const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
@@ -1027,6 +1037,9 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       console.error("Switch half error:", error);
       const message = error instanceof Error ? error.message : "공수교대 처리에 실패했습니다.";
+      if (message.includes("결과를 전송")) {
+        return res.status(400).json({ error: message });
+      }
       return res.status(500).json({ error: message });
     }
   });

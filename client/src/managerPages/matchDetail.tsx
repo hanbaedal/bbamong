@@ -11,6 +11,7 @@ import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import { formatMatchInningPhase } from "@shared/matchPhaseDisplay";
+import { speakGameVoice, OPERATOR_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
 import "./managerMatchDetail.css";
 
 const WS_BASE_URL = 'wss://ppamong.com';
@@ -28,6 +29,10 @@ interface Match {
   predictionStopTime?: string;
   gameInning?: number;
   inningHalf?: string;
+  outsInHalf?: number;
+  needsResultBeforeAdvance?: boolean;
+  showThreeOutsHint?: boolean;
+  isResultSent?: boolean;
   stadium: {
     id: number;
     name: string;
@@ -71,6 +76,7 @@ export default function MatchDetailPage() {
   const sessionExpiredRef = useRef(false);
   const duplicateLoginRef = useRef(false);
   const isUnmountingRef = useRef(false);
+  const threeOutsSpokenRef = useRef(false);
   const HEARTBEAT_INTERVAL = 25000; // 25초마다 ping
   const PONG_TIMEOUT = 10000; // 10초 내 pong 없으면 재연결
 
@@ -348,6 +354,13 @@ export default function MatchDetailPage() {
           return;
         }
         setMatch(data);
+        if (data.showThreeOutsHint && !threeOutsSpokenRef.current) {
+          threeOutsSpokenRef.current = true;
+          void speakGameVoice(OPERATOR_GAME_VOICE.threeOuts);
+        }
+        if (!data.showThreeOutsHint) {
+          threeOutsSpokenRef.current = false;
+        }
       } else if (response.status === 429) {
         console.log("[Manager] 요청 제한 (429) - 무시하고 기존 데이터 유지");
       } else if (response.status === 403) {
@@ -543,6 +556,10 @@ export default function MatchDetailPage() {
         setShowConfirmPopup(false);
         setSelectedResult(null);
         setLastAdvanceSkippedResult(false);
+        if (data.threeOutsReached) {
+          threeOutsSpokenRef.current = true;
+          void speakGameVoice(OPERATOR_GAME_VOICE.threeOuts);
+        }
         if (match) {
           setMatch({
             ...match,
@@ -550,6 +567,10 @@ export default function MatchDetailPage() {
             predictionEnabled: false,
             predictionStartTime: undefined,
             predictionStopTime: undefined,
+            outsInHalf: data.outsInHalf ?? match.outsInHalf,
+            showThreeOutsHint: Boolean(data.threeOutsReached),
+            needsResultBeforeAdvance: false,
+            isResultSent: true,
           });
         }
       } else {
@@ -608,11 +629,16 @@ export default function MatchDetailPage() {
     }
   };
 
-  const handleNextBatter = () =>
+  const handleNextBatter = () => {
+    if (match?.needsResultBeforeAdvance) {
+      toast({ description: "먼저 예측 결과를 전송해 주세요." });
+      return;
+    }
     void handleAdvanceRound(
       `/api/manager/control/${id}/round/next-batter`,
       "다음 타자 처리에 실패했습니다.",
     );
+  };
 
   const handlePitcherChange = () =>
     void handleAdvanceRound(
@@ -620,11 +646,21 @@ export default function MatchDetailPage() {
       "투수 교체 처리에 실패했습니다.",
     );
 
-  const handleSwitchHalf = () =>
+  const handleSwitchHalf = () => {
+    if (match?.needsResultBeforeAdvance) {
+      toast({ description: "먼저 예측 결과를 전송해 주세요." });
+      return;
+    }
     void handleAdvanceRound(
       `/api/manager/control/${id}/round/switch-half`,
       "공수교대 처리에 실패했습니다.",
+      {
+        onSuccess: () => {
+          threeOutsSpokenRef.current = false;
+        },
+      },
     );
+  };
 
   // 광고 타이머 (서버 시작 시각 기반으로 정확한 경과 시간 계산)
   useEffect(() => {
@@ -743,6 +779,8 @@ export default function MatchDetailPage() {
     gameInning: match.gameInning,
     inningHalf: match.inningHalf,
   });
+  const blockAdvance = Boolean(match.needsResultBeforeAdvance);
+  const showThreeOutsHint = Boolean(match.showThreeOutsHint);
 
   return (
     <div className="manager-match-shell bg-white w-full" data-testid="manager-match-detail">
@@ -867,11 +905,24 @@ export default function MatchDetailPage() {
             </div>
           )}
 
+          {showThreeOutsHint && (
+            <div
+              className="manager-match-notice manager-match-notice--three-outs"
+              data-testid="text-three-outs-hint"
+            >
+              3아웃 — 공수교대를 눌러주세요
+            </div>
+          )}
+
           <div className="manager-match-bottom-grid">
             <button
               type="button"
               onClick={() => (isAdPlaying ? handleStopAd() : handleNextBatter())}
-              disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
+              disabled={
+                isNextBatterLoading ||
+                (!wsConnected && !isAdPlaying) ||
+                (blockAdvance && !isAdPlaying)
+              }
               data-testid="button-next-batter"
               className="manager-match-bottom-btn bg-[#4285F4]"
             >
@@ -889,9 +940,15 @@ export default function MatchDetailPage() {
             <button
               type="button"
               onClick={() => (isAdPlaying ? handleStopAd() : handleSwitchHalf())}
-              disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
+              disabled={
+                isNextBatterLoading ||
+                (!wsConnected && !isAdPlaying) ||
+                (blockAdvance && !isAdPlaying)
+              }
               data-testid="button-switch-half"
-              className={`manager-match-bottom-btn ${isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"}`}
+              className={`manager-match-bottom-btn ${
+                isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"
+              } ${showThreeOutsHint && !isAdPlaying ? "manager-match-bottom-btn--pulse" : ""}`}
             >
               {isAdPlaying ? "광고 종료" : isNextBatterLoading ? "처리중..." : "공수 교대"}
             </button>
