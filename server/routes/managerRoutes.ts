@@ -604,7 +604,10 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
 
-      return res.json(match);
+      return res.json({
+        ...match,
+        gamePhase: buildGamePhasePayload(match as Parameters<typeof buildGamePhasePayload>[0]),
+      });
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
         return res.status(401).json({ error: "인증이 만료되었습니다." });

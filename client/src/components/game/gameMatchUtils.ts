@@ -1,3 +1,5 @@
+import { getDisplayStadiumName } from "@shared/stadiumDisplay";
+
 export interface GameMatchItem {
   id: string;
   name: string;
@@ -37,8 +39,10 @@ export function collectStadiumOptions(matches: GameMatchItem[]): StadiumOption[]
   const map = new Map<number, StadiumOption>();
   for (const match of matches) {
     if (match.stadiumId == null) continue;
+    const displayName = getDisplayStadiumName(match.stadiumName);
+    if (!displayName) continue;
     if (!map.has(match.stadiumId)) {
-      map.set(match.stadiumId, { id: match.stadiumId, name: match.stadiumName });
+      map.set(match.stadiumId, { id: match.stadiumId, name: displayName });
     }
   }
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "ko"));

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { managerFetch, managerQueryClient, getFullUrl } from "@/lib/managerQueryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import { clearManagerTokens } from "@/lib/managerTokenManager";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
@@ -269,6 +270,7 @@ export default function ManagerHomePage() {
           ) : (
             matches.map((match, index) => {
               const isAvailable = match.matchStatus === "scheduled" || match.matchStatus === "ongoing";
+              const displayStadium = getDisplayStadiumName(match.stadium.name);
               
               return (
                 <button
@@ -282,9 +284,11 @@ export default function ManagerHomePage() {
                       <p className="text-[16px] font-medium text-gray-900">
                         {match.name}
                       </p>
-                      <p className="text-[14px] text-gray-600 mt-1">
-                        {match.stadium.name}
-                      </p>
+                      {displayStadium && (
+                        <p className="text-[14px] text-gray-600 mt-1">
+                          {displayStadium}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <div className={`w-3 h-3 rounded-full ${isAvailable ? "bg-[#CDFF00]" : "bg-red-500"}`}></div>

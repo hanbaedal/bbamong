@@ -18,6 +18,7 @@ import { useLandscapePredictionFlow } from "@/hooks/useLandscapePredictionFlow";
 import { lockGameLandscape, unlockGameLandscape } from "@/lib/gameOrientation";
 import { navigateToHome, openMallFromApp } from "@/lib/appNavigation";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
+import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
 
@@ -155,7 +156,7 @@ export default function PredictionPage() {
       orderedMatches.map((match) => ({
         id: match.id,
         label: formatMatchTitle(match.name),
-        sublabel: match.stadiumName,
+        sublabel: getDisplayStadiumName(match.stadiumName) ?? undefined,
       })),
     [orderedMatches],
   );
@@ -202,7 +203,7 @@ export default function PredictionPage() {
   };
 
   const matchTitle = selectedMatch ? formatMatchTitle(selectedMatch.name) : "제 1경기";
-  const stadiumName = selectedMatch?.stadiumName ?? "";
+  const stadiumName = getDisplayStadiumName(selectedMatch?.stadiumName) ?? "";
   const batterText = batterTextFromPhase(gamePhase);
   const emptyMessage =
     !matchesLoading && (!matchesData || matchesData.length === 0)

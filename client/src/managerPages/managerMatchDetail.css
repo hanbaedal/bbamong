@@ -1,0 +1,286 @@
+/* 운영자 경기 상세 — 스마트폰·폴더폰 한 화면(스크롤 없음) */
+
+.manager-match-shell {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: max(env(safe-area-inset-top, 0px), 44px);
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 6px);
+}
+
+.manager-match-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 12px 4px;
+  overflow: hidden;
+}
+
+.manager-match-header {
+  flex-shrink: 0;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.manager-match-date {
+  font-size: 11px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.manager-match-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.manager-match-info {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f9fafb;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5563;
+  line-height: 1.2;
+}
+
+.manager-match-score {
+  flex-shrink: 0;
+}
+
+.manager-match-controls {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.manager-match-control-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.manager-match-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #201e22;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.manager-match-action-btn {
+  position: relative;
+  width: 100%;
+  height: 38px;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.manager-match-action-btn:disabled {
+  opacity: 0.5;
+}
+
+.manager-match-action-mascot {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1;
+  display: none;
+}
+
+@media (min-width: 360px) and (min-height: 640px) {
+  .manager-match-action-mascot {
+    display: block;
+  }
+}
+
+.manager-match-time-box {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e9e9e9;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.manager-match-results {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.manager-match-result-row {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+}
+
+.manager-match-result-btn {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #201e22;
+  line-height: 1.2;
+  border: 1px solid #e9e9e9;
+}
+
+.manager-match-result-btn--selected {
+  border-color: #e11936;
+}
+
+.manager-match-result-btn:disabled {
+  opacity: 0.5;
+}
+
+.manager-match-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.manager-match-notice {
+  font-size: 11px;
+  line-height: 1.25;
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.manager-match-notice--ad {
+  display: flex;
+  justify-content: space-between;
+  background: #2a2d2e;
+  color: #fff;
+}
+
+.manager-match-notice--skip {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+}
+
+.manager-match-bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.manager-match-bottom-btn {
+  height: 40px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.15;
+  padding: 0 4px;
+}
+
+.manager-match-bottom-btn:disabled {
+  opacity: 0.5;
+}
+
+/* 폴더폰·낮은 화면 */
+@media (max-height: 680px) {
+  .manager-match-body {
+    gap: 4px;
+    padding-top: 0;
+  }
+
+  .manager-match-date {
+    font-size: 10px;
+  }
+
+  .manager-match-title {
+    font-size: 14px;
+  }
+
+  .manager-match-info {
+    font-size: 12px;
+    padding: 3px 6px;
+  }
+
+  .manager-match-section-title {
+    font-size: 12px;
+  }
+
+  .manager-match-action-btn {
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .manager-match-time-box {
+    height: 22px;
+    font-size: 12px;
+  }
+
+  .manager-match-result-btn {
+    height: 28px;
+    font-size: 10px;
+  }
+
+  .manager-match-bottom-btn {
+    height: 36px;
+    font-size: 11px;
+  }
+}
+
+@media (max-height: 580px) {
+  .manager-match-header {
+    line-height: 1.15;
+  }
+
+  .manager-match-date {
+    font-size: 9px;
+  }
+
+  .manager-match-title {
+    font-size: 13px;
+  }
+
+  .manager-match-controls {
+    gap: 4px;
+  }
+
+  .manager-match-action-btn {
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .manager-match-time-box {
+    height: 20px;
+    font-size: 11px;
+  }
+
+  .manager-match-bottom-btn {
+    height: 34px;
+    font-size: 10px;
+  }
+}

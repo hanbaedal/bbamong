@@ -28,6 +28,7 @@ export default function GameTopScorePanel({
   matchSelectEnabled = false,
   stadiumSelectEnabled = false,
 }: GameTopScorePanelProps) {
+  const displayStadiumName = stadiumName.trim() || null;
   return (
     <>
       {/* 상단 중앙: 제 N경기 + 경기장 이름 (시안) */}
@@ -53,23 +54,25 @@ export default function GameTopScorePanel({
           </p>
         )}
 
-        {stadiumSelectEnabled && onStadiumNameClick ? (
-          <button
-            type="button"
-            onClick={onStadiumNameClick}
-            className={`pointer-events-auto block w-full mt-0.5 text-xs sm:text-sm font-normal text-white/95 whitespace-nowrap ${titleShadow} ${clickable}`}
-            data-testid="game-stadium-name"
-          >
-            {stadiumName || "경기장 이름"}
-          </button>
-        ) : (
-          <p
-            className={`mt-0.5 text-xs sm:text-sm font-normal text-white/95 whitespace-nowrap ${titleShadow}`}
-            data-testid="game-stadium-name"
-          >
-            {stadiumName || "경기장 이름"}
-          </p>
-        )}
+        {displayStadiumName ? (
+          matchSelectEnabled && onStadiumNameClick ? (
+            <button
+              type="button"
+              onClick={onStadiumNameClick}
+              className={`pointer-events-auto block w-full mt-0.5 text-xs sm:text-sm font-normal text-white/95 whitespace-nowrap ${titleShadow} ${clickable}`}
+              data-testid="game-stadium-name"
+            >
+              {displayStadiumName}
+            </button>
+          ) : (
+            <p
+              className={`mt-0.5 text-xs sm:text-sm font-normal text-white/95 whitespace-nowrap ${titleShadow}`}
+              data-testid="game-stadium-name"
+            >
+              {displayStadiumName}
+            </p>
+          )
+        ) : null}
       </div>
 
       {/* 우측 상단: 스코어보드 */}

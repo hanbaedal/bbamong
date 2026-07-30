@@ -1,15 +1,17 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
-import { Button } from "@/components/ui/button";
 import AdminConfirmPopup from "@/components/customUi/AdminConfirmPopup";
-import { managerFetch, getFullUrl, refreshAccessToken, managerQueryClient } from "@/lib/managerQueryClient";
-import { getManagerAccessToken, clearManagerTokens } from "@/lib/managerTokenManager";
+import { managerFetch, refreshAccessToken } from "@/lib/managerQueryClient";
+import { getManagerAccessToken } from "@/lib/managerTokenManager";
 import { useManagerAssets } from "@/contexts/ManagerAssetContext";
 import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
 import LiveScoreboard from "@/components/LiveScoreboard";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
+import { getDisplayStadiumName } from "@shared/stadiumDisplay";
+import { formatMatchInningPhase } from "@shared/matchPhaseDisplay";
+import "./managerMatchDetail.css";
 
 const WS_BASE_URL = 'wss://ppamong.com';
 
@@ -24,6 +26,8 @@ interface Match {
   predictionEnabled: boolean;
   predictionStartTime?: string;
   predictionStopTime?: string;
+  gameInning?: number;
+  inningHalf?: string;
   stadium: {
     id: number;
     name: string;
@@ -423,44 +427,6 @@ export default function MatchDetailPage() {
     };
   }, [id, match?.startTime, match?.matchStatus, fetchMatchDetail]);
 
-  const handleLogout = async () => {
-    try {
-      const response = await managerFetch("/api/manager/logout", {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-
-        if (response.status === 403) {
-          toast({
-            variant: "destructive",
-            description:
-              data.error || "관리자의 로그아웃 허가가 필요합니다.",
-          });
-          return;
-        }
-
-        throw new Error(data.error || "로그아웃 실패");
-      }
-
-      await clearManagerTokens();
-      managerQueryClient.clear();
-      if (!Capacitor.isNativePlatform()) {
-        fetch(getFullUrl("/api/manager/clear-session"), { method: "POST", credentials: "include" }).catch(() => {});
-      }
-      setMatch(null);
-      await new Promise(resolve => setTimeout(resolve, 0));
-      setLocation("/manager/login");
-    } catch (error) {
-      console.error("Logout failed:", error);
-      toast({
-        variant: "destructive",
-        description: "로그아웃 중 오류가 발생했습니다.",
-      });
-    }
-  };
-
   const handleStartPrediction = async () => {
     if (isStartingPrediction) return;
 
@@ -771,164 +737,111 @@ export default function MatchDetailPage() {
 
   const today = new Date();
   const formattedDate = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 (${["일", "월", "화", "수", "목", "금", "토"][today.getDay()]})`;
-
-  const getMatchStatusText = () => {
-    if (match.matchStatus === "ongoing") return "경기중";
-    if (match.matchStatus === "completed") return "경기종료";
-    return "정상게임";
-  };
+  const displayStadiumName = getDisplayStadiumName(match.stadium.name);
+  const matchPhaseText = formatMatchInningPhase({
+    matchStatus: match.matchStatus,
+    gameInning: match.gameInning,
+    inningHalf: match.inningHalf,
+  });
 
   return (
-    <div className="h-[100dvh] bg-white flex flex-col w-full overflow-hidden" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 44px)' }}>
-      {/* 헤더 */}
-      <div className="flex-shrink-0 px-3 py-2 flex items-center justify-between relative z-50">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setLocation("/manager/home")}
-            data-testid="button-back"
-            className="text-gray-600 hover:text-gray-900 min-h-[44px] min-w-[44px] flex items-center justify-center"
-          >
-            ← 뒤로
-          </button>
-        </div>
-        <Button
-          variant="outline"
-          onClick={handleLogout}
-          data-testid="button-logout"
-          className="min-h-[44px] px-4 text-sm border-red-500 text-red-500 hover:bg-red-50"
-        >
-          로그아웃
-        </Button>
-      </div>
-
-      {/* 메인 컨텐츠 */}
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 py-3 pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
-        {/* 날짜 및 제목 */}
-        <div className="flex flex-col items-center gap-1 mb-2">
-          <p
-            className="text-[14px] font-medium text-gray-900 text-center"
-            data-testid="text-match-date"
-          >
+    <div className="manager-match-shell bg-white w-full" data-testid="manager-match-detail">
+      <div className="manager-match-body">
+        <header className="manager-match-header">
+          <p className="manager-match-date" data-testid="text-match-date">
             {formattedDate}
           </p>
-          <h1
-            className="text-[18px] font-semibold text-gray-900"
-            data-testid="text-match-name"
-          >
+          <h1 className="manager-match-title" data-testid="text-match-name">
             {match.name}
           </h1>
+        </header>
+
+        <div className="manager-match-info">
+          {displayStadiumName && (
+            <>
+              <img src={assets.stadiumIcon} alt="" className="w-4 h-4 shrink-0" />
+              <span data-testid="text-stadium-name">{displayStadiumName}</span>
+              <span className="text-gray-300">·</span>
+            </>
+          )}
+          <span data-testid="text-match-status">{matchPhaseText}</span>
         </div>
 
-        {/* 경기장 정보 */}
-        <div className="bg-gray-50 rounded-md p-3 mb-2 flex flex-col items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            {/* 경기장 아이콘 영역 - 사용자가 나중에 추가 */}
-            <div className="w-5 h-5">
-              <img src={assets.stadiumIcon} alt="stadium" />
-            </div>
-            <span
-              className="text-[16px] font-semibold text-gray-900"
-              data-testid="text-stadium-name"
-            >
-              {match.stadium.name}
-            </span>
-          </div>
-          <p
-            className="text-[15px] text-gray-600"
-            data-testid="text-match-status"
-          >
-            {getMatchStatusText()},{" "}
-            {match.matchStatus === "ongoing" ? "경기중" : "대기중"}
-          </p>
-        </div>
-
-        <div className="mb-3">
-          <LiveScoreboard scoreboard={scoreboardPayload?.scoreboard ?? null} compact />
+        <div className="manager-match-score">
+          <LiveScoreboard
+            scoreboard={scoreboardPayload?.scoreboard ?? null}
+            dense
+            showTeamNames={false}
+          />
           {scoreboardPayload?.controlMode === "manual" && (
-            <p className="mt-2 text-xs text-red-600 font-medium">비상 수동 제어 모드</p>
+            <p className="mt-0.5 text-[10px] text-red-600 font-medium leading-tight">
+              비상 수동 제어
+            </p>
           )}
         </div>
 
-        {/* 예측 시작 섹션 */}
-        <div className="flex flex-col gap-[8px]" style={{ marginBottom: '12px' }}>
-          <h3 className="text-[18px] font-semibold text-[#201E22] tracking-[-0.025em]">
-            예측 시작
-          </h3>
-          <div className="flex flex-col gap-[8px]">
-            <div className="relative w-full h-[50px] bg-[#1A6DFF] rounded-[6px] overflow-hidden">
-              <button
-                onClick={handleStartPrediction}
-                disabled={isStartingPrediction || !wsConnected}
-                data-testid="button-start-prediction"
-                className="relative z-20 w-full h-full flex items-center justify-center gap-[5px] text-white font-semibold text-[16px] leading-[140%] tracking-[-0.025em] disabled:opacity-50"
-              >
-                {!wsConnected ? "연결 중..." : isStartingPrediction ? "처리중..." : "▶ 예측 시작"}
-              </button>
+        <div className="manager-match-controls">
+          <div className="manager-match-control-col">
+            <h3 className="manager-match-section-title">예측 시작</h3>
+            <button
+              type="button"
+              onClick={handleStartPrediction}
+              disabled={isStartingPrediction || !wsConnected}
+              data-testid="button-start-prediction"
+              className="manager-match-action-btn bg-[#1A6DFF] relative z-20"
+            >
+              {!wsConnected ? "연결 중..." : isStartingPrediction ? "처리중..." : "▶ 예측 시작"}
               <img
                 src={assets.startPrediction}
-                className="absolute w-[79px] h-[142px] object-contain -top-[21px] right-0 scale-x-[-1] pointer-events-none z-10"
-                alt="prediction"
+                className="manager-match-action-mascot w-[52px] h-[94px] object-contain -top-3 -right-1 scale-x-[-1]"
+                alt=""
               />
-            </div>
+            </button>
             <div
-              className="flex items-center justify-center w-full h-[40px] border border-[#E9E9E9] rounded-[6px] font-semibold text-[16px] leading-[140%] tracking-[-0.025em] text-[#1A6DFF]"
+              className="manager-match-time-box text-[#1A6DFF]"
               data-testid="text-prediction-start-time"
             >
-              {match?.predictionStartTime
-                ? formatTime(match.predictionStartTime)
-                : "-"}
+              {match?.predictionStartTime ? formatTime(match.predictionStartTime) : "-"}
             </div>
           </div>
-        </div>
 
-        {/* 예측 중지 섹션 */}
-        <div className="flex flex-col gap-[8px]" style={{ marginBottom: '12px' }}>
-          <h3 className="text-[18px] font-semibold text-[#201E22] tracking-[-0.025em]">
-            예측 중지
-          </h3>
-          <div className="flex flex-col gap-[8px]">
-            <div className="relative w-full h-[50px] bg-[#E11936] rounded-[6px] overflow-hidden">
+          <div className="manager-match-control-col">
+            <h3 className="manager-match-section-title">예측 중지</h3>
+            <button
+              type="button"
+              onClick={handleStopPrediction}
+              disabled={isStoppingPrediction || !wsConnected}
+              data-testid="button-stop-prediction"
+              className="manager-match-action-btn bg-[#E11936] relative z-20"
+            >
+              {!wsConnected ? "연결 중..." : isStoppingPrediction ? "처리중..." : "■ 예측 중지"}
               <img
                 src={assets.stopPrediction}
-                className="absolute w-[122px] h-[163px] object-contain -top-[42px] left-0 scale-x-[-1] pointer-events-none z-10"
-                alt="prediction"
+                className="manager-match-action-mascot w-[64px] h-[86px] object-contain -top-6 -left-1 scale-x-[-1]"
+                alt=""
               />
-              <button
-                onClick={handleStopPrediction}
-                disabled={isStoppingPrediction || !wsConnected}
-                data-testid="button-stop-prediction"
-                className="relative z-20 w-full h-full flex items-center justify-center gap-[5px] text-white font-semibold text-[16px] leading-[140%] tracking-[-0.025em] disabled:opacity-50"
-              >
-                {!wsConnected ? "연결 중..." : isStoppingPrediction ? "처리중..." : "■ 예측 중지"}
-              </button>
-            </div>
+            </button>
             <div
-              className="flex items-center justify-center w-full h-[40px] border border-[#E9E9E9] rounded-[6px] font-semibold text-[16px] leading-[140%] tracking-[-0.025em] text-[#E11936]"
+              className="manager-match-time-box text-[#E11936]"
               data-testid="text-prediction-stop-time"
             >
-              {match?.predictionStopTime
-                ? formatTime(match.predictionStopTime)
-                : "-"}
+              {match?.predictionStopTime ? formatTime(match.predictionStopTime) : "-"}
             </div>
           </div>
         </div>
 
-        {/* 예측 결과 섹션 */}
-        <div className="flex flex-col gap-[8px]" style={{ marginBottom: '12px' }}>
-          <h3 className="text-[18px] font-semibold text-[#201E22] tracking-[-0.025em]">
-            예측 결과
-          </h3>
-          <div className="flex flex-row gap-[8px]">
+        <div className="manager-match-results">
+          <h3 className="manager-match-section-title">예측 결과</h3>
+          <div className="manager-match-result-row">
             {["1루", "2루", "3루", "홈런", "아웃"].map((label) => (
               <button
                 key={label}
+                type="button"
                 onClick={() => handleResultSelect(label)}
                 disabled={!wsConnected || !!match?.predictionEnabled}
                 data-testid={`button-result-${label}`}
-                className={`flex-1 h-[35px] flex items-center justify-center rounded-[6px] text-[12px] font-medium text-[#201E22] tracking-[-0.025em] leading-[140%] transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  selectedResult === label
-                    ? "border border-[#E11936]"
-                    : "border border-[#E9E9E9]"
+                className={`manager-match-result-btn ${
+                  selectedResult === label ? "manager-match-result-btn--selected" : ""
                 }`}
               >
                 {label}
@@ -936,43 +849,31 @@ export default function MatchDetailPage() {
             ))}
           </div>
         </div>
-      </div>
 
-      {/* 다음 타자 버튼 - 하단 고정 */}
-      <div className="fixed bottom-0 inset-x-0 z-30 bg-white shadow-[0px_-4px_20px_rgba(0,0,0,0.05)]">
-        <div className="w-full px-[16px] pt-[8px]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)' }}>
-          {/* 광고 재생 중 타이머 */}
+        <footer className="manager-match-footer">
           {isAdPlaying && (
-            <div
-              className="flex justify-between items-center px-5 py-2.5 mb-2 bg-[#2A2D2E] rounded-[6px] shadow-[0px_-4px_20px_rgba(255,255,255,0.05)]"
-              data-testid="ad-timer"
-            >
-              <span className="text-[15px] font-medium text-white">
-                광고가 재생중입니다.
-              </span>
-              <span className="text-[15px] font-medium text-[#E11936]">
-                {formatAdTime(adElapsedTime)}
-              </span>
+            <div className="manager-match-notice manager-match-notice--ad" data-testid="ad-timer">
+              <span>광고 재생중</span>
+              <span className="text-[#E11936]">{formatAdTime(adElapsedTime)}</span>
             </div>
           )}
 
           {lastAdvanceSkippedResult && (
             <div
-              className="flex items-center justify-center w-full py-2 mb-2 bg-amber-50 border border-amber-200 rounded-[6px]"
+              className="manager-match-notice manager-match-notice--skip"
               data-testid="text-skipped-result-notice"
             >
-              <span className="text-[13px] font-medium text-amber-700">
-                결과 없이 진행됨 — 이전 라운드 결과가 생략되었습니다.
-              </span>
+              결과 생략됨
             </div>
           )}
-          <div className="grid grid-cols-3 gap-2">
+
+          <div className="manager-match-bottom-grid">
             <button
               type="button"
               onClick={() => (isAdPlaying ? handleStopAd() : handleNextBatter())}
               disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
               data-testid="button-next-batter"
-              className="h-[52px] text-white rounded-[6px] flex items-center justify-center text-[13px] font-semibold leading-tight tracking-[-0.025em] disabled:opacity-50 bg-[#4285F4] px-1"
+              className="manager-match-bottom-btn bg-[#4285F4]"
             >
               {isNextBatterLoading ? "처리중..." : "다음 타자"}
             </button>
@@ -981,7 +882,7 @@ export default function MatchDetailPage() {
               onClick={() => (isAdPlaying ? handleStopAd() : handlePitcherChange())}
               disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
               data-testid="button-pitcher-change"
-              className="h-[52px] text-white rounded-[6px] flex items-center justify-center text-[13px] font-semibold leading-tight tracking-[-0.025em] disabled:opacity-50 bg-[#5C6BC0] px-1"
+              className="manager-match-bottom-btn bg-[#5C6BC0]"
             >
               {isNextBatterLoading ? "처리중..." : "투수 교체"}
             </button>
@@ -990,12 +891,12 @@ export default function MatchDetailPage() {
               onClick={() => (isAdPlaying ? handleStopAd() : handleSwitchHalf())}
               disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
               data-testid="button-switch-half"
-              className={`h-[52px] text-white rounded-[6px] flex items-center justify-center text-[13px] font-semibold leading-tight tracking-[-0.025em] disabled:opacity-50 px-1 ${isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"}`}
+              className={`manager-match-bottom-btn ${isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"}`}
             >
               {isAdPlaying ? "광고 종료" : isNextBatterLoading ? "처리중..." : "공수 교대"}
             </button>
           </div>
-        </div>
+        </footer>
       </div>
 
       {/* 결과 확인 팝업 */}
