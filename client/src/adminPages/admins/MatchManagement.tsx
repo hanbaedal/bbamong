@@ -355,7 +355,7 @@ export default function MatchManagement() {
                     ? "일정 불러오는 중..."
                     : lastSyncMeta?.date === selectedDateKey
                       ? `${lastSyncMeta.source === "api" ? "API 반영" : "DB 캐시 반영"} · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}${(lastSyncMeta.deduped ?? 0) > 0 ? ` · 중복 제거 ${lastSyncMeta.deduped}` : ""}`
-                      : "매일 09:00 오늘 경기 자동 저장 · 시작=상태 · 종료=스코어"}
+                      : "매일 09:00 오늘 경기 자동 저장 · 과거일은 API 자동 조회 · 시작=상태 · 종료=스코어"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
