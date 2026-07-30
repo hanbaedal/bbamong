@@ -51,6 +51,15 @@ function toDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function getKstTodayKey(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 function matchDateKey(match: MatchRow): string {
   if (match.matchDate) return match.matchDate;
   const utc = new Date(match.startTime);
@@ -200,7 +209,8 @@ export default function MatchManagement() {
     setDayModalOpen(true);
     if (options?.sync === false) return;
     const dateKey = toDateKey(day);
-    await syncDate(dateKey, { silentEmpty: true, forceApi: options?.forceApi });
+    const forceApi = options?.forceApi ?? dateKey < getKstTodayKey();
+    await syncDate(dateKey, { silentEmpty: true, forceApi });
   };
 
   return (

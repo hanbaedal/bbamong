@@ -1,11 +1,12 @@
 import { MatchModel } from "../UserStorage/db";
-import { getKstDateString } from "../utils/dateUtils";
+import { getKstDateString, getKstDayRange } from "../utils/dateUtils";
 import { scheduleDailyKst } from "../utils/kstSchedule";
 import { syncOperatorMatchAssignments } from "../managerOperatorService";
 import {
   backfillSeasonMatchesBeforeToday,
   refreshMatchFromApiAtEnd,
   refreshMatchFromApiAtStart,
+  refreshStalePastMatchScores,
   syncTodayGamesFromApiSports,
 } from "./syncService";
 import { scheduleLiveScoreSync, stopLiveScoreSync } from "./liveScoreSync";
@@ -48,16 +49,16 @@ export async function rescheduleTodayMatchTimers(): Promise<void> {
   clearAllMatchTimers();
 
   const kstToday = getKstDateString();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const { start: todayStart, end: todayEnd } = getKstDayRange(new Date(`${kstToday}T12:00:00+09:00`));
 
   const matches = await MatchModel.find({
     apiSportsGameId: { $ne: null },
     matchStatus: { $nin: ["completed", "cancelled"] },
     registrationOrder: { $gte: 1, $lte: MAX_DAILY_MATCHES },
-    $or: [{ matchDate: kstToday }, { matchDate: null, startTime: { $gte: today, $lt: tomorrow } }],
+    $or: [
+      { matchDate: kstToday },
+      { matchDate: null, startTime: { $gte: todayStart, $lte: todayEnd } },
+    ],
   }).lean();
 
   const now = Date.now();
@@ -117,6 +118,7 @@ async function maybeRunMissedDailySync(): Promise<void> {
 
 async function runStartupMatchManagementSync(): Promise<void> {
   await backfillSeasonMatchesBeforeToday();
+  await refreshStalePastMatchScores();
   await maybeRunMissedDailySync();
 }
 

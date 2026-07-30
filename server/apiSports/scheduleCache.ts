@@ -1,6 +1,8 @@
 import { ApiSportsScheduleCacheModel } from "../UserStorage/db";
+import { getKstDateString } from "../utils/dateUtils";
 import { fetchGamesByDate, type ApiSportsGameResponse } from "./client";
 import { KBO_LEAGUE_ID } from "./constants";
+import { isGameFinished } from "./scoreboardParser";
 
 function venueNameFromGame(game: ApiSportsGameResponse): string {
   return game.venue?.name?.trim() || "API자동";
@@ -35,6 +37,24 @@ function docToGameResponse(doc: Record<string, unknown>): ApiSportsGameResponse 
       city: (doc.venueCity as string) ?? "",
     },
   };
+}
+
+function isPastMatchDate(matchDate: string): boolean {
+  return matchDate < getKstDateString();
+}
+
+/** 과거 날짜 캐시가 NS 등 미종료 상태면 API 재조회 필요 */
+function isScheduleCacheStale(
+  matchDate: string,
+  cached: Array<{ statusShort?: string | null }>,
+): boolean {
+  if (cached.length === 0) return false;
+  if (!isPastMatchDate(matchDate)) return false;
+  return cached.some((doc) => {
+    const short = (doc.statusShort ?? "NS").toUpperCase();
+    if (short === "CAN" || short === "PST" || short === "ABD" || short === "SUSP") return false;
+    return !isGameFinished(short);
+  });
 }
 
 export async function upsertScheduleCacheFromApiGames(
@@ -89,6 +109,13 @@ export async function getScheduleGamesForDate(
     .lean();
 
   if (cached.length > 0) {
+    if (isScheduleCacheStale(matchDate, cached)) {
+      const apiGames = await fetchGamesByDate(matchDate, KBO_LEAGUE_ID);
+      if (apiGames.length > 0) {
+        await upsertScheduleCacheFromApiGames(matchDate, apiGames);
+      }
+      return { games: apiGames, source: "api" };
+    }
     return {
       games: cached.map((doc) => docToGameResponse(doc as Record<string, unknown>)),
       source: "cache",

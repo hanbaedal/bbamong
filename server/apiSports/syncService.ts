@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { MatchModel, StadiumModel, PredictionModel, getNextSequence } from "../UserStorage/db";
 import { finalizeMatchEnd } from "../liveMatch/sideBetStorage";
 import { broadcastManager } from "../liveMatch/broadcastManager";
-import { addKstDays, getKstDateString } from "../utils/dateUtils";
+import { addKstDays, getKstDateString, getKstDayRange } from "../utils/dateUtils";
 import { fetchGameById, type ApiSportsGameResponse } from "./client";
 import { markApiSportsError } from "./healthState";
 import type { ApiSportsTodayGame, LiveScoreboard } from "@shared/apiSportsTypes";
@@ -87,12 +87,8 @@ function extractMatchOrder(name: string): number {
 }
 
 function dayRangeForMatchDate(targetDate: string): { startOfDay: Date; endOfDay: Date } {
-  const today = new Date(`${targetDate}T12:00:00`);
-  const startOfDay = new Date(today);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(today);
-  endOfDay.setHours(23, 59, 59, 999);
-  return { startOfDay, endOfDay };
+  const { start, end } = getKstDayRange(new Date(`${targetDate}T12:00:00+09:00`));
+  return { startOfDay: start, endOfDay: end };
 }
 
 async function findMatchesForDate(targetDate: string) {
@@ -197,6 +193,7 @@ export async function syncTodayGamesFromApiSports(
   source: "cache" | "api";
 }> {
   const targetDate = date ?? getKstDateString();
+  const isPastDate = targetDate < getKstDateString();
   const { games: apiGames, source } = await getScheduleGamesForDate(targetDate, {
     forceApi: options?.forceApi,
   });
@@ -257,23 +254,32 @@ export async function syncTodayGamesFromApiSports(
       continue;
     }
 
+    const resolvedStatus = isGameFinished(scoreboard.statusShort)
+      ? "completed"
+      : existing?.matchStatus === "completed"
+        ? "completed"
+        : matchStatus;
+    const useFreshScoreboard =
+      options?.forceApi ||
+      isPastDate ||
+      isGameFinished(scoreboard.statusShort) ||
+      !existing?.liveScoreboard ||
+      existing.matchStatus !== "ongoing";
+
     const payload = {
       name: matchName,
       stadiumId,
       matchDate: targetDate,
       startTime,
       endTime,
-      matchStatus: existing?.matchStatus === "completed" ? "completed" : matchStatus,
+      matchStatus: resolvedStatus,
       registrationOrder: order,
       apiSportsGameId: external.id,
       apiSportsHomeTeam: scoreboard.homeTeamName,
       apiSportsAwayTeam: scoreboard.awayTeamName,
-      liveScoreboard:
-        options?.forceApi
-          ? scoreboard
-          : existing?.liveScoreboard && existing.matchStatus === "ongoing"
-            ? existing.liveScoreboard
-            : scoreboard,
+      liveScoreboard: useFreshScoreboard
+        ? scoreboard
+        : existing!.liveScoreboard,
       lastInningKey: existing?.lastInningKey ?? buildInningKey(scoreboard),
       controlMode: existing?.controlMode ?? "auto",
       sideBetsLocked:
@@ -441,21 +447,30 @@ export async function backfillSeasonMatchesBeforeToday(season?: number): Promise
       apiSportsGameId: { $ne: null },
     });
 
-    if (existingCount > 0) {
+    const staleCount =
+      existingCount > 0
+        ? await MatchModel.countDocuments({
+            matchDate: cursor,
+            apiSportsGameId: { $ne: null },
+            matchStatus: { $in: ["scheduled", "ongoing"] },
+          })
+        : 0;
+
+    if (existingCount > 0 && staleCount === 0) {
       daysSkipped += 1;
       cursor = addKstDays(cursor, 1);
       continue;
     }
 
     let result = await syncTodayGamesFromApiSports(cursor, {
-      forceApi: false,
-      skipExisting: true,
+      forceApi: staleCount > 0 || existingCount === 0,
+      skipExisting: false,
     });
 
     if (result.games.length === 0) {
       result = await syncTodayGamesFromApiSports(cursor, {
         forceApi: true,
-        skipExisting: true,
+        skipExisting: false,
       });
     }
 
@@ -474,6 +489,35 @@ export async function backfillSeasonMatchesBeforeToday(season?: number): Promise
   );
 
   return { season: targetSeason, daysSkipped, daysFilled, daysEmpty, created };
+}
+
+/** 최근 N일 — scheduled/ongoing으로 남은 과거 경기 스코어·상태 API 갱신 */
+export async function refreshStalePastMatchScores(lookbackDays = 14): Promise<{
+  daysRefreshed: number;
+  updated: number;
+}> {
+  const today = getKstDateString();
+  let daysRefreshed = 0;
+  let updated = 0;
+
+  for (let i = 1; i <= lookbackDays; i++) {
+    const date = addKstDays(today, -i);
+    const staleCount = await MatchModel.countDocuments({
+      matchDate: date,
+      apiSportsGameId: { $ne: null },
+      matchStatus: { $in: ["scheduled", "ongoing"] },
+    });
+    if (staleCount === 0) continue;
+
+    const result = await syncTodayGamesFromApiSports(date, { forceApi: true });
+    daysRefreshed += 1;
+    updated += result.updated;
+    console.log(
+      `[MatchMgmtSchedule] stale refresh ${date}: updated ${result.updated}, linked ${result.linked}`,
+    );
+  }
+
+  return { daysRefreshed, updated };
 }
 
 async function updateMatchStatusFromApiGame(
