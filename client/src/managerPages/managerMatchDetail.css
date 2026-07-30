@@ -14,8 +14,8 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 2px 12px 4px;
+  gap: clamp(5px, 1.4vw, 8px);
+  padding: 2px clamp(10px, 2.5vw, 16px) 4px;
   overflow: hidden;
 }
 
@@ -54,6 +54,105 @@
 
 .manager-match-score {
   flex-shrink: 0;
+  min-height: 0;
+}
+
+/* 운영자 경기 상세 — 사용자와 동일한 라인스코어 + 공수 표시 */
+.manager-operator-score {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+  padding: clamp(6px, 1.6vw, 10px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 1.2vw, 8px);
+}
+
+.manager-operator-score--empty {
+  align-items: center;
+  justify-content: center;
+  min-height: clamp(52px, 14vw, 72px);
+}
+
+.manager-operator-score-placeholder {
+  margin: 0;
+  font-size: clamp(10px, 2.4vw, 13px);
+  color: #9ca3af;
+  line-height: 1.45;
+}
+
+.manager-operator-score-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(4px, 1.2vw, 10px);
+  line-height: 1.35;
+}
+
+.manager-operator-score-team {
+  display: flex;
+  align-items: center;
+  gap: clamp(3px, 1vw, 6px);
+  min-width: 0;
+}
+
+.manager-operator-score-team--away {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.manager-operator-score-team--home {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.manager-operator-score-team-name {
+  font-size: clamp(10px, 2.5vw, 14px);
+  font-weight: 600;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.manager-operator-score-phase {
+  flex-shrink: 0;
+  font-size: clamp(9px, 2.2vw, 12px);
+  font-weight: 700;
+  color: #e11936;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+}
+
+.manager-operator-score-totals {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: clamp(2px, 0.6vw, 4px);
+  font-size: clamp(14px, 3.6vw, 20px);
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.manager-operator-score-colon {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.manager-operator-line-score {
+  font-size: clamp(8px, 2.1vw, 13px);
+  line-height: 1.4;
+}
+
+.manager-operator-line-score table {
+  line-height: 1.4;
+}
+
+.manager-operator-line-score th,
+.manager-operator-line-score td {
+  padding: clamp(2px, 0.6vw, 5px) clamp(2px, 0.5vw, 4px) !important;
 }
 
 .manager-match-controls {
@@ -66,15 +165,15 @@
 .manager-match-control-col {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: clamp(3px, 1vw, 5px);
   min-width: 0;
 }
 
 .manager-match-section-title {
-  font-size: 13px;
+  font-size: clamp(11px, 2.6vw, 14px);
   font-weight: 600;
   color: #201e22;
-  line-height: 1.2;
+  line-height: 1.35;
   letter-spacing: -0.02em;
 }
 
@@ -96,6 +195,20 @@
 
 .manager-match-action-btn:disabled {
   opacity: 0.5;
+}
+
+.manager-match-action-btn--toggle {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85);
+  animation: manager-match-toggle-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes manager-match-toggle-pulse {
+  from {
+    filter: brightness(1);
+  }
+  to {
+    filter: brightness(1.12);
+  }
 }
 
 .manager-match-action-mascot {
@@ -127,27 +240,27 @@
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: clamp(3px, 1vw, 5px);
 }
 
 .manager-match-result-row {
   display: flex;
   flex-direction: row;
-  gap: 4px;
+  gap: clamp(3px, 1vw, 5px);
 }
 
 .manager-match-result-btn {
   flex: 1;
   min-width: 0;
-  height: 30px;
+  height: clamp(28px, 7vw, 34px);
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: clamp(10px, 2.4vw, 12px);
   font-weight: 500;
   color: #201e22;
-  line-height: 1.2;
+  line-height: 1.35;
   border: 1px solid #e9e9e9;
 }
 
@@ -157,6 +270,24 @@
 
 .manager-match-result-btn:disabled {
   opacity: 0.5;
+}
+
+.manager-match-result-confirm {
+  width: 100%;
+  height: clamp(32px, 8vw, 38px);
+  margin-top: clamp(2px, 0.6vw, 4px);
+  border-radius: 6px;
+  border: none;
+  background: #201e22;
+  color: #fff;
+  font-size: clamp(11px, 2.6vw, 13px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.manager-match-result-confirm:disabled {
+  opacity: 0.45;
 }
 
 .manager-match-footer {

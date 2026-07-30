@@ -6,7 +6,7 @@ import { getManagerAccessToken } from "@/lib/managerTokenManager";
 import { useManagerAssets } from "@/contexts/ManagerAssetContext";
 import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
-import LiveScoreboard from "@/components/LiveScoreboard";
+import ManagerOperatorScorePanel from "@/components/ManagerOperatorScorePanel";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
@@ -15,6 +15,7 @@ import { speakGameVoice, OPERATOR_GAME_VOICE } from "@/lib/gameVoiceAnnouncement
 import "./managerMatchDetail.css";
 
 const WS_BASE_URL = 'wss://ppamong.com';
+const PREDICTION_TOGGLE_MS = 1000;
 
 interface Match {
   id: string;
@@ -47,7 +48,6 @@ export default function MatchDetailPage() {
   const [match, setMatch] = useState<Match | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedResult, setSelectedResult] = useState<string | null>(null);
-  const [showConfirmPopup, setShowConfirmPopup] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAdPlaying, setIsAdPlaying] = useState(false);
   const [adElapsedTime, setAdElapsedTime] = useState(0);
@@ -55,7 +55,9 @@ export default function MatchDetailPage() {
   const [isStartingPrediction, setIsStartingPrediction] = useState(false);
   const [isStoppingPrediction, setIsStoppingPrediction] = useState(false);
   const [isNextBatterLoading, setIsNextBatterLoading] = useState(false);
-  const [lastAdvanceSkippedResult, setLastAdvanceSkippedResult] = useState(false);
+  const [startToggleAt, setStartToggleAt] = useState(0);
+  const [stopToggleAt, setStopToggleAt] = useState(0);
+  const [toggleTick, setToggleTick] = useState(0);
   const [showPredictionDisabledPopup, setShowPredictionDisabledPopup] =
     useState(false);
   const [showAdPlayingPopup, setShowAdPlayingPopup] = useState(false);
@@ -80,6 +82,21 @@ export default function MatchDetailPage() {
   const matchEndedLogoutRef = useRef(false);
   const HEARTBEAT_INTERVAL = 25000; // 25초마다 ping
   const PONG_TIMEOUT = 10000; // 10초 내 pong 없으면 재연결
+
+  useEffect(() => {
+    if (!startToggleAt && !stopToggleAt) return;
+    const elapsed = Math.max(
+      startToggleAt ? PREDICTION_TOGGLE_MS - (Date.now() - startToggleAt) : 0,
+      stopToggleAt ? PREDICTION_TOGGLE_MS - (Date.now() - stopToggleAt) : 0,
+    );
+    if (elapsed <= 0) {
+      setStartToggleAt(0);
+      setStopToggleAt(0);
+      return;
+    }
+    const timer = setTimeout(() => setToggleTick((n) => n + 1), elapsed);
+    return () => clearTimeout(timer);
+  }, [startToggleAt, stopToggleAt, toggleTick]);
 
   // 매니저 정보 가져오기
   useEffect(() => {
@@ -217,6 +234,10 @@ export default function MatchDetailPage() {
             case "prediction_started":
               setIsAdPlaying(false);
               setAdElapsedTime(0);
+              fetchMatchDetail();
+              break;
+            case "prediction_cancelled":
+              setStartToggleAt(0);
               fetchMatchDetail();
               break;
             case "round_stop":
@@ -454,39 +475,48 @@ export default function MatchDetailPage() {
   const handleStartPrediction = async () => {
     if (isStartingPrediction) return;
 
+    const withinStartCancel =
+      Boolean(match?.predictionEnabled) &&
+      startToggleAt > 0 &&
+      Date.now() - startToggleAt < PREDICTION_TOGGLE_MS;
+
     setIsStartingPrediction(true);
     try {
       const response = await managerFetch(
-        `/api/manager/matches/${id}/prediction/start`,
-        {
-          method: "POST",
-        },
+        withinStartCancel
+          ? `/api/manager/matches/${id}/prediction/cancel-start`
+          : `/api/manager/matches/${id}/prediction/start`,
+        { method: "POST" },
       );
 
       if (response.ok) {
+        setStartToggleAt(withinStartCancel ? 0 : Date.now());
         setIsAdPlaying(false);
         setAdElapsedTime(0);
-        setLastAdvanceSkippedResult(false);
         if (match) {
           setMatch({
             ...match,
-            predictionEnabled: true,
-            predictionStartTime: new Date().toISOString(),
+            predictionEnabled: !withinStartCancel,
+            predictionStartTime: withinStartCancel ? undefined : new Date().toISOString(),
             predictionStopTime: undefined,
           });
         }
+        if (withinStartCancel) {
+          toast({ description: "예측 시작을 취소했습니다." });
+        }
+        void fetchMatchDetail();
       } else {
         const errorData = await response.json();
         toast({
           variant: "destructive",
-          description: errorData.error || "예측 시작에 실패했습니다.",
+          description: errorData.error || "예측 시작 처리에 실패했습니다.",
         });
       }
     } catch (error) {
-      console.error("Failed to start prediction:", error);
+      console.error("Failed to start/cancel prediction:", error);
       toast({
         variant: "destructive",
-        description: "예측 시작에 실패했습니다.",
+        description: "예측 시작 처리에 실패했습니다.",
       });
     } finally {
       setIsStartingPrediction(false);
@@ -496,35 +526,48 @@ export default function MatchDetailPage() {
   const handleStopPrediction = async () => {
     if (isStoppingPrediction) return;
 
+    const withinStopCancel =
+      !match?.predictionEnabled &&
+      Boolean(match?.predictionStopTime) &&
+      Boolean(match?.needsResultBeforeAdvance) &&
+      stopToggleAt > 0 &&
+      Date.now() - stopToggleAt < PREDICTION_TOGGLE_MS;
+
     setIsStoppingPrediction(true);
     try {
       const response = await managerFetch(
-        `/api/manager/matches/${id}/prediction/stop`,
-        {
-          method: "POST",
-        },
+        withinStopCancel
+          ? `/api/manager/matches/${id}/prediction/cancel-stop`
+          : `/api/manager/matches/${id}/prediction/stop`,
+        { method: "POST" },
       );
 
       if (response.ok) {
+        setStopToggleAt(withinStopCancel ? 0 : Date.now());
         if (match) {
           setMatch({
             ...match,
-            predictionEnabled: false,
-            predictionStopTime: new Date().toISOString(),
+            predictionEnabled: withinStopCancel,
+            predictionStopTime: withinStopCancel ? undefined : new Date().toISOString(),
+            needsResultBeforeAdvance: withinStopCancel ? false : match.needsResultBeforeAdvance,
           });
         }
+        if (withinStopCancel) {
+          toast({ description: "예측 중지를 취소했습니다." });
+        }
+        void fetchMatchDetail();
       } else {
         const errorData = await response.json();
         toast({
           variant: "destructive",
-          description: errorData.error || "예측 중지에 실패했습니다.",
+          description: errorData.error || "예측 중지 처리에 실패했습니다.",
         });
       }
     } catch (error) {
-      console.error("Failed to stop prediction:", error);
+      console.error("Failed to stop/cancel prediction:", error);
       toast({
         variant: "destructive",
-        description: "예측 중지에 실패했습니다.",
+        description: "예측 중지 처리에 실패했습니다.",
       });
     } finally {
       setIsStoppingPrediction(false);
@@ -545,8 +588,12 @@ export default function MatchDetailPage() {
       return;
     }
 
+    if (selectedResult === result) {
+      setSelectedResult(null);
+      return;
+    }
+
     setSelectedResult(result);
-    setShowConfirmPopup(true);
   };
 
   const handleConfirmResult = async () => {
@@ -564,9 +611,7 @@ export default function MatchDetailPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setShowConfirmPopup(false);
         setSelectedResult(null);
-        setLastAdvanceSkippedResult(false);
         if (data.threeOutsReached) {
           threeOutsSpokenRef.current = true;
           void speakGameVoice(OPERATOR_GAME_VOICE.threeOuts);
@@ -602,11 +647,6 @@ export default function MatchDetailPage() {
     }
   };
 
-  const handleCancelResult = () => {
-    setShowConfirmPopup(false);
-    setSelectedResult(null);
-  };
-
   const handleAdvanceRound = async (
     path: string,
     failMessage: string,
@@ -625,7 +665,6 @@ export default function MatchDetailPage() {
         toast({ variant: "destructive", description: data.error || failMessage });
         return;
       }
-      setLastAdvanceSkippedResult(true);
       if (data.adStarted) {
         setIsAdPlaying(true);
         adStartTimeRef.current = Date.now();
@@ -651,11 +690,23 @@ export default function MatchDetailPage() {
     );
   };
 
-  const handlePitcherChange = () =>
+  const handlePitcherChange = () => {
+    if (match?.showThreeOutsHint && !isAdPlaying) {
+      toast({ description: "공수교대 시에는 투수 교체 대신 공수 교대를 사용하세요." });
+      return;
+    }
     void handleAdvanceRound(
       `/api/manager/control/${id}/round/pitcher-change`,
       "투수 교체 처리에 실패했습니다.",
+      {
+        onSuccess: () => {
+          setStartToggleAt(0);
+          setStopToggleAt(0);
+          setSelectedResult(null);
+        },
+      },
     );
+  };
 
   const handleSwitchHalf = () => {
     if (match?.needsResultBeforeAdvance) {
@@ -793,6 +844,38 @@ export default function MatchDetailPage() {
   });
   const blockAdvance = Boolean(match.needsResultBeforeAdvance);
   const showThreeOutsHint = Boolean(match.showThreeOutsHint);
+  const matchStarted = match.matchStatus === "ongoing";
+  const predictionRunning = Boolean(match.predictionEnabled);
+  const withinStartCancel =
+    predictionRunning &&
+    startToggleAt > 0 &&
+    Date.now() - startToggleAt < PREDICTION_TOGGLE_MS;
+  const withinStopCancel =
+    !predictionRunning &&
+    Boolean(match.predictionStopTime) &&
+    blockAdvance &&
+    stopToggleAt > 0 &&
+    Date.now() - stopToggleAt < PREDICTION_TOGGLE_MS;
+  const canStartPrediction =
+    matchStarted &&
+    wsConnected &&
+    !isStartingPrediction &&
+    (!predictionRunning || withinStartCancel);
+  const canStopPrediction =
+    wsConnected &&
+    !isStoppingPrediction &&
+    (predictionRunning || withinStopCancel);
+  /** 예측 중지 후·결과 전송 전에만 결과 선택 가능 */
+  const canSelectResult =
+    wsConnected &&
+    !predictionRunning &&
+    Boolean(match.predictionStopTime) &&
+    blockAdvance;
+  const blockAdvanceActions = blockAdvance || predictionRunning;
+  /** 공수교대(3아웃) 제외 — 예측 시작·중지 중에도 투수 교체 가능 */
+  const canPitcherChange =
+    (matchStarted && !showThreeOutsHint && wsConnected && !isNextBatterLoading) ||
+    isAdPlaying;
 
   return (
     <div className="manager-match-shell bg-white w-full" data-testid="manager-match-detail">
@@ -818,13 +901,14 @@ export default function MatchDetailPage() {
         </div>
 
         <div className="manager-match-score">
-          <LiveScoreboard
+          <ManagerOperatorScorePanel
             scoreboard={scoreboardPayload?.scoreboard ?? null}
-            dense
-            showTeamNames={false}
+            gameInning={match.gameInning}
+            inningHalf={match.inningHalf}
+            matchStatus={match.matchStatus}
           />
           {scoreboardPayload?.controlMode === "manual" && (
-            <p className="mt-0.5 text-[10px] text-red-600 font-medium leading-tight">
+            <p className="mt-1 text-[clamp(9px,2.2vw,11px)] text-red-600 font-medium leading-snug">
               비상 수동 제어
             </p>
           )}
@@ -836,11 +920,19 @@ export default function MatchDetailPage() {
             <button
               type="button"
               onClick={handleStartPrediction}
-              disabled={isStartingPrediction || !wsConnected}
+              disabled={!canStartPrediction}
               data-testid="button-start-prediction"
-              className="manager-match-action-btn bg-[#1A6DFF] relative z-20"
+              className={`manager-match-action-btn bg-[#1A6DFF] relative z-20 ${
+                withinStartCancel ? "manager-match-action-btn--toggle" : ""
+              }`}
             >
-              {!wsConnected ? "연결 중..." : isStartingPrediction ? "처리중..." : "▶ 예측 시작"}
+              {!wsConnected
+                ? "연결 중..."
+                : isStartingPrediction
+                  ? "처리중..."
+                  : withinStartCancel
+                    ? "↩ 시작 취소"
+                    : "▶ 예측 시작"}
               <img
                 src={assets.startPrediction}
                 className="manager-match-action-mascot w-[52px] h-[94px] object-contain -top-3 -right-1 scale-x-[-1]"
@@ -860,11 +952,19 @@ export default function MatchDetailPage() {
             <button
               type="button"
               onClick={handleStopPrediction}
-              disabled={isStoppingPrediction || !wsConnected}
+              disabled={!canStopPrediction}
               data-testid="button-stop-prediction"
-              className="manager-match-action-btn bg-[#E11936] relative z-20"
+              className={`manager-match-action-btn bg-[#E11936] relative z-20 ${
+                withinStopCancel ? "manager-match-action-btn--toggle" : ""
+              }`}
             >
-              {!wsConnected ? "연결 중..." : isStoppingPrediction ? "처리중..." : "■ 예측 중지"}
+              {!wsConnected
+                ? "연결 중..."
+                : isStoppingPrediction
+                  ? "처리중..."
+                  : withinStopCancel
+                    ? "↩ 중지 취소"
+                    : "■ 예측 중지"}
               <img
                 src={assets.stopPrediction}
                 className="manager-match-action-mascot w-[64px] h-[86px] object-contain -top-6 -left-1 scale-x-[-1]"
@@ -888,7 +988,7 @@ export default function MatchDetailPage() {
                 key={label}
                 type="button"
                 onClick={() => handleResultSelect(label)}
-                disabled={!wsConnected || !!match?.predictionEnabled}
+                disabled={!canSelectResult}
                 data-testid={`button-result-${label}`}
                 className={`manager-match-result-btn ${
                   selectedResult === label ? "manager-match-result-btn--selected" : ""
@@ -898,6 +998,19 @@ export default function MatchDetailPage() {
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            onClick={handleConfirmResult}
+            disabled={!selectedResult || !canSelectResult || isSubmitting}
+            data-testid="button-confirm-result"
+            className="manager-match-result-confirm"
+          >
+            {isSubmitting
+              ? "전송 중..."
+              : selectedResult
+                ? `「${selectedResult}」 결과 전송 확인`
+                : "결과를 선택한 뒤 확인"}
+          </button>
         </div>
 
         <footer className="manager-match-footer">
@@ -905,15 +1018,6 @@ export default function MatchDetailPage() {
             <div className="manager-match-notice manager-match-notice--ad" data-testid="ad-timer">
               <span>광고 재생중</span>
               <span className="text-[#E11936]">{formatAdTime(adElapsedTime)}</span>
-            </div>
-          )}
-
-          {lastAdvanceSkippedResult && (
-            <div
-              className="manager-match-notice manager-match-notice--skip"
-              data-testid="text-skipped-result-notice"
-            >
-              결과 생략됨
             </div>
           )}
 
@@ -933,7 +1037,7 @@ export default function MatchDetailPage() {
               disabled={
                 isNextBatterLoading ||
                 (!wsConnected && !isAdPlaying) ||
-                (blockAdvance && !isAdPlaying)
+                (blockAdvanceActions && !isAdPlaying)
               }
               data-testid="button-next-batter"
               className="manager-match-bottom-btn bg-[#4285F4]"
@@ -943,7 +1047,7 @@ export default function MatchDetailPage() {
             <button
               type="button"
               onClick={() => (isAdPlaying ? handleStopAd() : handlePitcherChange())}
-              disabled={isNextBatterLoading || (!wsConnected && !isAdPlaying)}
+              disabled={!canPitcherChange}
               data-testid="button-pitcher-change"
               className="manager-match-bottom-btn bg-[#5C6BC0]"
             >
@@ -955,7 +1059,7 @@ export default function MatchDetailPage() {
               disabled={
                 isNextBatterLoading ||
                 (!wsConnected && !isAdPlaying) ||
-                (blockAdvance && !isAdPlaying)
+                (blockAdvanceActions && !isAdPlaying)
               }
               data-testid="button-switch-half"
               className={`manager-match-bottom-btn ${
@@ -967,18 +1071,6 @@ export default function MatchDetailPage() {
           </div>
         </footer>
       </div>
-
-      {/* 결과 확인 팝업 */}
-      {showConfirmPopup && selectedResult && (
-        <AdminConfirmPopup
-          title="예측 결과 전송"
-          message={`예측 결과를 "${selectedResult}"로 전송하시겠습니까?`}
-          cancelText="취소"
-          confirmText="확인"
-          onCancel={handleCancelResult}
-          onConfirm={handleConfirmResult}
-        />
-      )}
 
       {/* 예측 미시작 안내 팝업 */}
       {showPredictionDisabledPopup && (

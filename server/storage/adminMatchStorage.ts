@@ -132,9 +132,7 @@ export class AdminMatchStorage implements IAdminMatchStorage {
 
     const doc = match as Record<string, unknown>;
     const outsInHalf = (doc.outsInHalf as number | undefined) ?? 0;
-    const needsResultBeforeAdvance = Boolean(
-      roundStats?.isPredictionStarted && !roundStats.isResultSent,
-    );
+    const needsResultBeforeAdvance = Boolean(roundStats && !roundStats.isResultSent);
 
     return {
       ...(match as Match),

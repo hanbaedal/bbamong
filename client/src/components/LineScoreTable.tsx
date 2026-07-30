@@ -53,18 +53,28 @@ export default function LineScoreTable({
   const homeErrors = scoreboard?.homeErrors ?? 0;
 
   const transparent = variant === "transparent";
-  const awayBatting = transparent && battingHalf === "top";
-  const homeBatting = transparent && battingHalf === "bottom";
+  const awayBatting = battingHalf === "top";
+  const homeBatting = battingHalf === "bottom";
   const cellBorder = transparent ? "border border-white/40" : "border border-[#CCCCCC]";
   const cellBg = transparent ? "bg-transparent" : "bg-white";
   const cellText = transparent ? "text-white" : "text-black";
-  const awayBorder = awayBatting ? "border border-red-400/75" : cellBorder;
-  const homeBorder = homeBatting ? "border border-sky-300/80" : cellBorder;
-  const awayText = awayBatting ? "text-[#FF5555]" : cellText;
-  const homeText = homeBatting ? "text-[#87CEEB]" : cellText;
+  const awayBorder = awayBatting
+    ? transparent
+      ? "border border-red-400/75"
+      : "border border-red-300"
+    : cellBorder;
+  const homeBorder = homeBatting
+    ? transparent
+      ? "border border-sky-300/80"
+      : "border border-sky-300"
+    : cellBorder;
+  const awayText = awayBatting ? (transparent ? "text-[#FF5555]" : "text-[#B91C1C]") : cellText;
+  const homeText = homeBatting ? (transparent ? "text-[#87CEEB]" : "text-[#0369A1]") : cellText;
+  const awayBg = awayBatting && !transparent ? "bg-red-50" : cellBg;
+  const homeBg = homeBatting && !transparent ? "bg-sky-50" : cellBg;
   const thBase = `${cellBorder} ${cellBg} ${cellText}`;
-  const awayTdBase = `${awayBorder} ${cellBg} ${awayText}`;
-  const homeTdBase = `${homeBorder} ${cellBg} ${homeText}`;
+  const awayTdBase = `${awayBorder} ${awayBg} ${awayText}`;
+  const homeTdBase = `${homeBorder} ${homeBg} ${homeText}`;
 
   return (
     <div className={`overflow-x-auto ${className}`}>

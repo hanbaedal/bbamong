@@ -5,7 +5,7 @@ import { AdminStorage } from "../storage/adminStorage";
 import { adminMatchStorage } from "../storage/adminMatchStorage";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAccessToken } from "../utils/jwt";
 import { broadcastManager } from "../liveMatch/broadcastManager";
-import { startRound, stopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult } from "../liveMatch/predictionStorage";
+import { startRound, stopRound, cancelStartRound, cancelStopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { hasActiveSession, createSession, deleteSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
 import { ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken, assertOperatorLoginAllowed, isOperatorCredentialsActive, OPERATOR_USERNAMES } from "../managerOperatorService";
@@ -749,6 +749,82 @@ export async function managerRoutes(app: Express): Promise<void> {
     }
   });
 
+  app.post("/api/manager/matches/:id/prediction/cancel-start", async (req, res) => {
+    try {
+      const accessToken = getManagerAccessToken(req);
+      if (!accessToken) return res.status(401).json({ error: "로그인이 필요합니다." });
+
+      const decoded = verifyAccessToken(accessToken);
+      if (!decoded || decoded.userType !== "매니저") {
+        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
+      }
+
+      const { id } = req.params;
+      const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
+      if (!match) {
+        return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
+      }
+
+      const updatedMatch = await cancelStartRound(id);
+
+      broadcastManager.sendToMatch(id, "prediction_cancelled", {
+        matchId: id,
+        currentRound: updatedMatch.currentRound,
+        message: "예측 시작이 취소되었습니다.",
+      });
+
+      return res.json({
+        success: true,
+        message: "예측 시작이 취소되었습니다.",
+        currentRound: updatedMatch.currentRound,
+      });
+    } catch (error: unknown) {
+      if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: "인증이 만료되었습니다." });
+      }
+      const message = error instanceof Error ? error.message : "예측 시작 취소에 실패했습니다.";
+      return res.status(400).json({ error: message });
+    }
+  });
+
+  app.post("/api/manager/matches/:id/prediction/cancel-stop", async (req, res) => {
+    try {
+      const accessToken = getManagerAccessToken(req);
+      if (!accessToken) return res.status(401).json({ error: "로그인이 필요합니다." });
+
+      const decoded = verifyAccessToken(accessToken);
+      if (!decoded || decoded.userType !== "매니저") {
+        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
+      }
+
+      const { id } = req.params;
+      const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
+      if (!match) {
+        return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
+      }
+
+      const updatedMatch = await cancelStopRound(id);
+
+      broadcastManager.sendToMatch(id, "prediction_started", {
+        matchId: id,
+        currentRound: updatedMatch.currentRound,
+        message: `라운드 ${updatedMatch.currentRound} 예측이 다시 시작되었습니다.`,
+      });
+
+      return res.json({
+        success: true,
+        message: "예측 중지가 취소되었습니다.",
+        currentRound: updatedMatch.currentRound,
+      });
+    } catch (error: unknown) {
+      if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: "인증이 만료되었습니다." });
+      }
+      const message = error instanceof Error ? error.message : "예측 중지 취소에 실패했습니다.";
+      return res.status(400).json({ error: message });
+    }
+  });
+
   // 예측 결과 전송 (매니저 전용)
   app.post("/api/manager/matches/:id/result", async (req, res) => {
     try {
@@ -802,7 +878,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       // 결과 전송 후 자동으로 다음 타자(라운드)로 이동
       let nextRoundNumber = match.currentRound;
       try {
-        const { match: updatedMatch } = await advanceToNextBatter(id, false);
+        const { match: updatedMatch } = await advanceToNextBatter(id);
         nextRoundNumber = updatedMatch.currentRound;
         const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
@@ -866,7 +942,7 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
 
-      const { match: updatedMatch, predictionAutoStopped } = await advanceToNextBatter(id, true);
+      const { match: updatedMatch, predictionAutoStopped } = await advanceToNextBatter(id);
       const overallStats = await getMatchOverallStatistics(id);
       const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
@@ -894,7 +970,6 @@ export async function managerRoutes(app: Express): Promise<void> {
         predictionEnabled: updatedMatch.predictionEnabled,
         overallStats,
         advanceType: "next_batter",
-        skippedResult: true,
         gamePhase,
         message: `다음 타자(라운드 ${updatedMatch.currentRound})`,
       });
@@ -969,7 +1044,6 @@ export async function managerRoutes(app: Express): Promise<void> {
         predictionEnabled: updatedMatch.predictionEnabled,
         overallStats,
         advanceType: "pitcher_change",
-        skippedResult: true,
         gamePhase,
         message: `투수 교체 — ${gamePhase.displayLabel}`,
       });
@@ -992,6 +1066,9 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       console.error("Pitcher change error:", error);
       const message = error instanceof Error ? error.message : "투수 교체 처리에 실패했습니다.";
+      if (message.includes("결과") || message.includes("예측")) {
+        return res.status(400).json({ error: message });
+      }
       return res.status(500).json({ error: message });
     }
   });
@@ -1043,7 +1120,6 @@ export async function managerRoutes(app: Express): Promise<void> {
         predictionEnabled: updatedMatch.predictionEnabled,
         overallStats,
         advanceType: "switch_half",
-        skippedResult: true,
         gamePhase,
         message: `공수교대 — ${gamePhase.displayLabel}`,
       });

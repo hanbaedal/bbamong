@@ -257,8 +257,48 @@ export async function addUserPoints(userId: string, amount: number): Promise<voi
   }
 }
 
-export async function updatePredictionWonAmount(predictionId: number, wonAmount: number): Promise<void> {
-  await PredictionModel.updateOne({ id: predictionId }, { wonAmount });
+export const PREDICTION_TOGGLE_GRACE_MS = 1000;
+
+async function refundPendingPredictionsForRound(
+  session: ClientSession,
+  matchId: string,
+  roundNumber: number,
+): Promise<number> {
+  const pending = await PredictionModel.find({
+    matchId,
+    roundNumber,
+    status: "pending",
+  })
+    .session(session)
+    .lean();
+
+  for (const pred of pending) {
+    const refundAmount = pred.amount ?? 100;
+    const updatedUser = await UserModel.findOneAndUpdate(
+      { id: pred.userId },
+      { $inc: { points: refundAmount } },
+      { new: true, session },
+    ).lean();
+
+    if (updatedUser) {
+      await createPointTransaction(session, {
+        userId: pred.userId,
+        transactionType: "refund",
+        amount: refundAmount,
+        balance: updatedUser.points,
+        description: `라운드 ${roundNumber} 취소·투수교체로 인한 환불 (${refundAmount}포인트)`,
+      });
+    }
+  }
+
+  if (pending.length > 0) {
+    await PredictionModel.deleteMany(
+      { matchId, roundNumber, status: "pending" },
+      { session },
+    );
+  }
+
+  return pending.length;
 }
 
 export async function startRound(matchId: string): Promise<Match> {
@@ -418,6 +458,108 @@ export async function stopRound(matchId: string): Promise<Match> {
   }
 }
 
+/** 예측 시작 직후(1초 이내) 토글 취소 */
+export async function cancelStartRound(matchId: string): Promise<Match> {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    const match = await MatchModel.findOne({ id: matchId }).session(session).lean();
+    if (!match) throw new Error("경기를 찾을 수 없습니다.");
+
+    const currentRound = match.currentRound;
+    const existing = await RoundStatisticsModel.findOne({
+      matchId,
+      roundNumber: currentRound,
+    })
+      .session(session)
+      .lean();
+
+    if (!existing?.isPredictionStarted || existing.isPredictionStopped) {
+      throw new Error("취소할 예측 시작이 없습니다.");
+    }
+
+    const startMs = existing.predictionStartTime
+      ? new Date(existing.predictionStartTime).getTime()
+      : 0;
+    if (Date.now() - startMs > PREDICTION_TOGGLE_GRACE_MS) {
+      throw new Error("예측 시작 취소 가능 시간(1초)이 지났습니다.");
+    }
+
+    await refundPendingPredictionsForRound(session, matchId, currentRound);
+    await RoundStatisticsModel.deleteOne({ id: existing.id }, { session });
+
+    const updatedMatch = await MatchModel.findOneAndUpdate(
+      { id: matchId },
+      { predictionEnabled: false },
+      { new: true, session },
+    ).lean();
+
+    await session.commitTransaction();
+    if (!updatedMatch) throw new Error("경기를 찾을 수 없습니다.");
+    return updatedMatch as Match;
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+}
+
+/** 예측 중지 직후(1초 이내) 토글 취소 — 다시 베팅 열림 */
+export async function cancelStopRound(matchId: string): Promise<Match> {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    const match = await MatchModel.findOne({ id: matchId }).session(session).lean();
+    if (!match) throw new Error("경기를 찾을 수 없습니다.");
+
+    const currentRound = match.currentRound;
+    const existing = await RoundStatisticsModel.findOne({
+      matchId,
+      roundNumber: currentRound,
+    })
+      .session(session)
+      .lean();
+
+    if (!existing?.isPredictionStarted || !existing.isPredictionStopped) {
+      throw new Error("취소할 예측 중지가 없습니다.");
+    }
+    if (existing.isResultSent) {
+      throw new Error("결과가 전송된 라운드는 중지 취소할 수 없습니다.");
+    }
+
+    const stopMs = existing.predictionStopTime
+      ? new Date(existing.predictionStopTime).getTime()
+      : 0;
+    if (Date.now() - stopMs > PREDICTION_TOGGLE_GRACE_MS) {
+      throw new Error("예측 중지 취소 가능 시간(1초)이 지났습니다.");
+    }
+
+    const updatedMatch = await MatchModel.findOneAndUpdate(
+      { id: matchId },
+      { predictionEnabled: true },
+      { new: true, session },
+    ).lean();
+
+    await RoundStatisticsModel.updateOne(
+      { id: existing.id },
+      { isPredictionStopped: false, predictionStopTime: null },
+      { session },
+    );
+
+    await session.commitTransaction();
+    if (!updatedMatch) throw new Error("경기를 찾을 수 없습니다.");
+    return updatedMatch as Match;
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+}
+
 export async function endMatch(matchId: string): Promise<Match> {
   const match = await MatchModel.findOneAndUpdate(
     { id: matchId },
@@ -431,7 +573,6 @@ export async function endMatch(matchId: string): Promise<Match> {
 
 export async function nextRound(
   matchId: string,
-  force = false,
 ): Promise<{ match: Match; predictionAutoStopped: boolean }> {
   const session = await mongoose.startSession();
   try {
@@ -448,34 +589,20 @@ export async function nextRound(
       .session(session)
       .lean();
 
-    let predictionAutoStopped = false;
-
-    if (existing && !existing.isPredictionStopped) {
-      if (!force) {
-        throw new Error(
-          `라운드 ${currentRound}의 예측이 아직 중지되지 않았습니다. 먼저 예측을 중지해주세요.`,
-        );
-      }
-      console.log(`[nextRound] force=true: 라운드 ${currentRound} 예측 자동 중지 후 진행`);
-      await RoundStatisticsModel.updateOne(
-        { id: existing.id },
-        { isPredictionStopped: true, predictionStopTime: new Date(), isResultSent: true },
-        { session },
-      );
-      predictionAutoStopped = true;
+    if (!existing) {
+      throw new Error("먼저 예측을 시작하고 결과를 전송해 주세요.");
     }
 
-    if (!force && existing && !existing.isResultSent) {
+    if (existing.isPredictionStarted && !existing.isPredictionStopped) {
+      throw new Error(
+        `라운드 ${currentRound}의 예측이 아직 중지되지 않았습니다. 먼저 예측을 중지해주세요.`,
+      );
+    }
+
+    if (!existing.isResultSent) {
       throw new Error(
         `라운드 ${currentRound}의 결과가 아직 전송되지 않았습니다. 먼저 결과를 전송해주세요.`,
       );
-    }
-
-    if (force && existing && !predictionAutoStopped && !existing.isResultSent) {
-      console.log(
-        `[nextRound] force=true: 라운드 ${currentRound} 결과 없이 강제 진행, isResultSent=true 마킹`,
-      );
-      await RoundStatisticsModel.updateOne({ id: existing.id }, { isResultSent: true }, { session });
     }
 
     const nextRoundNumber = currentRound + 1;
@@ -486,7 +613,7 @@ export async function nextRound(
     ).lean();
 
     await session.commitTransaction();
-    return { match: updatedMatch as Match, predictionAutoStopped };
+    return { match: updatedMatch as Match, predictionAutoStopped: false };
   } catch (error) {
     await session.abortTransaction();
     throw error;
@@ -506,7 +633,6 @@ function readGamePhase(doc: Record<string, unknown>) {
 /** 다음 타자 — 같은 공수, 타순 +1 */
 export async function advanceToNextBatter(
   matchId: string,
-  force = false,
 ): Promise<{ match: Match; predictionAutoStopped: boolean }> {
   const before = await MatchModel.findOne({ id: matchId }).lean();
   if (!before) throw new Error("경기를 찾을 수 없습니다.");
@@ -517,7 +643,7 @@ export async function advanceToNextBatter(
     batterIndexInHalf: phase.batterIndexInHalf + 1,
   };
 
-  const { match, predictionAutoStopped } = await nextRound(matchId, force);
+  const { match, predictionAutoStopped } = await nextRound(matchId);
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },
     nextPhase,
@@ -528,17 +654,50 @@ export async function advanceToNextBatter(
   return { match: updated as Match, predictionAutoStopped };
 }
 
-/** 투수 교체 — 같은 공수·같은 타순, 예측 라운드만 진행 */
+/** 투수 교체 — 공수교대 외 언제든(진행 중 라운드는 환불 후 라운드 증가) */
 export async function advancePitcherChange(
   matchId: string,
 ): Promise<{ match: Match; predictionAutoStopped: boolean }> {
-  const before = await MatchModel.findOne({ id: matchId }).lean();
-  if (!before) throw new Error("경기를 찾을 수 없습니다.");
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
 
-  const { predictionAutoStopped } = await nextRound(matchId, true);
-  const updated = await MatchModel.findOne({ id: matchId }).lean();
-  if (!updated) throw new Error("경기를 찾을 수 없습니다.");
-  return { match: updated as Match, predictionAutoStopped };
+    const before = await MatchModel.findOne({ id: matchId }).session(session).lean();
+    if (!before) throw new Error("경기를 찾을 수 없습니다.");
+
+    const currentRound = before.currentRound;
+    const existing = await RoundStatisticsModel.findOne({
+      matchId,
+      roundNumber: currentRound,
+    })
+      .session(session)
+      .lean();
+
+    let predictionAutoStopped = false;
+
+    if (existing && !existing.isResultSent) {
+      predictionAutoStopped = Boolean(
+        existing.isPredictionStarted && !existing.isPredictionStopped,
+      );
+      await refundPendingPredictionsForRound(session, matchId, currentRound);
+      await RoundStatisticsModel.deleteOne({ id: existing.id }, { session });
+    }
+
+    const updated = await MatchModel.findOneAndUpdate(
+      { id: matchId },
+      { currentRound: currentRound + 1, predictionEnabled: false },
+      { new: true, session },
+    ).lean();
+
+    await session.commitTransaction();
+    if (!updated) throw new Error("경기를 찾을 수 없습니다.");
+    return { match: updated as Match, predictionAutoStopped };
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
 }
 
 /** 공수교대 — 초/말 전환, 타순 1부터 */
@@ -551,7 +710,7 @@ export async function advanceInningHalf(
   const phase = readGamePhase(before as Record<string, unknown>);
   const nextPhase = computeInningHalfSwitch(phase);
 
-  const { predictionAutoStopped } = await nextRound(matchId, true);
+  const { predictionAutoStopped } = await nextRound(matchId);
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },
     { ...nextPhase, outsInHalf: 0 },
@@ -713,13 +872,19 @@ export async function getAllRoundStatistics(matchId: string): Promise<RoundStati
   return docs as RoundStatistics[];
 }
 
-/** 예측 시작했으나 결과 미전송 — 다음 타자·공수교대 불가 */
+/** 예측 시작했으나 결과 미전송 — 다음 타자·공수교대·투수교체 불가 */
 export async function assertRoundResultSentOrAllowAdvance(
   matchId: string,
   roundNumber: number,
 ): Promise<void> {
   const stats = await RoundStatisticsModel.findOne({ matchId, roundNumber }).lean();
-  if (stats?.isPredictionStarted && !stats.isResultSent) {
+  if (!stats) {
+    throw new Error("먼저 예측을 시작하고 결과를 전송해 주세요.");
+  }
+  if (stats.isPredictionStarted && !stats.isPredictionStopped) {
+    throw new Error("예측을 먼저 중지해 주세요.");
+  }
+  if (!stats.isResultSent) {
     throw new Error("먼저 예측 결과를 전송해 주세요.");
   }
 }
