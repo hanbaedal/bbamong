@@ -1,3 +1,4 @@
+import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 
 export interface GameMatchItem {
@@ -25,9 +26,17 @@ export function sortMatchesByOrder<T extends { name: string }>(matches: T[]): T[
   return [...matches].sort((a, b) => matchOrderKey(a.name) - matchOrderKey(b.name));
 }
 
+/** 시작 1분 전 ~ 종료 전, 또는 진행 중인 경기만 참여 가능 */
+export function filterJoinableMatches(matches: GameMatchItem[]): GameMatchItem[] {
+  return matches.filter((m) => shouldClientPollMatch(m.startTime, m.matchStatus));
+}
+
 export function pickDefaultMatch(matches: GameMatchItem[]): GameMatchItem | null {
-  if (matches.length === 0) return null;
-  return sortMatchesByOrder(matches)[0] ?? null;
+  const joinable = filterJoinableMatches(matches);
+  if (joinable.length === 0) return null;
+  const ongoing = joinable.filter((m) => m.matchStatus === "ongoing");
+  if (ongoing.length > 0) return sortMatchesByOrder(ongoing)[0] ?? null;
+  return sortMatchesByOrder(joinable)[0] ?? null;
 }
 
 export interface StadiumOption {

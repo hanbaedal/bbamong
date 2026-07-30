@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { MatchModel, StadiumModel, PredictionModel, getNextSequence } from "../UserStorage/db";
 import { finalizeMatchEnd } from "../liveMatch/sideBetStorage";
+import { broadcastManager } from "../liveMatch/broadcastManager";
 import { addKstDays, getKstDateString } from "../utils/dateUtils";
 import { fetchGameById, type ApiSportsGameResponse } from "./client";
 import { markApiSportsError } from "./healthState";
@@ -570,7 +571,12 @@ export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
     const nextStatus = await updateMatchScoreFromApiGame(match, game);
 
     if (nextStatus === "completed" && previousStatus !== "completed") {
-      await finalizeMatchEnd(matchId);
+      const { match } = await finalizeMatchEnd(matchId);
+      broadcastManager.sendToMatch(matchId, "end", {
+        matchId,
+        message: "경기가 종료되었습니다.",
+        matchStatus: match.matchStatus,
+      });
       console.log(`[MatchMgmtSchedule] end ${match.name} (${matchId}) → completed (score updated)`);
       return;
     }
@@ -621,7 +627,12 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
     );
 
     if (nextStatus === "completed" && previousStatus !== "completed") {
-      await finalizeMatchEnd(matchId);
+      const { match } = await finalizeMatchEnd(matchId);
+      broadcastManager.sendToMatch(matchId, "end", {
+        matchId,
+        message: "경기가 종료되었습니다.",
+        matchStatus: match.matchStatus,
+      });
       console.log(`[LiveScoreSync] ${match.name} (${matchId}) → completed`);
       return true;
     }

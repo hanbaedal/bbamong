@@ -45,6 +45,7 @@ export function useLandscapePredictionFlow(
   options?: {
     onScoreboardUpdate?: (scoreboard: LiveScoreboard) => void;
     onGamePhaseUpdate?: (phase: unknown) => void;
+    onMatchEnded?: () => void;
   },
 ) {
   const { user, setUser } = useUser();
@@ -79,8 +80,12 @@ export function useLandscapePredictionFlow(
   const eventCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingRewardKeyRef = useRef<string | null>(null);
   const adSessionActiveRef = useRef(false);
+  const matchEndedRef = useRef(false);
+  const matchEndedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const predictionEnabledRef = useRef(false);
   const screenPhaseRef = useRef<GameScreenPhase>("wait_start");
+  const onMatchEndedRef = useRef(options?.onMatchEnded);
+  onMatchEndedRef.current = options?.onMatchEnded;
 
   const {
     startAdSession,
@@ -140,6 +145,51 @@ export function useLandscapePredictionFlow(
     setEventSubtitle("");
     setScreenPhase("wait_start");
   }, [clearResultTimers, clearEventTimers]);
+
+  const handleMatchEnded = useCallback(() => {
+    if (matchEndedRef.current) return;
+    matchEndedRef.current = true;
+
+    const phase = screenPhaseRef.current;
+    const deferExit =
+      phase === "wait_result" ||
+      phase === "success_running" ||
+      phase === "success_celebrate" ||
+      phase === "fail";
+
+    const exitGame = () => {
+      toast({ description: "경기가 종료되었습니다." });
+      queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
+      onMatchEndedRef.current?.();
+    };
+
+    if (matchEndedTimerRef.current) {
+      clearTimeout(matchEndedTimerRef.current);
+    }
+
+    if (deferExit) {
+      matchEndedTimerRef.current = setTimeout(exitGame, RESULT_AUTO_MS);
+    } else {
+      exitGame();
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    matchEndedRef.current = false;
+    if (matchEndedTimerRef.current) {
+      clearTimeout(matchEndedTimerRef.current);
+      matchEndedTimerRef.current = null;
+    }
+  }, [selectedMatch?.id]);
+
+  useEffect(
+    () => () => {
+      if (matchEndedTimerRef.current) {
+        clearTimeout(matchEndedTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const finishAdAndWaitStart = useCallback(() => {
     adSessionActiveRef.current = false;
@@ -265,6 +315,10 @@ export function useLandscapePredictionFlow(
         const res = await apiRequest("GET", `/api/matches/${selectedMatch.id}`);
         if (!res.ok) return;
         const matchData = await res.json();
+        if (matchData.matchStatus === "completed" || matchData.matchStatus === "cancelled") {
+          handleMatchEnded();
+          return;
+        }
         setPredictionEnabled(Boolean(matchData.predictionEnabled));
 
         if (screenPhase === "wait_start" && matchData.predictionEnabled && !waitingResultRef.current) {
@@ -278,7 +332,7 @@ export function useLandscapePredictionFlow(
     void poll();
     const id = setInterval(poll, 2500);
     return () => clearInterval(id);
-  }, [selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus, screenPhase]);
+  }, [selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus, screenPhase, handleMatchEnded]);
 
   useEffect(() => {
     if (screenPhase !== "wait_result" || predictionResult !== "pending" || !selectedMatch?.id) return;
@@ -612,6 +666,10 @@ export function useLandscapePredictionFlow(
     onScoreboardUpdate: useCallback((data: { scoreboard?: LiveScoreboard }) => {
       if (data?.scoreboard) onScoreboardRef.current?.(data.scoreboard);
     }, []),
+
+    onMatchEnd: useCallback(() => {
+      handleMatchEnded();
+    }, [handleMatchEnded]),
   };
 
   useMatchWebSocket({
@@ -679,7 +737,6 @@ export function useLandscapePredictionFlow(
   }, [user, selectedMatch, selectedPrediction, selectedBetAmount, setUser, predictionEnabled, toast]);
 
   const labelsVisible =
-    screenPhase === "wait_start" ||
     screenPhase === "picking" ||
     screenPhase === "wait_result";
   const labelsInteractive = screenPhase === "picking";

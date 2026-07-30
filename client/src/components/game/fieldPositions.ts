@@ -1,4 +1,5 @@
 import type { PredictionOption } from "./gameTypes";
+import { getRunPathImagePoints } from "./stadiumFieldCoords";
 
 export interface FieldPoint {
   left: string;
@@ -6,7 +7,7 @@ export interface FieldPoint {
 }
 
 /**
- * 그라운드 라벨·주루 좌표 (% 기준) — 풀스크린 object-cover + 가로 모드 시안
+ * 그라운드 라벨·주루 좌표 — object-contain + 이미지 정규 좌표 (stadiumFieldCoords.ts)
  */
 export const FIELD_POSITIONS: Record<PredictionOption, FieldPoint> = {
   홈런: { left: "50%", top: "11%" },
@@ -63,51 +64,11 @@ export const FIELD_LABEL_TEXT: Record<PredictionOption, string> = {
   아웃: "아웃",
 };
 
-/** 베이스 경유 달리기 경로 (홈에서 출발) */
-export function getRunPath(target: PredictionOption): FieldPoint[] {
-  const home = HOME_PLATE;
-  const first = FIELD_POSITIONS["1루"];
-  const second = FIELD_POSITIONS["2루"];
-  const third = FIELD_POSITIONS["3루"];
-  const hr = FIELD_POSITIONS.홈런;
-
-  switch (target) {
-    case "아웃":
-      return [home];
-    case "1루":
-      return [home, first];
-    case "2루":
-      return [home, first, second];
-    case "3루":
-      return [home, first, second, third];
-    case "홈런":
-      return [home, first, second, third, hr];
-    default:
-      return [home];
-  }
-}
-
 /** 베이스 간 주루 시간(초). 실제 타구 후 1루 도달 약 4초 — UI는 3.5초/베이스 */
 export const RUN_SECONDS_PER_BASE = 3.5;
 
 /** 예측 결과(1루·2루·3루·홈런)에 따른 주루 애니메이션 총 시간(초) */
 export function getRunDurationSec(target: PredictionOption): number {
-  const segments = Math.max(1, getRunPath(target).length - 1);
+  const segments = Math.max(1, getRunPathImagePoints(target).length - 1);
   return segments * RUN_SECONDS_PER_BASE;
-}
-
-export function pathToCssKeyframes(name: string, points: FieldPoint[]): string {
-  if (points.length <= 1) {
-    const p = points[0] ?? HOME_PLATE;
-    return `
-      @keyframes ${name} {
-        0%, 100% { left: ${p.left}; top: ${p.top}; }
-      }
-    `;
-  }
-  const steps = points.map((p, i) => {
-    const pct = Math.round((i / (points.length - 1)) * 100);
-    return `${pct}% { left: ${p.left}; top: ${p.top}; }`;
-  });
-  return `@keyframes ${name} { ${steps.join(" ")} }`;
 }

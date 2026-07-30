@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import LandscapeGameShell from "@/components/game/LandscapeGameShell";
 import GameSelectModal from "@/components/game/GameSelectModal";
 import type { GameMenuAction } from "@/components/game/GameLeftMenu";
 import {
   collectStadiumOptions,
+  filterJoinableMatches,
   formatMatchTitle,
   pickDefaultMatch,
   pickFirstMatchAtStadium,
   sortMatchesByOrder,
   type GameMatchItem,
 } from "@/components/game/gameMatchUtils";
+import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/contexts/UserContext";
 import { apiRequest } from "@/lib/queryClient";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
@@ -44,6 +46,8 @@ function batterTextFromPhase(phase: GamePhasePayload | null | undefined): string
 
 export default function PredictionPage() {
   const { user } = useUser();
+  const { toast } = useToast();
+  const matchEndedHandledRef = useRef(false);
   const [activePanel, setActivePanel] = useState<GameMenuAction | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [liveScoreboard, setLiveScoreboard] = useState<LiveScoreboard | null>(null);
@@ -73,13 +77,26 @@ export default function PredictionPage() {
     [matchesData],
   );
 
+  const joinableMatches = useMemo(
+    () => filterJoinableMatches(orderedMatches),
+    [orderedMatches],
+  );
+
   const selectedMatch = useMemo(() => {
-    if (!orderedMatches.length) return null;
+    if (!joinableMatches.length) return null;
     if (selectedMatchId) {
-      return orderedMatches.find((m) => m.id === selectedMatchId) ?? null;
+      return joinableMatches.find((m) => m.id === selectedMatchId) ?? null;
     }
-    return pickDefaultMatch(orderedMatches);
-  }, [orderedMatches, selectedMatchId]);
+    return pickDefaultMatch(joinableMatches);
+  }, [joinableMatches, selectedMatchId]);
+
+  useEffect(() => {
+    if (!selectedMatchId) return;
+    const stillJoinable = joinableMatches.some((m) => m.id === selectedMatchId);
+    if (!stillJoinable) {
+      setSelectedMatchId(null);
+    }
+  }, [selectedMatchId, joinableMatches]);
 
   useEffect(() => {
     if (!selectedMatchId && selectedMatch?.id) {
@@ -92,9 +109,26 @@ export default function PredictionPage() {
     setGamePhase(null);
   }, [selectedMatchId]);
 
+  useEffect(() => {
+    matchEndedHandledRef.current = false;
+  }, [selectedMatchId]);
+
+  useEffect(() => {
+    if (matchesLoading || !selectedMatchId || matchesData === undefined) return;
+    if (matchesData.some((m) => m.id === selectedMatchId)) return;
+    if (matchEndedHandledRef.current) return;
+    matchEndedHandledRef.current = true;
+    toast({ description: "경기가 종료되었습니다." });
+    navigateToHome();
+  }, [selectedMatchId, matchesData, matchesLoading, toast]);
+
   const flow = useLandscapePredictionFlow(selectedMatch, {
     onScoreboardUpdate: setLiveScoreboard,
     onGamePhaseUpdate: (phase) => setGamePhase(phase as GamePhasePayload),
+    onMatchEnded: () => {
+      matchEndedHandledRef.current = true;
+      navigateToHome();
+    },
   });
 
   const { data: scoreboardData, isLoading: scoreLoading } = useLiveScoreboard(
@@ -147,31 +181,31 @@ export default function PredictionPage() {
   });
 
   const stadiumOptions = useMemo(
-    () => collectStadiumOptions(orderedMatches),
-    [orderedMatches],
+    () => collectStadiumOptions(joinableMatches),
+    [joinableMatches],
   );
 
   const matchModalItems = useMemo(
     () =>
-      orderedMatches.map((match) => ({
+      joinableMatches.map((match) => ({
         id: match.id,
         label: formatMatchTitle(match.name),
         sublabel: getDisplayStadiumName(match.stadiumName) ?? undefined,
       })),
-    [orderedMatches],
+    [joinableMatches],
   );
 
   const stadiumModalItems = useMemo(
     () =>
       stadiumOptions.map((stadium) => {
-        const count = orderedMatches.filter((m) => m.stadiumId === stadium.id).length;
+        const count = joinableMatches.filter((m) => m.stadiumId === stadium.id).length;
         return {
           id: String(stadium.id),
           label: stadium.name,
           sublabel: count > 1 ? `${count}경기 진행` : undefined,
         };
       }),
-    [orderedMatches, stadiumOptions],
+    [joinableMatches, stadiumOptions],
   );
 
   const handleMenuSelect = (action: GameMenuAction) => {
@@ -195,7 +229,7 @@ export default function PredictionPage() {
 
   const handleStadiumSelect = (stadiumIdStr: string) => {
     const stadiumId = Number.parseInt(stadiumIdStr, 10);
-    const nextMatch = pickFirstMatchAtStadium(orderedMatches, stadiumId);
+    const nextMatch = pickFirstMatchAtStadium(joinableMatches, stadiumId);
     if (nextMatch) {
       setSelectedMatchId(nextMatch.id);
     }
@@ -206,10 +240,10 @@ export default function PredictionPage() {
   const stadiumName = getDisplayStadiumName(selectedMatch?.stadiumName) ?? "";
   const batterText = batterTextFromPhase(gamePhase);
   const emptyMessage =
-    !matchesLoading && (!matchesData || matchesData.length === 0)
+    !matchesLoading && joinableMatches.length === 0
       ? "오늘 진행 예정인 경기가 없습니다."
       : undefined;
-  const canSelectMatch = orderedMatches.length > 0;
+  const canSelectMatch = joinableMatches.length > 0;
   const canSelectStadium = stadiumOptions.length > 0;
 
   const inningHalfForUi = useMemo(() => {
