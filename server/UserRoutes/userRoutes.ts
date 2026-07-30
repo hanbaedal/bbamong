@@ -20,6 +20,7 @@ import { userAuthMiddleware, type AuthenticatedUserRequest } from "../middleware
 import { hasActiveSession, createSession, deleteSession } from "../sessionManager";
 import { getSocialPendingData, deleteSocialPendingData } from "./socialAuthRoutes";
 import { getRedisClient } from "../redis";
+import { getKstDayRange } from "../utils/dateUtils";
 
 const PHONE_REGEX = /^01[0-9]{8,9}$/;
 
@@ -938,6 +939,16 @@ export async function userRoutes(app: Express): Promise<void> {
       const losses = stats.filter((s) => s.status === "fail").length;
       const pending = stats.filter((s) => s.status === "pending").length;
 
+      const { start: todayStart, end: todayEnd } = getKstDayRange();
+      const todayStatsRaw = await PredictionModel.find({
+        userId,
+        createdAt: { $gte: todayStart, $lte: todayEnd },
+      })
+        .select("status")
+        .lean();
+      const todayTotal = todayStatsRaw.length;
+      const todayWins = todayStatsRaw.filter((s) => s.status === "success").length;
+
       let userRank: { rank: number; victories: number } | null = null;
 
       if (wins > 0) {
@@ -973,6 +984,10 @@ export async function userRoutes(app: Express): Promise<void> {
           wins,
           losses,
           pending,
+          today: {
+            total: todayTotal,
+            wins: todayWins,
+          },
         },
         currentUserRank: userRank,
       });

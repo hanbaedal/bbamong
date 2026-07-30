@@ -22,3 +22,12 @@ export function addKstDays(dateKey: string, days: number): string {
   base.setDate(base.getDate() + days);
   return getKstDateString(base);
 }
+
+/** KST 기준 당일 00:00:00.000 ~ 23:59:59.999 (UTC Date) */
+export function getKstDayRange(date: Date = new Date()): { start: Date; end: Date } {
+  const kstDate = getKstDateString(date);
+  return {
+    start: new Date(`${kstDate}T00:00:00+09:00`),
+    end: new Date(`${kstDate}T23:59:59.999+09:00`),
+  };
+}
