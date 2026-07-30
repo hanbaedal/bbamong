@@ -17,7 +17,7 @@ import { useUser } from "@/contexts/UserContext";
 import { apiRequest } from "@/lib/queryClient";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { useLandscapePredictionFlow } from "@/hooks/useLandscapePredictionFlow";
-import { lockGameLandscape, unlockGameLandscape } from "@/lib/gameOrientation";
+import { lockGameLandscape } from "@/lib/gameOrientation";
 import { navigateToHome, openMallFromApp } from "@/lib/appNavigation";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
@@ -57,7 +57,6 @@ export default function PredictionPage() {
 
   useEffect(() => {
     void lockGameLandscape();
-    return () => unlockGameLandscape();
   }, []);
 
   const { data: matchesData, isLoading: matchesLoading } = useQuery<GameMatchItem[]>({

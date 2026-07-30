@@ -50,7 +50,7 @@ export default function BottomNavigation() {
 
   return (
     <>
-      <div className="fixed bottom-0 left-0 right-0 bg-[#111111] border-t border-[#373539] z-[65]">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#111111] border-t border-[#373539] z-[65]" data-testid="bottom-navigation">
         {/* 네비게이션 버튼 영역 */}
         <div className="flex items-center justify-around px-4 pt-4 pb-3">
           {navItems.map((item) => (

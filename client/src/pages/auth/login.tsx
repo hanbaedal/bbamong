@@ -518,23 +518,25 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="h-app-screen bg-[#111111] flex">
-      <div className="flex-1 flex flex-col px-4 overflow-y-scroll-touch" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 32px)' }}>
-        {/* 로고 */}
-        <div
-          className="flex justify-center mt-6 mb-12"
-          data-testid="logo-container"
-        >
-          <div className="w-[140px] h-[220px] flex items-center justify-center">
-            <img
-              src={assets.userMascot}
-              alt="PPAMONG 로고"
-              className="w-full h-full object-contain"
-              data-testid="img-login-logo"
-            />
-          </div>
+    <div className="h-app-screen bg-[#111111] flex flex-col landscape:flex-row landscape:items-center landscape:justify-center landscape:gap-8 landscape:px-10">
+      <div
+        className="flex justify-center landscape:flex-shrink-0 landscape:mb-0 mt-6 mb-8 landscape:mt-0"
+        data-testid="logo-container"
+      >
+        <div className="w-[140px] h-[220px] landscape:w-[120px] landscape:h-[180px] flex items-center justify-center">
+          <img
+            src={assets.userMascot}
+            alt="PPAMONG 로고"
+            className="w-full h-full object-contain"
+            data-testid="img-login-logo"
+          />
         </div>
+      </div>
 
+      <div
+        className="flex-1 flex flex-col px-4 overflow-y-scroll-touch landscape:max-w-md landscape:flex-none landscape:w-full landscape:max-h-[90vh]"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 32px)" }}
+      >
         {/* 로그인 폼 */}
         <form
           onSubmit={handleSubmit}

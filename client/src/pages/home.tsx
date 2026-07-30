@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import PageHeader from "@/components/PageHeader";
-import BottomNavigation from "@/components/BottomNavigation";
 import { getFullUrl } from "@/lib/queryClient";
 import { navigateToMall } from "@/lib/appNavigation";
 import { ChevronRight } from "lucide-react";
@@ -71,10 +70,10 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="h-app-screen bg-[#111111] flex flex-col">
-      <PageHeader title="" />
+    <div className="h-app-screen bg-[#111111] flex flex-col landscape:justify-center">
+      <PageHeader title="" showSettings={false} showMallButton={false} />
 
-      <div className="flex-1 overflow-y-scroll-touch px-5 pb-bottom-nav">
+      <div className="flex-1 overflow-y-scroll-touch px-5 landscape:px-10 landscape:max-w-3xl landscape:mx-auto landscape:w-full">
         {/* 인사 + 참여 버튼 */}
         <div className="flex flex-col items-center pt-4 pb-6">
           <div className="text-center mb-4">
@@ -208,8 +207,6 @@ export default function HomePage() {
           </section>
         )}
       </div>
-
-      <BottomNavigation />
     </div>
   );
 }
