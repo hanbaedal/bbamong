@@ -16,6 +16,7 @@ import "./managerMatchDetail.css";
 
 const WS_BASE_URL = 'wss://ppamong.com';
 const PREDICTION_TOGGLE_MS = 1000;
+const RESULT_BUTTON_ROWS = [["1루", "2루", "3루"], ["홈런", "아웃"]] as const;
 
 interface Match {
   id: string;
@@ -982,20 +983,24 @@ export default function MatchDetailPage() {
 
         <div className="manager-match-results">
           <h3 className="manager-match-section-title">예측 결과</h3>
-          <div className="manager-match-result-row">
-            {["1루", "2루", "3루", "홈런", "아웃"].map((label) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => handleResultSelect(label)}
-                disabled={!canSelectResult}
-                data-testid={`button-result-${label}`}
-                className={`manager-match-result-btn ${
-                  selectedResult === label ? "manager-match-result-btn--selected" : ""
-                }`}
-              >
-                {label}
-              </button>
+          <div className="manager-match-result-grid">
+            {RESULT_BUTTON_ROWS.map((row) => (
+              <div key={row.join("-")} className="manager-match-result-row">
+                {row.map((label) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => handleResultSelect(label)}
+                    disabled={!canSelectResult}
+                    data-testid={`button-result-${label}`}
+                    className={`manager-match-result-btn ${
+                      selectedResult === label ? "manager-match-result-btn--selected" : ""
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             ))}
           </div>
           <button
