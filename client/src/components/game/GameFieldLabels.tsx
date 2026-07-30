@@ -1,5 +1,7 @@
 import type { PredictionOption } from "./gameTypes";
-import { FIELD_LABEL_TEXT, FIELD_POSITIONS } from "./fieldPositions";
+import { FIELD_LABEL_TEXT } from "./fieldPositions";
+import { BASE_IMAGE_POINTS } from "./stadiumFieldCoords";
+import { StadiumFieldMarker } from "./StadiumFieldContext";
 
 interface GameFieldLabelsProps {
   visible: boolean;
@@ -28,23 +30,26 @@ export default function GameFieldLabels({
       aria-hidden={!interactive}
     >
       {OPTIONS.map((key) => {
-        const pos = FIELD_POSITIONS[key];
         const isSelected = selectedPrediction === key || highlightPrediction === key;
         const isBlink = blinkPrediction === key;
         return (
-          <button
-            key={key}
-            type="button"
-            disabled={!interactive}
-            onClick={() => onSelect?.(key)}
-            className={`absolute -translate-x-1/2 -translate-y-1/2 font-bold text-sm sm:text-base drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] transition-transform ${
-              isSelected ? "text-[#FFE566] scale-110" : "text-[#FFE566]"
-            } ${isBlink ? "animate-label-blink text-[#E11936]" : ""} ${interactive ? "cursor-pointer hover:scale-110 active:scale-95" : ""}`}
-            style={{ left: pos.left, top: pos.top }}
-            data-testid={`field-label-${key}`}
-          >
-            {FIELD_LABEL_TEXT[key]}
-          </button>
+          <StadiumFieldMarker key={key} point={BASE_IMAGE_POINTS[key]}>
+            <button
+              type="button"
+              disabled={!interactive}
+              onClick={() => onSelect?.(key)}
+              className={`min-w-[2.75rem] sm:min-w-[3.25rem] rounded-full border-2 px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.55)] transition-transform ${
+                isSelected || isBlink
+                  ? "border-[#E11936] bg-[#E11936]/90 text-white scale-110"
+                  : "border-[#FFE566] bg-black/75 text-[#FFE566]"
+              } ${isBlink ? "animate-label-blink" : ""} ${
+                interactive ? "cursor-pointer hover:scale-110 active:scale-95" : ""
+              }`}
+              data-testid={`field-label-${key}`}
+            >
+              {FIELD_LABEL_TEXT[key]}
+            </button>
+          </StadiumFieldMarker>
         );
       })}
     </div>
