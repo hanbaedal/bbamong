@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { MatchModel, StadiumModel, getNextSequence } from "../UserStorage/db";
+import { MatchModel, StadiumModel, PredictionModel, getNextSequence } from "../UserStorage/db";
 import { finalizeMatchEnd } from "../liveMatch/sideBetStorage";
 import { addKstDays, getKstDateString } from "../utils/dateUtils";
 import { fetchGameById, type ApiSportsGameResponse } from "./client";
@@ -80,6 +80,79 @@ async function ensureStadiumByName(name: string): Promise<number> {
   }
 }
 
+function extractMatchOrder(name: string): number {
+  const match = name.match(/\d+/);
+  return match ? parseInt(match[0], 10) : 0;
+}
+
+function dayRangeForMatchDate(targetDate: string): { startOfDay: Date; endOfDay: Date } {
+  const today = new Date(`${targetDate}T12:00:00`);
+  const startOfDay = new Date(today);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(today);
+  endOfDay.setHours(23, 59, 59, 999);
+  return { startOfDay, endOfDay };
+}
+
+async function findMatchesForDate(targetDate: string) {
+  const { startOfDay, endOfDay } = dayRangeForMatchDate(targetDate);
+  return MatchModel.find({
+    $or: [{ matchDate: targetDate }, { matchDate: null, startTime: { $gte: startOfDay, $lte: endOfDay } }],
+  }).lean();
+}
+
+/** 같은 날·같은 registrationOrder(또는 N경기) 중복 제거 — 예측 없는 orphan만 삭제 */
+async function dedupeDailyMatchesForDate(
+  targetDate: string,
+  activeApiIds: Set<number>,
+): Promise<number> {
+  const matches = await findMatchesForDate(targetDate);
+  const groups = new Map<number, typeof matches>();
+
+  for (const m of matches) {
+    const order =
+      (m as { registrationOrder?: number | null }).registrationOrder ??
+      extractMatchOrder(m.name) ??
+      0;
+    if (order < 1) continue;
+    const list = groups.get(order) ?? [];
+    list.push(m);
+    groups.set(order, list);
+  }
+
+  let removed = 0;
+
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue;
+
+    const ranked = [...group].sort((a, b) => {
+      const aApi = (a as { apiSportsGameId?: number | null }).apiSportsGameId;
+      const bApi = (b as { apiSportsGameId?: number | null }).apiSportsGameId;
+      const aActive = aApi != null && activeApiIds.has(aApi) ? 1 : 0;
+      const bActive = bApi != null && activeApiIds.has(bApi) ? 1 : 0;
+      if (bActive !== aActive) return bActive - aActive;
+      const aHas = aApi != null ? 1 : 0;
+      const bHas = bApi != null ? 1 : 0;
+      if (bHas !== aHas) return bHas - aHas;
+      return String(a.id).localeCompare(String(b.id));
+    });
+
+    const [, ...dupes] = ranked;
+    for (const dup of dupes) {
+      const predCount = await PredictionModel.countDocuments({ matchId: dup.id });
+      if (predCount > 0) continue;
+      await MatchModel.deleteOne({ id: dup.id });
+      removed += 1;
+    }
+  }
+
+  if (removed > 0) {
+    console.log(`[ApiSportsSync] ${targetDate} 중복 경기 ${removed}건 정리`);
+  }
+
+  return removed;
+}
+
 function venueNameFromGame(game: ApiSportsGameResponse): string {
   const name = game.venue?.name?.trim();
   if (name) return name;
@@ -118,6 +191,7 @@ export async function syncTodayGamesFromApiSports(
   created: number;
   updated: number;
   linked: number;
+  deduped: number;
   games: ApiSportsTodayGame[];
   source: "cache" | "api";
 }> {
@@ -133,14 +207,13 @@ export async function syncTodayGamesFromApiSports(
   const mapped = mapTodayGames(sortedApi);
 
   if (sortedApi.length === 0) {
-    return { created: 0, updated: 0, linked: 0, games: [], source };
+    return { created: 0, updated: 0, linked: 0, deduped: 0, games: [], source };
   }
 
-  const today = new Date(`${targetDate}T12:00:00`);
-  const startOfDay = new Date(today);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(today);
-  endOfDay.setHours(23, 59, 59, 999);
+  const activeApiIds = new Set(sortedApi.map((g) => g.id));
+  const dedupedBefore = await dedupeDailyMatchesForDate(targetDate, activeApiIds);
+
+  const { startOfDay, endOfDay } = dayRangeForMatchDate(targetDate);
 
   const internalMatches = await MatchModel.find({
     $or: [{ matchDate: targetDate }, { matchDate: null, startTime: { $gte: startOfDay, $lte: endOfDay } }],
@@ -148,8 +221,13 @@ export async function syncTodayGamesFromApiSports(
 
   const byApiId = new Map(
     internalMatches
-      .filter((m) => m.apiSportsGameId != null)
-      .map((m) => [m.apiSportsGameId as number, m]),
+      .filter((m) => (m as { apiSportsGameId?: number | null }).apiSportsGameId != null)
+      .map((m) => [(m as { apiSportsGameId: number }).apiSportsGameId, m]),
+  );
+  const byRegistrationOrder = new Map(
+    internalMatches
+      .filter((m) => (m as { registrationOrder?: number | null }).registrationOrder != null)
+      .map((m) => [(m as { registrationOrder: number }).registrationOrder, m]),
   );
   const byName = new Map(internalMatches.map((m) => [m.name, m]));
 
@@ -166,8 +244,10 @@ export async function syncTodayGamesFromApiSports(
     const matchStatus = matchStatusFromApi(external.status.short);
     const stadiumId = await ensureStadiumByName(venueNameFromGame(external));
 
+    const order = i + 1;
     const existing =
       byApiId.get(external.id) ??
+      byRegistrationOrder.get(order) ??
       byName.get(matchName) ??
       null;
 
@@ -183,7 +263,7 @@ export async function syncTodayGamesFromApiSports(
       startTime,
       endTime,
       matchStatus: existing?.matchStatus === "completed" ? "completed" : matchStatus,
-      registrationOrder: i + 1,
+      registrationOrder: order,
       apiSportsGameId: external.id,
       apiSportsHomeTeam: scoreboard.homeTeamName,
       apiSportsAwayTeam: scoreboard.awayTeamName,
@@ -205,6 +285,9 @@ export async function syncTodayGamesFromApiSports(
       await MatchModel.updateOne({ id: existing.id }, payload);
       updated += 1;
       linked += 1;
+      byApiId.set(external.id, { ...existing, ...payload });
+      byRegistrationOrder.set(order, { ...existing, ...payload });
+      byName.set(matchName, { ...existing, ...payload });
     } else {
       await MatchModel.create({
         id: randomUUID(),
@@ -217,7 +300,16 @@ export async function syncTodayGamesFromApiSports(
     }
   }
 
-  return { created, updated, linked, games: mapped, source };
+  const dedupedAfter = await dedupeDailyMatchesForDate(targetDate, activeApiIds);
+
+  return {
+    created,
+    updated,
+    linked,
+    deduped: dedupedBefore + dedupedAfter,
+    games: mapped,
+    source,
+  };
 }
 
 function currentSeasonYear(): number {

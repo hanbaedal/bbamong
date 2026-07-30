@@ -85,6 +85,7 @@ export default function MatchManagement() {
     created: number;
     updated: number;
     linked: number;
+    deduped?: number;
     source?: "cache" | "api";
   } | null>(null);
   const { data: stadiums } = useQuery<Stadium[]>({
@@ -155,8 +156,9 @@ export default function MatchManagement() {
       const created = body.created ?? 0;
       const updated = body.updated ?? 0;
       const linked = body.linked ?? 0;
+      const deduped = body.deduped ?? 0;
       const source = body.source as "cache" | "api" | undefined;
-      setLastSyncMeta({ date: dateKey, created, updated, linked, source });
+      setLastSyncMeta({ date: dateKey, created, updated, linked, deduped, source });
       await queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/admin/stadiums"] });
 
@@ -169,8 +171,9 @@ export default function MatchManagement() {
         }
       } else {
         const sourceLabel = source === "cache" ? "DB 캐시" : source === "api" ? "API 조회" : "동기화";
+        const dedupedPart = deduped > 0 ? ` · 중복 제거 ${deduped}` : "";
         toast({
-          description: `${dateKey} ${sourceLabel} · 신규 ${created} · 갱신 ${updated} · 연결 ${linked}`,
+          description: `${dateKey} ${sourceLabel} · 신규 ${created} · 갱신 ${updated} · 연결 ${linked}${dedupedPart}`,
         });
       }
       return body;
@@ -341,7 +344,7 @@ export default function MatchManagement() {
                   {syncingDate === selectedDateKey
                     ? "일정 불러오는 중..."
                     : lastSyncMeta?.date === selectedDateKey
-                      ? `${lastSyncMeta.source === "api" ? "API 반영" : "DB 캐시 반영"} · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}`
+                      ? `${lastSyncMeta.source === "api" ? "API 반영" : "DB 캐시 반영"} · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}${(lastSyncMeta.deduped ?? 0) > 0 ? ` · 중복 제거 ${lastSyncMeta.deduped}` : ""}`
                       : "매일 09:00 오늘 경기 자동 저장 · 시작=상태 · 종료=스코어"}
                 </p>
               </div>
