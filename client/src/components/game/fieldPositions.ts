@@ -6,21 +6,20 @@ export interface FieldPoint {
 }
 
 /**
- * 그라운드 라벨·주루 좌표 (% 기준) — 첨부 시안 mockup 위치
- * (홈→1루 우측, 3루 좌측, 2루 중앙, 홈런 외야 중앙, 아웃 홈플ate 하단)
+ * 그라운드 라벨·주루 좌표 (% 기준) — 풀스크린 object-cover + 가로 모드 시안
  */
 export const FIELD_POSITIONS: Record<PredictionOption, FieldPoint> = {
-  홈런: { left: "50%", top: "16%" },
-  "3루": { left: "29%", top: "40%" },
-  "2루": { left: "50%", top: "45%" },
-  "1루": { left: "71%", top: "57%" },
-  아웃: { left: "50%", top: "79%" },
+  홈런: { left: "50%", top: "11%" },
+  "3루": { left: "28%", top: "36%" },
+  "2루": { left: "50%", top: "41%" },
+  "1루": { left: "72%", top: "50%" },
+  아웃: { left: "50%", top: "86%" },
 };
 
 export const HOME_PLATE = FIELD_POSITIONS.아웃;
 
 /** 투수 마운드 — 발 위치 (시안) */
-export const PITCHERS_MOUND: FieldPoint = { left: "50%", top: "54%" };
+export const PITCHERS_MOUND: FieldPoint = { left: "50%", top: "50%" };
 
 export type DefenseRole = "P" | "C" | "1B" | "2B" | "3B" | "SS" | "LF" | "CF" | "RF";
 
@@ -34,14 +33,14 @@ export interface DefensePosition {
 /** 수비 포지션 (% 기준) — 라벨·베이스와 겹치지 않게 약간 오프셋 */
 export const DEFENSE_POSITIONS: DefensePosition[] = [
   { role: "P", point: PITCHERS_MOUND, facing: 0 },
-  { role: "C", point: { left: "50%", top: "84%" }, facing: 0 },
-  { role: "1B", point: { left: "74%", top: "54%" }, facing: -25 },
-  { role: "2B", point: { left: "52%", top: "42%" }, facing: 0 },
-  { role: "3B", point: { left: "26%", top: "42%" }, facing: 25 },
-  { role: "SS", point: { left: "38%", top: "48%" }, facing: 15 },
-  { role: "LF", point: { left: "22%", top: "20%" }, facing: 20 },
-  { role: "CF", point: { left: "50%", top: "11%" }, facing: 0 },
-  { role: "RF", point: { left: "78%", top: "20%" }, facing: -20 },
+  { role: "C", point: { left: "50%", top: "90%" }, facing: 0 },
+  { role: "1B", point: { left: "75%", top: "48%" }, facing: -25 },
+  { role: "2B", point: { left: "52%", top: "38%" }, facing: 0 },
+  { role: "3B", point: { left: "25%", top: "38%" }, facing: 25 },
+  { role: "SS", point: { left: "37%", top: "44%" }, facing: 15 },
+  { role: "LF", point: { left: "21%", top: "17%" }, facing: 20 },
+  { role: "CF", point: { left: "50%", top: "8%" }, facing: 0 },
+  { role: "RF", point: { left: "79%", top: "17%" }, facing: -20 },
 ];
 
 export type TeamSide = "home" | "away";

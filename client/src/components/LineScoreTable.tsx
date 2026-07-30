@@ -1,4 +1,5 @@
 import type { InningRunsMap, LiveScoreboard } from "@shared/apiSportsTypes";
+import type { InningHalf } from "@shared/gamePhaseTypes";
 
 const INNING_COLUMNS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
@@ -14,6 +15,8 @@ interface LineScoreTableProps {
   fixedInningColumns?: boolean;
   /** 가로 게임 화면 — 투명 배경 + 흰 글씨 */
   variant?: "default" | "transparent";
+  /** transparent — 공격 팀 행 강조 (top=원정 빨강, bottom=홈 소라) */
+  battingHalf?: InningHalf | null;
 }
 
 export default function LineScoreTable({
@@ -21,6 +24,7 @@ export default function LineScoreTable({
   className = "",
   fixedInningColumns = false,
   variant = "default",
+  battingHalf = null,
 }: LineScoreTableProps) {
   const awayInnings = scoreboard?.awayInnings;
   const homeInnings = scoreboard?.homeInnings;
@@ -49,11 +53,18 @@ export default function LineScoreTable({
   const homeErrors = scoreboard?.homeErrors ?? 0;
 
   const transparent = variant === "transparent";
+  const awayBatting = transparent && battingHalf === "top";
+  const homeBatting = transparent && battingHalf === "bottom";
   const cellBorder = transparent ? "border border-white/40" : "border border-[#CCCCCC]";
   const cellBg = transparent ? "bg-transparent" : "bg-white";
   const cellText = transparent ? "text-white" : "text-black";
+  const awayBorder = awayBatting ? "border border-red-400/75" : cellBorder;
+  const homeBorder = homeBatting ? "border border-sky-300/80" : cellBorder;
+  const awayText = awayBatting ? "text-[#FF5555]" : cellText;
+  const homeText = homeBatting ? "text-[#87CEEB]" : cellText;
   const thBase = `${cellBorder} ${cellBg} ${cellText}`;
-  const tdBase = `${cellBorder} ${cellBg} ${cellText}`;
+  const awayTdBase = `${awayBorder} ${cellBg} ${awayText}`;
+  const homeTdBase = `${homeBorder} ${cellBg} ${homeText}`;
 
   return (
     <div className={`overflow-x-auto ${className}`}>
@@ -84,30 +95,30 @@ export default function LineScoreTable({
         </thead>
         <tbody>
           <tr>
-            <td className={`${tdBase} px-2 py-1.5`}>원정</td>
+            <td className={`${awayTdBase} px-2 py-1.5 font-semibold`}>원정</td>
             {inningColumns.map((key) => (
-              <td key={`away-${key}`} className={`${tdBase} px-1 py-1.5 text-center`}>
+              <td key={`away-${key}`} className={`${awayTdBase} px-1 py-1.5 text-center`}>
                 {cellRuns(awayInnings?.[key])}
               </td>
             ))}
-            <td className={`${tdBase} px-1 py-1.5 text-center font-semibold`}>
+            <td className={`${awayTdBase} px-1 py-1.5 text-center font-semibold`}>
               {awayScore}
             </td>
-            <td className={`${tdBase} px-1 py-1.5 text-center`}>{awayHits}</td>
-            <td className={`${tdBase} px-1 py-1.5 text-center`}>{awayErrors}</td>
+            <td className={`${awayTdBase} px-1 py-1.5 text-center`}>{awayHits}</td>
+            <td className={`${awayTdBase} px-1 py-1.5 text-center`}>{awayErrors}</td>
           </tr>
           <tr>
-            <td className={`${tdBase} px-2 py-1.5`}>홈</td>
+            <td className={`${homeTdBase} px-2 py-1.5 font-semibold`}>홈</td>
             {inningColumns.map((key) => (
-              <td key={`home-${key}`} className={`${tdBase} px-1 py-1.5 text-center`}>
+              <td key={`home-${key}`} className={`${homeTdBase} px-1 py-1.5 text-center`}>
                 {cellRuns(homeInnings?.[key])}
               </td>
             ))}
-            <td className={`${tdBase} px-1 py-1.5 text-center font-semibold`}>
+            <td className={`${homeTdBase} px-1 py-1.5 text-center font-semibold`}>
               {homeScore}
             </td>
-            <td className={`${tdBase} px-1 py-1.5 text-center`}>{homeHits}</td>
-            <td className={`${tdBase} px-1 py-1.5 text-center`}>{homeErrors}</td>
+            <td className={`${homeTdBase} px-1 py-1.5 text-center`}>{homeHits}</td>
+            <td className={`${homeTdBase} px-1 py-1.5 text-center`}>{homeErrors}</td>
           </tr>
         </tbody>
       </table>

@@ -9,26 +9,28 @@ interface GameFieldViewportProps {
 }
 
 /**
- * 스마트폰 가로 화면: 경기장 PNG 전체(플랫폼·외야·담장)가 잘리지 않도록
- * 이미지와 동일한 3:2 박스를 가용 영역 안에 맞춤.
- * 필드 라벨·캐릭터 % 좌표는 이 박스 기준 — 배경과 1:1 정렬.
+ * 풀스크린(100dvw×100dvh) 경기장 — 좌측 메뉴는 shell에서 오버레이.
+ * object-cover로 가로·세로 꽉 채우고, 라벨 %는 cover 기준으로 fieldPositions.ts 에 맞춤.
  */
 export default function GameFieldViewport({ children }: GameFieldViewportProps) {
   return (
-    <div className="flex-1 min-w-0 min-h-0 flex items-center justify-center bg-black">
+    <div
+      className="absolute inset-0 w-full h-full overflow-hidden"
+      data-testid="game-field-viewport"
+    >
+      <img
+        src={stadiumBg}
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover object-[42%_center] pointer-events-none select-none"
+        draggable={false}
+      />
+      {/* 배경 PNG 우측 전광판·조명 — UI 스코어보드와 겹치지 않게 가림 */}
       <div
-        className="relative h-full max-w-full w-auto"
-        style={{ aspectRatio: STADIUM_ASPECT_RATIO }}
-        data-testid="game-field-viewport"
-      >
-        <img
-          src={stadiumBg}
-          alt=""
-          className="absolute inset-0 w-full h-full pointer-events-none select-none"
-          draggable={false}
-        />
-        <div className="absolute inset-0">{children}</div>
-      </div>
+        className="pointer-events-none absolute right-0 top-0 z-[1] h-[34%] w-[28%] bg-gradient-to-bl from-[#0c1520]/95 via-[#162030]/75 to-transparent"
+        aria-hidden
+        data-testid="stadium-jumbotron-mask"
+      />
+      <div className="absolute inset-0">{children}</div>
     </div>
   );
 }

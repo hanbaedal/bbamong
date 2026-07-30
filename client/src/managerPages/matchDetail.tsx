@@ -10,7 +10,7 @@ import LiveScoreboard from "@/components/LiveScoreboard";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
-import { formatMatchInningPhase } from "@shared/matchPhaseDisplay";
+import { resolveLiveInningPhaseLabel } from "@shared/matchPhaseDisplay";
 import { speakGameVoice, OPERATOR_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
 import "./managerMatchDetail.css";
 
@@ -774,10 +774,11 @@ export default function MatchDetailPage() {
   const today = new Date();
   const formattedDate = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 (${["일", "월", "화", "수", "목", "금", "토"][today.getDay()]})`;
   const displayStadiumName = getDisplayStadiumName(match.stadium.name);
-  const matchPhaseText = formatMatchInningPhase({
+  const matchPhaseText = resolveLiveInningPhaseLabel({
     matchStatus: match.matchStatus,
     gameInning: match.gameInning,
     inningHalf: match.inningHalf,
+    scoreboard: scoreboardPayload?.scoreboard ?? null,
   });
   const blockAdvance = Boolean(match.needsResultBeforeAdvance);
   const showThreeOutsHint = Boolean(match.showThreeOutsHint);

@@ -212,6 +212,16 @@ export default function PredictionPage() {
   const canSelectMatch = orderedMatches.length > 0;
   const canSelectStadium = stadiumOptions.length > 0;
 
+  const inningHalfForUi = useMemo(() => {
+    if (gamePhase?.inningHalf != null) {
+      return parseInningHalf(String(gamePhase.inningHalf));
+    }
+    if (liveScoreboard?.inningHalf) {
+      return parseInningHalf(String(liveScoreboard.inningHalf));
+    }
+    return undefined;
+  }, [gamePhase, liveScoreboard]);
+
   return (
     <>
       <LandscapeGameShell
@@ -257,7 +267,7 @@ export default function PredictionPage() {
         onStadiumNameClick={() => setStadiumModalOpen(true)}
         matchSelectEnabled={canSelectMatch}
         stadiumSelectEnabled={canSelectStadium}
-        inningHalf={gamePhase?.inningHalf != null ? parseInningHalf(String(gamePhase.inningHalf)) : undefined}
+        inningHalf={inningHalfForUi}
       />
 
       <GameSelectModal
