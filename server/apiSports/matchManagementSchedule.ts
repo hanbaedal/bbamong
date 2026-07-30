@@ -32,7 +32,7 @@ function clearAllMatchTimers() {
   }
 }
 
-/** ① 매일 09:00 KST — 오늘 1~5경기 api-sports → Match DB + 최근 stale 과거일 보정 */
+/** ① 매일 09:00 KST — 오늘 1~5경기 api-sports → Match DB */
 export async function runDailyMatchScheduleSync(): Promise<void> {
   const date = getKstDateString();
   console.log(`[MatchMgmtSchedule] daily Match sync ${date}`);
@@ -40,14 +40,6 @@ export async function runDailyMatchScheduleSync(): Promise<void> {
   console.log(
     `[MatchMgmtSchedule] daily ${date}: created ${result.created}, updated ${result.updated}, linked ${result.linked}, source ${result.source}`,
   );
-
-  const stale = await refreshStalePastMatchScores(7);
-  if (stale.daysRefreshed > 0) {
-    console.log(
-      `[MatchMgmtSchedule] stale past catch-up: ${stale.daysRefreshed} day(s), ${stale.updated} match(es) updated`,
-    );
-  }
-
   await syncOperatorMatchAssignments();
   await rescheduleTodayMatchTimers();
 }
