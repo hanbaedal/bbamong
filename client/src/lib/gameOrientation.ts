@@ -1,10 +1,10 @@
 import { Capacitor } from "@capacitor/core";
+import { ScreenOrientation } from "@capacitor/screen-orientation";
 
 /** 게임 화면 진입 시 가로 고정 (Capacitor 네이티브 + Web API 폴백) */
 export async function lockGameLandscape(): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     try {
-      const { ScreenOrientation } = await import("@capacitor/screen-orientation");
       await ScreenOrientation.lock({ orientation: "landscape" });
       return;
     } catch (err) {
@@ -28,7 +28,6 @@ export async function lockGameLandscape(): Promise<void> {
 export async function unlockGameLandscape(): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     try {
-      const { ScreenOrientation } = await import("@capacitor/screen-orientation");
       await ScreenOrientation.lock({ orientation: "portrait" });
       return;
     } catch (err) {
