@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { ScreenOrientation } from "@capacitor/screen-orientation";
 
-/** 게임 화면 진입 시 가로 고정 (Capacitor 네이티브 + Web API 폴백) */
+/** 사용자 앱 전체 가로 고정 (Capacitor 네이티브 + Web API 폴백) */
 export async function lockGameLandscape(): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     try {
@@ -24,29 +24,12 @@ export async function lockGameLandscape(): Promise<void> {
   }
 }
 
-/** 게임 이탈 시 세로 복귀 */
+/** @deprecated 사용자 앱은 가로 고정 — unlock 호출하지 않음 */
 export async function unlockGameLandscape(): Promise<void> {
-  if (Capacitor.isNativePlatform()) {
-    try {
-      await ScreenOrientation.lock({ orientation: "portrait" });
-      return;
-    } catch (err) {
-      console.warn("[Orientation] portrait lock failed:", err);
-    }
-  }
-
-  try {
-    screen.orientation?.unlock?.();
-  } catch {
-    /* ignore */
-  }
+  /* intentionally no-op: 앱 전체 가로 사용 */
 }
 
-/** 현재 경로 기준 게임(/prediction)만 가로, 그 외 세로 */
-export async function syncOrientationForPath(pathname: string): Promise<void> {
-  if (pathname === "/prediction") {
-    await lockGameLandscape();
-  } else {
-    await unlockGameLandscape();
-  }
+/** 경로와 무관하게 가로 유지 */
+export async function syncOrientationForPath(_pathname: string): Promise<void> {
+  await lockGameLandscape();
 }

@@ -1,5 +1,6 @@
+import { useState } from "react";
 import GameFieldViewport from "./GameFieldViewport";
-import GameLeftMenu, { type GameMenuAction } from "./GameLeftMenu";
+import GameLeftMenu, { type GameMenuAction, type SubmenuAnchor } from "./GameLeftMenu";
 import GameTopScorePanel from "./GameTopScorePanel";
 import GameFieldLabels from "./GameFieldLabels";
 import GameMenuPanel from "./GameMenuPanel";
@@ -112,6 +113,9 @@ export default function LandscapeGameShell({
 
   const infoLinks = [
     { label: "회원정보", href: "/profile", testId: "link-profile" },
+    { label: "친구 초대", href: "/invitation", testId: "link-invite" },
+    { label: "출석 체크", href: "/attendance", testId: "link-attendance" },
+    { label: "추가 참여", href: "/point", testId: "link-point" },
     { label: "서비스 이용약관", href: "/terms", testId: "link-terms" },
     { label: "고객센터", href: "/customer-center", testId: "link-customer-center" },
   ];
@@ -120,6 +124,11 @@ export default function LandscapeGameShell({
     selectedPrediction != null
       ? calculateFixedOddsPayout(selectedBetAmount, selectedPrediction)
       : 0;
+
+  const [submenuAnchor, setSubmenuAnchor] = useState<SubmenuAnchor | null>(null);
+
+  const submenuPanel =
+    activePanel === "story" || activePanel === "info" ? activePanel : null;
 
   return (
     <div
@@ -202,7 +211,11 @@ export default function LandscapeGameShell({
         )}
       </GameFieldViewport>
 
-      <GameLeftMenu activePanel={activePanel} onSelect={onMenuSelect} />
+      <GameLeftMenu
+        activePanel={activePanel}
+        onSelect={onMenuSelect}
+        onSubmenuAnchor={setSubmenuAnchor}
+      />
 
       {((showAdOverlay && !isNativePlatform) ||
         (isNativePlatform &&
@@ -217,7 +230,8 @@ export default function LandscapeGameShell({
       )}
 
       <GameMenuPanel
-        panel={activePanel === "story" || activePanel === "info" ? activePanel : null}
+        panel={submenuPanel}
+        anchor={submenuAnchor}
         onClose={onClosePanel}
         storyLinks={storyLinks}
         infoLinks={infoLinks}

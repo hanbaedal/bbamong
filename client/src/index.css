@@ -563,3 +563,23 @@ body {
     margin-bottom: var(--safe-area-inset-bottom);
   }
 }
+
+/* 게임 메뉴 iframe 임베드 — 헤더·하단 네비 숨김 */
+html.game-embed [data-testid="page-header"],
+html.game-embed [data-testid="bottom-navigation"],
+html.game-embed .pb-bottom-nav {
+  display: none !important;
+}
+
+html.game-embed,
+html.game-embed body,
+html.game-embed #root {
+  height: 100%;
+  min-height: 100%;
+  overflow: auto;
+}
+
+html.game-embed .h-app-screen {
+  min-height: 100%;
+  height: auto;
+}

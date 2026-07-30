@@ -1,12 +1,15 @@
 import type { PredictionOption } from "./gameTypes";
 
-/** game-stadium-bg.png 원본 크기 */
+/** game-stadium-bg.png 원본 크기 (중앙 필드 — 3:2) */
 export const STADIUM_IMAGE = { width: 1536, height: 1024 } as const;
 
-/** GameFieldViewport 배경 object-position — contain + center 기본 */
-export const STADIUM_OBJECT_POSITION = { x: 0.5, y: 0.5 } as const;
+/** 원본 경기장 PNG 비율 (1536×1024 = 3:2) */
+export const STADIUM_ASPECT_RATIO = STADIUM_IMAGE.width / STADIUM_IMAGE.height;
 
-/** 0~1 정규화 좌표 (이미지 픽셀 기준) */
+/** @deprecated 미러 확장 레이아웃에서는 미사용 */
+export const STADIUM_OBJECT_POSITION = { x: 0.5, y: 1 } as const;
+
+/** 0~1 정규화 좌표 (원본 1536×1024 픽셀 기준) */
 export interface ImagePoint {
   x: number;
   y: number;
@@ -14,7 +17,6 @@ export interface ImagePoint {
 
 /**
  * 야구장 PNG 위 베이스·홈플레이트 위치 (1536×1024 기준)
- * — 홈(아웃), 1·2·3루 베이스, 중견 홈런
  */
 export const BASE_IMAGE_POINTS: Record<PredictionOption, ImagePoint> = {
   아웃: { x: 0.5, y: 0.845 },
@@ -27,7 +29,11 @@ export const BASE_IMAGE_POINTS: Record<PredictionOption, ImagePoint> = {
 export const HOME_PLATE_IMAGE = BASE_IMAGE_POINTS.아웃;
 export const PITCHER_MOUND_IMAGE: ImagePoint = { x: 0.5, y: 0.535 };
 
-/** object-contain + object-position 과 동일한 좌표 변환 */
+const IMAGE_ASPECT = STADIUM_IMAGE.width / STADIUM_IMAGE.height;
+
+/**
+ * 중앙 3:2 이미지(높이 100%) + 좌우 미러 여백 레이아웃 좌표 변환
+ */
 export function stadiumImagePointToPx(
   point: ImagePoint,
   containerW: number,
@@ -38,19 +44,33 @@ export function stadiumImagePointToPx(
   }
 
   const { width: iw, height: ih } = STADIUM_IMAGE;
-  const scale = Math.min(containerW / iw, containerH / ih);
-  const renderedW = iw * scale;
-  const renderedH = ih * scale;
-  const offsetX = STADIUM_OBJECT_POSITION.x * (containerW - renderedW);
-  const offsetY = STADIUM_OBJECT_POSITION.y * (containerH - renderedH);
+  const imageAspect = iw / ih;
+  const containerAspect = containerW / containerH;
+
+  let contentW: number;
+  let contentH: number;
+  let offsetX: number;
+  let offsetY: number;
+
+  if (containerAspect >= imageAspect) {
+    contentH = containerH;
+    contentW = containerH * imageAspect;
+    offsetX = (containerW - contentW) / 2;
+    offsetY = 0;
+  } else {
+    contentW = containerW;
+    contentH = containerW / imageAspect;
+    offsetX = 0;
+    offsetY = (containerH - contentH) / 2;
+  }
 
   return {
-    left: offsetX + point.x * renderedW,
-    top: offsetY + point.y * renderedH,
+    left: offsetX + point.x * contentW,
+    top: offsetY + point.y * contentH,
   };
 }
 
-/** @deprecated contain 기준으로 통일 — stadiumImagePointToPx 사용 */
+/** @deprecated stadiumImagePointToPx 사용 */
 export const coverImagePointToPx = stadiumImagePointToPx;
 
 export function stadiumImagePointToPercent(
@@ -65,7 +85,6 @@ export function stadiumImagePointToPercent(
   };
 }
 
-/** 주루 경로 (홈 출발) */
 export function getRunPathImagePoints(target: PredictionOption): ImagePoint[] {
   const home = HOME_PLATE_IMAGE;
   const first = BASE_IMAGE_POINTS["1루"];

@@ -1,10 +1,18 @@
+import { useLayoutEffect, useRef } from "react";
 import { Home, User, ShoppingBag, BookOpen } from "lucide-react";
 
 export type GameMenuAction = "home" | "story" | "mall" | "info";
 
+export interface SubmenuAnchor {
+  top: number;
+  left: number;
+  height: number;
+}
+
 interface GameLeftMenuProps {
   activePanel: GameMenuAction | null;
   onSelect: (action: GameMenuAction) => void;
+  onSubmenuAnchor?: (anchor: SubmenuAnchor | null) => void;
 }
 
 const ITEMS: { id: GameMenuAction; label: string; Icon: typeof Home }[] = [
@@ -14,17 +22,61 @@ const ITEMS: { id: GameMenuAction; label: string; Icon: typeof Home }[] = [
   { id: "info", label: "내정보", Icon: User },
 ];
 
-export default function GameLeftMenu({ activePanel, onSelect }: GameLeftMenuProps) {
+const SUBMENU_PANELS = new Set<GameMenuAction>(["story", "info"]);
+
+export default function GameLeftMenu({
+  activePanel,
+  onSelect,
+  onSubmenuAnchor,
+}: GameLeftMenuProps) {
+  const storyRef = useRef<HTMLButtonElement>(null);
+  const infoRef = useRef<HTMLButtonElement>(null);
+
+  useLayoutEffect(() => {
+    if (!onSubmenuAnchor) return;
+
+    const updateAnchor = () => {
+      if (!activePanel || !SUBMENU_PANELS.has(activePanel)) {
+        onSubmenuAnchor(null);
+        return;
+      }
+
+      const el =
+        activePanel === "story"
+          ? storyRef.current
+          : activePanel === "info"
+            ? infoRef.current
+            : null;
+      if (!el) {
+        onSubmenuAnchor(null);
+        return;
+      }
+
+      const rect = el.getBoundingClientRect();
+      onSubmenuAnchor({
+        top: rect.top,
+        left: rect.right + 6,
+        height: rect.height,
+      });
+    };
+
+    updateAnchor();
+    window.addEventListener("resize", updateAnchor);
+    return () => window.removeEventListener("resize", updateAnchor);
+  }, [activePanel, onSubmenuAnchor]);
+
   return (
     <nav
-      className="absolute left-0 top-0 bottom-0 z-30 flex flex-col items-center justify-center gap-2.5 py-3 px-1.5 w-[52px] sm:w-[56px] pointer-events-auto"
+      className="absolute left-0 top-0 bottom-0 z-30 flex flex-col items-center justify-center gap-2.5 py-3 px-1.5 w-[52px] sm:w-[56px] pointer-events-auto translate-y-6 sm:translate-y-7"
       data-testid="game-left-menu"
     >
       {ITEMS.map(({ id, label, Icon }) => {
         const active = activePanel === id;
+        const ref = id === "story" ? storyRef : id === "info" ? infoRef : undefined;
         return (
           <button
             key={id}
+            ref={ref}
             type="button"
             data-testid={`game-menu-${id}`}
             onClick={() => onSelect(id)}
