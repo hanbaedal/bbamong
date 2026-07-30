@@ -19,6 +19,9 @@ const titleShadow = "drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]";
 const clickable =
   "hover:text-[#CDFF00] transition-colors underline-offset-2 hover:underline cursor-pointer";
 
+/** compact 스코어표 1행 높이 — 한 칸 아래 이동 */
+const scorePanelTop = "top-[calc(0.375rem+1.35rem)] sm:top-[calc(0.5rem+1.35rem)]";
+
 export default function GameTopScorePanel({
   matchTitle,
   stadiumName,
@@ -34,9 +37,9 @@ export default function GameTopScorePanel({
   const displayStadiumName = stadiumName.trim() || null;
   return (
     <>
-      {/* 상단 중앙: 제 N경기 + 경기장 이름 (시안) */}
+      {/* 상단 중앙: 제 N경기 + 경기장 이름 — 바깥(좌)으로 약 1글자 */}
       <div
-        className="absolute top-2 sm:top-2.5 left-1/2 -translate-x-1/2 z-20 text-center text-white pointer-events-none max-w-[55%]"
+        className="absolute top-2 sm:top-2.5 left-1/2 z-20 text-center text-white pointer-events-none max-w-[50%] -translate-x-[calc(50%+1ch)]"
         data-testid="game-match-header"
       >
         {matchSelectEnabled && onMatchTitleClick ? (
@@ -62,14 +65,14 @@ export default function GameTopScorePanel({
             <button
               type="button"
               onClick={onStadiumNameClick}
-              className={`pointer-events-auto block w-full mt-0.5 text-xs sm:text-sm font-normal text-white/95 whitespace-nowrap ${titleShadow} ${clickable}`}
+              className={`pointer-events-auto block w-full mt-0.5 text-xs sm:text-sm font-normal text-white whitespace-nowrap ${titleShadow} ${clickable}`}
               data-testid="game-stadium-name"
             >
               {displayStadiumName}
             </button>
           ) : (
             <p
-              className={`mt-0.5 text-xs sm:text-sm font-normal text-white/95 whitespace-nowrap ${titleShadow}`}
+              className={`mt-0.5 text-xs sm:text-sm font-normal text-white whitespace-nowrap ${titleShadow}`}
               data-testid="game-stadium-name"
             >
               {displayStadiumName}
@@ -78,25 +81,30 @@ export default function GameTopScorePanel({
         ) : null}
       </div>
 
-      {/* 우측 상단: 스코어보드 */}
+      {/* 우측: 스코어보드 + n번째 타자 (한 칸 아래, 함께 이동) */}
       <div
-        className="absolute top-1.5 right-1 sm:top-2 sm:right-1.5 z-20 origin-top-right scale-[0.68] sm:scale-[0.72]"
+        className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-1 sm:gap-1.5 ${scorePanelTop}`}
         data-testid="game-top-score-panel"
       >
-        {isLoading ? (
-          <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
-        ) : (
-          <LineScoreTableLandscape scoreboard={scoreboard} className="max-w-full" compact battingHalf={battingHalf} />
-        )}
+        <div className="origin-top-right scale-[0.68] sm:scale-[0.72]">
+          {isLoading ? (
+            <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
+          ) : (
+            <LineScoreTableLandscape
+              scoreboard={scoreboard}
+              className="max-w-full"
+              compact
+              battingHalf={battingHalf}
+            />
+          )}
+        </div>
+        <p
+          className={`text-sm sm:text-base font-bold text-white whitespace-nowrap pr-0.5 ${titleShadow}`}
+          data-testid="game-batter-text"
+        >
+          {batterText}
+        </p>
       </div>
-
-      {/* 우측 관중석 위: n번째 타자 (시안) */}
-      <p
-        className={`absolute right-[4%] sm:right-[5%] top-[22%] sm:top-[24%] z-20 text-sm sm:text-base font-bold text-white whitespace-nowrap ${titleShadow}`}
-        data-testid="game-batter-text"
-      >
-        {batterText}
-      </p>
     </>
   );
 }

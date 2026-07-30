@@ -123,11 +123,9 @@ export default function LandscapeGameShell({
 
   return (
     <div
-      className="fixed inset-0 w-[100dvw] h-[100dvh] overflow-hidden bg-black flex flex-row"
+      className="fixed inset-0 w-[100dvw] h-[100dvh] overflow-hidden bg-black"
       data-testid="landscape-game-shell"
     >
-      <GameLeftMenu activePanel={activePanel} onSelect={onMenuSelect} />
-
       <GameFieldViewport>
         {matchesLoading ? (
           <div className="absolute inset-0 flex items-center justify-center z-10">
@@ -203,6 +201,8 @@ export default function LandscapeGameShell({
           </>
         )}
       </GameFieldViewport>
+
+      <GameLeftMenu activePanel={activePanel} onSelect={onMenuSelect} />
 
       {((showAdOverlay && !isNativePlatform) ||
         (isNativePlatform &&
