@@ -1,26 +1,52 @@
-type PredictionOption = "1루" | "2루" | "3루" | "홈런" | "아웃";
+import type { PredictionOption } from "./gameTypes";
+import { FIELD_LABEL_TEXT, FIELD_POSITIONS } from "./fieldPositions";
 
-const FIELD_LABELS: { key: PredictionOption; label: string; className: string }[] = [
-  { key: "홈런", label: "홈런", className: "left-[58%] top-[18%]" },
-  { key: "3루", label: "3", className: "left-[72%] top-[38%]" },
-  { key: "2루", label: "2", className: "left-[58%] top-[48%]" },
-  { key: "1루", label: "1", className: "left-[72%] top-[58%]" },
-  { key: "아웃", label: "아웃", className: "left-[50%] top-[68%]" },
-];
+interface GameFieldLabelsProps {
+  visible: boolean;
+  interactive: boolean;
+  selectedPrediction: PredictionOption | null;
+  highlightPrediction: PredictionOption | null;
+  blinkPrediction: PredictionOption | null;
+  onSelect?: (option: PredictionOption) => void;
+}
 
-/** 1차: 위치·스타일만 (탭 예측 제출은 다음 단계) */
-export default function GameFieldLabels() {
+const OPTIONS: PredictionOption[] = ["홈런", "3루", "2루", "1루", "아웃"];
+
+export default function GameFieldLabels({
+  visible,
+  interactive,
+  selectedPrediction,
+  highlightPrediction,
+  blinkPrediction,
+  onSelect,
+}: GameFieldLabelsProps) {
+  if (!visible) return null;
+
   return (
-    <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-      {FIELD_LABELS.map((item) => (
-        <span
-          key={item.key}
-          className={`absolute -translate-x-1/2 -translate-y-1/2 text-[#E11936] font-bold text-lg sm:text-xl md:text-2xl drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${item.className}`}
-          data-testid={`field-label-${item.key}`}
-        >
-          {item.label}
-        </span>
-      ))}
+    <div
+      className={`absolute inset-0 z-10 ${interactive ? "pointer-events-auto" : "pointer-events-none"}`}
+      aria-hidden={!interactive}
+    >
+      {OPTIONS.map((key) => {
+        const pos = FIELD_POSITIONS[key];
+        const isSelected = selectedPrediction === key || highlightPrediction === key;
+        const isBlink = blinkPrediction === key;
+        return (
+          <button
+            key={key}
+            type="button"
+            disabled={!interactive}
+            onClick={() => onSelect?.(key)}
+            className={`absolute -translate-x-1/2 -translate-y-1/2 font-bold text-lg sm:text-xl md:text-2xl drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] transition-transform ${
+              isSelected ? "text-[#FFE566] scale-110" : "text-[#E11936]"
+            } ${isBlink ? "animate-label-blink" : ""} ${interactive ? "cursor-pointer hover:scale-110 active:scale-95" : ""}`}
+            style={{ left: pos.left, top: pos.top }}
+            data-testid={`field-label-${key}`}
+          >
+            {FIELD_LABEL_TEXT[key]}
+          </button>
+        );
+      })}
     </div>
   );
 }

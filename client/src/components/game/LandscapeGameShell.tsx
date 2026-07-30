@@ -3,7 +3,15 @@ import GameLeftMenu, { type GameMenuAction } from "./GameLeftMenu";
 import GameTopScorePanel from "./GameTopScorePanel";
 import GameFieldLabels from "./GameFieldLabels";
 import GameMenuPanel from "./GameMenuPanel";
+import GameCharacterLayer from "./GameCharacterLayer";
+import GameConfetti from "./GameConfetti";
+import GameBetModal from "./GameBetModal";
+import GameResultBanner from "./GameResultBanner";
+import ConfirmPopup from "@/components/customUi/confirmPopup";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import type { GameScreenPhase, PredictionOption } from "./gameTypes";
+import { calculateFixedOddsPayout, type BetAmountOption } from "@shared/predictionOdds";
+import "./gameAnimations.css";
 
 interface LandscapeGameShellProps {
   matchTitle: string;
@@ -18,6 +26,24 @@ interface LandscapeGameShellProps {
   todayStats?: { total: number; wins: number };
   statsLoading?: boolean;
   emptyMessage?: string;
+  screenPhase: GameScreenPhase;
+  selectedPrediction: PredictionOption | null;
+  labelsVisible: boolean;
+  labelsInteractive: boolean;
+  blinkPrediction: PredictionOption | null;
+  onFieldSelect: (option: PredictionOption) => void;
+  showBetModal: boolean;
+  selectedBetAmount: BetAmountOption;
+  onBetAmountChange: (amount: BetAmountOption) => void;
+  onBetModalCancel: () => void;
+  onBetNext: () => void;
+  showConfirmModal: boolean;
+  onConfirmCancel: () => void;
+  onConfirmSubmit: () => void;
+  onRunComplete: () => void;
+  lastWonAmount: number;
+  lastBetAmount: number;
+  resultCountdown: number | null;
 }
 
 export default function LandscapeGameShell({
@@ -33,6 +59,24 @@ export default function LandscapeGameShell({
   todayStats,
   statsLoading,
   emptyMessage,
+  screenPhase,
+  selectedPrediction,
+  labelsVisible,
+  labelsInteractive,
+  blinkPrediction,
+  onFieldSelect,
+  showBetModal,
+  selectedBetAmount,
+  onBetAmountChange,
+  onBetModalCancel,
+  onBetNext,
+  showConfirmModal,
+  onConfirmCancel,
+  onConfirmSubmit,
+  onRunComplete,
+  lastWonAmount,
+  lastBetAmount,
+  resultCountdown,
 }: LandscapeGameShellProps) {
   const storyLinks = [
     { label: "승리현황", href: "/victory-history", testId: "link-victory-history" },
@@ -46,6 +90,11 @@ export default function LandscapeGameShell({
     { label: "서비스 이용약관", href: "/terms", testId: "link-terms" },
     { label: "고객센터", href: "/customer-center", testId: "link-customer-center" },
   ];
+
+  const confirmPayout =
+    selectedPrediction != null
+      ? calculateFixedOddsPayout(selectedBetAmount, selectedPrediction)
+      : 0;
 
   return (
     <div
@@ -80,7 +129,33 @@ export default function LandscapeGameShell({
               scoreboard={scoreboard}
               isLoading={scoreLoading}
             />
-            <GameFieldLabels />
+
+            <GameFieldLabels
+              visible={labelsVisible}
+              interactive={labelsInteractive}
+              selectedPrediction={selectedPrediction}
+              highlightPrediction={null}
+              blinkPrediction={blinkPrediction}
+              onSelect={onFieldSelect}
+            />
+
+            <GameCharacterLayer
+              phase={screenPhase}
+              selectedPrediction={selectedPrediction}
+              onRunComplete={onRunComplete}
+            />
+
+            <GameConfetti active={screenPhase === "success_celebrate"} />
+
+            {(screenPhase === "success_celebrate" || screenPhase === "fail") && (
+              <GameResultBanner
+                phase={screenPhase}
+                prediction={selectedPrediction}
+                betAmount={lastBetAmount}
+                wonAmount={lastWonAmount}
+                countdown={resultCountdown}
+              />
+            )}
           </>
         )}
       </div>
@@ -93,6 +168,31 @@ export default function LandscapeGameShell({
         todayStats={todayStats}
         statsLoading={statsLoading}
       />
+
+      {showBetModal && selectedPrediction && (
+        <GameBetModal
+          open={showBetModal}
+          prediction={selectedPrediction}
+          betAmount={selectedBetAmount}
+          onBetAmountChange={onBetAmountChange}
+          onCancel={onBetModalCancel}
+          onNext={onBetNext}
+        />
+      )}
+
+      {showConfirmModal && selectedPrediction && (
+        <ConfirmPopup
+          title="예측 확인"
+          details={[
+            { label: "예측", value: selectedPrediction },
+            { label: "배팅", value: `${selectedBetAmount}P` },
+          ]}
+          footerLabel="적중 시 예상"
+          footerValue={`${confirmPayout}P`}
+          onCancel={onConfirmCancel}
+          onConfirm={onConfirmSubmit}
+        />
+      )}
     </div>
   );
 }

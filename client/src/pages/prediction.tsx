@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import LandscapeGameShell from "@/components/game/LandscapeGameShell";
 import type { GameMenuAction } from "@/components/game/GameLeftMenu";
 import { useUser } from "@/contexts/UserContext";
 import { apiRequest } from "@/lib/queryClient";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
-import { useMatchWebSocket } from "@/hooks/useMatchWebSocket";
+import { useLandscapePredictionFlow } from "@/hooks/useLandscapePredictionFlow";
 import { lockGameLandscape, unlockGameLandscape } from "@/lib/gameOrientation";
 import { navigateToHome, openMallFromApp } from "@/lib/appNavigation";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
@@ -17,6 +17,7 @@ interface MatchData {
   stadiumName: string;
   startTime: string;
   matchStatus: string;
+  predictionEnabled?: boolean;
 }
 
 interface GamePhasePayload {
@@ -96,6 +97,11 @@ export default function PredictionPage() {
     }
   }, [selectedMatch, selectedMatchId]);
 
+  const flow = useLandscapePredictionFlow(selectedMatch, {
+    onScoreboardUpdate: setLiveScoreboard,
+    onGamePhaseUpdate: (phase) => setGamePhase(phase as GamePhasePayload),
+  });
+
   const { data: scoreboardData, isLoading: scoreLoading } = useLiveScoreboard(
     selectedMatch?.id ?? null,
     {
@@ -136,24 +142,6 @@ export default function PredictionPage() {
       clearInterval(id);
     };
   }, [selectedMatch?.id, shouldPollPhase]);
-
-  const handleScoreboardUpdate = useCallback((data: { scoreboard?: LiveScoreboard }) => {
-    if (data?.scoreboard) setLiveScoreboard(data.scoreboard);
-  }, []);
-
-  const handleRoundNext = useCallback((data: { gamePhase?: GamePhasePayload }) => {
-    if (data?.gamePhase) setGamePhase(data.gamePhase);
-  }, []);
-
-  useMatchWebSocket({
-    matchId: selectedMatch?.id ?? null,
-    userId: user?.id ?? null,
-    autoConnect: Boolean(selectedMatch?.id && user),
-    handlers: {
-      onScoreboardUpdate: handleScoreboardUpdate,
-      onRoundNext: handleRoundNext,
-    },
-  });
 
   const { data: predictionStats, isLoading: statsLoading } = useQuery<{
     statistics: { today?: { total: number; wins: number } };
@@ -199,6 +187,27 @@ export default function PredictionPage() {
       todayStats={predictionStats?.statistics?.today}
       statsLoading={statsLoading}
       emptyMessage={emptyMessage}
+      screenPhase={flow.screenPhase}
+      selectedPrediction={flow.selectedPrediction}
+      labelsVisible={flow.labelsVisible}
+      labelsInteractive={flow.labelsInteractive}
+      blinkPrediction={flow.blinkPrediction}
+      onFieldSelect={flow.handleFieldSelect}
+      showBetModal={flow.showBetModal}
+      selectedBetAmount={flow.selectedBetAmount}
+      onBetAmountChange={flow.setSelectedBetAmount}
+      onBetModalCancel={() => {
+        flow.setShowBetModal(false);
+        flow.handleConfirmCancel();
+      }}
+      onBetNext={flow.handleBetNext}
+      showConfirmModal={flow.showConfirmModal}
+      onConfirmCancel={flow.handleConfirmCancel}
+      onConfirmSubmit={() => void flow.handleConfirmSubmit()}
+      onRunComplete={flow.handleRunComplete}
+      lastWonAmount={flow.lastWonAmount}
+      lastBetAmount={flow.lastBetAmount}
+      resultCountdown={flow.resultCountdown}
     />
   );
 }
