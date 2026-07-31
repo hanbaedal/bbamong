@@ -9,9 +9,8 @@ import { UserAssetProvider } from "@/contexts/UserAssetContext";
 import { clearTokens } from "@/lib/tokenManager";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
-import splashIntroMascot from "@assets/user/user-mascot-intro.png";
+import IntroSplash, { INTRO_SPLASH_MS } from "@/components/user/IntroSplash";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
-import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
 import "@/styles/user-landscape.css";
 import GameEmbedBootstrap from "@/components/GameEmbedBootstrap";
 import GameOrientationManager from "@/components/game/GameOrientationManager";
@@ -49,9 +48,6 @@ import NotFound from "@/pages/not-found";
 import { completeLoginNavigation, openMallFromApp, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
 
-const LOGIN_WELCOME_MS = 3500;
-const INTRO_JINGLE_SRC = "/audio/intro-jingle.mp3";
-
 type LoginBootstrapPhase = "checking" | "welcome" | "ready";
 
 function LegacyMallRedirect({ target }: { target: string }) {
@@ -66,52 +62,6 @@ function BootstrapLoading() {
     <div className="fixed inset-0 bg-[#111111] flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
     </div>
-  );
-}
-
-function LoginWelcomeSplash() {
-  useEffect(() => {
-    const audio = new Audio(INTRO_JINGLE_SRC);
-    audio.volume = 0.55;
-    audio.preload = "auto";
-
-    const stopTimer = window.setTimeout(() => {
-      audio.pause();
-    }, LOGIN_WELCOME_MS);
-
-    void audio.play().catch(() => {
-      // 일부 기기/WebView는 자동재생이 차단될 수 있음 — 무음으로 인트로 진행
-    });
-
-    return () => {
-      window.clearTimeout(stopTimer);
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
-    };
-  }, []);
-
-  return (
-    <LandscapeSplitShell
-      testId="intro-splash"
-      left={
-        <img
-          src={splashIntroMascot}
-          alt="PPAMONG"
-          className="user-landscape-mascot user-landscape-mascot--intro user-landscape-mascot--bounce"
-          data-testid="img-intro-mascot"
-        />
-      }
-      right={
-        <div className="user-landscape-intro-right">
-          <p className="user-landscape-intro-text" data-testid="text-intro-welcome">
-            실시간 야구 진루 예측게임
-            <br />
-            PPAMONG에 오신 걸 환영합니다.
-          </p>
-        </div>
-      }
-    />
   );
 }
 
@@ -161,7 +111,7 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           setLoginPhase("ready");
         }
-      }, LOGIN_WELCOME_MS);
+      }, INTRO_SPLASH_MS);
     };
 
     void bootstrapLogin();
@@ -179,7 +129,7 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
   }
 
   if (isLoginPath && loginPhase === "welcome") {
-    return <LoginWelcomeSplash />;
+    return <IntroSplash />;
   }
 
   return <>{children}</>;

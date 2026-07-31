@@ -15,6 +15,8 @@ import GameAdOverlay from "./GameAdOverlay";
 import ConfirmPopup from "@/components/customUi/confirmPopup";
 import type { AdSessionState } from "@/hooks/useAdMob";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import type { GameDayPhase } from "@/lib/gameDayPhase";
+import type { PregameCountdownDisplay } from "./GameTopScorePanel";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import { calculateFixedOddsPayout, type BetAmountOption } from "@shared/predictionOdds";
 import "./gameAnimations.css";
@@ -60,6 +62,8 @@ interface LandscapeGameShellProps {
   matchSelectEnabled?: boolean;
   stadiumSelectEnabled?: boolean;
   inningHalf?: "top" | "bottom";
+  gameDayPhase?: GameDayPhase;
+  pregameCountdown?: PregameCountdownDisplay | null;
 }
 
 export default function LandscapeGameShell({
@@ -103,6 +107,8 @@ export default function LandscapeGameShell({
   matchSelectEnabled,
   stadiumSelectEnabled,
   inningHalf,
+  gameDayPhase = "live",
+  pregameCountdown = null,
 }: LandscapeGameShellProps) {
   const storyLinks = [
     { label: "승리현황", href: "/victory-history", testId: "link-victory-history" },
@@ -157,6 +163,7 @@ export default function LandscapeGameShell({
               onStadiumNameClick={onStadiumNameClick}
               matchSelectEnabled={matchSelectEnabled}
               stadiumSelectEnabled={stadiumSelectEnabled}
+              pregameCountdown={pregameCountdown}
             />
 
             <GameFieldLabels
@@ -175,13 +182,12 @@ export default function LandscapeGameShell({
 
             <GameCharacterLayer
               phase={screenPhase}
+              gameDayPhase={gameDayPhase}
               selectedPrediction={selectedPrediction}
               onRunComplete={onRunComplete}
             />
 
             <GameConfetti active={screenPhase === "success_celebrate"} />
-
-            <GameBottomStatusBar />
 
             {(screenPhase === "success_celebrate" || screenPhase === "fail") && (
               <GameResultBanner
@@ -210,6 +216,8 @@ export default function LandscapeGameShell({
           </>
         )}
       </GameFieldViewport>
+
+      <GameBottomStatusBar />
 
       <GameLeftMenu
         activePanel={activePanel}

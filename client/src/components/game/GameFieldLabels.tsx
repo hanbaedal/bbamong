@@ -26,7 +26,7 @@ export default function GameFieldLabels({
 
   return (
     <div
-      className={`absolute inset-0 z-10 ${interactive ? "pointer-events-auto" : "pointer-events-none"}`}
+      className="absolute inset-0 z-10 pointer-events-none"
       aria-hidden={!interactive}
     >
       {OPTIONS.map((key) => {
@@ -38,7 +38,7 @@ export default function GameFieldLabels({
               type="button"
               disabled={!interactive}
               onClick={() => onSelect?.(key)}
-              className={`min-w-[2.75rem] sm:min-w-[3.25rem] rounded-full border-2 px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.55)] transition-transform ${
+              className={`pointer-events-auto min-w-[2.75rem] sm:min-w-[3.25rem] rounded-full border-2 px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.55)] transition-transform ${
                 isSelected || isBlink
                   ? "border-[#E11936] bg-[#E11936]/90 text-white scale-110"
                   : "border-[#FFE566] bg-black/75 text-[#FFE566]"

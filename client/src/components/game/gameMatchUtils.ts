@@ -31,12 +31,29 @@ export function sortMatchesByOrder<T extends { name: string }>(matches: T[]): T[
 }
 
 /** 시작 1분 전 ~ 종료 전, 또는 진행 중인 경기만 참여 가능 */
-export function filterJoinableMatches(matches: GameMatchItem[]): GameMatchItem[] {
-  return matches.filter((m) => shouldClientPollMatch(m.startTime, m.matchStatus));
+export function filterJoinableMatches(
+  matches: GameMatchItem[],
+  nowMs = Date.now(),
+): GameMatchItem[] {
+  return matches.filter((m) => shouldClientPollMatch(m.startTime, m.matchStatus, undefined, nowMs));
 }
 
-export function pickDefaultMatch(matches: GameMatchItem[]): GameMatchItem | null {
-  const joinable = filterJoinableMatches(matches);
+/** 시작 시각이 가장 빠른 scheduled 경기 */
+export function pickNextScheduledMatch(matches: GameMatchItem[]): GameMatchItem | null {
+  const scheduled = matches.filter(
+    (m) => m.matchStatus === "scheduled" && m.startTime,
+  );
+  if (scheduled.length === 0) return null;
+  return [...scheduled].sort(
+    (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+  )[0] ?? null;
+}
+
+export function pickDefaultMatch(
+  matches: GameMatchItem[],
+  nowMs = Date.now(),
+): GameMatchItem | null {
+  const joinable = filterJoinableMatches(matches, nowMs);
   if (joinable.length === 0) return null;
   const ongoing = joinable.filter((m) => m.matchStatus === "ongoing");
   if (ongoing.length > 0) return sortMatchesByOrder(ongoing)[0] ?? null;
@@ -64,7 +81,8 @@ export function collectStadiumOptions(matches: GameMatchItem[]): StadiumOption[]
 export function pickFirstMatchAtStadium(
   matches: GameMatchItem[],
   stadiumId: number,
+  nowMs = Date.now(),
 ): GameMatchItem | null {
   const atStadium = matches.filter((m) => m.stadiumId === stadiumId);
-  return pickDefaultMatch(atStadium);
+  return pickDefaultMatch(atStadium, nowMs);
 }

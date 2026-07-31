@@ -137,7 +137,7 @@ export default function AppHomeSettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>경기 참여 버튼 문구</Label>
+                <Label>예측게임 버튼 문구</Label>
                 <Input
                   value={settingsForm.buttonText}
                   onChange={(e) =>
@@ -157,7 +157,7 @@ export default function AppHomeSettingsPage() {
                   checked={settingsForm.buttonEnabled}
                   onCheckedChange={(v) => setSettingsForm({ ...settingsForm, buttonEnabled: !!v })}
                 />
-                <span className="text-sm">경기 참여 버튼 표시</span>
+                <span className="text-sm">예측게임 버튼 표시</span>
               </label>
               <Button type="submit" className="bg-[#E11936] hover:bg-[#B71C1C] lg:col-span-2">
                 저장

@@ -2,6 +2,11 @@ import LineScoreTableLandscape from "./LineScoreTableLandscape";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 
+export interface PregameCountdownDisplay {
+  remainingLabel: string;
+  startTimeLabel: string;
+}
+
 interface GameTopScorePanelProps {
   matchTitle: string;
   stadiumName: string;
@@ -13,6 +18,7 @@ interface GameTopScorePanelProps {
   onStadiumNameClick?: () => void;
   matchSelectEnabled?: boolean;
   stadiumSelectEnabled?: boolean;
+  pregameCountdown?: PregameCountdownDisplay | null;
 }
 
 const titleShadow = "drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]";
@@ -33,6 +39,7 @@ export default function GameTopScorePanel({
   onStadiumNameClick,
   matchSelectEnabled = false,
   stadiumSelectEnabled = false,
+  pregameCountdown = null,
 }: GameTopScorePanelProps) {
   const displayStadiumName = stadiumName.trim() || null;
   return (
@@ -78,6 +85,26 @@ export default function GameTopScorePanel({
               {displayStadiumName}
             </p>
           )
+        ) : null}
+
+        {pregameCountdown ? (
+          <div className="mt-1 sm:mt-1.5 pointer-events-none" data-testid="game-pregame-countdown">
+            <p className={`text-[10px] sm:text-xs text-white/85 ${titleShadow}`}>
+              경기 시작까지
+            </p>
+            <p
+              className={`text-base sm:text-lg font-bold tabular-nums text-[#CDFF00] leading-tight ${titleShadow}`}
+              data-testid="game-pregame-countdown-remaining"
+            >
+              {pregameCountdown.remainingLabel}
+            </p>
+            <p
+              className={`text-[10px] sm:text-xs text-white/75 ${titleShadow}`}
+              data-testid="game-pregame-countdown-start"
+            >
+              {pregameCountdown.startTimeLabel} 개막
+            </p>
+          </div>
         ) : null}
       </div>
 

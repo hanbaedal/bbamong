@@ -1,13 +1,17 @@
 import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, ShoppingBag } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
+import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import { getFullUrl } from "@/lib/queryClient";
 import { navigateToMall } from "@/lib/appNavigation";
 import { resolveShopSectionTitle } from "@/lib/shopBranding";
+import { clearGuestSessionArtifacts } from "@/lib/shopRoutes";
 import "@/styles/user-landscape.css";
 
 interface HomePageSettings {
@@ -26,8 +30,9 @@ interface HomePageContent {
 
 export default function HomePage() {
   const [, setLocation] = useLocation();
-  const { user } = useUser();
+  const { user, logout } = useUser();
   const { assets } = useUserAssets();
+  const [showLogoutPopup, setShowLogoutPopup] = useState(false);
 
   const { data: content } = useQuery<HomePageContent>({
     queryKey: ["/api/homepage/content"],
@@ -42,13 +47,25 @@ export default function HomePage() {
   const settings = content?.settings;
   const goodsSectionEnabled = settings?.goodsSectionEnabled ?? true;
   const greetingPrefix = settings?.greetingPrefix ?? "안녕하세요";
-  const buttonText = settings?.buttonText ?? "게임하러가기";
+  const buttonText = useMemo(() => {
+    const raw = settings?.buttonText ?? "예측게임 하러가기";
+    if (raw === "경기 참여하기" || raw === "게임하러가기") return "예측게임 하러가기";
+    return raw;
+  }, [settings?.buttonText]);
   const buttonEnabled = settings?.buttonEnabled ?? true;
   const gameGuideEnabled = settings?.gameGuideEnabled ?? true;
   const gameGuideTitle = settings?.gameGuideTitle ?? "야구 예측 게임이란?";
   const mallLabel = resolveShopSectionTitle(settings?.goodsSectionTitle);
 
   const goToGame = () => setLocation("/prediction");
+
+  const handleLogout = async () => {
+    clearGuestSessionArtifacts();
+    const result = await logout();
+    if (!result.nativeHandled) {
+      setLocation("/login?guest=0");
+    }
+  };
 
   const menuItems: Array<{
     id: string;
@@ -62,7 +79,7 @@ export default function HomePage() {
       id: "game-guide",
       label: gameGuideTitle,
       onClick: () => setLocation("/home/game-guide"),
-      icon: <img src={assets.predictionActiveLogo} alt="" />,
+      icon: <img src={assets.userMascotGuideIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     });
   }
 
@@ -71,13 +88,13 @@ export default function HomePage() {
       id: "user-guide",
       label: "사용 설명서",
       onClick: () => setLocation("/home/guide"),
-      icon: <img src={assets.qnaIcon} alt="" />,
+      icon: <img src={assets.homeMenuManualIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
     {
       id: "simulation",
       label: "게임 시뮬레이션",
       onClick: () => setLocation("/home/simulation"),
-      icon: <img src={assets.videoImg} alt="" />,
+      icon: <img src={assets.homeMenuSimulationIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
   );
 
@@ -86,7 +103,7 @@ export default function HomePage() {
       id: "mall",
       label: mallLabel,
       onClick: () => navigateToMall(),
-      icon: <ShoppingBag className="w-full h-full text-[#CDFF00]" strokeWidth={2} aria-hidden />,
+      icon: <ShoppingBag className="w-full h-full text-[#CCF501]" strokeWidth={2} aria-hidden />,
     });
   }
 
@@ -100,7 +117,7 @@ export default function HomePage() {
               type="button"
               onClick={goToGame}
               className="user-home-mascot-btn"
-              aria-label="게임하러 가기"
+              aria-label="예측게임 하러가기"
               data-testid="button-mascot-game"
             >
               <img src={assets.mainLogo} alt="" className="user-landscape-mascot" />
@@ -121,15 +138,26 @@ export default function HomePage() {
       }
       right={
         <div className="user-home-right">
-          <p className="user-home-greeting-top" data-testid="text-home-greeting">
-            {greetingPrefix}
-            {user ? (
-              <>
-                {" "}
-                <span className="user-home-greeting-name">{user.name}님</span>
-              </>
-            ) : null}
-          </p>
+          <div className="user-home-greeting-row">
+            <p className="user-home-greeting-top" data-testid="text-home-greeting">
+              {greetingPrefix}
+              {user ? (
+                <>
+                  {" "}
+                  <span className="user-home-greeting-name">{user.name}님</span>
+                </>
+              ) : null}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowLogoutPopup(true)}
+              className="user-home-logout-btn"
+              aria-label="로그아웃"
+              data-testid="button-home-logout"
+            >
+              <img src={assets.logoutActiveIcon} alt="" />
+            </button>
+          </div>
           <nav className="user-landscape-menu" aria-label="홈 메뉴">
             {menuItems.map((item) => (
               <button
@@ -145,6 +173,20 @@ export default function HomePage() {
               </button>
             ))}
           </nav>
+          {showLogoutPopup &&
+            createPortal(
+              <SimpleConfirmPopup
+                message="로그아웃 하시겠어요?"
+                leftButtonText="취소"
+                rightButtonText="로그아웃"
+                onLeftClick={() => setShowLogoutPopup(false)}
+                onRightClick={async () => {
+                  setShowLogoutPopup(false);
+                  await handleLogout();
+                }}
+              />,
+              document.body,
+            )}
         </div>
       }
     />
