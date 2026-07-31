@@ -46,6 +46,7 @@ import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
 import { completeLoginNavigation, openMallFromApp, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
+import { peekSkipLoginBootstrap, shouldSkipLoginBootstrap } from "@/lib/loginSession";
 
 type LoginBootstrapPhase = "checking" | "ready";
 
@@ -67,7 +68,10 @@ function BootstrapLoading() {
 function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const isLoginPath = location.split("?")[0] === "/login";
-  const [loginPhase, setLoginPhase] = useState<LoginBootstrapPhase>(isLoginPath ? "checking" : "ready");
+  const skipBootstrap = isLoginPath && peekSkipLoginBootstrap(location);
+  const [loginPhase, setLoginPhase] = useState<LoginBootstrapPhase>(
+    isLoginPath && !skipBootstrap ? "checking" : "ready",
+  );
   const { refetchUser } = useUser();
 
   useEffect(() => {
@@ -76,6 +80,11 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isLoginPath) {
+      setLoginPhase("ready");
+      return;
+    }
+
+    if (shouldSkipLoginBootstrap(location)) {
       setLoginPhase("ready");
       return;
     }
@@ -111,7 +120,7 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isLoginPath, setLocation, refetchUser]);
+  }, [isLoginPath, location, setLocation, refetchUser]);
 
   if (isLoginPath && loginPhase === "checking") {
     return <BootstrapLoading />;

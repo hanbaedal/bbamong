@@ -10,6 +10,7 @@ import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import { getFullUrl } from "@/lib/queryClient";
 import { navigateToMall } from "@/lib/appNavigation";
+import { USER_LOGIN_PATH } from "@/lib/loginSession";
 import { resolveShopSectionTitle } from "@/lib/shopBranding";
 import { clearGuestSessionArtifacts } from "@/lib/shopRoutes";
 import "@/styles/user-landscape.css";
@@ -63,7 +64,7 @@ export default function HomePage() {
     clearGuestSessionArtifacts();
     const result = await logout();
     if (!result.nativeHandled) {
-      setLocation("/login?guest=0");
+      setLocation(USER_LOGIN_PATH);
     }
   };
 
@@ -103,7 +104,7 @@ export default function HomePage() {
       id: "mall",
       label: mallLabel,
       onClick: () => navigateToMall(),
-      icon: <ShoppingBag className="w-full h-full text-[#CCF501]" strokeWidth={2} aria-hidden />,
+      icon: <ShoppingBag className="w-full h-full text-[#FF9500]" strokeWidth={2} aria-hidden />,
     });
   }
 

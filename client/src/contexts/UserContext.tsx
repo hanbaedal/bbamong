@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { getFullUrl, getOrRefreshAccessToken, queryClient } from "@/lib/queryClient";
 import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clearTokens } from "@/lib/tokenManager";
 import { sendLogoutToNative, isNativePlatform } from "@/lib/logoutPlugin";
+import { markPostLogout, USER_LOGIN_PATH } from "@/lib/loginSession";
 
 export interface AttendanceRecord {
   id: number;
@@ -111,7 +112,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         me: "/api/users/me",
         refresh: "/api/users/refresh",
         logout: "/api/users/logout",
-        loginPath: "/"
+        loginPath: USER_LOGIN_PATH
       };
     }
   };
@@ -260,6 +261,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const endpoints = getAuthEndpoints();
     const currentPath = window.location.pathname;
     const isUserApp = !currentPath.startsWith("/admin") && !currentPath.startsWith("/manager");
+    
+    if (isUserApp) {
+      markPostLogout();
+    }
     
     // 네이티브 앱(WebView)에서는 네이티브에게 로그아웃 신호만 전송
     // 실제 로그아웃 처리(API 호출, 토큰 삭제, 화면 전환)는 네이티브에서 수행
