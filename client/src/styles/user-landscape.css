@@ -88,7 +88,7 @@
   }
 }
 
-/* 인트로 스플래시 — 야구장 → 하늘 → 브랜드 공 */
+/* 인트로 스플래시 — 흰 바탕 · 중앙 타격 */
 .user-intro-splash {
   position: relative;
   height: 100dvh;
@@ -98,12 +98,19 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #0c1520;
+  background: #ffffff;
+  opacity: 1;
+  transition: opacity 0.4s ease;
   padding-top: var(--safe-area-inset-top, 0px);
   padding-left: max(var(--safe-area-inset-left, 0px), clamp(12px, 3vw, 24px));
   padding-right: max(var(--safe-area-inset-right, 0px), clamp(12px, 3vw, 24px));
   padding-bottom: max(var(--safe-area-inset-bottom, 0px), clamp(8px, 2vw, 16px));
   box-sizing: border-box;
+}
+
+.user-intro-splash.is-fading {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .user-intro-splash-bg {
@@ -200,7 +207,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  max-width: min(640px, 100%);
+  max-width: min(720px, 100%);
   overflow: visible;
 }
 
@@ -209,7 +216,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.35));
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.14));
 }
 
 .intro-brand-ball-svg {
@@ -292,9 +299,10 @@
 
 .intro-batting-stage {
   --intro-batting-duration: 1400ms;
+  --intro-batting-cycles: infinite;
   position: relative;
-  width: min(100%, clamp(220px, 52vw, 360px));
-  height: clamp(150px, 34vh, 240px);
+  width: min(100%, clamp(280px, 58vw, 420px));
+  height: clamp(180px, 42vh, 300px);
   flex-shrink: 0;
   overflow: visible;
 }
@@ -303,10 +311,10 @@
   position: absolute;
   left: 50%;
   bottom: 0;
-  width: clamp(150px, 34vh, 240px);
+  width: clamp(170px, 40vh, 280px);
   aspect-ratio: 90 / 240;
   transform: translateX(-50%);
-  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.12));
 }
 
 .intro-batting-sprite {
@@ -315,7 +323,7 @@
   background-repeat: no-repeat;
   background-size: 400% 100%;
   background-position: 0% 0%;
-  animation: intro-batting-swing var(--intro-batting-duration) steps(4) infinite;
+  animation: intro-batting-swing var(--intro-batting-duration) steps(4) var(--intro-batting-cycles);
 }
 
 .intro-batting-impact {
@@ -329,7 +337,7 @@
   opacity: 0;
   background: radial-gradient(circle, rgba(255, 245, 120, 0.95) 0%, rgba(255, 200, 40, 0.5) 45%, transparent 72%);
   pointer-events: none;
-  animation: intro-batting-impact var(--intro-batting-duration) linear infinite;
+  animation: intro-batting-impact var(--intro-batting-duration) linear var(--intro-batting-cycles);
 }
 
 .intro-batting-ball {
@@ -339,7 +347,16 @@
   height: clamp(52px, 11vh, 68px);
   opacity: 0;
   pointer-events: none;
-  animation: intro-batting-ball-fly var(--intro-batting-duration) linear infinite;
+  animation: intro-batting-ball-fly var(--intro-batting-duration) linear var(--intro-batting-cycles);
+}
+
+.intro-batting-stage--finite .intro-batting-sprite {
+  animation-fill-mode: forwards;
+}
+
+.intro-batting-stage--finite .intro-batting-impact,
+.intro-batting-stage--finite .intro-batting-ball {
+  animation-fill-mode: forwards;
 }
 
 @keyframes intro-cloud-drift {
@@ -437,6 +454,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .user-intro-splash {
+    transition: none;
+  }
+
+  .user-intro-splash.is-fading {
+    opacity: 0;
+  }
+
   .user-intro-cloud {
     animation: none;
   }
