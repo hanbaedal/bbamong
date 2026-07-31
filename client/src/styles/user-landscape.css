@@ -731,7 +731,8 @@
 
 .user-login-mascot-walker {
   position: absolute;
-  bottom: 0;
+  /* 발 위치를 면책 쪽을 향해 한 줄 내림 */
+  bottom: -1.15em;
   left: 0;
   animation: ppamong-login-walk-x 5s ease-in-out infinite alternate;
   will-change: transform;

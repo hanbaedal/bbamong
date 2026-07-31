@@ -600,11 +600,6 @@ export default function LoginPage() {
             ) : null}
 
             <div className="user-login-actions">
-              <p className="user-login-forgot">
-                <Link href="/forgot-password" data-testid="link-forgot-password">
-                  비밀번호를 잊으셨나요?
-                </Link>
-              </p>
               <button
                 type="submit"
                 disabled={isLoading}
@@ -613,6 +608,11 @@ export default function LoginPage() {
               >
                 {isLoading ? "로그인 중..." : "로그인"}
               </button>
+              <p className="user-login-forgot">
+                <Link href="/forgot-password" data-testid="link-forgot-password">
+                  비밀번호를 잊으셨나요?
+                </Link>
+              </p>
             </div>
             </div>
 

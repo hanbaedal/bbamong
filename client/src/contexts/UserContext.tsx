@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from "react";
 import { useLocation } from "wouter";
+import { App } from "@capacitor/app";
 import { getFullUrl, getOrRefreshAccessToken, queryClient } from "@/lib/queryClient";
 import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clearTokens } from "@/lib/tokenManager";
-import { sendLogoutToNative, isNativePlatform } from "@/lib/logoutPlugin";
+import { isNativePlatform } from "@/lib/logoutPlugin";
 import { markPostLogout, USER_LOGIN_PATH } from "@/lib/loginSession";
 
 export interface AttendanceRecord {
@@ -259,47 +260,28 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const logout = async (): Promise<{ nativeHandled: boolean }> => {
     isLoggedOutRef.current = true;
-    
+
     const endpoints = getAuthEndpoints();
     const currentPath = window.location.pathname;
     const isUserApp = !currentPath.startsWith("/admin") && !currentPath.startsWith("/manager");
-    
+
     if (isUserApp) {
       markPostLogout();
     }
-    
-    // 네이티브 앱(WebView)에서는 네이티브에게 로그아웃 신호만 전송
-    // 실제 로그아웃 처리(API 호출, 토큰 삭제, 화면 전환)는 네이티브에서 수행
-    if (isUserApp && isNativePlatform()) {
-      console.log("[Logout] Native platform detected - sending logout signal to native");
-      const logoutApiUrl = getFullUrl(endpoints.logout);
-      const loginUrl = window.location.origin + endpoints.loginPath;
-      const nativeHandled = await sendLogoutToNative(logoutApiUrl, loginUrl);
-      if (nativeHandled) {
-        // 네이티브에서 모든 처리를 담당 (API 호출, 토큰 삭제, WebView 리로드)
-        // 웹에서는 React 상태만 초기화하고 네비게이션은 하지 않음
-        setUser(null);
-        return { nativeHandled: true };
-      }
-      // 네이티브 처리 실패 시 웹에서 fallback 처리
-      console.log("[Logout] Native logout failed, falling back to web logout");
-    }
-    
-    // 웹 브라우저에서의 로그아웃 처리 (또는 네이티브 fallback)
+
+    // 웹/네이티브 공통: 세션·토큰 정리
     try {
       if (isUserApp) {
-        // User App: Bearer Token 방식
         const token = getAccessToken();
         if (token) {
           await fetch(getFullUrl(endpoints.logout), {
             method: "POST",
             headers: {
-              'Authorization': `Bearer ${token}`,
+              Authorization: `Bearer ${token}`,
             },
           });
         }
       } else {
-        // Admin/Manager: Cookie 방식
         await fetch(getFullUrl(endpoints.logout), {
           method: "POST",
           credentials: "include",
@@ -308,13 +290,24 @@ export function UserProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      // API 호출 성공/실패 여부와 관계없이 항상 로컬 상태 정리
       if (isUserApp) {
         await clearTokens();
       }
       queryClient.clear();
-      setUser(null);
     }
+
+    // 스마트폰 사용자 앱: 로그인 화면으로 보내지 않고 앱을 닫음(접속 해제)
+    if (isUserApp && isNativePlatform()) {
+      try {
+        await App.minimizeApp();
+      } catch (error) {
+        console.warn("[Logout] minimizeApp failed:", error);
+      }
+      setUser(null);
+      return { nativeHandled: true };
+    }
+
+    setUser(null);
     return { nativeHandled: false };
   };
 
