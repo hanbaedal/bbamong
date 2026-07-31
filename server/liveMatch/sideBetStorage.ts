@@ -14,6 +14,7 @@ import {
   type SideBetType,
   type WinnerSide,
 } from "@shared/predictionOdds";
+import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
 
 const CLOSED_MATCH_STATUSES = new Set(["completed", "cancelled", "종료", "취소"]);
 
@@ -122,6 +123,17 @@ export async function upsertSideBet(params: {
   }
   if (match.sideBetsLocked) {
     throw new Error("1회 시작으로 배팅이 마감되었습니다.");
+  }
+
+  const registrationOrder =
+    (match as { registrationOrder?: number | null }).registrationOrder ??
+    (() => {
+      const num = String(match.name).match(/\d+/);
+      return num ? parseInt(num[0]!, 10) : 0;
+    })();
+  const sideBetEnabled = await isApiSyncEnabledForRegistrationOrder(registrationOrder);
+  if (!sideBetEnabled) {
+    throw new Error("이 경기는 아직 배팅을 받지 않습니다.");
   }
 
   const existing = await MatchSideBetModel.findOne({ userId, matchId, type }).lean();

@@ -9,6 +9,10 @@ export interface GameMatchItem {
   startTime: string;
   matchStatus: string;
   predictionEnabled?: boolean;
+  registrationOrder?: number;
+  /** 관리자 API 폴링 ON/OFF와 동일 (opN) */
+  sideBetEnabled?: boolean;
+  sideBetsLocked?: boolean;
 }
 
 export function formatMatchTitle(name: string): string {

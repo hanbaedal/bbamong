@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import LandscapeGameShell from "@/components/game/LandscapeGameShell";
 import GameSelectModal from "@/components/game/GameSelectModal";
+import TodayMatchesSideBetModal from "@/components/game/TodayMatchesSideBetModal";
+import SideBetActionSheet from "@/components/game/SideBetActionSheet";
+import type { SideBetActionTarget } from "@/components/game/TodayMatchesSideBetModal";
 import type { GameMenuAction } from "@/components/game/GameLeftMenu";
 import {
   collectStadiumOptions,
@@ -54,6 +57,9 @@ export default function PredictionPage() {
   const [gamePhase, setGamePhase] = useState<GamePhasePayload | null>(null);
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [stadiumModalOpen, setStadiumModalOpen] = useState(false);
+  const [sideBetModalOpen, setSideBetModalOpen] = useState(false);
+  const [sideBetAction, setSideBetAction] = useState<SideBetActionTarget | null>(null);
+  const sideBetModalAutoShownRef = useRef(false);
 
   useEffect(() => {
     void lockGameLandscape();
@@ -88,6 +94,13 @@ export default function PredictionPage() {
     }
     return pickDefaultMatch(joinableMatches);
   }, [joinableMatches, selectedMatchId]);
+
+  useEffect(() => {
+    if (matchesLoading || sideBetModalAutoShownRef.current) return;
+    if (joinableMatches.length > 0) return;
+    sideBetModalAutoShownRef.current = true;
+    setSideBetModalOpen(true);
+  }, [matchesLoading, joinableMatches.length]);
 
   useEffect(() => {
     if (!selectedMatchId) return;
@@ -238,10 +251,6 @@ export default function PredictionPage() {
   const matchTitle = selectedMatch ? formatMatchTitle(selectedMatch.name) : "제 1경기";
   const stadiumName = getDisplayStadiumName(selectedMatch?.stadiumName) ?? "";
   const batterText = batterTextFromPhase(gamePhase);
-  const emptyMessage =
-    !matchesLoading && joinableMatches.length === 0
-      ? "오늘 진행 예정인 경기가 없습니다."
-      : undefined;
   const canSelectMatch = joinableMatches.length > 0;
   const canSelectStadium = stadiumOptions.length > 0;
 
@@ -269,7 +278,6 @@ export default function PredictionPage() {
         onClosePanel={() => setActivePanel(null)}
         todayStats={predictionStats?.statistics?.today}
         statsLoading={statsLoading}
-        emptyMessage={emptyMessage}
         screenPhase={flow.screenPhase}
         selectedPrediction={flow.selectedPrediction}
         labelsVisible={flow.labelsVisible}
@@ -322,6 +330,28 @@ export default function PredictionPage() {
         onSelect={handleStadiumSelect}
         onClose={() => setStadiumModalOpen(false)}
       />
+
+      <TodayMatchesSideBetModal
+        open={sideBetModalOpen}
+        matches={orderedMatches}
+        loading={matchesLoading}
+        onAction={(target) => {
+          setSideBetModalOpen(false);
+          setSideBetAction(target);
+        }}
+        onClose={() => setSideBetModalOpen(false)}
+      />
+
+      {sideBetAction && (
+        <SideBetActionSheet
+          open={Boolean(sideBetAction)}
+          matchId={sideBetAction.matchId}
+          matchTitle={sideBetAction.matchTitle}
+          betType={sideBetAction.betType}
+          onClose={() => setSideBetAction(null)}
+          onSubmitted={() => setSideBetModalOpen(true)}
+        />
+      )}
     </>
   );
 }

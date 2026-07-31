@@ -1,10 +1,55 @@
 import { MatchModel, StadiumModel } from "./db";
 import type { Match, InsertMatch } from "@shared/schema";
 import { getKstDateString } from "../utils/dateUtils";
+import { getApiSyncEnabledBySlot } from "../managerOperatorService";
 
 function extractMatchNumber(name: string): number {
   const match = name.match(/\d+/);
   return match ? parseInt(match[0], 10) : 0;
+}
+
+function resolveRegistrationOrder(match: Match & { registrationOrder?: number | null }): number {
+  const order = match.registrationOrder;
+  if (order != null && order >= 1) return order;
+  return extractMatchNumber(match.name);
+}
+
+function todayMatchDateFilter() {
+  const kstToday = getKstDateString();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return {
+    kstToday,
+    filter: {
+      $or: [
+        { matchDate: kstToday },
+        { matchDate: null, startTime: { $gte: today, $lt: tomorrow } },
+      ],
+    },
+  };
+}
+
+export type ClientMatchView = Match & {
+  stadiumName: string;
+  registrationOrder: number;
+  sideBetEnabled: boolean;
+  sideBetsLocked: boolean;
+};
+
+async function enrichForClient(
+  match: Match & { stadiumName: string; registrationOrder?: number | null; sideBetsLocked?: boolean },
+  syncBySlot: Map<number, boolean>,
+): Promise<ClientMatchView> {
+  const registrationOrder = resolveRegistrationOrder(match);
+  const sideBetEnabled = syncBySlot.get(registrationOrder) ?? false;
+  return {
+    ...match,
+    registrationOrder,
+    sideBetEnabled,
+    sideBetsLocked: Boolean(match.sideBetsLocked),
+  };
 }
 
 async function enrichWithStadiumName(
@@ -15,23 +60,33 @@ async function enrichWithStadiumName(
 }
 
 export class MatchStorage {
-  async getTodayActiveMatches(): Promise<Array<Match & { stadiumName: string }>> {
-    const kstToday = getKstDateString();
+  /** 오늘 취소 제외 전체 (종료 포함 — side bet 결과 표시용) */
+  async getTodayMatchesForClient(): Promise<ClientMatchView[]> {
+    const { filter } = todayMatchDateFilter();
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const docs = await MatchModel.find({
+      matchStatus: { $ne: "cancelled" },
+      ...filter,
+    }).lean();
+
+    const matches = (docs as Match[]).sort((a, b) => {
+      const orderA = resolveRegistrationOrder(a);
+      const orderB = resolveRegistrationOrder(b);
+      if (orderA !== orderB) return orderA - orderB;
+      return extractMatchNumber(a.name) - extractMatchNumber(b.name);
+    });
+
+    const syncBySlot = await getApiSyncEnabledBySlot();
+    const enriched = await Promise.all(matches.map((m) => enrichWithStadiumName(m)));
+    return Promise.all(enriched.map((m) => enrichForClient(m, syncBySlot)));
+  }
+
+  async getTodayActiveMatches(): Promise<Array<Match & { stadiumName: string }>> {
+    const { filter } = todayMatchDateFilter();
 
     const docs = await MatchModel.find({
       matchStatus: { $nin: ["completed", "cancelled"] },
-      $or: [
-        { matchDate: kstToday },
-        {
-          matchDate: null,
-          startTime: { $gte: today, $lt: tomorrow },
-        },
-      ],
+      ...filter,
     }).lean();
 
     const matches = (docs as Match[]).sort(

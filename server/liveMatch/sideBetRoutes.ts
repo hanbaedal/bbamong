@@ -9,7 +9,8 @@ import {
 } from "./sideBetStorage";
 import { getMatchInfo } from "./predictionStorage";
 import { isValidSideBetAmount, DEFAULT_SIDE_BET_AMOUNT } from "@shared/predictionOdds";
-import { MatchModel } from "../UserStorage/db";
+import { MatchModel, MatchSideBetModel } from "../UserStorage/db";
+import { matchStorage } from "../UserStorage/matchStorage";
 
 const router = Router();
 
@@ -63,6 +64,32 @@ router.post("/side-bets", userAuthMiddleware, async (req: any, res: Response) =>
     }
     console.error("side-bet create error:", error);
     res.status(500).json({ error: "사이드 배팅 접수에 실패했습니다." });
+  }
+});
+
+router.get("/side-bets/me/today", userAuthMiddleware, async (req: any, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: "인증이 필요합니다." });
+
+    const matches = await matchStorage.getTodayMatchesForClient();
+    const matchIds = matches.map((m) => m.id);
+    if (matchIds.length === 0) {
+      return res.json({ betsByMatch: {} });
+    }
+
+    const bets = await MatchSideBetModel.find({ userId, matchId: { $in: matchIds } }).lean();
+    const betsByMatch: Record<string, typeof bets> = {};
+    for (const bet of bets) {
+      const key = bet.matchId;
+      if (!betsByMatch[key]) betsByMatch[key] = [];
+      betsByMatch[key]!.push(bet);
+    }
+
+    res.json({ betsByMatch });
+  } catch (error) {
+    console.error("side-bet me today error:", error);
+    res.status(500).json({ error: "오늘 사이드 배팅 조회에 실패했습니다." });
   }
 });
 

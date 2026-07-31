@@ -15,6 +15,31 @@ function defaultApiSyncEnabledForSlot(slot: number): boolean {
   return slot === 1;
 }
 
+/** op1~op5 슬롯별 API 폴링 ON/OFF (관리자 화면과 동일) */
+export async function getApiSyncEnabledBySlot(): Promise<Map<number, boolean>> {
+  const docs = await AdminUserModel.find({
+    username: { $in: [...OPERATOR_USERNAMES] },
+    userType: "매니저",
+  })
+    .select("operatorSlot apiSyncEnabled")
+    .lean();
+
+  const map = new Map<number, boolean>();
+  for (const doc of docs) {
+    const slot = (doc as { operatorSlot?: number }).operatorSlot ?? 0;
+    if (slot > 0) {
+      map.set(slot, (doc as { apiSyncEnabled?: boolean }).apiSyncEnabled !== false);
+    }
+  }
+  return map;
+}
+
+export async function isApiSyncEnabledForRegistrationOrder(order: number): Promise<boolean> {
+  if (order < 1 || order > OPERATOR_COUNT) return false;
+  const map = await getApiSyncEnabledBySlot();
+  return map.get(order) ?? false;
+}
+
 export async function getApiSyncEnabledRegistrationOrders(): Promise<number[]> {
   const docs = await AdminUserModel.find({
     username: { $in: [...OPERATOR_USERNAMES] },

@@ -9,7 +9,7 @@ export async function baMatchRoutes(app: Express): Promise<void> {
   // 전체 경기 조회 (오늘 날짜의 종료되지 않은 경기만)
   app.get("/api/matches", async (req, res) => {
     try {
-      const matches = await storage.getTodayActiveMatches();
+      const matches = await storage.getTodayMatchesForClient();
       return res.json(matches);
     } catch (error) {
       console.error("Get matches error:", error);
