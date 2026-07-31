@@ -5,9 +5,11 @@ const COLORS = ["#FFD700", "#FF6B6B", "#4ECDC4", "#CDFF00", "#FF9F43", "#A29BFE"
 interface GameConfettiProps {
   active: boolean;
   count?: number;
+  /** 짧은 비프음 (기본 true). 외부 빵빠레 사용 시 false */
+  playSound?: boolean;
 }
 
-export default function GameConfetti({ active, count = 48 }: GameConfettiProps) {
+export default function GameConfetti({ active, count = 48, playSound = true }: GameConfettiProps) {
   const pieces = useMemo(
     () =>
       Array.from({ length: count }, (_, i) => ({
@@ -22,7 +24,7 @@ export default function GameConfetti({ active, count = 48 }: GameConfettiProps) 
   );
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || !playSound) return;
     try {
       const ctx = new AudioContext();
       const osc = ctx.createOscillator();
@@ -42,7 +44,7 @@ export default function GameConfetti({ active, count = 48 }: GameConfettiProps) 
     } catch {
       /* Web Audio 미지원 시 무시 */
     }
-  }, [active]);
+  }, [active, playSound]);
 
   if (!active) return null;
 

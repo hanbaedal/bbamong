@@ -26,8 +26,8 @@ export const BASE_IMAGE_POINTS: Record<PredictionOption, ImagePoint> = {
   홈런: { x: 0.5, y: 0.175 },
 };
 
-/** 관중석 (시작 전 대기) */
-export const STANDS_SEAT_IMAGE: ImagePoint = { x: 0.17, y: 0.4 };
+/** 경기 시작 전 대기 — 3루 위치 */
+export const STANDS_SEAT_IMAGE: ImagePoint = { ...BASE_IMAGE_POINTS["3루"] };
 
 export const HOME_PLATE_IMAGE = BASE_IMAGE_POINTS.아웃;
 export const PITCHER_MOUND_IMAGE: ImagePoint = { x: 0.5, y: 0.535 };
