@@ -4,7 +4,7 @@ export const MALL_BASE_PATH = "/shop";
 /** 향후 shop.ppamong.com 서브도메인 */
 export const MALL_SUBDOMAIN = "shop.ppamong.com";
 
-export const MALL_SECTION_TITLE = "PPAMONG 스포츠몰";
+export const MALL_SECTION_TITLE = "빠몽이 기념품";
 
 /** 쇼핑몰 헤더·관리자 관리 화면 공통 카테고리 메뉴 */
 export const MALL_DEFAULT_CATEGORIES = [

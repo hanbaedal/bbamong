@@ -6,8 +6,11 @@ const LEGACY_SHOP_TITLES = new Set([
   "홈페이지",
   "PPAMONG 굿즈",
   "PPAMONG굿즈",
+  "PPAMONG 스포츠몰",
+  "PPAMONG 쇼핑몰",
   "굿즈",
   "빠몽이의 보물창고",
+  "빠몽이 기념품 사러가기",
 ]);
 
 export function resolveShopSectionTitle(title?: string | null): string {

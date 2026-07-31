@@ -2,7 +2,6 @@ import { useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
-import BottomNavigation from "@/components/BottomNavigation";
 import { getFullUrl } from "@/lib/queryClient";
 
 interface HomePageSettings {
@@ -36,7 +35,7 @@ export default function GameGuidePage() {
         }
       />
 
-      <div className="flex-1 overflow-y-scroll-touch px-5 pb-bottom-nav pt-4">
+      <div className="flex-1 overflow-y-scroll-touch px-5 pb-6 pt-4">
         {isLoading ? (
           <p className="text-[#888] text-sm">불러오는 중...</p>
         ) : (
@@ -66,8 +65,6 @@ export default function GameGuidePage() {
           </>
         )}
       </div>
-
-      <BottomNavigation />
     </div>
   );
 }

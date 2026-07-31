@@ -47,7 +47,7 @@ function MallShell({ children }: { children: React.ReactNode }) {
       />
       <main>{children}</main>
       <footer className="border-t border-neutral-200 mt-12 py-8 text-center text-xs text-neutral-400">
-        PPAMONG 스포츠몰 · 주문은 게임 앱 정회원 전용
+        빠몽이 기념품 · 주문은 게임 앱 정회원 전용
       </footer>
     </div>
   );

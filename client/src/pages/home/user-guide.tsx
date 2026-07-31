@@ -1,7 +1,6 @@
 import { useLocation } from "wouter";
 import { ChevronLeft } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
-import BottomNavigation from "@/components/BottomNavigation";
 import { PREDICTION_ODDS, BET_AMOUNT_OPTIONS, AD_REWARD_POINTS, SIDE_BET_AMOUNT_OPTIONS, WINNER_ODDS, EXACT_SCORE_ODDS } from "@shared/predictionOdds";
 
 const SECTIONS: { title: string; items: string[] }[] = [
@@ -49,7 +48,7 @@ const SECTIONS: { title: string; items: string[] }[] = [
     title: "헤더·기타",
     items: [
       "로고: 이 홈(설명·연습 허브)으로 이동",
-      "쇼핑몰: 스포츠 몰(/shop)로 이동",
+      "빠몽이 기념품: /shop 으로 이동",
       "설정(톱니): 프로필, 고객센터, 공지, FAQ, 약관 등",
       "공수교대 시 전면/보상 광고가 나올 수 있습니다. 끝까지 보면 보상 "
         + `${AD_REWARD_POINTS}P, 너무 일찍 취소하면 보상 없음.`,
@@ -81,7 +80,7 @@ export default function UserGuidePage() {
         }
       />
 
-      <div className="flex-1 overflow-y-scroll-touch px-5 pb-bottom-nav pt-4 space-y-4">
+      <div className="flex-1 overflow-y-scroll-touch px-5 pb-6 pt-4 space-y-4">
         <p className="text-[#AAAAAA] text-sm leading-relaxed">
           빠몽이 앱의 게임·메뉴·기타 기능을 한눈에 안내합니다.
         </p>
@@ -119,8 +118,6 @@ export default function UserGuidePage() {
           실제 경기 참여하기
         </button>
       </div>
-
-      <BottomNavigation />
     </div>
   );
 }

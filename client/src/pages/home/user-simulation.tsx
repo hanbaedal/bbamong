@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { ChevronLeft } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
-import BottomNavigation from "@/components/BottomNavigation";
 import BetAmountSelector from "@/components/BetAmountSelector";
 import {
   DEFAULT_BET_AMOUNT,
@@ -104,7 +103,7 @@ export default function UserSimulationPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-scroll-touch px-5 pb-bottom-nav pt-4 space-y-4">
+      <div className="flex-1 overflow-y-scroll-touch px-5 pb-6 pt-4 space-y-4">
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
           연습 전용입니다. 서버 배팅·실제 포인트와 연결되지 않습니다.
         </div>
@@ -224,8 +223,6 @@ export default function UserSimulationPage() {
           사용 설명서 보기
         </button>
       </div>
-
-      <BottomNavigation />
     </div>
   );
 }

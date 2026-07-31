@@ -1,26 +1,23 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ShoppingBag } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
 import { getFullUrl } from "@/lib/queryClient";
 import { navigateToMall } from "@/lib/appNavigation";
+import { resolveShopSectionTitle } from "@/lib/shopBranding";
 import "@/styles/user-landscape.css";
 
 interface HomePageSettings {
   greetingPrefix: string;
-  subGreeting: string;
   buttonText: string;
   buttonEnabled: boolean;
-  showDate: boolean;
   gameGuideTitle: string;
-  gameGuideSummary: string;
   gameGuideEnabled: boolean;
   goodsSectionTitle: string;
   goodsSectionEnabled: boolean;
-  introVideoUrl?: string;
 }
 
 interface HomePageContent {
@@ -31,7 +28,6 @@ export default function HomePage() {
   const [, setLocation] = useLocation();
   const { user } = useUser();
   const { assets } = useUserAssets();
-  const [formattedDate, setFormattedDate] = useState("");
 
   const { data: content } = useQuery<HomePageContent>({
     queryKey: ["/api/homepage/content"],
@@ -45,44 +41,28 @@ export default function HomePage() {
 
   const settings = content?.settings;
   const goodsSectionEnabled = settings?.goodsSectionEnabled ?? true;
-  const goodsSectionTitle = settings?.goodsSectionTitle ?? "홈페이지";
   const greetingPrefix = settings?.greetingPrefix ?? "안녕하세요";
   const buttonText = settings?.buttonText ?? "게임하러가기";
   const buttonEnabled = settings?.buttonEnabled ?? true;
-  const showDate = settings?.showDate ?? true;
   const gameGuideEnabled = settings?.gameGuideEnabled ?? true;
   const gameGuideTitle = settings?.gameGuideTitle ?? "야구 예측 게임이란?";
-
-  useEffect(() => {
-    const now = new Date();
-    const options: Intl.DateTimeFormatOptions = {
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      weekday: "short",
-    };
-    const localeDate = now.toLocaleDateString("ko-KR", options);
-    const parts = localeDate.split(" ");
-    const year = parts[0].replace(".", "년");
-    const month = parts[1].replace(".", "월");
-    const day = parts[2].replace(".", "일");
-    const weekday = parts[3];
-    setFormattedDate(`${year} ${month} ${day} ${weekday}`);
-  }, []);
+  const mallLabel = resolveShopSectionTitle(settings?.goodsSectionTitle);
 
   const goToGame = () => setLocation("/prediction");
 
-  const mallLabel =
-    goodsSectionTitle === "홈페이지" ? "빠몽이 기념품 사러가기" : goodsSectionTitle;
-
-  const menuItems: Array<{ id: string; label: string; onClick: () => void; icon?: ReactNode }> = [];
+  const menuItems: Array<{
+    id: string;
+    label: string;
+    onClick: () => void;
+    icon: ReactNode;
+  }> = [];
 
   if (gameGuideEnabled) {
     menuItems.push({
       id: "game-guide",
       label: gameGuideTitle,
       onClick: () => setLocation("/home/game-guide"),
-      icon: <img src={assets.baseballLogo} alt="" />,
+      icon: <img src={assets.predictionActiveLogo} alt="" />,
     });
   }
 
@@ -91,13 +71,13 @@ export default function HomePage() {
       id: "user-guide",
       label: "사용 설명서",
       onClick: () => setLocation("/home/guide"),
-      icon: <span>?</span>,
+      icon: <img src={assets.qnaIcon} alt="" />,
     },
     {
       id: "simulation",
       label: "게임 시뮬레이션",
       onClick: () => setLocation("/home/simulation"),
-      icon: <img src={assets.baseballLogo} alt="" />,
+      icon: <img src={assets.videoImg} alt="" />,
     },
   );
 
@@ -106,7 +86,7 @@ export default function HomePage() {
       id: "mall",
       label: mallLabel,
       onClick: () => navigateToMall(),
-      icon: <img src={assets.mainLogo} alt="" />,
+      icon: <ShoppingBag className="w-full h-full text-[#CDFF00]" strokeWidth={2} aria-hidden />,
     });
   }
 
@@ -115,11 +95,6 @@ export default function HomePage() {
       testId="home-page"
       left={
         <div className="user-home-left">
-          {showDate && formattedDate ? (
-            <p className="user-home-date" data-testid="text-home-date">
-              {formattedDate}
-            </p>
-          ) : null}
           <button
             type="button"
             onClick={goToGame}
@@ -127,21 +102,8 @@ export default function HomePage() {
             aria-label="게임하러 가기"
             data-testid="button-mascot-game"
           >
-            <img
-              src={assets.mainLogo}
-              alt=""
-              className="user-landscape-mascot"
-            />
+            <img src={assets.mainLogo} alt="" className="user-landscape-mascot" />
           </button>
-          <p className="user-home-greeting" data-testid="text-home-greeting">
-            {greetingPrefix}
-            {user ? (
-              <>
-                {" "}
-                <span className="user-home-greeting-name">{user.name}님</span>
-              </>
-            ) : null}
-          </p>
           {buttonEnabled ? (
             <button
               type="button"
@@ -156,21 +118,32 @@ export default function HomePage() {
         </div>
       }
       right={
-        <nav className="user-landscape-menu" aria-label="홈 메뉴">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={item.onClick}
-              data-testid={`button-home-${item.id}`}
-              className="user-landscape-menu-item"
-            >
-              <span className="user-landscape-menu-icon">{item.icon}</span>
-              <span>{item.label}</span>
-              <ChevronRight className="menu-chevron" aria-hidden />
-            </button>
-          ))}
-        </nav>
+        <div className="user-home-right">
+          <p className="user-home-greeting-top" data-testid="text-home-greeting">
+            {greetingPrefix}
+            {user ? (
+              <>
+                {" "}
+                <span className="user-home-greeting-name">{user.name}님</span>
+              </>
+            ) : null}
+          </p>
+          <nav className="user-landscape-menu" aria-label="홈 메뉴">
+            {menuItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={item.onClick}
+                data-testid={`button-home-${item.id}`}
+                className="user-landscape-menu-item"
+              >
+                <span className="user-landscape-menu-icon">{item.icon}</span>
+                <span>{item.label}</span>
+                <ChevronRight className="menu-chevron" aria-hidden />
+              </button>
+            ))}
+          </nav>
+        </div>
       }
     />
   );

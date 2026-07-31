@@ -79,11 +79,11 @@ export default function PageHeader({
               type="button"
               onClick={() => navigateToMall()}
               data-testid="button-header-mall"
-              aria-label="쇼핑몰"
+              aria-label="기념품"
               className="flex items-center gap-1 px-2 py-1 rounded-md text-[#CDFF00] hover:bg-white/5 focus:outline-none focus-visible:outline-none"
             >
               <ShoppingBag className="w-5 h-5" />
-              <span className="text-xs font-semibold whitespace-nowrap">쇼핑몰</span>
+              <span className="text-xs font-semibold whitespace-nowrap">기념품</span>
             </button>
           )}
           {rightAction ? (

@@ -55,7 +55,7 @@ export default function SettingsPage() {
     },
     {
       id: "mall",
-      label: "PPAMONG 스포츠몰",
+      label: "빠몽이 기념품",
       icon: assets.ebookServiceIcon,
       hasArrow: true,
       onClick: () => openMallFromApp(),
