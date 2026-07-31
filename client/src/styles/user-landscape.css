@@ -209,6 +209,22 @@
   object-fit: contain;
 }
 
+/* 로그인 — 왼쪽 (마스코트 + 면책) */
+.user-login-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 2vh, 14px);
+  width: 100%;
+  max-width: min(360px, 94%);
+  margin: 0 auto;
+}
+
+.user-login-left .user-landscape-disclaimer {
+  max-width: min(280px, 88%);
+}
+
 /* 로그인 폼 */
 .user-login-panel {
   display: flex;

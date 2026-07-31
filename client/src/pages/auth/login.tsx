@@ -13,6 +13,7 @@ import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import SimpleInfoPopup from "@/components/customUi/simpleInfoPopup";
+import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -521,12 +522,20 @@ export default function LoginPage() {
       <LandscapeSplitShell
         testId="login-page"
         left={
-          <img
-            src={assets.userMascot}
-            alt="PPAMONG 로고"
-            className="user-landscape-mascot user-landscape-mascot--static"
-            data-testid="img-login-logo"
-          />
+          <div className="user-login-left">
+            <img
+              src={assets.userMascot}
+              alt="PPAMONG 로고"
+              className="user-landscape-mascot user-landscape-mascot--static"
+              data-testid="img-login-logo"
+            />
+            <img
+              src={splashDisclaimer}
+              alt="15세 이용가 및 재화 안내"
+              className="user-landscape-disclaimer"
+              data-testid="img-login-disclaimer"
+            />
+          </div>
         }
         right={
           <form onSubmit={handleSubmit} className="user-login-panel">

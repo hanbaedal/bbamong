@@ -11,7 +11,6 @@ import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import splashIcon from "@assets/user/user-mascot.png";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
-import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
 import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
 import "@/styles/user-landscape.css";
 import GameEmbedBootstrap from "@/components/GameEmbedBootstrap";
@@ -47,8 +46,12 @@ import VictoryHistoryPage from "@/pages/setting/victory-history";
 import InvitePage from "@/pages/setting/invite";
 import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
-import { navigateAfterLogin, openMallFromApp, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
+import { completeLoginNavigation, openMallFromApp, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
+
+const LOGIN_WELCOME_MS = 2000;
+
+type LoginBootstrapPhase = "checking" | "welcome" | "ready";
 
 function LegacyMallRedirect({ target }: { target: string }) {
   useEffect(() => {
@@ -57,94 +60,104 @@ function LegacyMallRedirect({ target }: { target: string }) {
   return null;
 }
 
-function getPostLoginTarget(): void {
-  void navigateAfterLogin(DEFAULT_POST_LOGIN_FALLBACK);
+function BootstrapLoading() {
+  return (
+    <div className="fixed inset-0 bg-[#111111] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
+function LoginWelcomeSplash() {
+  return (
+    <LandscapeSplitShell
+      testId="intro-splash"
+      left={
+        <img
+          src={splashIcon}
+          alt="PPAMONG"
+          className="user-landscape-mascot user-landscape-mascot--static"
+          data-testid="img-intro-mascot"
+        />
+      }
+      right={
+        <div className="user-landscape-intro-right">
+          <p className="user-landscape-intro-text" data-testid="text-intro-welcome">
+            실시간 야구 진루 예측게임
+            <br />
+            PPAMONG에 오신 걸 환영합니다.
+          </p>
+        </div>
+      }
+    />
+  );
 }
 
 function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
-  const [, setLocation] = useLocation();
-  const isLoginPath = window.location.pathname === "/login";
-  const [isChecking, setIsChecking] = useState(isLoginPath);
-  const [splashDone, setSplashDone] = useState(!isLoginPath);
-  const [autoLoginSucceeded, setAutoLoginSucceeded] = useState(false);
-  const { user, refetchUser } = useUser();
+  const [location, setLocation] = useLocation();
+  const isLoginPath = location.split("?")[0] === "/login";
+  const [loginPhase, setLoginPhase] = useState<LoginBootstrapPhase>(isLoginPath ? "checking" : "ready");
+  const { refetchUser } = useUser();
 
   useEffect(() => {
     preloadUserAssets();
   }, []);
 
   useEffect(() => {
-    if (!isLoginPath) return;
-    const timer = setTimeout(() => {
-      setSplashDone(true);
-    }, 7000);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!isLoginPath) {
+      setLoginPhase("ready");
+      return;
+    }
 
-  useEffect(() => {
-    const checkAutoLogin = async () => {
-      const currentPath = window.location.pathname;
-      
-      if (currentPath === "/login") {
-        try {
-          const token = await getOrRefreshAccessToken();
-          
-          if (token) {
-            await refetchUser();
-            setAutoLoginSucceeded(true);
-            setIsChecking(false);
-            return;
-          }
-        } catch (error) {
-          console.log("Auto login failed:", error);
-          await clearTokens();
+    let welcomeTimer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+
+    const bootstrapLogin = async () => {
+      setLoginPhase("checking");
+
+      try {
+        const token = await getOrRefreshAccessToken();
+        if (cancelled) return;
+
+        if (token) {
+          await refetchUser();
+          if (cancelled) return;
+
+          await completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
+          setLoginPhase("ready");
+          return;
         }
+      } catch (error) {
+        console.log("Auto login failed:", error);
+        await clearTokens();
       }
-      
-      setIsChecking(false);
+
+      if (cancelled) return;
+
+      setLoginPhase("welcome");
+      welcomeTimer = setTimeout(() => {
+        if (!cancelled) {
+          setLoginPhase("ready");
+        }
+      }, LOGIN_WELCOME_MS);
     };
 
-    checkAutoLogin();
-  }, [setLocation, refetchUser]);
+    void bootstrapLogin();
 
-  useEffect(() => {
-    if (splashDone && !isChecking && autoLoginSucceeded && user) {
-      setAutoLoginSucceeded(false);
-      if (window.location.pathname === "/login") {
-        getPostLoginTarget();
+    return () => {
+      cancelled = true;
+      if (welcomeTimer) {
+        clearTimeout(welcomeTimer);
       }
-    }
-  }, [splashDone, isChecking, autoLoginSucceeded, user]);
+    };
+  }, [isLoginPath, setLocation, refetchUser]);
 
-  if (!splashDone || isChecking) {
-    return (
-      <LandscapeSplitShell
-        testId="intro-splash"
-        left={
-          <img
-            src={splashIcon}
-            alt="PPAMONG"
-            className="user-landscape-mascot user-landscape-mascot--static"
-            data-testid="img-intro-mascot"
-          />
-        }
-        right={
-          <div className="user-landscape-intro-right">
-            <p className="user-landscape-intro-text" data-testid="text-intro-welcome">
-              실시간 야구 진루 예측게임
-              <br />
-              PPAMONG에 오신 걸 환영합니다.
-            </p>
-            <img
-              src={splashDisclaimer}
-              alt="15세 이용가 및 재화 안내"
-              className="user-landscape-disclaimer"
-              data-testid="img-intro-disclaimer"
-            />
-          </div>
-        }
-      />
-    );
+  if (isLoginPath && loginPhase === "checking") {
+    return <BootstrapLoading />;
+  }
+
+  if (isLoginPath && loginPhase === "welcome") {
+    return <LoginWelcomeSplash />;
   }
 
   return <>{children}</>;
