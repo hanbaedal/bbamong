@@ -691,6 +691,7 @@
 
 .user-login-left .user-landscape-disclaimer {
   max-width: min(280px, 88%);
+  margin-top: clamp(1.6em, 4vh, 2.4em);
 }
 
 /* 로그인 — 면책 박스 위 빠몽이 걸음 */
@@ -698,7 +699,7 @@
   position: relative;
   width: 100%;
   max-width: min(280px, 88%);
-  height: clamp(64px, 15vh, 96px);
+  height: clamp(128px, 30vh, 192px);
   flex-shrink: 0;
   container-type: inline-size;
 }
@@ -713,9 +714,9 @@
 
 .user-login-mascot-img {
   display: block;
-  width: clamp(48px, 12vh, 76px);
+  width: clamp(96px, 24vh, 152px);
   height: auto;
-  max-height: clamp(64px, 14vh, 92px);
+  max-height: clamp(128px, 28vh, 184px);
   object-fit: contain;
   animation: ppamong-login-walk-bob 0.42s ease-in-out infinite;
   transform-origin: center bottom;
@@ -760,6 +761,10 @@
   width: 100%;
   max-width: min(340px, 100%);
   margin: 0 auto;
+}
+
+.user-login-fields {
+  margin-top: clamp(14px, 3.5vh, 22px);
 }
 
 .user-login-row {
@@ -857,6 +862,15 @@
   margin-top: 0;
   padding: 0 clamp(14px, 3.5vw, 22px);
   font-size: clamp(11px, 2.6vw, 13px);
+  border: 1px solid #373539;
+  background: #1a1a1a;
+  color: #bfbfbf;
+  font-weight: 600;
+}
+
+.user-login-submit--compact:hover:not(:disabled) {
+  border-color: #bfbfbf;
+  color: #fff;
 }
 
 .user-login-submit-spacer {

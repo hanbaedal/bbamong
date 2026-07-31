@@ -543,6 +543,7 @@ export default function LoginPage() {
         }
         right={
           <form onSubmit={handleSubmit} className="user-login-panel">
+            <div className="user-login-fields">
             <div className="user-login-row">
               <span className="user-login-label">아이디</span>
               <input
@@ -612,6 +613,7 @@ export default function LoginPage() {
               >
                 {isLoading ? "로그인 중..." : "로그인"}
               </button>
+            </div>
             </div>
 
             <div className="user-login-submit-spacer" aria-hidden />
