@@ -3,10 +3,13 @@
 // Home page
 import userMascot from "@assets/user/user-mascot.png";
 import userMascotIntro from "@assets/user/user-mascot-intro.png";
+import userMascotGuideIcon from "@assets/user/user-mascot-guide-icon.png";
 import baseballLogo from "@assets/user/검은야구공.svg";
 import settingLogo from "@assets/user/설정.svg";
 import predictionActiveLogo from "@assets/user/예측하기.svg";
 import predictionLogo from "@assets/user/예측하기비활.svg";
+import homeMenuSimulationIcon from "@assets/user/home-menu-simulation.svg";
+import homeMenuManualIcon from "@assets/user/home-menu-manual.svg";
 
 // Login page
 import kakaoIcon from "@assets/user/카카오.svg";
@@ -80,6 +83,7 @@ export const USER_ASSETS = {
   // Home page
   mainLogo: userMascot,
   userMascot,
+  userMascotGuideIcon,
   baseballLogo,
   headerLogo: userMascot,
   settingLogo,
@@ -102,6 +106,8 @@ export const USER_ASSETS = {
   // Advertisement
   coinImg,
   videoImg,
+  homeMenuSimulationIcon,
+  homeMenuManualIcon,
   stadiumIcon,
 
   // Icons

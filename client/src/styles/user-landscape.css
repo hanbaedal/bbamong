@@ -88,6 +88,377 @@
   }
 }
 
+/* 인트로 스플래시 — 야구장 → 하늘 → 브랜드 공 */
+.user-intro-splash {
+  position: relative;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #0c1520;
+  padding-top: var(--safe-area-inset-top, 0px);
+  padding-left: max(var(--safe-area-inset-left, 0px), clamp(12px, 3vw, 24px));
+  padding-right: max(var(--safe-area-inset-right, 0px), clamp(12px, 3vw, 24px));
+  padding-bottom: max(var(--safe-area-inset-bottom, 0px), clamp(8px, 2vw, 16px));
+  box-sizing: border-box;
+}
+
+.user-intro-splash-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.85s ease;
+  pointer-events: none;
+}
+
+.user-intro-splash-bg.is-visible {
+  opacity: 1;
+}
+
+.user-intro-splash-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(8, 12, 18, 0.55) 0%, rgba(8, 12, 18, 0.2) 42%, rgba(8, 12, 18, 0.65) 100%),
+    radial-gradient(ellipse 80% 60% at 50% 45%, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.55) 100%);
+  pointer-events: none;
+}
+
+.user-intro-sky {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #3d7ec9 0%, #7ec8f0 38%, #dff3ff 100%);
+  overflow: hidden;
+}
+
+.user-intro-cloud {
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 24px 8px 0 rgba(255, 255, 255, 0.75);
+}
+
+.user-intro-cloud--1 {
+  width: clamp(36px, 8vw, 56px);
+  height: clamp(14px, 3vw, 20px);
+  top: 14%;
+  left: 8%;
+  animation: intro-cloud-drift 9s linear infinite;
+}
+
+.user-intro-cloud--2 {
+  width: clamp(48px, 10vw, 72px);
+  height: clamp(18px, 4vw, 26px);
+  top: 22%;
+  right: 10%;
+  animation: intro-cloud-drift 11s linear infinite reverse;
+}
+
+.user-intro-cloud--3 {
+  width: clamp(28px, 6vw, 42px);
+  height: clamp(10px, 2.2vw, 16px);
+  top: 8%;
+  left: 42%;
+  animation: intro-cloud-drift 8s linear infinite;
+}
+
+.user-intro-cloud--4 {
+  width: clamp(32px, 7vw, 50px);
+  height: clamp(12px, 2.6vw, 18px);
+  bottom: 28%;
+  left: 12%;
+  animation: intro-cloud-drift 10s linear infinite reverse;
+}
+
+.user-intro-cloud--5 {
+  width: clamp(40px, 8.5vw, 60px);
+  height: clamp(14px, 3vw, 20px);
+  bottom: 18%;
+  right: 16%;
+  animation: intro-cloud-drift 12s linear infinite;
+}
+
+.user-intro-cloud--6 {
+  width: clamp(22px, 5vw, 34px);
+  height: clamp(8px, 1.8vw, 12px);
+  top: 36%;
+  right: 34%;
+  animation: intro-cloud-drift 7s linear infinite reverse;
+}
+
+.user-intro-splash-inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  max-width: min(640px, 100%);
+  overflow: visible;
+}
+
+.intro-brand-ball {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.35));
+}
+
+.intro-brand-ball-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.intro-brand-ball-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: #111111;
+  text-align: center;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+
+.intro-brand-ball-label--fly {
+  font-size: clamp(7px, 1.5vh, 9px);
+}
+
+.intro-brand-ball--fly {
+  width: 100%;
+  height: 100%;
+}
+
+.intro-brand-ball--zoom {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: clamp(170px, 38vh, 260px);
+  height: clamp(170px, 38vh, 260px);
+  transform: translate(36%, -68%) scale(0.16);
+  opacity: 0.35;
+  animation: intro-brand-zoom 1.5s ease-out forwards;
+}
+
+.intro-brand-ball--zoom .intro-brand-ball-label {
+  font-family: "Nanum Brush Script", cursive;
+  font-size: clamp(16px, 3.8vw, 24px);
+}
+
+.intro-brand-ball--hold {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: clamp(170px, 38vh, 260px);
+  height: clamp(170px, 38vh, 260px);
+  transform: translate(-50%, -50%);
+}
+
+.intro-brand-ball--hold .intro-brand-ball-label {
+  font-family: "Nanum Brush Script", cursive;
+  font-size: clamp(22px, 5.2vw, 34px);
+  color: #0d0d0d;
+}
+
+.intro-brand-caption {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(10px, 2.5vh, 22px);
+  transform: translateX(-50%);
+  width: min(92%, 420px);
+  margin: 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: clamp(11px, 2.5vw, 14px);
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+  animation: intro-brand-caption-in 0.45s ease-out both;
+}
+
+.intro-batting-stage {
+  --intro-batting-duration: 1400ms;
+  position: relative;
+  width: min(100%, clamp(220px, 52vw, 360px));
+  height: clamp(150px, 34vh, 240px);
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.intro-batting-scene {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: clamp(150px, 34vh, 240px);
+  aspect-ratio: 90 / 240;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
+}
+
+.intro-batting-sprite {
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-size: 400% 100%;
+  background-position: 0% 0%;
+  animation: intro-batting-swing var(--intro-batting-duration) steps(4) infinite;
+}
+
+.intro-batting-impact {
+  position: absolute;
+  left: 58%;
+  top: 46%;
+  width: clamp(18px, 4vh, 28px);
+  height: clamp(18px, 4vh, 28px);
+  transform: translate(-50%, -50%) scale(0.2);
+  border-radius: 50%;
+  opacity: 0;
+  background: radial-gradient(circle, rgba(255, 245, 120, 0.95) 0%, rgba(255, 200, 40, 0.5) 45%, transparent 72%);
+  pointer-events: none;
+  animation: intro-batting-impact var(--intro-batting-duration) linear infinite;
+}
+
+.intro-batting-ball {
+  position: absolute;
+  inset: 0;
+  width: clamp(52px, 11vh, 68px);
+  height: clamp(52px, 11vh, 68px);
+  opacity: 0;
+  pointer-events: none;
+  animation: intro-batting-ball-fly var(--intro-batting-duration) linear infinite;
+}
+
+@keyframes intro-cloud-drift {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(18px);
+  }
+}
+
+@keyframes intro-brand-zoom {
+  0% {
+    opacity: 0.35;
+    transform: translate(36%, -68%) scale(0.16);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(8%, -28%) scale(0.45);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes intro-brand-caption-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes intro-batting-swing {
+  from {
+    background-position: 0% 0%;
+  }
+  to {
+    background-position: 100% 0%;
+  }
+}
+
+@keyframes intro-batting-impact {
+  0%,
+  52% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+  54% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  62% {
+    opacity: 0.35;
+    transform: translate(-50%, -50%) scale(1.35);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.6);
+  }
+}
+
+@keyframes intro-batting-ball-fly {
+  0%,
+  51% {
+    opacity: 0;
+    transform: translate(48%, 58%) scale(0.35);
+  }
+  53% {
+    opacity: 1;
+    transform: translate(52%, 52%) scale(0.85);
+  }
+  58% {
+    opacity: 1;
+    transform: translate(62%, 44%) scale(1);
+  }
+  72% {
+    opacity: 1;
+    transform: translate(92%, 22%) scale(0.95);
+  }
+  86% {
+    opacity: 0.65;
+    transform: translate(128%, 2%) scale(0.75);
+  }
+  94%,
+  100% {
+    opacity: 0;
+    transform: translate(150%, -8%) scale(0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-intro-cloud {
+    animation: none;
+  }
+
+  .intro-batting-sprite {
+    animation: none;
+    background-position: 66.666% 0%;
+  }
+
+  .intro-batting-impact,
+  .intro-batting-ball {
+    animation: none;
+    opacity: 0;
+  }
+
+  .intro-brand-ball--zoom {
+    animation: none;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
 /* 인트로 — 오른쪽 (환영 문구 + 이용 안내) */
 .user-landscape-intro-right {
   display: flex;
@@ -148,22 +519,62 @@
 .user-home-right {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  gap: clamp(8px, 2vh, 14px);
+  gap: clamp(6px, 1.4vh, 10px);
   width: 100%;
   max-width: min(360px, 94%);
   margin: 0 auto;
 }
 
+.user-home-greeting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(6px, 1.5vw, 10px);
+  margin: clamp(-5px, -1vh, -7px) auto 0;
+  width: 100%;
+  max-width: min(340px, 100%);
+}
+
 .user-home-greeting-top {
   margin: 0;
-  width: 100%;
-  text-align: center;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
   color: #6b6b6b;
   font-size: clamp(12px, 3vw, 16px);
   line-height: 1.35;
   letter-spacing: -0.02em;
+}
+
+.user-home-logout-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(28px, 6.5vw, 34px);
+  height: clamp(28px, 6.5vw, 34px);
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.user-home-logout-btn:hover {
+  opacity: 0.9;
+}
+
+.user-home-logout-btn:active {
+  transform: scale(0.94);
+}
+
+.user-home-logout-btn img {
+  width: clamp(20px, 4.8vw, 24px);
+  height: clamp(20px, 4.8vw, 24px);
+  object-fit: contain;
 }
 
 .user-home-date {
@@ -178,7 +589,7 @@
 .user-home-play-btn {
   position: absolute;
   left: 50%;
-  top: calc(50% + clamp(36px, 11vh, 65px) + clamp(28px, 5vh, 40px));
+  top: calc(50% + clamp(36px, 11vh, 65px) + clamp(38px, 6.5vh, 52px));
   transform: translateX(-50%);
   padding: clamp(3px, 0.9vh, 5px) clamp(10px, 2.5vw, 14px);
   border-radius: 6px;
@@ -255,6 +666,12 @@
 }
 
 .user-landscape-menu-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.user-landscape-menu-icon-img--color {
   width: 100%;
   height: 100%;
   object-fit: contain;

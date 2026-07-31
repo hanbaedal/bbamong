@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import LandscapeGameShell from "@/components/game/LandscapeGameShell";
+import GameDayEndScreen from "@/components/game/GameDayEndScreen";
 import GameSelectModal from "@/components/game/GameSelectModal";
 import TodayMatchesSideBetModal from "@/components/game/TodayMatchesSideBetModal";
 import SideBetActionSheet from "@/components/game/SideBetActionSheet";
@@ -12,18 +13,27 @@ import {
   formatMatchTitle,
   pickDefaultMatch,
   pickFirstMatchAtStadium,
+  pickNextScheduledMatch,
   sortMatchesByOrder,
   type GameMatchItem,
 } from "@/components/game/gameMatchUtils";
 import { useToast } from "@/hooks/use-toast";
+import { useNowMs } from "@/hooks/useNowMs";
 import { useUser } from "@/contexts/UserContext";
 import { apiRequest } from "@/lib/queryClient";
+import { resolveGameDayPhase } from "@/lib/gameDayPhase";
+import {
+  formatCountdownMs,
+  formatStartTimeKst,
+  msUntilMatchStart,
+} from "@/lib/matchStartCountdown";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { useLandscapePredictionFlow } from "@/hooks/useLandscapePredictionFlow";
 import { lockGameLandscape } from "@/lib/gameOrientation";
 import { navigateToHome, openMallFromApp } from "@/lib/appNavigation";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
+import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
 
@@ -59,18 +69,27 @@ export default function PredictionPage() {
   const [stadiumModalOpen, setStadiumModalOpen] = useState(false);
   const [sideBetModalOpen, setSideBetModalOpen] = useState(false);
   const [sideBetAction, setSideBetAction] = useState<SideBetActionTarget | null>(null);
+  const [dayEndVisible, setDayEndVisible] = useState(false);
   const sideBetModalAutoShownRef = useRef(false);
+
+  const handleDayEndComplete = useCallback(() => {
+    navigateToHome();
+  }, []);
 
   useEffect(() => {
     void lockGameLandscape();
   }, []);
 
+  const nowMs = useNowMs();
+
   const { data: matchesData, isLoading: matchesLoading } = useQuery<GameMatchItem[]>({
     queryKey: ["/api/matches"],
     refetchOnMount: "always",
     refetchInterval: (query) => {
-      const list = query.state.data;
-      const current = list?.find((m) => m.id === selectedMatchId) ?? list?.[0];
+      const list = query.state.data ?? [];
+      const dayPhase = resolveGameDayPhase(list, false);
+      if (dayPhase === "pregame") return 15_000;
+      const current = list.find((m) => m.id === selectedMatchId) ?? list[0];
       if (!current) return false;
       return shouldClientPollMatch(current.startTime, current.matchStatus) ? 3000 : false;
     },
@@ -83,8 +102,13 @@ export default function PredictionPage() {
   );
 
   const joinableMatches = useMemo(
-    () => filterJoinableMatches(orderedMatches),
-    [orderedMatches],
+    () => filterJoinableMatches(orderedMatches, nowMs),
+    [orderedMatches, nowMs],
+  );
+
+  const gameDayPhase = useMemo(
+    () => resolveGameDayPhase(orderedMatches, matchesLoading, nowMs),
+    [orderedMatches, matchesLoading, nowMs],
   );
 
   const selectedMatch = useMemo(() => {
@@ -92,15 +116,44 @@ export default function PredictionPage() {
     if (selectedMatchId) {
       return joinableMatches.find((m) => m.id === selectedMatchId) ?? null;
     }
-    return pickDefaultMatch(joinableMatches);
-  }, [joinableMatches, selectedMatchId]);
+    return pickDefaultMatch(joinableMatches, nowMs);
+  }, [joinableMatches, selectedMatchId, nowMs]);
+
+  const displayMatch = useMemo(() => {
+    if (gameDayPhase === "live") return selectedMatch;
+    return (
+      pickNextScheduledMatch(orderedMatches) ??
+      orderedMatches.find((m) => m.matchStatus === "ongoing") ??
+      orderedMatches[0] ??
+      null
+    );
+  }, [gameDayPhase, selectedMatch, orderedMatches]);
+
+  const pregameCountdown = useMemo(() => {
+    if (gameDayPhase !== "pregame" || !displayMatch?.startTime) return null;
+    const remainingMs = msUntilMatchStart(displayMatch.startTime, nowMs);
+    if (remainingMs == null) return null;
+    return {
+      remainingLabel: formatCountdownMs(remainingMs),
+      startTimeLabel: formatStartTimeKst(displayMatch.startTime),
+    };
+  }, [gameDayPhase, displayMatch, nowMs]);
+
+  const flowMatch = gameDayPhase === "live" ? selectedMatch : null;
 
   useEffect(() => {
     if (matchesLoading || sideBetModalAutoShownRef.current) return;
-    if (joinableMatches.length > 0) return;
+    if (gameDayPhase !== "pregame") return;
     sideBetModalAutoShownRef.current = true;
     setSideBetModalOpen(true);
-  }, [matchesLoading, joinableMatches.length]);
+  }, [matchesLoading, gameDayPhase]);
+
+  useEffect(() => {
+    if (matchesLoading) return;
+    if (gameDayPhase === "all_ended") {
+      setDayEndVisible(true);
+    }
+  }, [matchesLoading, gameDayPhase]);
 
   useEffect(() => {
     if (!selectedMatchId) return;
@@ -130,16 +183,19 @@ export default function PredictionPage() {
     if (matchesData.some((m) => m.id === selectedMatchId)) return;
     if (matchEndedHandledRef.current) return;
     matchEndedHandledRef.current = true;
+    if (resolveGameDayPhase(matchesData, false) === "all_ended") {
+      setDayEndVisible(true);
+      return;
+    }
     toast({ description: "경기가 종료되었습니다." });
-    navigateToHome();
+    setSelectedMatchId(null);
   }, [selectedMatchId, matchesData, matchesLoading, toast]);
 
-  const flow = useLandscapePredictionFlow(selectedMatch, {
+  const flow = useLandscapePredictionFlow(flowMatch, {
     onScoreboardUpdate: setLiveScoreboard,
     onGamePhaseUpdate: (phase) => setGamePhase(phase as GamePhasePayload),
     onMatchEnded: () => {
       matchEndedHandledRef.current = true;
-      navigateToHome();
     },
   });
 
@@ -158,7 +214,7 @@ export default function PredictionPage() {
   }, [scoreboardData]);
 
   const shouldPollPhase = selectedMatch
-    && shouldClientPollMatch(selectedMatch.startTime, selectedMatch.matchStatus);
+    && shouldClientPollMatch(selectedMatch.startTime, selectedMatch.matchStatus, undefined, nowMs);
 
   useEffect(() => {
     if (!selectedMatch?.id || !shouldPollPhase) return;
@@ -241,18 +297,20 @@ export default function PredictionPage() {
 
   const handleStadiumSelect = (stadiumIdStr: string) => {
     const stadiumId = Number.parseInt(stadiumIdStr, 10);
-    const nextMatch = pickFirstMatchAtStadium(joinableMatches, stadiumId);
+    const nextMatch = pickFirstMatchAtStadium(joinableMatches, stadiumId, nowMs);
     if (nextMatch) {
       setSelectedMatchId(nextMatch.id);
     }
     setStadiumModalOpen(false);
   };
 
-  const matchTitle = selectedMatch ? formatMatchTitle(selectedMatch.name) : "제 1경기";
-  const stadiumName = getDisplayStadiumName(selectedMatch?.stadiumName) ?? "";
-  const batterText = batterTextFromPhase(gamePhase);
-  const canSelectMatch = joinableMatches.length > 0;
-  const canSelectStadium = stadiumOptions.length > 0;
+  const matchTitle = displayMatch ? formatMatchTitle(displayMatch.name) : "오늘의 경기";
+  const stadiumName = getDisplayStadiumName(displayMatch?.stadiumName) ?? "";
+  const batterText = gameDayPhase === "live" ? batterTextFromPhase(gamePhase) : "—";
+  const canSelectMatch = gameDayPhase === "live" && joinableMatches.length > 0;
+  const canSelectStadium = gameDayPhase === "live" && stadiumOptions.length > 0;
+  const shellDayPhase = gameDayPhase === "loading" ? "pregame" : gameDayPhase;
+  const isLivePlay = gameDayPhase === "live";
 
   const inningHalfForUi = useMemo(() => {
     if (gamePhase?.inningHalf != null) {
@@ -278,13 +336,13 @@ export default function PredictionPage() {
         onClosePanel={() => setActivePanel(null)}
         todayStats={predictionStats?.statistics?.today}
         statsLoading={statsLoading}
-        screenPhase={flow.screenPhase}
-        selectedPrediction={flow.selectedPrediction}
-        labelsVisible={flow.labelsVisible}
-        labelsInteractive={flow.labelsInteractive}
-        blinkPrediction={flow.blinkPrediction}
+        screenPhase={isLivePlay ? flow.screenPhase : "wait_start"}
+        selectedPrediction={isLivePlay ? flow.selectedPrediction : null}
+        labelsVisible={isLivePlay && flow.labelsVisible}
+        labelsInteractive={isLivePlay && flow.labelsInteractive}
+        blinkPrediction={isLivePlay ? flow.blinkPrediction : null}
         onFieldSelect={flow.handleFieldSelect}
-        showBetModal={flow.showBetModal}
+        showBetModal={isLivePlay && flow.showBetModal}
         selectedBetAmount={flow.selectedBetAmount}
         onBetAmountChange={flow.setSelectedBetAmount}
         onBetModalCancel={() => {
@@ -292,16 +350,16 @@ export default function PredictionPage() {
           flow.handleConfirmCancel();
         }}
         onBetNext={flow.handleBetNext}
-        showConfirmModal={flow.showConfirmModal}
+        showConfirmModal={isLivePlay && flow.showConfirmModal}
         onConfirmCancel={flow.handleConfirmCancel}
         onConfirmSubmit={() => void flow.handleConfirmSubmit()}
         onRunComplete={flow.handleRunComplete}
         lastWonAmount={flow.lastWonAmount}
         lastBetAmount={flow.lastBetAmount}
-        resultCountdown={flow.resultCountdown}
-        eventCountdown={flow.eventCountdown}
-        eventSubtitle={flow.eventSubtitle}
-        showAdOverlay={flow.showAdOverlay}
+        resultCountdown={isLivePlay ? flow.resultCountdown : null}
+        eventCountdown={isLivePlay ? flow.eventCountdown : null}
+        eventSubtitle={isLivePlay ? flow.eventSubtitle : undefined}
+        showAdOverlay={isLivePlay && flow.showAdOverlay}
         adSessionState={flow.adSessionState}
         isNativePlatform={flow.isNativePlatform}
         onMatchTitleClick={() => setMatchModalOpen(true)}
@@ -309,7 +367,11 @@ export default function PredictionPage() {
         matchSelectEnabled={canSelectMatch}
         stadiumSelectEnabled={canSelectStadium}
         inningHalf={inningHalfForUi}
+        gameDayPhase={shellDayPhase}
+        pregameCountdown={pregameCountdown}
       />
+
+      {dayEndVisible ? <GameDayEndScreen onComplete={handleDayEndComplete} /> : null}
 
       <GameSelectModal
         open={matchModalOpen}

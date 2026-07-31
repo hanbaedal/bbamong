@@ -60,6 +60,24 @@
   animation: pyamong-idle-bob 2.2s ease-in-out infinite;
 }
 
+@keyframes pyamong-wave-arm {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-6deg);
+  }
+  75% {
+    transform: rotate(6deg);
+  }
+}
+
+.animate-pyamong-wave {
+  animation: pyamong-wave-arm 0.85s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
 .animate-pyamong-success {
   animation: pyamong-success-bounce 0.9s ease-in-out infinite;
 }

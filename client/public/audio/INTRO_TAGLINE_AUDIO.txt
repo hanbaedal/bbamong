@@ -1,0 +1,9 @@
+Intro tagline voice (optional — add MP3 to enable, otherwise TTS is used)
+
+File path: intro-tagline.mp3
+Suggested line: "실시간으로 즐기는 야구 예측게임 ... 빠던나인!!!"
+
+When this file exists at client/public/audio/intro-tagline.mp3,
+IntroSplash will play it instead of browser TTS.
+
+License: record your own voice or use a licensed voice asset.

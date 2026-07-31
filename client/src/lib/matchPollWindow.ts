@@ -4,21 +4,23 @@ export const CLIENT_POLL_START_BEFORE_MS = 60_000;
 export function isWithinMatchPollWindow(
   startTime?: string | Date | null,
   beforeMs = CLIENT_POLL_START_BEFORE_MS,
+  nowMs = Date.now(),
 ): boolean {
   if (!startTime) return false;
   const startMs = new Date(startTime).getTime();
   if (!Number.isFinite(startMs)) return false;
-  return Date.now() >= startMs - beforeMs;
+  return nowMs >= startMs - beforeMs;
 }
 
 export function msUntilMatchPollWindow(
   startTime?: string | Date | null,
   beforeMs = CLIENT_POLL_START_BEFORE_MS,
+  nowMs = Date.now(),
 ): number | null {
   if (!startTime) return null;
   const startMs = new Date(startTime).getTime();
   if (!Number.isFinite(startMs)) return null;
-  return Math.max(0, startMs - beforeMs - Date.now());
+  return Math.max(0, startMs - beforeMs - nowMs);
 }
 
 /** 운영자·사용자 MongoDB 폴링: 시작 1분 전 ~ 경기 종료 전 */
@@ -26,8 +28,9 @@ export function shouldClientPollMatch(
   startTime?: string | Date | null,
   matchStatus?: string | null,
   beforeMs = CLIENT_POLL_START_BEFORE_MS,
+  nowMs = Date.now(),
 ): boolean {
   if (matchStatus === "completed" || matchStatus === "cancelled") return false;
   if (matchStatus === "ongoing") return true;
-  return isWithinMatchPollWindow(startTime, beforeMs);
+  return isWithinMatchPollWindow(startTime, beforeMs, nowMs);
 }

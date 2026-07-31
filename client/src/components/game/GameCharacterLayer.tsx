@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import pyamongWaiting from "@assets/game/pyamong-waiting.png";
 import pyamongSuccess from "@assets/game/pyamong-success.png";
+import pyamongStandsWaiting from "@assets/game/pyamong-stands-waiting.png";
 import batterWaiting from "@assets/game/batter-waiting.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
+import type { GameDayPhase } from "@/lib/gameDayPhase";
+import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
 import { getRunDurationSec } from "./fieldPositions";
 import {
   BASE_IMAGE_POINTS,
@@ -10,6 +13,7 @@ import {
   HOME_PLATE_IMAGE,
   pathToCssKeyframesPx,
   PITCHER_MOUND_IMAGE,
+  STANDS_SEAT_IMAGE,
   stadiumImagePointToPx,
 } from "./stadiumFieldCoords";
 import { StadiumFieldMarker, useStadiumFieldSize } from "./StadiumFieldContext";
@@ -19,12 +23,14 @@ import "./gameAnimations.css";
 
 interface GameCharacterLayerProps {
   phase: GameScreenPhase;
+  gameDayPhase: GameDayPhase;
   selectedPrediction: PredictionOption | null;
   onRunComplete?: () => void;
 }
 
 export default function GameCharacterLayer({
   phase,
+  gameDayPhase,
   selectedPrediction,
   onRunComplete,
 }: GameCharacterLayerProps) {
@@ -56,7 +62,24 @@ export default function GameCharacterLayer({
     <>
       <style>{keyframesCss}</style>
 
-      {phase === "wait_start" && (
+      {gameDayPhase === "pregame" && (
+        <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
+          <div
+            className="pointer-events-none"
+            style={{ transform: "translate(-30%, -88%)" }}
+          >
+            <img
+              src={pyamongStandsWaiting}
+              alt=""
+              className="w-[min(16vw,120px)] h-auto game-sprite animate-pyamong-idle shrink-0 drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+              style={{ transformOrigin: "bottom center" }}
+              data-testid="char-pyamong-stands-waiting"
+            />
+          </div>
+        </StadiumFieldMarker>
+      )}
+
+      {gameDayPhase === "live" && phase === "wait_start" && (
         <StadiumFieldMarker point={HOME_PLATE_IMAGE} center={false}>
           <div
             className="flex flex-row items-end gap-1 sm:gap-2 pointer-events-none"
@@ -70,8 +93,10 @@ export default function GameCharacterLayer({
               data-testid="char-pyamong-waiting"
             />
             <GameThoughtBubble
-              text="다음타자 예측을 기다리고 있습니다."
+              lines={[...LIVE_WAIT_BUBBLE_LINES]}
               className="mb-[min(5vw,40px)] shrink-0"
+              bubbleWidth="min(10vw, 78px)"
+              textClassName="text-[min(2.1vw,11px)] sm:text-[min(2.5vw,13px)] leading-[1.12]"
             />
           </div>
         </StadiumFieldMarker>

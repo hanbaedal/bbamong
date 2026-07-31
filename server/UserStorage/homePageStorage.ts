@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS: Omit<HomePageSettings, "updatedAt"> = {
   id: "default",
   greetingPrefix: "안녕하세요",
   subGreeting: "",
-  buttonText: "경기 참여하기",
+  buttonText: "예측게임 하러가기",
   buttonEnabled: true,
   showDate: true,
   gameGuideTitle: "야구 예측 게임이란?",
