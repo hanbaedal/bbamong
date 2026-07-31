@@ -523,12 +523,16 @@ export default function LoginPage() {
         testId="login-page"
         left={
           <div className="user-login-left">
-            <img
-              src={assets.userMascot}
-              alt="PPAMONG 로고"
-              className="user-landscape-mascot user-landscape-mascot--static"
-              data-testid="img-login-logo"
-            />
+            <div className="user-login-mascot-track" aria-hidden>
+              <div className="user-login-mascot-walker">
+                <img
+                  src={assets.userMascot}
+                  alt=""
+                  className="user-login-mascot-img"
+                  data-testid="img-login-logo"
+                />
+              </div>
+            </div>
             <img
               src={splashDisclaimer}
               alt="15세 이용가 및 재화 안내"
@@ -594,20 +598,23 @@ export default function LoginPage() {
               </p>
             ) : null}
 
-            <p className="user-login-forgot">
-              <Link href="/forgot-password" data-testid="link-forgot-password">
-                비밀번호를 잊으셨나요?
-              </Link>
-            </p>
+            <div className="user-login-actions">
+              <p className="user-login-forgot">
+                <Link href="/forgot-password" data-testid="link-forgot-password">
+                  비밀번호를 잊으셨나요?
+                </Link>
+              </p>
+              <button
+                type="submit"
+                disabled={isLoading}
+                data-testid="button-login"
+                className="user-login-submit user-login-submit--compact"
+              >
+                {isLoading ? "로그인 중..." : "로그인"}
+              </button>
+            </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              data-testid="button-login"
-              className="user-login-submit"
-            >
-              {isLoading ? "로그인 중..." : "로그인"}
-            </button>
+            <div className="user-login-submit-spacer" aria-hidden />
 
             <div className="user-login-divider" aria-hidden />
 

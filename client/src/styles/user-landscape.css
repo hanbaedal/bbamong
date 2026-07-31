@@ -266,7 +266,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: clamp(8px, 2vh, 14px);
+  gap: clamp(2px, 0.5vh, 6px);
   width: 100%;
   max-width: min(360px, 94%);
   margin: 0 auto;
@@ -274,6 +274,65 @@
 
 .user-login-left .user-landscape-disclaimer {
   max-width: min(280px, 88%);
+}
+
+/* 로그인 — 면책 박스 위 빠몽이 걸음 */
+.user-login-mascot-track {
+  position: relative;
+  width: 100%;
+  max-width: min(280px, 88%);
+  height: clamp(64px, 15vh, 96px);
+  flex-shrink: 0;
+  container-type: inline-size;
+}
+
+.user-login-mascot-walker {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  animation: ppamong-login-walk-x 5s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.user-login-mascot-img {
+  display: block;
+  width: clamp(48px, 12vh, 76px);
+  height: auto;
+  max-height: clamp(64px, 14vh, 92px);
+  object-fit: contain;
+  animation: ppamong-login-walk-bob 0.42s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+@keyframes ppamong-login-walk-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(100cqw - 100%));
+  }
+}
+
+@keyframes ppamong-login-walk-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-login-mascot-walker {
+    animation: none;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .user-login-mascot-img {
+    animation: none;
+  }
 }
 
 /* 로그인 폼 */
@@ -365,6 +424,29 @@
   cursor: pointer;
 }
 
+.user-login-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(8px, 2vw, 12px);
+  padding-left: clamp(58px, 15vw, 74px);
+  margin-top: clamp(2px, 0.6vh, 4px);
+}
+
+.user-login-submit--compact {
+  width: auto;
+  flex-shrink: 0;
+  height: clamp(28px, 7vh, 32px);
+  margin-top: 0;
+  padding: 0 clamp(14px, 3.5vw, 22px);
+  font-size: clamp(11px, 2.6vw, 13px);
+}
+
+.user-login-submit-spacer {
+  height: clamp(34px, 8.5vh, 40px);
+  flex-shrink: 0;
+}
+
 .user-login-submit:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -433,8 +515,11 @@
 }
 
 .user-login-forgot {
-  text-align: center;
+  text-align: left;
   font-size: clamp(9px, 2.2vw, 11px);
+  margin: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .user-login-forgot a {
