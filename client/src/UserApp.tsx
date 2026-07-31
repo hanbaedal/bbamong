@@ -129,19 +129,19 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
           />
         }
         right={
-          <p className="user-landscape-intro-text" data-testid="text-intro-welcome">
-            실시간 야구 진루 예측게임
-            <br />
-            PPAMONG에 오신 걸 환영합니다.
-          </p>
-        }
-        footer={
-          <img
-            src={splashDisclaimer}
-            alt=""
-            className="user-landscape-disclaimer"
-            data-testid="img-intro-disclaimer"
-          />
+          <div className="user-landscape-intro-right">
+            <p className="user-landscape-intro-text" data-testid="text-intro-welcome">
+              실시간 야구 진루 예측게임
+              <br />
+              PPAMONG에 오신 걸 환영합니다.
+            </p>
+            <img
+              src={splashDisclaimer}
+              alt="15세 이용가 및 재화 안내"
+              className="user-landscape-disclaimer"
+              data-testid="img-intro-disclaimer"
+            />
+          </div>
         }
       />
     );
