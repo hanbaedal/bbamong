@@ -18,7 +18,8 @@
     "admob:write-native": "node scripts/write-admob-native-config.mjs",
     "admob:seed-config": "node scripts/seed-admob-config.mjs",
     "app-releases:import-github": "tsx scripts/import-app-releases-from-github.ts",
-    "setup:legacy-pg": "bash scripts/setup-legacy-pg-sync.sh"
+    "setup:legacy-pg": "bash scripts/setup-legacy-pg-sync.sh",
+    "android:branding": "node scripts/update-ppamong-android-branding.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1096.0",
