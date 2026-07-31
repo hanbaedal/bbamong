@@ -186,7 +186,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
             console.log("Refresh token expired or missing, redirecting to login");
             setUser(null);
             setIsUserLoaded(true);
-            window.location.href = endpoints.loginPath;
+            if (!PUBLIC_PATHS.includes(currentPath)) {
+              window.location.href = endpoints.loginPath;
+            }
             return;
           }
         }

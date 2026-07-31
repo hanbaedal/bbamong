@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import InfoPopup from "./customUi/infoPopup";
 import { clearManagerTokens } from "@/lib/managerTokenManager";
 import { managerQueryClient, getFullUrl } from "@/lib/managerQueryClient";
+import { adminQueryClient } from "@/lib/adminQueryClient";
 import { Capacitor } from "@capacitor/core";
 
 type PopupType = "session-expired" | "duplicate-login" | null;
@@ -14,9 +15,18 @@ export function SessionExpiredPopup() {
   const isProcessingRef = useRef(false);
 
   useEffect(() => {
+    const clearAdminSession = () => {
+      adminQueryClient.clear();
+      void fetch(getFullUrl("/api/admin/logout"), {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {});
+    };
+
     const handleAdminSessionExpired = () => {
       if (isProcessingRef.current) return;
       isProcessingRef.current = true;
+      clearAdminSession();
       setRedirectPath("/admin/login");
       setPopupType("session-expired");
     };
@@ -63,6 +73,7 @@ export function SessionExpiredPopup() {
     const handleAdminDuplicateLogin = () => {
       if (isProcessingRef.current) return;
       isProcessingRef.current = true;
+      clearAdminSession();
       setRedirectPath("/admin/login");
       setPopupType("duplicate-login");
     };

@@ -2,6 +2,11 @@ import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { verifyAccessToken, verifyRefreshToken, generateAccessToken, generateRefreshToken, type TokenPayload } from "../utils/jwt";
 import { AdminUserModel } from "../UserStorage/db";
+import {
+  clearAdminAuthCookies,
+  setAdminAccessCookie,
+  setAdminRefreshCookie,
+} from "../utils/adminCookies";
 
 export interface AuthenticatedAdminRequest extends Request {
   admin?: TokenPayload;
@@ -19,14 +24,12 @@ async function tryRefreshAdminToken(req: Request, res: Response): Promise<TokenP
       .lean();
 
     if (!admin || admin.approvalStatus !== "승인") {
-      res.clearCookie("adminAccessToken");
-      res.clearCookie("adminRefreshToken");
+      clearAdminAuthCookies(res);
       return null;
     }
 
     if (admin.status === "비활성화") {
-      res.clearCookie("adminAccessToken");
-      res.clearCookie("adminRefreshToken");
+      clearAdminAuthCookies(res);
       return null;
     }
 
@@ -40,25 +43,12 @@ async function tryRefreshAdminToken(req: Request, res: Response): Promise<TokenP
     const newAccessToken = generateAccessToken(tokenPayload);
     const newRefreshToken = generateRefreshToken(tokenPayload);
 
-    res.cookie("adminAccessToken", newAccessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      path: "/",
-      maxAge: 15 * 60 * 1000,
-    });
-    res.cookie("adminRefreshToken", newRefreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    setAdminAccessCookie(res, newAccessToken);
+    setAdminRefreshCookie(res, newRefreshToken);
 
     return tokenPayload;
   } catch {
-    res.clearCookie("adminAccessToken");
-    res.clearCookie("adminRefreshToken");
+    clearAdminAuthCookies(res);
     return null;
   }
 }

@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { isAdminPublicPath } from "@/lib/adminPublicPaths";
 
 // URL을 절대 경로로 변환하는 헬퍼 함수 (export하여 다른 파일에서도 사용 가능)
 export function getFullUrl(path: string): string {
@@ -9,6 +10,10 @@ let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
 
 async function refreshAccessToken(): Promise<boolean> {
+  if (isAdminPublicPath()) {
+    return false;
+  }
+
   if (isRefreshing && refreshPromise) {
     return refreshPromise;
   }
@@ -24,11 +29,15 @@ async function refreshAccessToken(): Promise<boolean> {
       if (res.ok) {
         return true;
       }
-      
-      window.dispatchEvent(new CustomEvent("admin-session-expired"));
+
+      if (!isAdminPublicPath()) {
+        window.dispatchEvent(new CustomEvent("admin-session-expired"));
+      }
       return false;
     } catch (error) {
-      window.dispatchEvent(new CustomEvent("admin-session-expired"));
+      if (!isAdminPublicPath()) {
+        window.dispatchEvent(new CustomEvent("admin-session-expired"));
+      }
       return false;
     } finally {
       isRefreshing = false;
@@ -72,15 +81,17 @@ export async function apiRequest(
   });
 
   if (res.status === 401 && !url.includes("/api/admin/login") && !url.includes("/api/admin/refresh")) {
-    const refreshed = await refreshAccessToken();
-    
-    if (refreshed) {
-      res = await fetch(getFullUrl(url), {
-        method,
-        headers: data ? { "Content-Type": "application/json" } : {},
-        body: data ? JSON.stringify(data) : undefined,
-        credentials: "include",
-      });
+    if (!isAdminPublicPath()) {
+      const refreshed = await refreshAccessToken();
+
+      if (refreshed) {
+        res = await fetch(getFullUrl(url), {
+          method,
+          headers: data ? { "Content-Type": "application/json" } : {},
+          body: data ? JSON.stringify(data) : undefined,
+          credentials: "include",
+        });
+      }
     }
   }
 
@@ -100,6 +111,10 @@ export const getQueryFn: <T>(options: {
 
     // 401 응답 시 자동 refresh 시도
     if (res.status === 401) {
+      if (isAdminPublicPath()) {
+        return null;
+      }
+
       const refreshed = await refreshAccessToken();
       
       if (refreshed) {
@@ -158,8 +173,12 @@ export async function adminFetch(
   });
 
   if (res.status === 401 && !url.includes("/api/admin/login") && !url.includes("/api/admin/refresh")) {
+    if (isAdminPublicPath()) {
+      return res;
+    }
+
     const refreshed = await refreshAccessToken();
-    
+
     if (refreshed) {
       res = await fetch(getFullUrl(url), {
         ...options,
