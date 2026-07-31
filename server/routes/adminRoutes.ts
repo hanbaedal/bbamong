@@ -13,6 +13,11 @@ import {
   verifyAdminPassword,
 } from "../utils/passwordAscii";
 import { getNextStaffUsername } from "../utils/staffUsername";
+import {
+  clearAdminAuthCookies,
+  setAdminAccessCookie,
+  setAdminRefreshCookie,
+} from "../utils/adminCookies";
 
 const adminStorage = new AdminStorage();
 
@@ -67,6 +72,8 @@ export async function adminRoutes(app: Express): Promise<void> {
   // 관리자 로그인
   app.post("/api/admin/login", async (req, res) => {
     try {
+      clearAdminAuthCookies(res);
+
       const { email, password } = req.body;
 
       if (!email || !password) {
@@ -79,13 +86,13 @@ export async function adminRoutes(app: Express): Promise<void> {
       }
 
       if (!admin) {
-        return res.status(401).json({ error: "이메일 또는 비밀번호가 일치하지 않습니다." });
+        return res.status(401).json({ error: "아이디 또는 비밀번호가 일치하지 않습니다." });
       }
 
       const passwordMatch = await verifyAdminPassword(admin.password, password);
 
       if (!passwordMatch) {
-        return res.status(401).json({ error: "이메일 또는 비밀번호가 일치하지 않습니다." });
+        return res.status(401).json({ error: "아이디 또는 비밀번호가 일치하지 않습니다." });
       }
 
       await adminStorage.updateAdminUser(admin.id, {
@@ -145,22 +152,8 @@ export async function adminRoutes(app: Express): Promise<void> {
         throw error;
       }
 
-      // 쿠키에 토큰 저장 (모바일 앱을 위해 sameSite: "none" 사용)
-      res.cookie("adminAccessToken", accessToken, {
-        httpOnly: true,
-        secure: true, // sameSite: "none"은 secure: true 필수
-        sameSite: "none",
-        path: "/", // WebSocket 연결 시 쿠키 전송을 위해 루트 경로로 설정
-        maxAge: 15 * 60 * 1000, // 15분
-      });
-
-      res.cookie("adminRefreshToken", refreshToken, {
-        httpOnly: true,
-        secure: true, // sameSite: "none"은 secure: true 필수
-        sameSite: "none",
-        path: "/", // WebSocket 연결 시 쿠키 전송을 위해 루트 경로로 설정
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7일
-      });
+      setAdminAccessCookie(res, accessToken);
+      setAdminRefreshCookie(res, refreshToken);
 
       const { password: _pw, ...adminWithoutPassword } = admin;
 
@@ -187,8 +180,9 @@ export async function adminRoutes(app: Express): Promise<void> {
 
       const decoded = verifyRefreshToken(refreshToken);
 
-      const admin = await adminStorage.getAdminUserByEmail(decoded.email);
+      const admin = await adminStorage.getAdminUserById(decoded.adminId);
       if (!admin || admin.approvalStatus !== "승인") {
+        clearAdminAuthCookies(res);
         return res.status(401).json({ error: "유효하지 않은 사용자입니다." });
       }
 
@@ -202,21 +196,8 @@ export async function adminRoutes(app: Express): Promise<void> {
       const newAccessToken = generateAccessToken(tokenPayload);
       const newRefreshToken = generateRefreshToken(tokenPayload);
 
-      res.cookie("adminAccessToken", newAccessToken, {
-        httpOnly: true,
-        secure: true, // sameSite: "none"은 secure: true 필수
-        sameSite: "none",
-        path: "/", // WebSocket 연결 시 쿠키 전송을 위해 루트 경로로 설정
-        maxAge: 15 * 60 * 1000, // 15분
-      });
-
-      res.cookie("adminRefreshToken", newRefreshToken, {
-        httpOnly: true,
-        secure: true, // sameSite: "none"은 secure: true 필수
-        sameSite: "none",
-        path: "/", // WebSocket 연결 시 쿠키 전송을 위해 루트 경로로 설정
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7일
-      });
+      setAdminAccessCookie(res, newAccessToken);
+      setAdminRefreshCookie(res, newRefreshToken);
 
       return res.json({
         success: true,
@@ -224,6 +205,7 @@ export async function adminRoutes(app: Express): Promise<void> {
       });
     } catch (error) {
       console.error("Admin refresh token error:", error);
+      clearAdminAuthCookies(res);
       return res.status(401).json({ error: "유효하지 않거나 만료된 refresh token입니다." });
     }
   });
@@ -280,16 +262,14 @@ export async function adminRoutes(app: Express): Promise<void> {
         }
       }
 
-      res.clearCookie("adminAccessToken");
-      res.clearCookie("adminRefreshToken");
+      clearAdminAuthCookies(res);
       return res.json({
         success: true,
         message: "로그아웃되었습니다.",
       });
     } catch (error) {
       console.error("Admin logout error:", error);
-      res.clearCookie("adminAccessToken");
-      res.clearCookie("adminRefreshToken");
+      clearAdminAuthCookies(res);
       return res.json({
         success: true,
         message: "로그아웃되었습니다.",

@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { useUser } from "@/contexts/UserContext";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
+import { USER_LOGIN_PATH } from "@/lib/loginSession";
 
 export default function BottomNavigation() {
   const [location, setLocation] = useLocation();
@@ -13,7 +14,7 @@ export default function BottomNavigation() {
   const handleLogout = async () => {
     const result = await logout();
     if (!result.nativeHandled) {
-      setLocation("/login");
+      setLocation(USER_LOGIN_PATH);
     }
   };
 

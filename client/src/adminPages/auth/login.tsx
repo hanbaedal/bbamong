@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { flushSync } from "react-dom";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, User, Lock } from "lucide-react";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
-import { getFullUrl } from "@/lib/adminQueryClient";
+import { adminQueryClient, getFullUrl } from "@/lib/adminQueryClient";
 import { useUser, mapSessionUserFromAdmin } from "@/contexts/UserContext";
 
 export default function AdminLoginPage() {
@@ -22,6 +22,17 @@ export default function AdminLoginPage() {
     password: "",
     general: "",
   });
+
+  useEffect(() => {
+    adminQueryClient.clear();
+    setUser(null);
+    void fetch(getFullUrl("/api/admin/logout"), {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {
+      /* stale cookie 정리 — 실패해도 로그인 진행 */
+    });
+  }, [setUser]);
 
   const validate = () => {
     const newErrors = { email: "", password: "", general: "" };
