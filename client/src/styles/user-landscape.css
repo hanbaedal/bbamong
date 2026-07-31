@@ -62,6 +62,32 @@
   cursor: default;
 }
 
+.user-landscape-mascot--intro {
+  width: clamp(96px, 28vh, 168px);
+  max-height: min(78vh, 240px);
+}
+
+@keyframes ppamong-intro-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10%);
+  }
+}
+
+.user-landscape-mascot--bounce {
+  animation: ppamong-intro-bounce 0.55s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-landscape-mascot--bounce {
+    animation: none;
+  }
+}
+
 /* 인트로 — 오른쪽 (환영 문구 + 이용 안내) */
 .user-landscape-intro-right {
   display: flex;

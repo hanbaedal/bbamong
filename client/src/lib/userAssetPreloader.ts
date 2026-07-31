@@ -2,6 +2,7 @@
 
 // Home page
 import userMascot from "@assets/user/user-mascot.png";
+import userMascotIntro from "@assets/user/user-mascot-intro.png";
 import baseballLogo from "@assets/user/검은야구공.svg";
 import settingLogo from "@assets/user/설정.svg";
 import predictionActiveLogo from "@assets/user/예측하기.svg";
@@ -161,6 +162,7 @@ const USER_PRELOAD_IMAGES = [
   failImg,
   pendingGif,
   userMascot,
+  userMascotIntro,
   mascotImg,
   coinImg,
 ];

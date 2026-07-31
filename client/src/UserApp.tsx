@@ -9,7 +9,7 @@ import { UserAssetProvider } from "@/contexts/UserAssetContext";
 import { clearTokens } from "@/lib/tokenManager";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
-import splashIcon from "@assets/user/user-mascot.png";
+import splashIntroMascot from "@assets/user/user-mascot-intro.png";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
 import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
 import "@/styles/user-landscape.css";
@@ -49,7 +49,8 @@ import NotFound from "@/pages/not-found";
 import { completeLoginNavigation, openMallFromApp, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
 
-const LOGIN_WELCOME_MS = 2000;
+const LOGIN_WELCOME_MS = 3500;
+const INTRO_JINGLE_SRC = "/audio/intro-jingle.mp3";
 
 type LoginBootstrapPhase = "checking" | "welcome" | "ready";
 
@@ -69,14 +70,35 @@ function BootstrapLoading() {
 }
 
 function LoginWelcomeSplash() {
+  useEffect(() => {
+    const audio = new Audio(INTRO_JINGLE_SRC);
+    audio.volume = 0.55;
+    audio.preload = "auto";
+
+    const stopTimer = window.setTimeout(() => {
+      audio.pause();
+    }, LOGIN_WELCOME_MS);
+
+    void audio.play().catch(() => {
+      // 일부 기기/WebView는 자동재생이 차단될 수 있음 — 무음으로 인트로 진행
+    });
+
+    return () => {
+      window.clearTimeout(stopTimer);
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    };
+  }, []);
+
   return (
     <LandscapeSplitShell
       testId="intro-splash"
       left={
         <img
-          src={splashIcon}
+          src={splashIntroMascot}
           alt="PPAMONG"
-          className="user-landscape-mascot user-landscape-mascot--static"
+          className="user-landscape-mascot user-landscape-mascot--intro user-landscape-mascot--bounce"
           data-testid="img-intro-mascot"
         />
       }
