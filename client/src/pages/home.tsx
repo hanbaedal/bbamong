@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronRight } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
-import PageHeader from "@/components/PageHeader";
+import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
 import { getFullUrl } from "@/lib/queryClient";
 import { navigateToMall } from "@/lib/appNavigation";
-import { ChevronRight } from "lucide-react";
+import "@/styles/user-landscape.css";
 
 interface HomePageSettings {
   greetingPrefix: string;
@@ -46,11 +47,11 @@ export default function HomePage() {
   const goodsSectionEnabled = settings?.goodsSectionEnabled ?? true;
   const goodsSectionTitle = settings?.goodsSectionTitle ?? "홈페이지";
   const greetingPrefix = settings?.greetingPrefix ?? "안녕하세요";
-  const subGreeting = settings?.subGreeting ?? "";
-  const buttonText = settings?.buttonText ?? "경기 참여하기";
+  const buttonText = settings?.buttonText ?? "게임하러가기";
   const buttonEnabled = settings?.buttonEnabled ?? true;
   const showDate = settings?.showDate ?? true;
   const gameGuideEnabled = settings?.gameGuideEnabled ?? true;
+  const gameGuideTitle = settings?.gameGuideTitle ?? "야구 예측 게임이란?";
 
   useEffect(() => {
     const now = new Date();
@@ -69,144 +70,108 @@ export default function HomePage() {
     setFormattedDate(`${year} ${month} ${day} ${weekday}`);
   }, []);
 
+  const goToGame = () => setLocation("/prediction");
+
+  const mallLabel =
+    goodsSectionTitle === "홈페이지" ? "빠몽이 기념품 사러가기" : goodsSectionTitle;
+
+  const menuItems: Array<{ id: string; label: string; onClick: () => void; icon?: ReactNode }> = [];
+
+  if (gameGuideEnabled) {
+    menuItems.push({
+      id: "game-guide",
+      label: gameGuideTitle,
+      onClick: () => setLocation("/home/game-guide"),
+      icon: <img src={assets.baseballLogo} alt="" />,
+    });
+  }
+
+  menuItems.push(
+    {
+      id: "user-guide",
+      label: "사용 설명서",
+      onClick: () => setLocation("/home/guide"),
+      icon: <span>?</span>,
+    },
+    {
+      id: "simulation",
+      label: "게임 시뮬레이션",
+      onClick: () => setLocation("/home/simulation"),
+      icon: <img src={assets.baseballLogo} alt="" />,
+    },
+  );
+
+  if (goodsSectionEnabled) {
+    menuItems.push({
+      id: "mall",
+      label: mallLabel,
+      onClick: () => navigateToMall(),
+      icon: <img src={assets.mainLogo} alt="" />,
+    });
+  }
+
   return (
-    <div className="h-app-screen bg-[#111111] flex flex-col landscape:justify-center">
-      <PageHeader title="" showSettings={false} showMallButton={false} />
-
-      <div className="flex-1 overflow-y-scroll-touch px-5 landscape:px-10 landscape:max-w-3xl landscape:mx-auto landscape:w-full">
-        {/* 인사 + 참여 버튼 */}
-        <div className="flex flex-col items-center pt-4 pb-6">
-          <div className="text-center mb-4">
-            {showDate && (
-              <p className="text-white text-[14px] mb-1">{formattedDate}</p>
-            )}
-            <p className="text-[#6B6B6B] text-[20px]">
-              {user ? `${greetingPrefix} ${user.name}님` : greetingPrefix}
+    <LandscapeSplitShell
+      testId="home-page"
+      left={
+        <div className="user-home-left">
+          {showDate && formattedDate ? (
+            <p className="user-home-date" data-testid="text-home-date">
+              {formattedDate}
             </p>
-            {subGreeting.trim() && (
-              <p className="text-[#6B6B6B] text-[14px] mt-2">{subGreeting}</p>
-            )}
-          </div>
-
-          <div className="w-[130px] h-[200px] mb-6 flex items-center justify-center">
+          ) : null}
+          <button
+            type="button"
+            onClick={goToGame}
+            className="border-0 bg-transparent p-0 cursor-pointer"
+            aria-label="게임하러 가기"
+            data-testid="button-mascot-game"
+          >
             <img
               src={assets.mainLogo}
               alt=""
-              className="w-full h-full object-contain"
+              className="user-landscape-mascot"
             />
-          </div>
-
-          {buttonEnabled && (
+          </button>
+          <p className="user-home-greeting" data-testid="text-home-greeting">
+            {greetingPrefix}
+            {user ? (
+              <>
+                {" "}
+                <span className="user-home-greeting-name">{user.name}님</span>
+              </>
+            ) : null}
+          </p>
+          {buttonEnabled ? (
             <button
+              type="button"
               data-testid="button-start-prediction"
-              onClick={() => setLocation("/prediction")}
-              className="w-auto max-w-[220px] px-5 py-2 bg-[#CDFF00] text-black font-bold rounded-[6px] flex items-center justify-center gap-2"
+              onClick={goToGame}
+              className="user-home-play-btn"
             >
-              <img src={assets.baseballLogo} alt="" className="w-4 h-4 object-contain" />
+              <img src={assets.baseballLogo} alt="" />
               {buttonText}
             </button>
-          )}
+          ) : null}
         </div>
-
-        {/* 사용 설명서 · 시뮬레이션 */}
-        <section className="mb-6 space-y-3">
-          <h2 className="text-white text-base font-bold">시작하기</h2>
-          <button
-            type="button"
-            onClick={() => setLocation("/home/guide")}
-            data-testid="button-user-guide"
-            className="w-full text-left p-4 rounded-lg bg-[#1A1A1A] border border-[#333] flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-lg bg-[#252525] border border-[#333] flex items-center justify-center flex-shrink-0 text-[#CDFF00] text-lg font-bold">
-              ?
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-sm font-semibold">사용 설명서</p>
-              <p className="text-[#888] text-[11px] mt-1">
-                예측 게임 · 하단 메뉴 · 쇼핑몰 · 광고 보상 안내
-              </p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setLocation("/home/simulation")}
-            data-testid="button-user-simulation"
-            className="w-full text-left p-4 rounded-lg bg-[#1A1A1A] border border-[#333] flex items-center gap-3"
-          >
-            <img
-              src={assets.baseballLogo}
-              alt=""
-              className="w-10 h-10 object-contain flex-shrink-0"
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-sm font-semibold">게임 시뮬레이션</p>
-              <p className="text-[#888] text-[11px] mt-1">
-                실제 포인트 없이 배팅·배당 정산 연습
-              </p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
-          </button>
-        </section>
-
-        {/* 관리자 커스텀 게임 소개 (있을 때) */}
-        {gameGuideEnabled && (
-          <section className="mb-6">
-            <h2 className="text-white text-base font-bold mb-3">
-              {settings?.gameGuideTitle ?? "야구 예측 게임이란?"}
-            </h2>
+      }
+      right={
+        <nav className="user-landscape-menu" aria-label="홈 메뉴">
+          {menuItems.map((item) => (
             <button
+              key={item.id}
               type="button"
-              onClick={() => setLocation("/home/game-guide")}
-              data-testid="button-game-guide"
-              className="w-full text-left p-4 rounded-lg bg-[#1A1A1A] border border-[#333] flex items-center gap-3"
+              onClick={item.onClick}
+              data-testid={`button-home-${item.id}`}
+              className="user-landscape-menu-item"
             >
-              <img
-                src={assets.baseballLogo}
-                alt=""
-                className="w-10 h-10 object-contain flex-shrink-0"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-[#D5D5D5] text-sm line-clamp-3">
-                  {settings?.gameGuideSummary ||
-                    "실시간 야구 경기 타석을 예측하고, 적중 시 배당 포인트를 획득하세요."}
-                </p>
-                <p className="text-[#CDFF00] text-xs mt-2">게임 소개 자세히 보기</p>
-              </div>
-              <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
+              <span className="user-landscape-menu-icon">{item.icon}</span>
+              <span>{item.label}</span>
+              <ChevronRight className="menu-chevron" aria-hidden />
             </button>
-          </section>
-        )}
-
-        {/* 쇼핑몰 바로가기 */}
-        {goodsSectionEnabled && (
-          <section className="mb-8">
-            <button
-              type="button"
-              onClick={() => navigateToMall()}
-              data-testid="button-homepage-shop"
-              className="w-full text-left rounded-lg overflow-hidden bg-[#1A1A1A] border border-[#333] flex items-center gap-3 p-4"
-            >
-              <div className="w-12 h-12 rounded-xl bg-[#252525] border border-[#333] flex items-center justify-center flex-shrink-0">
-                <img
-                  src={assets.mainLogo}
-                  alt=""
-                  className="w-8 h-8 object-contain"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-sm font-bold">
-                  {goodsSectionTitle === "홈페이지" ? "쇼핑몰" : goodsSectionTitle}
-                </p>
-                <p className="text-[#888] text-[11px] mt-1">
-                  스포츠 용품 · 굿즈 둘러보기
-                </p>
-              </div>
-              <ChevronRight className="w-5 h-5 text-[#666] flex-shrink-0" />
-            </button>
-          </section>
-        )}
-      </div>
-    </div>
+          ))}
+        </nav>
+      }
+    />
   );
 }

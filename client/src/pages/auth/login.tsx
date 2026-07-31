@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
+import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
+import "@/styles/user-landscape.css";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
-import { getFullUrl, apiRequest, resetRefreshCooldown } from "@/lib/queryClient";
+import { getFullUrl, resetRefreshCooldown } from "@/lib/queryClient";
 import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import { isIntroStaffLoginReturn, clearGuestSessionArtifacts } from "@/lib/shopRoutes";
 import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
@@ -518,220 +517,144 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="h-app-screen bg-[#111111] flex flex-col landscape:flex-row landscape:items-center landscape:justify-center landscape:gap-8 landscape:px-10">
-      <div
-        className="flex justify-center landscape:flex-shrink-0 landscape:mb-0 mt-6 mb-8 landscape:mt-0"
-        data-testid="logo-container"
-      >
-        <div className="w-[140px] h-[220px] landscape:w-[120px] landscape:h-[180px] flex items-center justify-center">
+    <>
+      <LandscapeSplitShell
+        testId="login-page"
+        left={
           <img
             src={assets.userMascot}
             alt="PPAMONG 로고"
-            className="w-full h-full object-contain"
+            className="user-landscape-mascot user-landscape-mascot--static"
             data-testid="img-login-logo"
           />
-        </div>
-      </div>
-
-      <div
-        className="flex-1 flex flex-col px-4 overflow-y-scroll-touch landscape:max-w-md landscape:flex-none landscape:w-full landscape:max-h-[90vh]"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 32px)" }}
-      >
-        {/* 로그인 폼 */}
-        <form
-          onSubmit={handleSubmit}
-          className="flex-1 flex flex-col justify-between"
-        >
-          {/* 입력 필드 */}
-          <div className="space-y-6">
-            {/* 아이디 */}
-            <div className="space-y-2.5">
-              <Label
-                htmlFor="email"
-                className="text-[#BFBFBF] text-sm font-medium px-1"
-              >
-                아이디
-              </Label>
-              <div className="relative flex items-center">
-                <Mail
-                  className="absolute left-2 w-5 h-5 text-[#4D4B4E]"
-                  data-testid="icon-email"
-                />
-                <Input
-                  id="email"
-                  type="text"
-                  data-testid="input-email"
-                  placeholder="아이디를 입력해 주세요"
-                  value={email}
-                  onChange={handleEmailChange}
-                  className={`w-full h-12 bg-transparent border-0 border-b text-white placeholder:text-[#4D4B4E] rounded-none pl-9 pr-3 focus:outline-none focus:ring-0 focus-visible:ring-0 ${
-                    errors.email || errors.general
-                      ? "border-b-[#E75C5D] focus-visible:border-b-[#E75C5D]"
-                      : "border-b-[#373539] focus-visible:border-b-[#BFBFBF]"
-                  }`}
-                />
-              </div>
-              {errors.email && (
-                <p
-                  className="text-[#E75C5D] text-[16px] px-1"
-                  data-testid="error-email"
-                >
-                  {errors.email}
-                </p>
-              )}
+        }
+        right={
+          <form onSubmit={handleSubmit} className="user-login-panel">
+            <div className="user-login-row">
+              <span className="user-login-label">아이디</span>
+              <input
+                id="email"
+                type="text"
+                data-testid="input-email"
+                placeholder="입력"
+                value={email}
+                onChange={handleEmailChange}
+                className={`user-login-box ${errors.email || errors.general ? "user-login-box--error" : ""}`}
+                autoComplete="username"
+              />
             </div>
+            {errors.email ? (
+              <p className="user-login-error" data-testid="error-email">
+                {errors.email}
+              </p>
+            ) : null}
 
-            {/* 비밀번호 */}
-            <div className="space-y-2.5">
-              <Label
-                htmlFor="password"
-                className="text-[#BFBFBF] text-sm font-medium px-1"
-              >
-                비밀번호
-              </Label>
-              <div className="relative flex items-center">
-                <Lock
-                  className="absolute left-2 w-5 h-5 text-[#4D4B4E]"
-                  data-testid="icon-password"
-                />
-                <Input
+            <div className="user-login-row">
+              <span className="user-login-label">비밀번호</span>
+              <div className="user-login-box-wrap">
+                <input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   data-testid="input-password"
-                  placeholder="비밀번호를 입력해 주세요"
+                  placeholder="입력"
                   value={password}
                   onChange={handlePasswordChange}
-                  className={`w-full h-12 bg-transparent border-0 border-b text-white placeholder:text-[#4D4B4E] rounded-none pl-9 pr-12 focus:outline-none focus:ring-0 focus-visible:ring-0 ${
-                    errors.password || errors.general
-                      ? "border-b-[#E75C5D] focus-visible:border-b-[#E75C5D]"
-                      : "border-b-[#373539] focus-visible:border-b-[#BFBFBF]"
-                  }`}
+                  className={`user-login-box ${errors.password || errors.general ? "user-login-box--error" : ""}`}
+                  style={{ paddingRight: 36 }}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
                   data-testid="button-toggle-password"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#D5D5D5] transition-colors"
+                  className="user-login-box-toggle"
+                  aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {errors.password && (
-                <p
-                  className="text-[#E75C5D] text-[16px] px-1"
-                  data-testid="error-password"
-                >
-                  {errors.password}
-                </p>
-              )}
-              {errors.general && (
-                <p
-                  className="text-[#E75C5D] text-[16px] px-1"
-                  data-testid="error-general"
-                >
-                  {errors.general}
-                </p>
-              )}
             </div>
+            {errors.password ? (
+              <p className="user-login-error" data-testid="error-password">
+                {errors.password}
+              </p>
+            ) : null}
+            {errors.general && !errors.email && !errors.password ? (
+              <p className="user-login-error" data-testid="error-general">
+                {errors.general}
+              </p>
+            ) : null}
 
-            <div className="flex justify-center">
-              <Link
-                href="/forgot-password"
-                className="text-sm text-[#555555] hover:text-white transition-colors underline"
-                data-testid="link-forgot-password"
-              >
+            <p className="user-login-forgot">
+              <Link href="/forgot-password" data-testid="link-forgot-password">
                 비밀번호를 잊으셨나요?
               </Link>
-            </div>
-          </div>
-
-          {/* 게스트 로그인 및 소셜 로그인 */}
-          <div className="flex flex-col">
-            <div className="mb-4 space-y-4">
-              <div className="flex justify-center">
-                <button
-                  type="button"
-                  onClick={handleGuestLogin}
-                  data-testid="button-guest-login"
-                  disabled={isGuestLoading}
-                  className="text-sm text-[#BFBFBF] hover:text-white transition-colors underline disabled:opacity-50"
-                >
-                  {isGuestLoading ? "로그인 중..." : "게스트로 로그인"}
-                </button>
-              </div>
-
-              {/* 소셜 로그인 버튼 */}
-              <div className="flex items-center justify-center gap-4">
-                {/* 카카오 로그인 - 노란색 원형 버튼 */}
-                <button
-                  type="button"
-                  data-testid="button-kakao-login"
-                  onClick={handleKakaoLogin}
-                  className="w-9 h-9 rounded-full bg-[#FEE500] flex items-center justify-center hover:opacity-90 transition-opacity"
-                  aria-label="카카오 로그인"
-                >
-                  <img
-                    src={assets.kakaoIcon}
-                    className="w-6 h-6 object-contain"
-                  ></img>
-                </button>
-
-                {/* 애플 로그인 - 원형 버튼 */}
-                <button
-                  type="button"
-                  data-testid="button-apple-login"
-                  onClick={handleAppleLogin}
-                  className="w-9 h-9 rounded-full bg-[#3A383C] flex items-center justify-center hover:opacity-90 transition-opacity"
-                  aria-label="애플 로그인"
-                >
-                  <img
-                    src={assets.appleIcon}
-                    className="w-6 h-6 object-contain"
-                  ></img>
-                </button>
-
-                {/* 구글 로그인 - 흰색 원형 버튼 */}
-                <button
-                  type="button"
-                  data-testid="button-google-login"
-                  onClick={handleGoogleLogin}
-                  className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:opacity-90 transition-opacity"
-                  aria-label="구글 로그인"
-                >
-                  <img
-                    src={assets.googleIcon}
-                    className="w-6 h-6 object-contain"
-                  ></img>
-                </button>
-              </div>
-            </div>
-
-            <p className="text-center text-sm mb-4 gap-[6px] flex justify-center">
-              <span className="text-[#BFBFBF]">계정이 없으신가요? </span>
-              <Link
-                href={`/signup${window.location.search}`}
-                className="text-[#CDFF00] font-semibold hover:underline"
-                data-testid="link-signup"
-              >
-                회원가입
-              </Link>
             </p>
-            {/* 로그인 버튼 - form 안에 위치 */}
-            <Button
+
+            <button
               type="submit"
               disabled={isLoading}
               data-testid="button-login"
-              className="w-full h-12 bg-[#CDFF00] active:bg-[#C8D48D] border border-[#CDFF00] text-black font-semibold text-base rounded-lg"
+              className="user-login-submit"
             >
               {isLoading ? "로그인 중..." : "로그인"}
-            </Button>
-          </div>
-        </form>
-      </div>
+            </button>
+
+            <div className="user-login-divider" aria-hidden />
+
+            <button
+              type="button"
+              onClick={handleGuestLogin}
+              data-testid="button-guest-login"
+              disabled={isGuestLoading}
+              className="user-login-link"
+            >
+              {isGuestLoading ? "로그인 중..." : "게스트로 로그인"}
+            </button>
+
+            <div className="user-login-divider" aria-hidden />
+
+            <div className="user-login-socials">
+              <button
+                type="button"
+                data-testid="button-kakao-login"
+                onClick={handleKakaoLogin}
+                className="user-login-social-btn bg-[#FEE500]"
+                aria-label="카카오 로그인"
+              >
+                <img src={assets.kakaoIcon} alt="" />
+              </button>
+              <button
+                type="button"
+                data-testid="button-google-login"
+                onClick={handleGoogleLogin}
+                className="user-login-social-btn bg-white"
+                aria-label="구글 로그인"
+              >
+                <img src={assets.googleIcon} alt="" />
+              </button>
+              <button
+                type="button"
+                data-testid="button-apple-login"
+                onClick={handleAppleLogin}
+                className="user-login-social-btn bg-[#3A383C]"
+                aria-label="애플 로그인"
+              >
+                <img src={assets.appleIcon} alt="" />
+              </button>
+            </div>
+
+            <div className="user-login-divider" aria-hidden />
+
+            <p className="user-login-signup">
+              계정이 없으신가요?{" "}
+              <Link href={`/signup${window.location.search}`} data-testid="link-signup">
+                신규 회원 가입
+              </Link>
+            </p>
+          </form>
+        }
+      />
 
       {showSuspendedPopup && (
         <SimpleInfoPopup
@@ -739,7 +662,6 @@ export default function LoginPage() {
           onClose={() => setShowSuspendedPopup(false)}
         />
       )}
-
-    </div>
+    </>
   );
 }

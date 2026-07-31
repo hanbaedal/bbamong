@@ -12,6 +12,8 @@ import { Capacitor } from "@capacitor/core";
 import splashIcon from "@assets/user/user-mascot.png";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
 import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
+import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
+import "@/styles/user-landscape.css";
 import GameEmbedBootstrap from "@/components/GameEmbedBootstrap";
 import GameOrientationManager from "@/components/game/GameOrientationManager";
 import { preloadUserAssets } from "@/lib/userAssetPreloader";
@@ -116,28 +118,32 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
 
   if (!splashDone || isChecking) {
     return (
-      <div className="fixed inset-0 bg-[#111111] flex flex-col items-center justify-center px-8">
-        <div className="flex flex-col items-center">
-          <img 
-            src={splashIcon} 
-            alt="PPAMONG" 
-            className="w-36 h-auto object-contain"
+      <LandscapeSplitShell
+        testId="intro-splash"
+        left={
+          <img
+            src={splashIcon}
+            alt="PPAMONG"
+            className="user-landscape-mascot user-landscape-mascot--static"
+            data-testid="img-intro-mascot"
           />
-          
-          <p className="text-[#BFFF00] text-[16px] font-normal text-center leading-[1.5] mt-8">
-            실시간 야구 진루 예측게임<br />PPAMONG에 오신 걸 환영합니다.
+        }
+        right={
+          <p className="user-landscape-intro-text" data-testid="text-intro-welcome">
+            실시간 야구 진루 예측게임
+            <br />
+            PPAMONG에 오신 걸 환영합니다.
           </p>
-        </div>
-        
-        <div className="mt-12 px-4">
-          <img 
-            src={splashDisclaimer} 
-            alt="" 
-            className="w-full max-w-[343px] mx-auto"
-            style={{ transform: "scale(1.15)", transformOrigin: "center bottom" }}
+        }
+        footer={
+          <img
+            src={splashDisclaimer}
+            alt=""
+            className="user-landscape-disclaimer"
+            data-testid="img-intro-disclaimer"
           />
-        </div>
-      </div>
+        }
+      />
     );
   }
 
