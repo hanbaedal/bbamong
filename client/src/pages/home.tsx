@@ -95,15 +95,17 @@ export default function HomePage() {
       testId="home-page"
       left={
         <div className="user-home-left">
-          <button
-            type="button"
-            onClick={goToGame}
-            className="border-0 bg-transparent p-0 cursor-pointer"
-            aria-label="게임하러 가기"
-            data-testid="button-mascot-game"
-          >
-            <img src={assets.mainLogo} alt="" className="user-landscape-mascot" />
-          </button>
+          <div className="user-home-mascot-vcenter">
+            <button
+              type="button"
+              onClick={goToGame}
+              className="user-home-mascot-btn"
+              aria-label="게임하러 가기"
+              data-testid="button-mascot-game"
+            >
+              <img src={assets.mainLogo} alt="" className="user-landscape-mascot" />
+            </button>
+          </div>
           {buttonEnabled ? (
             <button
               type="button"
