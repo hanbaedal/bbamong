@@ -445,3 +445,469 @@
 .user-login-forgot a:hover {
   color: #bfbfbf;
 }
+
+/* 게임 시뮬레이션 — 가로 2등분 */
+.user-sim-left {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  width: 100%;
+  height: 100%;
+  max-width: min(360px, 94%);
+  margin: 0 auto;
+  gap: clamp(4px, 1vh, 8px);
+  min-height: 0;
+}
+
+.user-sim-topbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.user-sim-back {
+  border: 0;
+  background: transparent;
+  color: #fff;
+  padding: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-sim-title {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(13px, 3.2vw, 16px);
+  font-weight: 700;
+}
+
+.user-sim-notice {
+  margin: 0;
+  font-size: clamp(9px, 2.2vw, 11px);
+  color: #fbbf24;
+  line-height: 1.35;
+  flex-shrink: 0;
+}
+
+.user-sim-scoreboard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 2vw, 14px);
+  padding: clamp(6px, 1.4vh, 10px);
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #1a1a1a;
+  flex-shrink: 0;
+}
+
+.user-sim-scoreboard-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: clamp(52px, 14vw, 72px);
+}
+
+.user-sim-scoreboard-label {
+  color: #888;
+  font-size: clamp(9px, 2.2vw, 11px);
+}
+
+.user-sim-scoreboard-num {
+  color: #cdff00;
+  font-size: clamp(20px, 5vh, 28px);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.user-sim-scoreboard-colon {
+  color: #666;
+  font-size: clamp(16px, 4vh, 22px);
+  font-weight: 700;
+}
+
+.user-sim-status {
+  margin: 0;
+  text-align: center;
+  color: #aaa;
+  font-size: clamp(9px, 2.2vw, 11px);
+  flex-shrink: 0;
+}
+
+.user-sim-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: clamp(4px, 1vh, 8px) clamp(8px, 2vw, 12px);
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #141414;
+  flex-shrink: 0;
+}
+
+.user-sim-stat-label {
+  display: block;
+  color: #888;
+  font-size: clamp(8px, 2vw, 10px);
+}
+
+.user-sim-stat-value {
+  display: block;
+  color: #fff;
+  font-size: clamp(13px, 3.2vw, 16px);
+  font-weight: 700;
+}
+
+.user-sim-stat-value--points {
+  color: #cdff00;
+}
+
+.user-sim-highlight {
+  padding: clamp(6px, 1.4vh, 10px);
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #1a1a1a;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.user-sim-highlight-label {
+  margin: 0 0 4px;
+  color: #888;
+  font-size: clamp(9px, 2.2vw, 11px);
+}
+
+.user-sim-highlight-main {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(16px, 4vh, 22px);
+  font-weight: 800;
+}
+
+.user-sim-hit {
+  margin: 4px 0 0;
+  color: #cdff00;
+  font-size: clamp(10px, 2.4vw, 12px);
+  font-weight: 600;
+}
+
+.user-sim-miss {
+  margin: 4px 0 0;
+  color: #f87171;
+  font-size: clamp(10px, 2.4vw, 12px);
+  font-weight: 600;
+}
+
+.user-sim-settle {
+  margin: 4px 0 0;
+  color: #d5d5d5;
+  font-size: clamp(9px, 2.2vw, 11px);
+}
+
+.user-sim-match-actions {
+  flex-shrink: 0;
+}
+
+.user-sim-log {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #141414;
+  padding: clamp(6px, 1.2vh, 8px);
+}
+
+.user-sim-log-title {
+  margin: 0 0 4px;
+  color: #fff;
+  font-size: clamp(9px, 2.2vw, 11px);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.user-sim-log-list {
+  margin: 0;
+  padding: 0 0 0 12px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  list-style: disc;
+}
+
+.user-sim-log-list li {
+  color: #888;
+  font-size: clamp(8px, 2vw, 10px);
+  line-height: 1.4;
+  margin-bottom: 2px;
+}
+
+.user-sim-link {
+  border: 0;
+  background: none;
+  color: #888;
+  font-size: clamp(9px, 2.2vw, 11px);
+  text-decoration: underline;
+  cursor: pointer;
+  text-align: center;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.user-sim-right {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-width: min(380px, 100%);
+  margin: 0 auto;
+  min-height: 0;
+}
+
+.user-sim-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(4px, 1vw, 6px);
+  flex-shrink: 0;
+  margin-bottom: clamp(4px, 1vh, 8px);
+}
+
+.user-sim-tab {
+  border: 1px solid #373539;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #aaa;
+  font-size: clamp(10px, 2.4vw, 12px);
+  font-weight: 600;
+  padding: clamp(6px, 1.4vh, 8px) 4px;
+  cursor: pointer;
+}
+
+.user-sim-tab--active {
+  border-color: #cdff00;
+  background: rgba(205, 255, 0, 0.12);
+  color: #cdff00;
+}
+
+.user-sim-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-sim-panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.user-sim-section-title {
+  margin: 0 0 4px;
+  color: #fff;
+  font-size: clamp(11px, 2.8vw, 14px);
+  font-weight: 700;
+}
+
+.user-sim-section-desc {
+  margin: 0 0 clamp(6px, 1.4vh, 10px);
+  color: #888;
+  font-size: clamp(9px, 2.2vw, 11px);
+  line-height: 1.35;
+}
+
+.user-sim-locked {
+  margin: 0 0 8px;
+  color: #fbbf24;
+  font-size: clamp(9px, 2.2vw, 11px);
+}
+
+.user-sim-card {
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #1a1a1a;
+  padding: clamp(8px, 1.8vh, 12px);
+  margin-bottom: clamp(6px, 1.4vh, 10px);
+}
+
+.user-sim-card--center {
+  text-align: center;
+}
+
+.user-sim-card-title {
+  margin: 0 0 6px;
+  color: #fff;
+  font-size: clamp(10px, 2.5vw, 13px);
+  font-weight: 600;
+}
+
+.user-sim-my-bet {
+  margin: 0;
+  color: #cdff00;
+  font-size: clamp(9px, 2.2vw, 11px);
+}
+
+.user-sim-settle-inline {
+  margin: 8px 0 0;
+  color: #d5d5d5;
+  font-size: clamp(9px, 2.2vw, 11px);
+}
+
+.user-sim-pick-grid {
+  display: grid;
+  gap: clamp(4px, 1vh, 6px);
+  margin-bottom: clamp(6px, 1.4vh, 8px);
+}
+
+.user-sim-pick-grid--2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.user-sim-pick {
+  border: 1px solid #373539;
+  border-radius: 6px;
+  background: #141414;
+  color: #fff;
+  font-size: clamp(10px, 2.4vw, 12px);
+  font-weight: 600;
+  padding: clamp(6px, 1.4vh, 9px);
+  cursor: pointer;
+}
+
+.user-sim-pick--active {
+  border-color: #cdff00;
+  background: rgba(205, 255, 0, 0.1);
+  color: #cdff00;
+}
+
+.user-sim-pick--odds {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.user-sim-odds {
+  color: #888;
+  font-size: clamp(8px, 2vw, 10px);
+  font-weight: 500;
+}
+
+.user-sim-score-inputs {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(6px, 1.5vw, 10px);
+  margin-bottom: clamp(6px, 1.4vh, 8px);
+}
+
+.user-sim-score-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #888;
+  font-size: clamp(9px, 2.2vw, 11px);
+}
+
+.user-sim-score-box {
+  width: clamp(48px, 12vw, 64px);
+  height: clamp(32px, 7vh, 36px);
+  border-radius: 6px;
+  border: 1px solid #373539;
+  background: #111;
+  color: #fff;
+  text-align: center;
+  font-size: clamp(12px, 2.8vw, 14px);
+}
+
+.user-sim-score-dash {
+  color: #666;
+  font-weight: 700;
+  padding-bottom: 8px;
+}
+
+.user-sim-compact-bet h2 {
+  font-size: clamp(10px, 2.5vw, 13px) !important;
+  margin-bottom: 4px !important;
+}
+
+.user-sim-compact-bet .mb-4 {
+  margin-bottom: 8px !important;
+}
+
+.user-sim-compact-bet .grid-cols-5 {
+  gap: 4px !important;
+}
+
+.user-sim-compact-bet button {
+  padding: 4px 2px !important;
+  font-size: clamp(9px, 2.2vw, 11px) !important;
+}
+
+.user-sim-expected {
+  margin: 0 0 8px;
+  color: #aaa;
+  font-size: clamp(9px, 2.2vw, 11px);
+}
+
+.user-sim-wait-title {
+  margin: 0 0 4px;
+  color: #fff;
+  font-weight: 600;
+  font-size: clamp(11px, 2.8vw, 14px);
+}
+
+.user-sim-wait-sub {
+  margin: 0 0 10px;
+  color: #888;
+  font-size: clamp(10px, 2.4vw, 12px);
+}
+
+.user-sim-btn {
+  border-radius: 6px;
+  font-size: clamp(10px, 2.4vw, 12px);
+  font-weight: 700;
+  padding: clamp(6px, 1.4vh, 9px) clamp(10px, 2.5vw, 14px);
+  cursor: pointer;
+  border: none;
+}
+
+.user-sim-btn--full {
+  width: 100%;
+}
+
+.user-sim-btn--primary {
+  background: #cdff00;
+  color: #000;
+}
+
+.user-sim-btn--primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.user-sim-btn--outline {
+  width: 100%;
+  background: transparent;
+  border: 1px solid #cdff00;
+  color: #cdff00;
+}
+
+.user-sim-reset {
+  flex-shrink: 0;
+  margin-top: clamp(4px, 1vh, 6px);
+  border: 0;
+  background: none;
+  color: #666;
+  font-size: clamp(9px, 2.2vw, 11px);
+  cursor: pointer;
+  text-align: center;
+  padding: 4px;
+}
