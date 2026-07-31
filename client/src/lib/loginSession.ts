@@ -1,6 +1,9 @@
 /** 로그아웃·회원 로그인 화면 — 자동 로그인 bootstrap 건너뛰기 */
 export const POST_LOGOUT_SESSION_KEY = "ppamong_post_logout";
 
+/** 설치 후 인트로 1회 표시용 — 로그아웃해도 유지 */
+export const INTRO_SEEN_STORAGE_KEY = "ppamong_intro_seen";
+
 export const USER_LOGIN_PATH = "/login?guest=0";
 
 export function markPostLogout(): void {
@@ -21,6 +24,22 @@ export function consumePostLogout(): boolean {
     /* ignore */
   }
   return false;
+}
+
+export function hasSeenIntro(): boolean {
+  try {
+    return localStorage.getItem(INTRO_SEEN_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markIntroSeen(): void {
+  try {
+    localStorage.setItem(INTRO_SEEN_STORAGE_KEY, "1");
+  } catch {
+    /* ignore */
+  }
 }
 
 export function isMemberLoginIntent(search: string): boolean {

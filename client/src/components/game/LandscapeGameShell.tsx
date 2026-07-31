@@ -2,6 +2,7 @@ import { useState } from "react";
 import GameFieldViewport from "./GameFieldViewport";
 import GameLeftMenu, { type GameMenuAction, type SubmenuAnchor } from "./GameLeftMenu";
 import GameTopScorePanel from "./GameTopScorePanel";
+import GamePregameCountdown from "./GamePregameCountdown";
 import GameFieldLabels from "./GameFieldLabels";
 import GameMenuPanel from "./GameMenuPanel";
 import GameCharacterLayer from "./GameCharacterLayer";
@@ -16,7 +17,7 @@ import ConfirmPopup from "@/components/customUi/confirmPopup";
 import type { AdSessionState } from "@/hooks/useAdMob";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import type { GameDayPhase } from "@/lib/gameDayPhase";
-import type { PregameCountdownDisplay } from "./GameTopScorePanel";
+import type { PregameCountdownDisplay } from "./GamePregameCountdown";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import { calculateFixedOddsPayout, type BetAmountOption } from "@shared/predictionOdds";
 import "./gameAnimations.css";
@@ -163,8 +164,11 @@ export default function LandscapeGameShell({
               onStadiumNameClick={onStadiumNameClick}
               matchSelectEnabled={matchSelectEnabled}
               stadiumSelectEnabled={stadiumSelectEnabled}
-              pregameCountdown={pregameCountdown}
             />
+
+            {pregameCountdown ? (
+              <GamePregameCountdown countdown={pregameCountdown} />
+            ) : null}
 
             <GameFieldLabels
               visible={labelsVisible}
