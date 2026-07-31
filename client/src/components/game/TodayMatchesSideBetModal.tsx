@@ -1,7 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
 import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { formatMatchTitle, type GameMatchItem } from "@/components/game/gameMatchUtils";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import {
@@ -50,9 +48,6 @@ export default function TodayMatchesSideBetModal({
   onAction,
   onClose,
 }: TodayMatchesSideBetModalProps) {
-  const { toast } = useToast();
-  const betStatusRef = useRef<Map<number, string>>(new Map());
-
   const { data: todayBets } = useQuery<TodaySideBetsResponse>({
     queryKey: ["/api/live-match/side-bets/me/today"],
     queryFn: async () => {
@@ -62,23 +57,6 @@ export default function TodayMatchesSideBetModal({
     enabled: open,
     refetchInterval: open ? 5000 : false,
   });
-
-  useEffect(() => {
-    if (!todayBets?.betsByMatch) return;
-    for (const bets of Object.values(todayBets.betsByMatch)) {
-      for (const bet of bets) {
-        const prev = betStatusRef.current.get(bet.id);
-        if (prev === "pending" && bet.status !== "pending") {
-          const label = bet.type === "winner" ? "우승팀" : "점수";
-          const result = formatSideBetStatus(bet.status);
-          const extra =
-            bet.status === "won" && (bet.wonAmount ?? 0) > 0 ? ` (+${bet.wonAmount}P)` : "";
-          toast({ description: `${label} 배팅 ${result}${extra}` });
-        }
-        betStatusRef.current.set(bet.id, bet.status);
-      }
-    }
-  }, [todayBets, toast]);
 
   if (!open) return null;
 
@@ -164,7 +142,7 @@ export default function TodayMatchesSideBetModal({
                         className="flex-1 h-9 rounded-lg text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-[#CDFF00] text-black enabled:hover:bg-[#d8ff33]"
                         data-testid={`side-bet-winner-btn-${match.id}`}
                       >
-                        우승팀 맞추기
+                        {winnerBet ? "우승팀 수정" : "우승팀 맞추기"}
                       </button>
                       <button
                         type="button"
@@ -175,7 +153,7 @@ export default function TodayMatchesSideBetModal({
                         className="flex-1 h-9 rounded-lg text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-[#CDFF00] text-black enabled:hover:bg-[#d8ff33]"
                         data-testid={`side-bet-score-btn-${match.id}`}
                       >
-                        점수 맞추기
+                        {scoreBet ? "점수 수정" : "점수 맞추기"}
                       </button>
                     </div>
                   </li>

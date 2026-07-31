@@ -64,15 +64,17 @@ export default function SideBetActionSheet({
 
   const locked = data?.sideBetsLocked ?? false;
   const existingBet = data?.bets.find((b) => b.type === betType);
-  const formDisabled = locked || isLoading || submitting || Boolean(existingBet);
+  const isEdit = Boolean(existingBet && existingBet.status === "pending" && !locked);
+  const formDisabled = locked || isLoading || submitting || (Boolean(existingBet) && !isEdit);
 
   useEffect(() => {
     if (!open) return;
+    if (existingBet) return;
     setWinnerPick(null);
     setHomeScore("");
     setAwayScore("");
     setAmount(DEFAULT_SIDE_BET_AMOUNT);
-  }, [open, matchId, betType]);
+  }, [open, matchId, betType, existingBet]);
 
   useEffect(() => {
     if (existingBet?.type === "winner" && existingBet.winnerPick) {
@@ -81,6 +83,9 @@ export default function SideBetActionSheet({
     if (existingBet?.type === "score") {
       if (existingBet.homeScorePick != null) setHomeScore(String(existingBet.homeScorePick));
       if (existingBet.awayScorePick != null) setAwayScore(String(existingBet.awayScorePick));
+    }
+    if (existingBet?.amount) {
+      setAmount(existingBet.amount as SideBetAmountOption);
     }
   }, [existingBet]);
 
@@ -100,10 +105,10 @@ export default function SideBetActionSheet({
       await apiRequest("POST", "/api/live-match/side-bets", {
         matchId,
         type: "winner",
-        amount,
+        amount: existingBet?.amount ?? amount,
         winnerPick: pick,
       });
-      toast({ description: "승리팀 배팅이 접수되었습니다." });
+      toast({ description: isEdit ? "우승팀 예측이 수정되었습니다." : "승리팀 배팅이 접수되었습니다." });
       invalidate();
       onSubmitted?.();
       onClose();
@@ -129,11 +134,11 @@ export default function SideBetActionSheet({
       await apiRequest("POST", "/api/live-match/side-bets", {
         matchId,
         type: "score",
-        amount,
+        amount: existingBet?.amount ?? amount,
         homeScorePick: home,
         awayScorePick: away,
       });
-      toast({ description: "최종 스코어 배팅이 접수되었습니다." });
+      toast({ description: isEdit ? "점수 예측이 수정되었습니다." : "최종 스코어 배팅이 접수되었습니다." });
       invalidate();
       onSubmitted?.();
       onClose();
@@ -175,7 +180,7 @@ export default function SideBetActionSheet({
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {existingBet && (
             <p className="text-[#CDFF00] text-xs text-center">
-              이미 배팅함 ·{" "}
+              {isEdit ? "수정 가능 · " : "이미 배팅함 · "}
               {existingBet.type === "winner"
                 ? `${existingBet.winnerPick === "home" ? "홈팀" : "원정팀"} · ${existingBet.amount}P`
                 : `${existingBet.homeScorePick}-${existingBet.awayScorePick} · ${existingBet.amount}P`}
@@ -201,7 +206,7 @@ export default function SideBetActionSheet({
                     disabled={formDisabled}
                     onClick={() => setWinnerPick(side)}
                     className={`rounded-lg border p-3 text-sm font-medium ${
-                      winnerPick === side || existingBet?.winnerPick === side
+                      winnerPick === side
                         ? "border-[#CDFF00] bg-[#CDFF00]/10 text-[#CDFF00]"
                         : "border-[#373539] text-white"
                     } ${formDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -266,7 +271,7 @@ export default function SideBetActionSheet({
           >
             닫기
           </button>
-          {!existingBet && !locked && (
+          {!locked && (!existingBet || isEdit) && (
             <button
               type="button"
               disabled={
@@ -277,7 +282,7 @@ export default function SideBetActionSheet({
               className="flex-1 h-11 rounded-lg bg-[#CDFF00] text-black font-bold disabled:opacity-50"
               data-testid={betType === "winner" ? "button-side-bet-winner" : "button-side-bet-score"}
             >
-              {submitting ? "접수 중..." : "배팅하기"}
+              {submitting ? "처리 중..." : isEdit ? "수정하기" : "배팅하기"}
             </button>
           )}
         </div>

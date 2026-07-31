@@ -18,6 +18,7 @@ import type { AdSessionState } from "@/hooks/useAdMob";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import type { GameDayPhase } from "@/lib/gameDayPhase";
 import type { PregameCountdownDisplay } from "./GamePregameCountdown";
+import type { SideBetBottomSummary } from "./GameBottomStatusBar";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import { calculateFixedOddsPayout, type BetAmountOption } from "@shared/predictionOdds";
 import "./gameAnimations.css";
@@ -65,6 +66,9 @@ interface LandscapeGameShellProps {
   inningHalf?: "top" | "bottom";
   gameDayPhase?: GameDayPhase;
   pregameCountdown?: PregameCountdownDisplay | null;
+  sideBetSummary?: SideBetBottomSummary | null;
+  onSideBetWinnerClick?: () => void;
+  onSideBetScoreClick?: () => void;
 }
 
 export default function LandscapeGameShell({
@@ -110,6 +114,9 @@ export default function LandscapeGameShell({
   inningHalf,
   gameDayPhase = "live",
   pregameCountdown = null,
+  sideBetSummary = null,
+  onSideBetWinnerClick,
+  onSideBetScoreClick,
 }: LandscapeGameShellProps) {
   const storyLinks = [
     { label: "승리현황", href: "/victory-history", testId: "link-victory-history" },
@@ -221,7 +228,11 @@ export default function LandscapeGameShell({
         )}
       </GameFieldViewport>
 
-      <GameBottomStatusBar />
+      <GameBottomStatusBar
+        sideBetSummary={sideBetSummary}
+        onWinnerClick={onSideBetWinnerClick}
+        onScoreClick={onSideBetScoreClick}
+      />
 
       <GameLeftMenu
         activePanel={activePanel}

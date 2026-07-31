@@ -66,7 +66,7 @@ export default function GameCharacterLayer({
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
           <div
             className="pointer-events-none"
-            style={{ transform: "translate(-30%, -88%)" }}
+            style={{ transform: "translate(-50%, -92%)" }}
           >
             <img
               src={pyamongStandsWaiting}
