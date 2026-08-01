@@ -4,7 +4,6 @@ import LandscapeGameShell from "@/components/game/LandscapeGameShell";
 import GameDayEndScreen from "@/components/game/GameDayEndScreen";
 import GameSelectModal from "@/components/game/GameSelectModal";
 import TodayMatchesSideBetModal from "@/components/game/TodayMatchesSideBetModal";
-import SideBetActionSheet from "@/components/game/SideBetActionSheet";
 import SideBetResultOverlay, {
   type SideBetResultLine,
 } from "@/components/game/SideBetResultOverlay";
@@ -425,6 +424,7 @@ export default function PredictionPage() {
         matchTitle: formatMatchTitle(displayMatch.name),
         betType,
       });
+      setSideBetModalOpen(true);
     },
     [displayMatch],
   );
@@ -537,25 +537,12 @@ export default function PredictionPage() {
         open={sideBetModalOpen}
         matches={orderedMatches}
         loading={matchesLoading}
-        onAction={(target) => {
+        initialAction={sideBetAction}
+        onClose={() => {
           setSideBetModalOpen(false);
-          setSideBetAction(target);
+          setSideBetAction(null);
         }}
-        onClose={() => setSideBetModalOpen(false)}
       />
-
-      {sideBetAction && (
-        <SideBetActionSheet
-          open={Boolean(sideBetAction)}
-          matchId={sideBetAction.matchId}
-          matchTitle={sideBetAction.matchTitle}
-          betType={sideBetAction.betType}
-          onClose={() => setSideBetAction(null)}
-          onSubmitted={() => {
-            /* 하단 요약만 갱신 — 오늘의 경기 모달은 다시 열지 않음 */
-          }}
-        />
-      )}
 
       {sideBetResult ? (
         <SideBetResultOverlay

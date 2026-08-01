@@ -9,7 +9,6 @@ import { UserAssetProvider } from "@/contexts/UserAssetContext";
 import { clearTokens } from "@/lib/tokenManager";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
-import IntroSplash, { INTRO_SPLASH_MS } from "@/components/user/IntroSplash";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
 import "@/styles/user-landscape.css";
 import GameEmbedBootstrap from "@/components/GameEmbedBootstrap";
@@ -47,9 +46,9 @@ import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
 import { completeLoginNavigation, openMallFromApp, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
-import { peekSkipLoginBootstrap, shouldSkipLoginBootstrap, hasSeenIntro, markIntroSeen } from "@/lib/loginSession";
+import { peekSkipLoginBootstrap, shouldSkipLoginBootstrap } from "@/lib/loginSession";
 
-type LoginBootstrapPhase = "checking" | "welcome" | "ready";
+type LoginBootstrapPhase = "checking" | "ready";
 
 function LegacyMallRedirect({ target }: { target: string }) {
   useEffect(() => {
@@ -90,7 +89,6 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    let welcomeTimer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
 
     const bootstrapLogin = async () => {
@@ -104,7 +102,6 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
           await refetchUser();
           if (cancelled) return;
 
-          markIntroSeen();
           await completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
           setLoginPhase("ready");
           return;
@@ -115,37 +112,18 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
       }
 
       if (cancelled) return;
-
-      if (hasSeenIntro()) {
-        setLoginPhase("ready");
-        return;
-      }
-
-      markIntroSeen();
-      setLoginPhase("welcome");
-      welcomeTimer = setTimeout(() => {
-        if (!cancelled) {
-          setLoginPhase("ready");
-        }
-      }, INTRO_SPLASH_MS);
+      setLoginPhase("ready");
     };
 
     void bootstrapLogin();
 
     return () => {
       cancelled = true;
-      if (welcomeTimer) {
-        clearTimeout(welcomeTimer);
-      }
     };
   }, [isLoginPath, location, setLocation, refetchUser]);
 
   if (isLoginPath && loginPhase === "checking") {
     return <BootstrapLoading />;
-  }
-
-  if (isLoginPath && loginPhase === "welcome") {
-    return <IntroSplash />;
   }
 
   return <>{children}</>;
