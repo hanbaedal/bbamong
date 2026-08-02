@@ -15,7 +15,7 @@ import {
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
-import { isStaleFinishedScoreboard, isStalePostponedScoreboard } from "@shared/matchManagementStatus";
+import { isStaleFinishedScoreboard, isStalePostponedScoreboard, isMisclassifiedTerminalStatus } from "@shared/matchManagementStatus";
 
 const MAX_DAILY_MATCHES = 5;
 const API_DEFAULT_STADIUM_NAME = "API자동";
@@ -75,6 +75,10 @@ export function resolveMatchStatusFromScoreboard(
     }
   } else if (currentStatus === "cancelled" && !isStalePostponedScoreboard(staleInput)) {
     return "cancelled";
+  }
+
+  if (isMisclassifiedTerminalStatus(staleInput)) {
+    return "ongoing";
   }
 
   if (

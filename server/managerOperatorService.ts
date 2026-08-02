@@ -11,6 +11,8 @@ import {
 import {
   isStaleFinishedScoreboard,
   isStalePostponedScoreboard,
+  isMisclassifiedTerminalStatus,
+  hasLiveInningProgress,
 } from "../shared/matchManagementStatus";
 
 export const OPERATOR_USERNAMES = ["op1", "op2", "op3", "op4", "op5"] as const;
@@ -290,6 +292,8 @@ export interface OrderedTodayMatch {
   statusLong?: string;
   homeScore?: number;
   awayScore?: number;
+  inning?: number | null;
+  inningLabel?: string;
 }
 
 function teamNamesFromMatchRow(row: Record<string, unknown>): { away: string; home: string } {
@@ -339,12 +343,24 @@ export function resolveOperatorMatchPhaseFromTodayMatch(
     statusLong: match.statusLong,
     homeScore: match.homeScore,
     awayScore: match.awayScore,
-    inning: undefined as number | null | undefined,
-    inningLabel: undefined as string | undefined,
+    inning: match.inning,
+    inningLabel: match.inningLabel,
+  };
+
+  if (isMisclassifiedTerminalStatus(staleInput)) {
+    return "경기중";
+  }
+
+  const recoverFromStale = (): OperatorMatchPhase => {
+    const started = Date.now() >= new Date(match.startTime).getTime();
+    if (started || match.matchStatus === "ongoing" || hasLiveInningProgress(staleInput)) {
+      return "경기중";
+    }
+    return "경기전";
   };
 
   if (isStalePostponedScoreboard(staleInput) || isStaleFinishedScoreboard(staleInput)) {
-    return match.matchStatus === "ongoing" ? "경기중" : "경기전";
+    return recoverFromStale();
   }
 
   return resolveOperatorMatchPhase({
@@ -443,6 +459,8 @@ export async function getTodayMatchesByRegistrationOrder(): Promise<OrderedToday
       statusLong: board?.statusLong,
       homeScore: (board as { homeScore?: number } | undefined)?.homeScore,
       awayScore: (board as { awayScore?: number } | undefined)?.awayScore,
+      inning: (board as { inning?: number | null } | undefined)?.inning ?? null,
+      inningLabel: (board as { inningLabel?: string } | undefined)?.inningLabel,
     });
   }
   return result;

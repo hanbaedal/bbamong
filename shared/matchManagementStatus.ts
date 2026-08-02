@@ -6,6 +6,31 @@ import {
 } from "./apiSportsStatus";
 import { resolveOperatorMatchPhase } from "./operatorMatchStatus";
 
+/** 진행 이닝 정보가 있으면 true (1회, 3회초 등) */
+export function hasLiveInningProgress(input: {
+  inning?: number | null;
+  inningLabel?: string | null;
+}): boolean {
+  if (input.inning != null && input.inning > 0) return true;
+  const label = input.inningLabel ?? "";
+  return /\d+회/.test(label) && !/종료|연기|취소/.test(label);
+}
+
+/** DB/API 종료·연기인데 이닝 진행 중 — 상태 오분류 */
+export function isMisclassifiedTerminalStatus(input: {
+  matchStatus?: string | null;
+  statusShort?: string | null;
+  inning?: number | null;
+  inningLabel?: string | null;
+}): boolean {
+  if (!hasLiveInningProgress(input)) return false;
+  if (input.matchStatus === "completed" || input.matchStatus === "cancelled") return true;
+  if (isGameFinished(input.statusShort) || isGamePostponedOrCancelled(input.statusShort)) {
+    return true;
+  }
+  return false;
+}
+
 /** FT/completed인데 0:0·이닝 없음 — 종료 오인 (스케줄 stale·DB 오류) */
 export function isStaleFinishedScoreboard(input: {
   matchStatus?: string | null;
@@ -53,10 +78,8 @@ export function isStalePostponedScoreboard(input: {
   if (/\d+회/.test(input.inningLabel ?? "")) return false;
 
   const long = (input.statusLong ?? "").toLowerCase();
-  if (
-    (short === "PST" || short === "POST" || short === "POSTPONED") &&
-    /postponed|postponement|연기/.test(long)
-  ) {
+  // PST/POSTPONED + 명확한 long만 진짜 연기. POST 단독은 api-sports 스케줄 stale 빈번
+  if ((short === "PST" || short === "POSTPONED") && /postponed|postponement|연기/.test(long)) {
     return false;
   }
 
@@ -89,6 +112,19 @@ export function resolveMatchManagementStatusDisplay(input: {
 
   if (inningLabel && /\d+회/.test(inningLabel) && !/종료|연기|취소/.test(inningLabel)) {
     return inningLabel;
+  }
+
+  if (
+    isMisclassifiedTerminalStatus(
+      scoreboardStaleInput({
+        matchStatus: input.matchStatus,
+        statusShort: input.statusShort,
+        inning: input.inning,
+        inningLabel,
+      }),
+    )
+  ) {
+    return inningLabel && /\d+회/.test(inningLabel) ? inningLabel : "경기중";
   }
 
   if (
