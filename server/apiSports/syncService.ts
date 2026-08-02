@@ -15,6 +15,7 @@ import {
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
+import { isStaleFinishedScoreboard } from "@shared/matchManagementStatus";
 
 const MAX_DAILY_MATCHES = 5;
 const API_DEFAULT_STADIUM_NAME = "API자동";
@@ -61,11 +62,33 @@ export function resolveMatchStatusFromScoreboard(
   if (isGamePostponedOrCancelled(scoreboard.statusShort)) {
     return "cancelled";
   }
-  if (isGameFinished(scoreboard.statusShort)) {
+  if (
+    isGameFinished(scoreboard.statusShort) &&
+    !isStaleFinishedScoreboard({
+      matchStatus: currentStatus,
+      statusShort: scoreboard.statusShort,
+      homeScore: scoreboard.homeScore,
+      awayScore: scoreboard.awayScore,
+      inning: scoreboard.inning,
+      inningLabel: scoreboard.inningLabel,
+    })
+  ) {
     return "completed";
   }
   if (currentStatus === "completed" || currentStatus === "cancelled") {
-    return currentStatus;
+    const staleCompleted =
+      currentStatus === "completed" &&
+      isStaleFinishedScoreboard({
+        matchStatus: currentStatus,
+        statusShort: scoreboard.statusShort,
+        homeScore: scoreboard.homeScore,
+        awayScore: scoreboard.awayScore,
+        inning: scoreboard.inning,
+        inningLabel: scoreboard.inningLabel,
+      });
+    if (!staleCompleted) {
+      return currentStatus;
+    }
   }
   if (isGameLiveStatus(scoreboard.statusShort) || scoreboard.inning !== null) {
     return "ongoing";
@@ -267,13 +290,24 @@ export async function syncTodayGamesFromApiSports(
       continue;
     }
 
+    const staleFinished = isStaleFinishedScoreboard({
+      matchStatus: existing?.matchStatus,
+      statusShort: scoreboard.statusShort,
+      homeScore: scoreboard.homeScore,
+      awayScore: scoreboard.awayScore,
+      inning: scoreboard.inning,
+      inningLabel: scoreboard.inningLabel,
+    });
+
     const resolvedStatus = isGamePostponedOrCancelled(scoreboard.statusShort)
       ? "cancelled"
-      : isGameFinished(scoreboard.statusShort)
+      : isGameFinished(scoreboard.statusShort) && !staleFinished
         ? "completed"
-        : existing?.matchStatus === "completed" || existing?.matchStatus === "cancelled"
-          ? (existing.matchStatus as string)
-          : matchStatus;
+        : staleFinished
+          ? matchStatusFromApi(external.status.short)
+          : existing?.matchStatus === "completed" || existing?.matchStatus === "cancelled"
+            ? (existing.matchStatus as string)
+            : matchStatus;
     const useFreshScoreboard =
       options?.forceApi ||
       isPastDate ||
