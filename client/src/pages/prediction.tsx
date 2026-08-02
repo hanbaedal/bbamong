@@ -273,7 +273,6 @@ export default function PredictionPage() {
   useEffect(() => {
     setLiveScoreboard(null);
     setGamePhase(null);
-    setCurrentBatter(null);
   }, [selectedMatchId]);
 
   useEffect(() => {
