@@ -15,6 +15,7 @@ import {
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import { LIVE_SCORE_MAX_REGISTRATION_ORDER } from "./constants";
+import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
 
 const MAX_DAILY_MATCHES = 5;
 const API_DEFAULT_STADIUM_NAME = "API자동";
@@ -645,8 +646,9 @@ export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
 }
 
 /**
- * 1경기(registrationOrder≤LIVE_SCORE_MAX) live sync — api-sports → Match DB 전체 스코어보드
- * @returns true면 live sync 중단(종료·취소·대상 아님)
+ * live sync — api-sports → Match DB 스코어보드
+ * registrationOrder≤LIVE_SCORE_MAX 이고 해당 슬롯 운영자 API 폴링 ON일 때만 호출
+ * @returns true면 live sync 중단(종료·취소·API OFF·대상 아님)
  */
 export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boolean> {
   if (!process.env.API_SPORTS_KEY?.trim()) return true;
@@ -657,6 +659,14 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
 
   const order = match.registrationOrder ?? 99;
   if (order > LIVE_SCORE_MAX_REGISTRATION_ORDER) return true;
+
+  const apiSyncEnabled = await isApiSyncEnabledForRegistrationOrder(order);
+  if (!apiSyncEnabled) {
+    console.log(
+      `[LiveScoreSync] tick skipped ${matchId} (order=${order}) — 운영자 API 폴링 OFF`,
+    );
+    return true;
+  }
 
   try {
     const game = await fetchGameById(match.apiSportsGameId);

@@ -1,5 +1,6 @@
 import { MatchModel } from "../UserStorage/db";
 import { getKstDateString } from "../utils/dateUtils";
+import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
 import {
   LIVE_SCORE_MAX_REGISTRATION_ORDER,
   LIVE_SCORE_SYNC_INTERVAL_MS,
@@ -47,12 +48,13 @@ function beginLiveScoreInterval(matchId: string): void {
   void runLiveScoreTick(matchId);
   liveTimers.interval = setInterval(() => void runLiveScoreTick(matchId), LIVE_SCORE_SYNC_INTERVAL_MS);
   console.log(
-    `[LiveScoreSync] started ${matchId} every ${LIVE_SCORE_SYNC_INTERVAL_MS}ms (order≤${LIVE_SCORE_MAX_REGISTRATION_ORDER})`,
+    `[LiveScoreSync] started ${matchId} every ${LIVE_SCORE_SYNC_INTERVAL_MS}ms (order≤${LIVE_SCORE_MAX_REGISTRATION_ORDER}, operator API ON)`,
   );
 }
 
 /**
- * 오늘 1경기(registrationOrder=1) — 시작 1분 전 ~ endTime 구간 api-sports live sync
+ * 오늘 registrationOrder≤LIVE_SCORE_MAX 경기 live sync.
+ * 운영자 리스트 API 폴링 ON인 슬롯만 대상 (기본 1경기=op1).
  */
 export async function scheduleLiveScoreSync(): Promise<void> {
   stopLiveScoreSync();
@@ -65,7 +67,7 @@ export async function scheduleLiveScoreSync(): Promise<void> {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const match = await MatchModel.findOne({
+  const candidates = await MatchModel.find({
     apiSportsGameId: { $ne: null },
     registrationOrder: { $gte: 1, $lte: LIVE_SCORE_MAX_REGISTRATION_ORDER },
     matchStatus: { $nin: ["completed", "cancelled"] },
@@ -73,6 +75,20 @@ export async function scheduleLiveScoreSync(): Promise<void> {
   })
     .sort({ registrationOrder: 1 })
     .lean();
+
+  let match: (typeof candidates)[number] | null = null;
+  for (const candidate of candidates) {
+    const order = candidate.registrationOrder ?? 0;
+    const enabled = await isApiSyncEnabledForRegistrationOrder(order);
+    if (!enabled) {
+      console.log(
+        `[LiveScoreSync] skip order=${order} (${candidate.name}) — 운영자 API 폴링 OFF`,
+      );
+      continue;
+    }
+    match = candidate;
+    break;
+  }
 
   if (!match?.startTime || !match.endTime) return;
 
@@ -85,12 +101,17 @@ export async function scheduleLiveScoreSync(): Promise<void> {
   if (now >= windowStartMs) {
     beginLiveScoreInterval(match.id);
   } else {
-    liveTimers.windowStart = setTimeout(() => beginLiveScoreInterval(match.id), windowStartMs - now);
+    const matchId = match.id;
+    liveTimers.windowStart = setTimeout(() => beginLiveScoreInterval(matchId), windowStartMs - now);
+    console.log(
+      `[LiveScoreSync] armed ${matchId} (order=${match.registrationOrder}) in ${Math.round((windowStartMs - now) / 1000)}s`,
+    );
   }
 
   if (now < windowEndMs) {
+    const matchId = match.id;
     liveTimers.windowEnd = setTimeout(() => {
-      console.log(`[LiveScoreSync] window ended ${match.id}`);
+      console.log(`[LiveScoreSync] window ended ${matchId}`);
       stopLiveScoreSync();
     }, windowEndMs - now);
   }

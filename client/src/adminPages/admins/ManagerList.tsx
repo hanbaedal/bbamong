@@ -21,7 +21,6 @@ interface OperatorAccount {
   name: string;
   assignedMatchNumber: string | null;
   assignedMatchDetail: string | null;
-  assignmentLabel: string;
   status: string;
   apiSyncEnabled: boolean;
   dailyPasswordPlain: string;
@@ -252,8 +251,10 @@ export default function ManagerListPage() {
               운영자 리스트
             </h1>
             <p className="text-sm text-[#666] mt-1">
-              「생성」→「카톡 공유」(또는 「복사」)로 전달. 링크 클릭 시 운영자 앱 자동 로그인.
-              {showQrButton ? " PC는 「QR」로 폰 카톡 전달도 가능." : ""}
+              op1~op5는 제1~5경기 고정. 「생성」→「카톡 공유」(또는 「복사」)로 전달.
+              {showQrButton ? " PC는 「QR」도 가능." : ""}
+              {" "}
+              API 폴링 ON인 담당 경기만 실시간 스코어 sync.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -291,12 +292,9 @@ export default function ManagerListPage() {
               >
                 <div className="font-medium">{op.username}</div>
                 <div>
-                  <div className="font-medium">{op.assignedMatchNumber ?? "—"}</div>
+                  <div className="font-medium leading-snug">{op.assignedMatchNumber ?? "—"}</div>
                   {op.assignedMatchDetail && (
                     <div className="text-[10px] text-[#888] mt-0.5">{op.assignedMatchDetail}</div>
-                  )}
-                  {!op.assignedMatchNumber && op.assignmentLabel && (
-                    <div className="text-[10px] text-[#888] mt-0.5">{op.assignmentLabel}</div>
                   )}
                 </div>
                 <div
