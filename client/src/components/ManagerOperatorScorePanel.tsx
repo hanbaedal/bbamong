@@ -1,6 +1,7 @@
 import LineScoreTable from "@/components/LineScoreTable";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
-import { formatInningWithHalf, parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
+import { parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
+import { resolveScoreboardInningPhase } from "@shared/matchPhaseDisplay";
 
 interface ManagerOperatorScorePanelProps {
   scoreboard: LiveScoreboard | null;
@@ -12,8 +13,15 @@ interface ManagerOperatorScorePanelProps {
 
 function resolveBattingHalf(
   scoreboard: LiveScoreboard | null,
+  gameInning?: number | null,
   inningHalf?: string | InningHalf | null,
 ): InningHalf | null {
+  const resolved = resolveScoreboardInningPhase({
+    scoreboard,
+    gameInning,
+    inningHalf,
+  });
+  if (resolved) return resolved.half;
   if (scoreboard?.inningHalf) {
     return parseInningHalf(scoreboard.inningHalf);
   }
@@ -21,24 +29,6 @@ function resolveBattingHalf(
     return parseInningHalf(typeof inningHalf === "string" ? inningHalf : inningHalf);
   }
   return null;
-}
-
-function resolveInningLabel(
-  scoreboard: LiveScoreboard | null,
-  gameInning?: number | null,
-  inningHalf?: string | InningHalf | null,
-): string {
-  if (scoreboard?.inning != null && scoreboard.inningHalf) {
-    return formatInningWithHalf(scoreboard.inning, parseInningHalf(scoreboard.inningHalf));
-  }
-  if (scoreboard?.inningLabel && /회\s*(초|말)/.test(scoreboard.inningLabel)) {
-    return scoreboard.inningLabel;
-  }
-  const half = resolveBattingHalf(scoreboard, inningHalf);
-  if (gameInning != null && half) {
-    return formatInningWithHalf(gameInning, half);
-  }
-  return "";
 }
 
 export default function ManagerOperatorScorePanel({
@@ -57,11 +47,10 @@ export default function ManagerOperatorScorePanel({
 
   const awayLabel = scoreboard.awayTeamName || "원정팀";
   const homeLabel = scoreboard.homeTeamName || "홈팀";
-  const battingHalf = resolveBattingHalf(scoreboard, inningHalf);
-  const inningPhaseLabel = resolveInningLabel(scoreboard, gameInning, inningHalf);
-  const showPhase = matchStatus === "ongoing" && Boolean(inningPhaseLabel);
-  const awayBatting = showPhase && battingHalf === "top";
-  const homeBatting = showPhase && battingHalf === "bottom";
+  const battingHalf = resolveBattingHalf(scoreboard, gameInning, inningHalf);
+  const showAttackBadge = matchStatus === "ongoing" && battingHalf != null;
+  const awayBatting = showAttackBadge && battingHalf === "top";
+  const homeBatting = showAttackBadge && battingHalf === "bottom";
 
   return (
     <div className="manager-operator-score" data-testid="manager-score-panel">
@@ -70,7 +59,7 @@ export default function ManagerOperatorScorePanel({
           <span className="manager-operator-score-team-name">{awayLabel}</span>
           {awayBatting && (
             <span className="manager-operator-score-phase" data-testid="manager-score-phase-away">
-              {inningPhaseLabel}
+              공격
             </span>
           )}
         </div>
@@ -84,7 +73,7 @@ export default function ManagerOperatorScorePanel({
         <div className="manager-operator-score-team manager-operator-score-team--home">
           {homeBatting && (
             <span className="manager-operator-score-phase" data-testid="manager-score-phase-home">
-              {inningPhaseLabel}
+              공격
             </span>
           )}
           <span className="manager-operator-score-team-name">{homeLabel}</span>

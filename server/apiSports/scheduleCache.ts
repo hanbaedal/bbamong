@@ -2,7 +2,7 @@ import { ApiSportsScheduleCacheModel } from "../UserStorage/db";
 import { getKstDateString } from "../utils/dateUtils";
 import { fetchGamesByDate, type ApiSportsGameResponse } from "./client";
 import { KBO_LEAGUE_ID } from "./constants";
-import { isGameFinished } from "./scoreboardParser";
+import { isGameFinished, isGamePostponedOrCancelled } from "./scoreboardParser";
 
 function venueNameFromGame(game: ApiSportsGameResponse): string {
   return game.venue?.name?.trim() || "API자동";
@@ -52,7 +52,7 @@ function isScheduleCacheStale(
   if (!isPastMatchDate(matchDate)) return false;
   return cached.some((doc) => {
     const short = (doc.statusShort ?? "NS").toUpperCase();
-    if (short === "CAN" || short === "PST" || short === "ABD" || short === "SUSP") return false;
+    if (isGamePostponedOrCancelled(short)) return false;
     return !isGameFinished(short);
   });
 }

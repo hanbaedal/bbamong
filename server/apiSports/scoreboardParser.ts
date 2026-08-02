@@ -3,7 +3,25 @@ import {
   formatInningWithHalf,
   type InningHalf,
 } from "@shared/gamePhaseTypes";
+import {
+  apiStatusDisplayLabel,
+  isGameFinished,
+  isGameNotStarted,
+  isGamePostponedOrCancelled,
+} from "@shared/apiSportsStatus";
+import {
+  inferCurrentInningFromRuns,
+  inferInningHalfFromRuns,
+} from "@shared/matchPhaseDisplay";
 import type { ApiSportsGameResponse } from "./client";
+
+export {
+  isGameFinished,
+  isGameLiveStatus,
+  isGameNotStarted,
+  isGamePostponedOrCancelled,
+  apiStatusDisplayLabel,
+} from "@shared/apiSportsStatus";
 
 /** API-SPORTS status에서 공수(초/말) 추출 — Top/Bottom, T8/B8 등 */
 export function parseInningHalfFromApiStatus(
@@ -24,10 +42,12 @@ export function parseInningHalfFromApiStatus(
 
 function parseInningNumber(statusShort: string, statusLong: string): number | null {
   const short = statusShort.toUpperCase();
-  const inningMatch = short.match(/^IN(\d+)$/);
+  const inningMatch = short.match(/^IN(\d+)/);
   if (inningMatch) return Number(inningMatch[1]);
 
-  const longMatch = statusLong.match(/(\d+)(?:st|nd|rd|th)\s+inning/i);
+  const longMatch =
+    statusLong.match(/(\d+)(?:st|nd|rd|th)\s+inning/i) ||
+    statusLong.match(/inning\s*(\d+)/i);
   if (longMatch) return Number(longMatch[1]);
 
   const shortHalfMatch = short.match(/^[TB](\d+)$/);
@@ -41,6 +61,11 @@ function parseInningFromStatus(
   statusLong: string,
 ): { inning: number | null; inningHalf: InningHalf | null; label: string } {
   const short = statusShort.toUpperCase();
+  const specialLabel = apiStatusDisplayLabel(statusShort, statusLong);
+  if (specialLabel && (isGameFinished(short) || isGamePostponedOrCancelled(short) || isGameNotStarted(short))) {
+    return { inning: null, inningHalf: null, label: specialLabel };
+  }
+
   const inning = parseInningNumber(statusShort, statusLong);
   const inningHalf = parseInningHalfFromApiStatus(statusShort, statusLong);
 
@@ -54,11 +79,7 @@ function parseInningFromStatus(
   if (inning != null) {
     return { inning, inningHalf: null, label: `${inning}회` };
   }
-  if (short === "NS") return { inning: null, inningHalf: null, label: "시작 전" };
-  if (short === "FT" || short === "FIN" || short === "AOT") {
-    return { inning: null, inningHalf: null, label: "경기 종료" };
-  }
-  if (short.startsWith("POST")) return { inning: null, inningHalf: null, label: "경기 종료" };
+  if (specialLabel) return { inning: null, inningHalf: null, label: specialLabel };
   return { inning: null, inningHalf: null, label: statusShort || "진행 중" };
 }
 
@@ -70,10 +91,24 @@ function sumInningRuns(innings?: Record<string, number | null>): number {
 export function parseLiveScoreboard(game: ApiSportsGameResponse): LiveScoreboard {
   const homeTotal = game.scores?.home?.total ?? sumInningRuns(game.scores?.home?.innings);
   const awayTotal = game.scores?.away?.total ?? sumInningRuns(game.scores?.away?.innings);
-  const { inning, inningHalf, label } = parseInningFromStatus(
-    game.status.short,
-    game.status.long,
-  );
+  const awayInnings = game.scores?.away?.innings ?? undefined;
+  const homeInnings = game.scores?.home?.innings ?? undefined;
+  const parsed = parseInningFromStatus(game.status.short, game.status.long);
+
+  const inferredInning = inferCurrentInningFromRuns(awayInnings, homeInnings);
+  const inning =
+    inferredInning != null && (parsed.inning == null || inferredInning > parsed.inning)
+      ? inferredInning
+      : parsed.inning;
+  const inferredHalf =
+    inning != null ? inferInningHalfFromRuns(inning, awayInnings, homeInnings) : null;
+  const inningHalf = parsed.inningHalf ?? inferredHalf;
+  const label =
+    inning != null && inningHalf
+      ? formatInningWithHalf(inning, inningHalf)
+      : inning != null
+        ? `${inning}회`
+        : parsed.label;
 
   return {
     homeTeamName: game.teams.home.name,
@@ -84,8 +119,8 @@ export function parseLiveScoreboard(game: ApiSportsGameResponse): LiveScoreboard
     awayHits: game.scores?.away?.hits ?? 0,
     homeErrors: game.scores?.home?.errors ?? 0,
     awayErrors: game.scores?.away?.errors ?? 0,
-    homeInnings: game.scores?.home?.innings ?? undefined,
-    awayInnings: game.scores?.away?.innings ?? undefined,
+    homeInnings,
+    awayInnings,
     inning,
     inningHalf,
     inningLabel: label,
@@ -97,17 +132,4 @@ export function parseLiveScoreboard(game: ApiSportsGameResponse): LiveScoreboard
 
 export function buildInningKey(scoreboard: LiveScoreboard): string {
   return `${scoreboard.statusShort}:${scoreboard.homeScore}:${scoreboard.awayScore}:${scoreboard.inning ?? "na"}`;
-}
-
-export function isGameFinished(statusShort: string): boolean {
-  const short = statusShort.toUpperCase();
-  return short === "FT" || short === "FIN" || short === "AOT" || short.startsWith("POST");
-}
-
-/** NS/TBD가 아니고 종료도 아니면 live(진행)로 간주 */
-export function isGameLiveStatus(statusShort: string): boolean {
-  const short = (statusShort || "").toUpperCase();
-  if (short === "NS" || short === "TBD") return false;
-  if (isGameFinished(short)) return false;
-  return true;
 }

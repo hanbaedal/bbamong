@@ -1,6 +1,6 @@
 import { MatchModel } from "../UserStorage/db";
 import { getKstDateString, getKstDayRange } from "../utils/dateUtils";
-import { scheduleDailyKst } from "../utils/kstSchedule";
+import { msUntilNextKstHour, scheduleDailyKst } from "../utils/kstSchedule";
 import { syncOperatorMatchAssignments } from "../managerOperatorService";
 import {
   backfillSeasonMatchesBeforeToday,
@@ -18,6 +18,8 @@ const dailyMinuteKst = parseInt(process.env.MATCH_MGMT_DAILY_SYNC_MINUTE_KST || 
 
 const timersByMatch = new Map<string, { start?: NodeJS.Timeout; end?: NodeJS.Timeout }>();
 let cancelDailySchedule: (() => void) | null = null;
+let hourlyPregameTimer: NodeJS.Timeout | null = null;
+let hourlyPregameRunning = false;
 
 function clearMatchTimers(matchId: string) {
   const timers = timersByMatch.get(matchId);
@@ -29,6 +31,100 @@ function clearMatchTimers(matchId: string) {
 function clearAllMatchTimers() {
   for (const matchId of timersByMatch.keys()) {
     clearMatchTimers(matchId);
+  }
+}
+
+function clearHourlyPregameTimer() {
+  if (hourlyPregameTimer) {
+    clearTimeout(hourlyPregameTimer);
+    hourlyPregameTimer = null;
+  }
+}
+
+/** 오늘 연결 경기 중 가장 빠른 시작 시각 (없으면 null) */
+async function findEarliestTodayStartMs(): Promise<number | null> {
+  const kstToday = getKstDateString();
+  const { start: todayStart, end: todayEnd } = getKstDayRange(new Date(`${kstToday}T12:00:00+09:00`));
+
+  const matches = await MatchModel.find({
+    apiSportsGameId: { $ne: null },
+    matchStatus: { $nin: ["cancelled"] },
+    registrationOrder: { $gte: 1, $lte: MAX_DAILY_MATCHES },
+    $or: [
+      { matchDate: kstToday },
+      { matchDate: null, startTime: { $gte: todayStart, $lte: todayEnd } },
+    ],
+  })
+    .select("startTime")
+    .lean();
+
+  let earliest: number | null = null;
+  for (const match of matches) {
+    if (!match.startTime) continue;
+    const startMs = new Date(match.startTime).getTime();
+    if (!Number.isFinite(startMs)) continue;
+    if (earliest == null || startMs < earliest) earliest = startMs;
+  }
+  return earliest;
+}
+
+/**
+ * KST 정시마다 오늘 일정 API → Match DB (첫 경기 시작 전까지만).
+ * 09:00 일일 sync 이후 10:00, 11:00 … — 호출 1회/정시(날짜별 games 목록).
+ */
+export async function scheduleHourlyPregameSync(): Promise<void> {
+  clearHourlyPregameTimer();
+
+  const cutoff = await findEarliestTodayStartMs();
+  const now = Date.now();
+  if (cutoff != null && now >= cutoff) {
+    console.log("[MatchMgmtSchedule] hourly pregame idle — first match already started");
+    return;
+  }
+
+  const delay = msUntilNextKstHour();
+  if (cutoff != null && now + delay >= cutoff) {
+    console.log(
+      `[MatchMgmtSchedule] hourly pregame stop — next hour is after first start (${new Date(cutoff).toISOString()})`,
+    );
+    return;
+  }
+
+  hourlyPregameTimer = setTimeout(() => {
+    void runHourlyPregameMatchSync().catch((error) => {
+      console.error("[MatchMgmtSchedule] hourly pregame failed:", error);
+      void scheduleHourlyPregameSync();
+    });
+  }, delay);
+
+  console.log(
+    `[MatchMgmtSchedule] hourly pregame next in ${Math.round(delay / 60_000)}m` +
+      (cutoff != null ? ` (until ${new Date(cutoff).toISOString()})` : ""),
+  );
+}
+
+/** 프리게임 시간당 — 당일 1~5경기 Match DB 갱신 */
+export async function runHourlyPregameMatchSync(): Promise<void> {
+  if (hourlyPregameRunning) return;
+  hourlyPregameRunning = true;
+  try {
+    const cutoff = await findEarliestTodayStartMs();
+    if (cutoff != null && Date.now() >= cutoff) {
+      clearHourlyPregameTimer();
+      console.log("[MatchMgmtSchedule] hourly pregame skipped — first match started");
+      return;
+    }
+
+    const date = getKstDateString();
+    console.log(`[MatchMgmtSchedule] hourly pregame sync ${date}`);
+    const result = await syncTodayGamesFromApiSports(date, { forceApi: true });
+    console.log(
+      `[MatchMgmtSchedule] hourly ${date}: created ${result.created}, updated ${result.updated}, linked ${result.linked}, source ${result.source}`,
+    );
+    await syncOperatorMatchAssignments();
+    await rescheduleTodayMatchTimers();
+  } finally {
+    hourlyPregameRunning = false;
   }
 }
 
@@ -44,7 +140,7 @@ export async function runDailyMatchScheduleSync(): Promise<void> {
   await rescheduleTodayMatchTimers();
 }
 
-/** ② 시작 시각 · ③ 종료 시각 타이머 재등록 */
+/** ② 시작 시각 · ③ 종료 시각 타이머 재등록 + 프리게임 시간당 + 1경기 live */
 export async function rescheduleTodayMatchTimers(): Promise<void> {
   clearAllMatchTimers();
 
@@ -99,6 +195,7 @@ export async function rescheduleTodayMatchTimers(): Promise<void> {
 
   console.log(`[MatchMgmtSchedule] scheduled start/end for ${matches.length} match(es)`);
   await scheduleLiveScoreSync();
+  await scheduleHourlyPregameSync();
 }
 
 async function maybeRunMissedDailySync(): Promise<void> {
@@ -140,13 +237,14 @@ export function startMatchManagementSchedule(): void {
   });
 
   console.log(
-    `[MatchMgmtSchedule] daily KST ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} · backfill · start=status · end=score · live=1경기`,
+    `[MatchMgmtSchedule] daily KST ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} · hourly pregame until first start · start=status · end=score · live=1경기`,
   );
 }
 
 export function stopMatchManagementSchedule(): void {
   cancelDailySchedule?.();
   cancelDailySchedule = null;
+  clearHourlyPregameTimer();
   clearAllMatchTimers();
   stopLiveScoreSync();
 }

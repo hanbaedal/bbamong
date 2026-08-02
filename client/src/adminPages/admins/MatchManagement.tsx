@@ -19,6 +19,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { ko } from "date-fns/locale";
+import { apiStatusDisplayLabel } from "@shared/apiSportsStatus";
 
 interface Stadium {
   id: number;
@@ -39,6 +40,7 @@ interface MatchRow {
   liveScoreboard?: {
     homeScore?: number;
     awayScore?: number;
+    statusShort?: string;
     statusLong?: string;
     inningLabel?: string;
   } | null;
@@ -76,8 +78,38 @@ function formatTimeKst(iso: string): string {
 function statusLabel(status: string): string {
   if (status === "completed" || status === "종료") return "종료";
   if (status === "ongoing" || status === "진행") return "진행";
-  if (status === "cancelled" || status === "취소") return "취소";
+  if (status === "cancelled" || status === "취소" || status === "연기") return "연기";
   return "예정";
+}
+
+/** API statusShort 우선 — 연기(POST)를 종료로 오인하지 않음 */
+function matchStatusDisplay(match: MatchRow): string {
+  const fromApi = apiStatusDisplayLabel(
+    match.liveScoreboard?.statusShort,
+    match.liveScoreboard?.statusLong,
+  );
+  if (fromApi) return fromApi;
+
+  if (match.matchStatus === "cancelled") return "연기";
+  if (match.matchStatus === "completed") return "종료";
+  if (match.matchStatus === "ongoing") {
+    const label = match.liveScoreboard?.inningLabel;
+    if (label && !/종료|연기|취소/.test(label)) return label;
+    return "진행";
+  }
+
+  const label = match.liveScoreboard?.inningLabel;
+  if (label && !/종료|연기|취소/.test(label)) return label;
+  return statusLabel(match.matchStatus);
+}
+
+function statusBadgeClass(display: string): string {
+  if (display === "진행" || /\d+회/.test(display)) return "bg-green-50 text-green-700";
+  if (display === "종료" || display === "경기 종료") return "bg-gray-100 text-gray-600";
+  if (display === "연기" || display === "취소" || display === "중단") {
+    return "bg-purple-50 text-purple-700";
+  }
+  return "bg-amber-50 text-amber-700";
 }
 
 export default function MatchManagement() {
@@ -424,15 +456,9 @@ export default function MatchManagement() {
                           <td className="px-3 py-3">{home}</td>
                           <td className="px-3 py-3">
                             <span
-                              className={`inline-flex px-2 py-0.5 rounded text-xs ${
-                                statusLabel(match.matchStatus) === "진행"
-                                  ? "bg-green-50 text-green-700"
-                                  : statusLabel(match.matchStatus) === "종료"
-                                    ? "bg-gray-100 text-gray-600"
-                                    : "bg-amber-50 text-amber-700"
-                              }`}
+                              className={`inline-flex px-2 py-0.5 rounded text-xs ${statusBadgeClass(matchStatusDisplay(match))}`}
                             >
-                              {match.liveScoreboard?.inningLabel || statusLabel(match.matchStatus)}
+                              {matchStatusDisplay(match)}
                             </span>
                           </td>
                           <td className="px-3 py-3">

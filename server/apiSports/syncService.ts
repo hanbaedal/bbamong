@@ -10,6 +10,7 @@ import {
   buildInningKey,
   isGameFinished,
   isGameLiveStatus,
+  isGamePostponedOrCancelled,
   parseLiveScoreboard,
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
@@ -31,8 +32,8 @@ function gameStartDate(game: ApiSportsGameResponse): Date {
 
 function matchStatusFromApi(statusShort: string): string {
   const short = (statusShort || "").toUpperCase();
+  if (isGamePostponedOrCancelled(short)) return "cancelled";
   if (isGameFinished(short)) return "completed";
-  if (short === "CAN" || short === "PST" || short === "ABD" || short === "SUSP") return "cancelled";
   if (short === "NS" || short === "TBD") return "scheduled";
   return "ongoing";
 }
@@ -48,11 +49,14 @@ export function resolveMatchStatusFromScoreboard(
   scoreboard: LiveScoreboard,
   startTime?: Date | null,
 ): string {
-  if (currentStatus === "completed" || currentStatus === "cancelled") {
-    return currentStatus;
+  if (isGamePostponedOrCancelled(scoreboard.statusShort)) {
+    return "cancelled";
   }
   if (isGameFinished(scoreboard.statusShort)) {
     return "completed";
+  }
+  if (currentStatus === "completed" || currentStatus === "cancelled") {
+    return currentStatus;
   }
   if (isGameLiveStatus(scoreboard.statusShort) || scoreboard.inning !== null) {
     return "ongoing";
@@ -254,15 +258,18 @@ export async function syncTodayGamesFromApiSports(
       continue;
     }
 
-    const resolvedStatus = isGameFinished(scoreboard.statusShort)
-      ? "completed"
-      : existing?.matchStatus === "completed"
+    const resolvedStatus = isGamePostponedOrCancelled(scoreboard.statusShort)
+      ? "cancelled"
+      : isGameFinished(scoreboard.statusShort)
         ? "completed"
-        : matchStatus;
+        : existing?.matchStatus === "completed" || existing?.matchStatus === "cancelled"
+          ? (existing.matchStatus as string)
+          : matchStatus;
     const useFreshScoreboard =
       options?.forceApi ||
       isPastDate ||
       isGameFinished(scoreboard.statusShort) ||
+      isGamePostponedOrCancelled(scoreboard.statusShort) ||
       !existing?.liveScoreboard ||
       existing.matchStatus !== "ongoing";
 
@@ -558,7 +565,11 @@ async function updateMatchScoreFromApiGame(
   game: ApiSportsGameResponse,
 ): Promise<string> {
   const scoreboard = parseLiveScoreboard(game);
-  const nextStatus = isGameFinished(scoreboard.statusShort) ? "completed" : (match.matchStatus ?? "ongoing");
+  const nextStatus = isGamePostponedOrCancelled(scoreboard.statusShort)
+    ? "cancelled"
+    : isGameFinished(scoreboard.statusShort)
+      ? "completed"
+      : (match.matchStatus ?? "ongoing");
 
   await MatchModel.updateOne(
     { id: match.id },
@@ -678,6 +689,11 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
         matchStatus: match.matchStatus,
       });
       console.log(`[LiveScoreSync] ${match.name} (${matchId}) → completed`);
+      return true;
+    }
+
+    if (nextStatus === "cancelled" || isGamePostponedOrCancelled(scoreboard.statusShort)) {
+      console.log(`[LiveScoreSync] ${match.name} (${matchId}) → cancelled/postponed`);
       return true;
     }
 
