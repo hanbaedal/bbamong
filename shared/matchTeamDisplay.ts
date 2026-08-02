@@ -52,3 +52,13 @@ export function formatMatchTeamLineWithHeadToHead(
   const homeLabel = formatTeamWithWins(home, headToHead.homeWins, hasGames);
   return `${awayLabel}${separator}${homeLabel}`;
 }
+
+/** 팀명 아래 — 시즌 상대전적 2줄 (`원정 3승 · 홈 2승`) */
+export function formatHeadToHeadRecordLine(
+  headToHead?: MatchHeadToHeadRecord | null,
+): string | null {
+  if (!headToHead) return null;
+  const total = headToHead.awayWins + headToHead.homeWins;
+  if (total <= 0) return null;
+  return `상대전적 원정 ${headToHead.awayWins}승 · 홈 ${headToHead.homeWins}승`;
+}

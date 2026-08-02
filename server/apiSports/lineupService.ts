@@ -12,7 +12,8 @@ import { KBO_LEAGUE_ID, LINEUP_REFRESH_MS, resolveApiSportsSeason } from "./cons
 import {
   collectLineupPlayerIds,
   parseLineupSnapshot,
-  parsePlayerBattingAverages,
+  parsePlayerBattingStats,
+  type ParsedPlayerBattingStats,
 } from "./lineupParser";
 
 type MatchLineupRow = {
@@ -47,41 +48,62 @@ async function fetchLineupSnapshot(gameId: number): Promise<MatchLineupSnapshot 
   return parseLineupSnapshot(statsRaw);
 }
 
-async function fetchSeasonAverageForPlayer(
+function toMatchPlayerStatsEntry(stats: ParsedPlayerBattingStats, syncedAt: string): MatchPlayerStatsEntry {
+  return {
+    battingAverage: stats.battingAverage,
+    hits: stats.hits,
+    homeRuns: stats.homeRuns,
+    rbi: stats.rbi,
+    ops: stats.ops,
+    syncedAt,
+  };
+}
+
+function statsEntryIsFresh(entry: MatchPlayerStatsEntry | undefined): boolean {
+  if (!entry?.syncedAt) return false;
+  const age = Date.now() - new Date(entry.syncedAt).getTime();
+  if (age >= 6 * 60 * 60 * 1000) return false;
+  return entry.battingAverage != null || entry.hits != null;
+}
+
+async function fetchSeasonStatsForPlayer(
   playerId: number,
   season: number,
   teamIds: number[],
-): Promise<string | null> {
+): Promise<MatchPlayerStatsEntry> {
   const cached = memoryPlayerStats.get(statsKey(playerId, season));
-  if (cached) return cached.battingAverage;
+  if (cached) return cached;
+
+  const empty = (syncedAt: string): MatchPlayerStatsEntry => ({
+    battingAverage: null,
+    hits: null,
+    homeRuns: null,
+    rbi: null,
+    ops: null,
+    syncedAt,
+  });
 
   const direct = await fetchPlayerStatistics(playerId, season, KBO_LEAGUE_ID);
-  const fromDirect = parsePlayerBattingAverages(direct).get(playerId);
+  const fromDirect = parsePlayerBattingStats(direct).get(playerId);
   if (fromDirect) {
-    memoryPlayerStats.set(statsKey(playerId, season), {
-      battingAverage: fromDirect,
-      syncedAt: new Date().toISOString(),
-    });
-    return fromDirect;
+    const entry = toMatchPlayerStatsEntry(fromDirect, new Date().toISOString());
+    memoryPlayerStats.set(statsKey(playerId, season), entry);
+    return entry;
   }
 
   for (const teamId of teamIds) {
     const roster = await fetchTeamPlayers(teamId, season);
-    const fromRoster = parsePlayerBattingAverages(roster).get(playerId);
+    const fromRoster = parsePlayerBattingStats(roster).get(playerId);
     if (fromRoster) {
-      memoryPlayerStats.set(statsKey(playerId, season), {
-        battingAverage: fromRoster,
-        syncedAt: new Date().toISOString(),
-      });
-      return fromRoster;
+      const entry = toMatchPlayerStatsEntry(fromRoster, new Date().toISOString());
+      memoryPlayerStats.set(statsKey(playerId, season), entry);
+      return entry;
     }
   }
 
-  memoryPlayerStats.set(statsKey(playerId, season), {
-    battingAverage: null,
-    syncedAt: new Date().toISOString(),
-  });
-  return null;
+  const entry = empty(new Date().toISOString());
+  memoryPlayerStats.set(statsKey(playerId, season), entry);
+  return entry;
 }
 
 async function enrichPlayerStatsForLineup(
@@ -92,18 +114,14 @@ async function enrichPlayerStatsForLineup(
 ): Promise<Record<string, MatchPlayerStatsEntry>> {
   const next: Record<string, MatchPlayerStatsEntry> = { ...(existing ?? {}) };
   const playerIds = collectLineupPlayerIds(lineup);
-  const now = new Date().toISOString();
 
   for (const playerId of playerIds) {
     const key = String(playerId);
     const prev = next[key];
-    if (prev?.battingAverage && prev.syncedAt) {
-      const age = Date.now() - new Date(prev.syncedAt).getTime();
-      if (age < 6 * 60 * 60 * 1000) continue;
-    }
+    if (statsEntryIsFresh(prev)) continue;
 
-    const avg = await fetchSeasonAverageForPlayer(playerId, season, teamIds);
-    next[key] = { battingAverage: avg, syncedAt: now };
+    const stats = await fetchSeasonStatsForPlayer(playerId, season, teamIds);
+    next[key] = stats;
   }
 
   return next;
@@ -151,9 +169,24 @@ export function buildCurrentBatterPreviewFromMatch(
   const batterIndexInHalf = match.batterIndexInHalf ?? 1;
   const season = resolveApiSportsSeason(match.startTime);
 
-  const statsForResolve: Record<string, { battingAverage?: string | null }> = {};
+  const statsForResolve: Record<
+    string,
+    {
+      battingAverage?: string | null;
+      hits?: number | null;
+      homeRuns?: number | null;
+      rbi?: number | null;
+      ops?: string | null;
+    }
+  > = {};
   for (const [playerId, entry] of Object.entries(match.matchPlayerStats ?? {})) {
-    statsForResolve[playerId] = { battingAverage: entry.battingAverage };
+    statsForResolve[playerId] = {
+      battingAverage: entry.battingAverage,
+      hits: entry.hits ?? null,
+      homeRuns: entry.homeRuns ?? null,
+      rbi: entry.rbi ?? null,
+      ops: entry.ops ?? null,
+    };
   }
 
   return resolveCurrentBatterPreview({

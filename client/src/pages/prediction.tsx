@@ -16,6 +16,7 @@ import {
   filterJoinableMatches,
   formatMatchTitle,
   formatGameMatchTeamLine,
+  resolveGameMatchHeaderLines,
   formatMatchStatusLabel,
   isMatchSelectableForGame,
   sortMatchesByOrder,
@@ -46,7 +47,7 @@ import { Capacitor } from "@capacitor/core";
 import { navigateToHome, openMallFromApp } from "@/lib/appNavigation";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
-import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
 
@@ -72,6 +73,7 @@ export default function PredictionPage() {
   const [activePanel, setActivePanel] = useState<GameMenuAction | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [liveScoreboard, setLiveScoreboard] = useState<LiveScoreboard | null>(null);
+  const [currentBatter, setCurrentBatter] = useState<CurrentBatterPreview | null>(null);
   const [gamePhase, setGamePhase] = useState<GamePhasePayload | null>(null);
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [stadiumModalOpen, setStadiumModalOpen] = useState(false);
@@ -336,6 +338,9 @@ export default function PredictionPage() {
     if (scoreboardData?.scoreboard) {
       setLiveScoreboard(scoreboardData.scoreboard);
     }
+    if (scoreboardData !== undefined) {
+      setCurrentBatter(scoreboardData.currentBatter ?? null);
+    }
   }, [scoreboardData]);
 
   const shouldPollPhase = selectedMatch
@@ -456,9 +461,9 @@ export default function PredictionPage() {
 
   const matchTitle = displayMatch ? formatMatchTitle(displayMatch.name) : "경기 선택";
   const stadiumName = getDisplayStadiumName(displayMatch?.stadiumName) ?? "";
-  const teamMatchLine = displayMatch
-    ? formatGameMatchTeamLine(displayMatch, liveScoreboard)
-    : null;
+  const matchHeaderLines = displayMatch
+    ? resolveGameMatchHeaderLines(displayMatch, liveScoreboard)
+    : { teamNamesLine: null, headToHeadLine: null };
   const canSelectMatch = true;
   const canSelectStadium = stadiumOptions.length > 0;
   const shellDayPhase = gameDayPhase === "loading" ? "pregame" : gameDayPhase;
@@ -512,7 +517,9 @@ export default function PredictionPage() {
       <LandscapeGameShell
         matchTitle={matchTitle}
         stadiumName={stadiumName}
-        teamMatchLine={teamMatchLine}
+        teamNamesLine={matchHeaderLines.teamNamesLine}
+        headToHeadLine={matchHeaderLines.headToHeadLine}
+        currentBatter={isLivePlay ? currentBatter : null}
         scoreboard={liveScoreboard}
         scoreLoading={scoreLoading && Boolean(selectedMatch)}
         matchesLoading={matchesLoading}

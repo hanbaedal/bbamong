@@ -15,7 +15,7 @@ import GameEventOverlay from "./GameEventOverlay";
 import GameAdOverlay from "./GameAdOverlay";
 import ConfirmPopup from "@/components/customUi/confirmPopup";
 import type { AdSessionState } from "@/hooks/useAdMob";
-import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
 import type { GameDayPhase } from "@/lib/gameDayPhase";
 import type { PregameCountdownDisplay } from "./GamePregameCountdown";
 import type { SideBetBottomSummary } from "./GameBottomStatusBar";
@@ -26,7 +26,9 @@ import "./gameAnimations.css";
 interface LandscapeGameShellProps {
   matchTitle: string;
   stadiumName: string;
-  teamMatchLine?: string | null;
+  teamNamesLine?: string | null;
+  headToHeadLine?: string | null;
+  currentBatter?: CurrentBatterPreview | null;
   scoreboard: LiveScoreboard | null;
   scoreLoading?: boolean;
   matchesLoading?: boolean;
@@ -74,7 +76,9 @@ interface LandscapeGameShellProps {
 export default function LandscapeGameShell({
   matchTitle,
   stadiumName,
-  teamMatchLine,
+  teamNamesLine,
+  headToHeadLine,
+  currentBatter = null,
   scoreboard,
   scoreLoading,
   matchesLoading,
@@ -163,7 +167,9 @@ export default function LandscapeGameShell({
             <GameTopScorePanel
               matchTitle={matchTitle}
               stadiumName={stadiumName}
-              teamMatchLine={teamMatchLine}
+              teamNamesLine={teamNamesLine}
+              headToHeadLine={headToHeadLine}
+              currentBatter={currentBatter}
               scoreboard={scoreboard}
               isLoading={scoreLoading}
               battingHalf={inningHalf ?? null}

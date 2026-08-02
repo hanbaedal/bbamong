@@ -73,6 +73,10 @@ export interface MatchLineupSnapshot {
 /** 선수 시즌 타격 요약 (playerId 문자열 키) */
 export interface MatchPlayerStatsEntry {
   battingAverage: string | null;
+  hits: number | null;
+  homeRuns: number | null;
+  rbi: number | null;
+  ops: string | null;
   syncedAt: string;
 }
 
@@ -84,10 +88,14 @@ export interface MatchHeadToHeadSnapshot {
   syncedAt: string;
 }
 
-/** 사용자 화면 — 현재 타자 + 시즌 타율 */
+/** 사용자 화면 — 현재 타자 + 시즌 타격 기록 */
 export interface CurrentBatterPreview {
   orderLabel: string;
   playerName: string | null;
   battingAverage: string | null;
+  hits: number | null;
+  homeRuns: number | null;
+  rbi: number | null;
+  ops: string | null;
   season: number;
 }

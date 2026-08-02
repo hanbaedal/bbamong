@@ -6,6 +6,8 @@ import {
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import {
   formatMatchTeamLineWithHeadToHead,
+  formatMatchTeamLine,
+  formatHeadToHeadRecordLine,
   resolveMatchTeamNames,
   type MatchHeadToHeadRecord,
   type MatchTeamNameInput,
@@ -47,6 +49,22 @@ export function formatGameMatchTeamLine(
     liveScoreboard,
   });
   return formatMatchTeamLineWithHeadToHead(awayTeamName, homeTeamName, match.headToHead);
+}
+
+/** 예측 화면 상단 — 팀명 1줄 + 상대전적 2줄 */
+export function resolveGameMatchHeaderLines(
+  match: Pick<GameMatchItem, "awayTeamName" | "homeTeamName" | "headToHead">,
+  liveScoreboard?: MatchTeamNameInput["liveScoreboard"],
+): { teamNamesLine: string; headToHeadLine: string | null } {
+  const { awayTeamName, homeTeamName } = resolveMatchTeamNames({
+    apiSportsAwayTeam: match.awayTeamName,
+    apiSportsHomeTeam: match.homeTeamName,
+    liveScoreboard,
+  });
+  return {
+    teamNamesLine: formatMatchTeamLine(awayTeamName, homeTeamName),
+    headToHeadLine: formatHeadToHeadRecordLine(match.headToHead),
+  };
 }
 
 export function matchOrderKey(name: string): number {

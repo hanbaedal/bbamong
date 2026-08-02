@@ -1,5 +1,5 @@
 import type { LineupBatterEntry, MatchLineupSnapshot } from "@shared/apiSportsTypes";
-import { formatBattingAverage } from "@shared/batterDisplay";
+import { formatBattingAverage, formatOps } from "@shared/batterDisplay";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
@@ -141,12 +141,32 @@ export function parseLineupSnapshot(raw: unknown): MatchLineupSnapshot | null {
   };
 }
 
-function extractAverageFromStatsBlock(block: Record<string, unknown>): string | null {
+function extractInt(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.round(value);
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export interface ParsedPlayerBattingStats {
+  battingAverage: string | null;
+  hits: number | null;
+  homeRuns: number | null;
+  rbi: number | null;
+  ops: string | null;
+}
+
+function extractBattingFieldsFromBlock(block: Record<string, unknown>): ParsedPlayerBattingStats {
   const statsList = Array.isArray(block.statistics)
     ? block.statistics
     : Array.isArray(block.stats)
       ? block.stats
       : null;
+
+  let avg: string | null = null;
+  let hits: number | null = null;
+  let homeRuns: number | null = null;
+  let rbi: number | null = null;
+  let ops: string | null = null;
 
   if (statsList) {
     for (const item of statsList) {
@@ -154,23 +174,76 @@ function extractAverageFromStatsBlock(block: Record<string, unknown>): string | 
       if (!stat) continue;
       const type = String(stat.type ?? stat.group ?? "").toLowerCase();
       if (type && !type.includes("bat") && type !== "hitting") continue;
-      const avg = formatBattingAverage(
-        (stat.average ?? stat.avg ?? stat.battingAverage ?? stat.AVG) as string | number | null,
-      );
-      if (avg) return avg;
+
+      avg =
+        avg ??
+        formatBattingAverage(
+          (stat.average ?? stat.avg ?? stat.battingAverage ?? stat.AVG) as string | number | null,
+        );
+      hits = hits ?? extractInt(stat.hits ?? stat.h ?? stat.totalHits ?? stat.H);
+      homeRuns =
+        homeRuns ?? extractInt(stat.homeRuns ?? stat.home_run ?? stat.home_runs ?? stat.hr ?? stat.HR);
+      rbi = rbi ?? extractInt(stat.rbi ?? stat.runsBattedIn ?? stat.RBI);
+      ops =
+        ops ??
+        formatOps(
+          (stat.ops ?? stat.onBasePlusSlugging ?? stat.OPS ?? stat.on_base_plus_slugging) as
+            | string
+            | number
+            | null,
+        );
     }
   }
 
   const batting = asRecord(block.batting) ?? asRecord(block.hitting);
   if (batting) {
-    return formatBattingAverage(
-      (batting.average ?? batting.avg ?? batting.battingAverage) as string | number | null,
-    );
+    avg =
+      avg ??
+      formatBattingAverage(
+        (batting.average ?? batting.avg ?? batting.battingAverage) as string | number | null,
+      );
+    hits = hits ?? extractInt(batting.hits ?? batting.h ?? batting.totalHits);
+    homeRuns =
+      homeRuns ?? extractInt(batting.homeRuns ?? batting.home_run ?? batting.home_runs ?? batting.hr);
+    rbi = rbi ?? extractInt(batting.rbi ?? batting.runsBattedIn);
+    ops = ops ?? formatOps((batting.ops ?? batting.onBasePlusSlugging) as string | number | null);
   }
 
-  return formatBattingAverage(
-    (block.average ?? block.avg ?? block.battingAverage) as string | number | null,
-  );
+  avg =
+    avg ??
+    formatBattingAverage(
+      (block.average ?? block.avg ?? block.battingAverage) as string | number | null,
+    );
+  hits = hits ?? extractInt(block.hits ?? block.h ?? block.totalHits);
+  homeRuns =
+    homeRuns ?? extractInt(block.homeRuns ?? block.home_run ?? block.home_runs ?? block.hr);
+  rbi = rbi ?? extractInt(block.rbi ?? block.runsBattedIn);
+  ops = ops ?? formatOps((block.ops ?? block.onBasePlusSlugging) as string | number | null);
+
+  return { battingAverage: avg, hits, homeRuns, rbi, ops };
+}
+
+function extractAverageFromStatsBlock(block: Record<string, unknown>): string | null {
+  return extractBattingFieldsFromBlock(block).battingAverage;
+}
+
+/** players / players/statistics / games/statistics 응답에서 playerId → 시즌 타격 기록 */
+export function parsePlayerBattingStats(raw: unknown): Map<number, ParsedPlayerBattingStats> {
+  const map = new Map<number, ParsedPlayerBattingStats>();
+  if (!raw) return map;
+
+  const rows = Array.isArray(raw) ? raw : [raw];
+  for (const item of rows) {
+    const row = asRecord(item);
+    if (!row) continue;
+
+    const playerId = extractPlayerId(row);
+    if (!playerId) continue;
+
+    map.set(playerId, extractBattingFieldsFromBlock(row));
+  }
+
+  return map;
 }
 
 /** players / players/statistics / games/statistics 응답에서 playerId → 타율 */
