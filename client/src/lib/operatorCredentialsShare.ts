@@ -45,14 +45,14 @@ async function tryWebShare(data: ShareData): Promise<"shared" | "cancelled" | "s
 export async function shareOperatorCredentials(
   payload: OperatorSharePayload,
 ): Promise<"shared" | "cancelled" | "failed"> {
-  const { title, text, url } = payload;
+  const { title, text, url, fullText } = payload;
 
   if (Capacitor.isNativePlatform()) {
     try {
       await Share.share({
         title,
-        text,
-        url,
+        text: fullText,
+        url: url || undefined,
         dialogTitle: "카카오톡 등으로 보내기",
       });
       return "shared";
@@ -61,9 +61,11 @@ export async function shareOperatorCredentials(
     }
   }
 
+  // 카톡 등은 한 덩어리 text가 비밀번호+링크 전달에 안정적
   const attempts: ShareData[] = [
-    { title, text, url },
+    { title, text: fullText },
     { title, text: `${text}\n\n${url}` },
+    { title, text, url },
     { title, url },
   ];
 

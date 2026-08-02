@@ -55,3 +55,39 @@ export interface BettingDistributionItem {
   totalPoints: number;
   odds: number;
 }
+
+/** API-Sports 라인업 1명 (타순) */
+export interface LineupBatterEntry {
+  playerId: number;
+  name: string;
+  battingOrder: number;
+}
+
+/** Match DB에 저장하는 라인업 스냅샷 */
+export interface MatchLineupSnapshot {
+  syncedAt: string;
+  home: LineupBatterEntry[];
+  away: LineupBatterEntry[];
+}
+
+/** 선수 시즌 타격 요약 (playerId 문자열 키) */
+export interface MatchPlayerStatsEntry {
+  battingAverage: string | null;
+  syncedAt: string;
+}
+
+/** 시즌 상대전적 스냅샷 (DB 저장) */
+export interface MatchHeadToHeadSnapshot {
+  awayWins: number;
+  homeWins: number;
+  season: number;
+  syncedAt: string;
+}
+
+/** 사용자 화면 — 현재 타자 + 시즌 타율 */
+export interface CurrentBatterPreview {
+  orderLabel: string;
+  playerName: string | null;
+  battingAverage: string | null;
+  season: number;
+}

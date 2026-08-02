@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { formatMatchTitle, type GameMatchItem } from "@/components/game/gameMatchUtils";
+import { formatMatchTitle, formatGameMatchTeamLine, type GameMatchItem } from "@/components/game/gameMatchUtils";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import {
   formatSideBetStatus,
@@ -109,6 +109,7 @@ export default function TodayMatchesSideBetModal({
                 {matches.map((match) => {
                   const title = formatMatchTitle(match.name);
                   const stadium = getDisplayStadiumName(match.stadiumName);
+                  const teamLine = formatGameMatchTeamLine(match);
                   const bets = todayBets?.betsByMatch[match.id] ?? [];
                   const winnerBet = bets.find((b) => b.type === "winner");
                   const scoreBet = bets.find((b) => b.type === "score");
@@ -134,6 +135,9 @@ export default function TodayMatchesSideBetModal({
                               {stadium}
                             </span>
                           )}
+                          <span className="mt-0.5 block truncate text-[11px] text-[#CCC]">
+                            {teamLine}
+                          </span>
                           {isCompleted && (
                             <span className="mt-0.5 block text-[11px] text-[#888]">경기 종료</span>
                           )}

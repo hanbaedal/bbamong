@@ -75,6 +75,20 @@ async function apiSportsFetch<T>(path: string, params: Record<string, string | n
   return body.response as T;
 }
 
+/** 라인업·통계 등 선택 엔드포인트 — 실패 시 null (quota/404) */
+async function apiSportsFetchOptional<T>(
+  path: string,
+  params: Record<string, string | number>,
+): Promise<T | null> {
+  try {
+    return await apiSportsFetch<T>(path, params);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[ApiSports] optional ${path} skipped: ${message}`);
+    return null;
+  }
+}
+
 export async function fetchGamesByDate(date: string, leagueId: number): Promise<ApiSportsGameResponse[]> {
   // league와 함께 요청 시 season이 필수 (API-SPORTS)
   const seasonFromEnv = Number(process.env.API_SPORTS_SEASON || "");
@@ -93,4 +107,79 @@ export async function fetchGamesByDate(date: string, leagueId: number): Promise<
 export async function fetchGameById(gameId: number): Promise<ApiSportsGameResponse | null> {
   const games = await apiSportsFetch<ApiSportsGameResponse[]>("/games", { id: gameId });
   return games[0] ?? null;
+}
+
+/** 두 팀 시즌 상대전적 경기 목록 */
+export async function fetchHeadToHeadGames(
+  awayTeamId: number,
+  homeTeamId: number,
+  season: number,
+  leagueId: number,
+): Promise<ApiSportsGameResponse[] | null> {
+  const h2h = `${awayTeamId}-${homeTeamId}`;
+  const games = await apiSportsFetchOptional<ApiSportsGameResponse[]>("/games", {
+    h2h,
+    season,
+    league: leagueId,
+    timezone: "Asia/Seoul",
+  });
+  if (games?.length) return games;
+
+  const reversed = await apiSportsFetchOptional<ApiSportsGameResponse[]>("/games", {
+    h2h: `${homeTeamId}-${awayTeamId}`,
+    season,
+    league: leagueId,
+    timezone: "Asia/Seoul",
+  });
+  return reversed;
+}
+
+export function apiSportsTeamIdsFromGame(game: ApiSportsGameResponse): {
+  apiSportsHomeTeamId: number;
+  apiSportsAwayTeamId: number;
+} {
+  return {
+    apiSportsHomeTeamId: game.teams.home.id,
+    apiSportsAwayTeamId: game.teams.away.id,
+  };
+}
+
+/** 경기 라인업 — API-Sports baseball (경로·응답 형태 방어적 시도) */
+export async function fetchGameLineups(gameId: number): Promise<unknown[] | null> {
+  const byGameParam = await apiSportsFetchOptional<unknown[]>("/lineups", { game: gameId });
+  if (byGameParam?.length) return byGameParam;
+
+  const byIdParam = await apiSportsFetchOptional<unknown[]>("/lineups", { id: gameId });
+  if (byIdParam?.length) return byIdParam;
+
+  const byGamesLineups = await apiSportsFetchOptional<unknown[]>("/games/lineups", { id: gameId });
+  if (byGamesLineups?.length) return byGamesLineups;
+
+  return null;
+}
+
+/** 경기별 선수 통계 (box score) */
+export async function fetchGameStatistics(gameId: number): Promise<unknown[] | null> {
+  const stats = await apiSportsFetchOptional<unknown[]>("/games/statistics", { id: gameId });
+  if (stats?.length) return stats;
+
+  return apiSportsFetchOptional<unknown[]>("/statistics", { game: gameId });
+}
+
+/** 팀 로스터 + 시즌 통계 */
+export async function fetchTeamPlayers(teamId: number, season: number): Promise<unknown[] | null> {
+  return apiSportsFetchOptional<unknown[]>("/players", { team: teamId, season });
+}
+
+/** 선수 시즌 통계 */
+export async function fetchPlayerStatistics(
+  playerId: number,
+  season: number,
+  leagueId: number,
+): Promise<unknown[] | null> {
+  return apiSportsFetchOptional<unknown[]>("/players/statistics", {
+    player: playerId,
+    season,
+    league: leagueId,
+  });
 }

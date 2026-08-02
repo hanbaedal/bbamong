@@ -27,3 +27,21 @@ export const LIVE_SCORE_MAX_REGISTRATION_ORDER = Math.max(
 /** 마지막 api-sports 성공 후 이 시간 이내면 healthy (3단계 스케줄 — 24h) */
 export const HEALTH_STALE_MS = 24 * 60 * 60 * 1000;
 export const KBO_LEAGUE_ID = Number(process.env.API_SPORTS_KBO_LEAGUE_ID || "5");
+
+/** 라인업 재조회 간격 (live sync 중) */
+export const LINEUP_REFRESH_MS = Math.max(
+  60_000,
+  parseInt(process.env.API_SPORTS_LINEUP_REFRESH_MS || String(15 * 60 * 1000), 10) ||
+    15 * 60 * 1000,
+);
+
+export function resolveApiSportsSeason(fallbackDate?: string | Date): number {
+  const fromEnv = Number(process.env.API_SPORTS_SEASON || "");
+  if (Number.isFinite(fromEnv) && fromEnv > 2000) return fromEnv;
+  if (fallbackDate) {
+    const d = typeof fallbackDate === "string" ? fallbackDate : fallbackDate.toISOString();
+    const year = Number(d.slice(0, 4));
+    if (Number.isFinite(year) && year > 2000) return year;
+  }
+  return new Date().getFullYear();
+}

@@ -90,6 +90,13 @@ function buildSharePayload(op: OperatorAccount): OperatorSharePayload {
   };
 }
 
+/** API 목록에서 토큰이 비어 있어도 rotate 응답 토큰으로 공유 가능 */
+function operatorWithToken(op: OperatorAccount, tokenOverride?: string): OperatorAccount | null {
+  const token = (tokenOverride ?? op.loginLinkToken).trim();
+  if (!token) return null;
+  return { ...op, loginLinkToken: token, loginLinkActive: true };
+}
+
 export default function ManagerListPage() {
   const { assets } = useAdminAssets();
   const { toast } = useToast();
@@ -119,13 +126,27 @@ export default function ManagerListPage() {
       return res.json() as Promise<OperatorsResponse & { loginLinkToken?: string }>;
     },
     onSuccess: async (result, operatorId) => {
+      const freshToken = result.loginLinkToken?.trim() ?? "";
+      const op = result.operators.find((o) => o.id === operatorId);
+      const canUseLink = Boolean(op && freshToken && op.status === "활성화");
+
+      const operators =
+        op && freshToken && canUseLink
+          ? result.operators.map((row) =>
+              row.id === operatorId
+                ? { ...row, loginLinkToken: freshToken, loginLinkActive: true }
+                : row,
+            )
+          : result.operators;
+
       queryClient.setQueryData(["/api/admin/operators"], {
-        operators: result.operators,
+        operators,
         todayMatches: result.todayMatches,
       });
-      const op = result.operators.find((o) => o.id === operatorId);
-      if (op?.loginLinkToken) {
-        const shareResult = await deliverOperatorCredentials(buildSharePayload(op));
+
+      const opForShare = canUseLink && op ? operatorWithToken(op, freshToken) : null;
+      if (opForShare) {
+        const shareResult = await deliverOperatorCredentials(buildSharePayload(opForShare));
         if (shareResult === "shared") {
           toast({
             description: "생성 완료. 카카오톡을 선택해 보내세요.",
@@ -174,11 +195,12 @@ export default function ManagerListPage() {
   });
 
   const shareKakaoCredentials = async (op: OperatorAccount) => {
-    if (!op.loginLinkToken) {
+    const opForShare = operatorWithToken(op);
+    if (!opForShare) {
       toast({ variant: "destructive", description: "먼저 「생성」으로 로그인 링크를 발급하세요." });
       return;
     }
-    const payload = buildSharePayload(op);
+    const payload = buildSharePayload(opForShare);
     const shareResult = await shareOperatorCredentials(payload);
     if (shareResult === "shared") {
       toast({ description: `${op.username} — 카카오톡을 선택해 보내세요.` });
@@ -199,11 +221,12 @@ export default function ManagerListPage() {
   };
 
   const copyCredentials = async (op: OperatorAccount) => {
-    if (!op.loginLinkToken) {
+    const opForShare = operatorWithToken(op);
+    if (!opForShare) {
       toast({ variant: "destructive", description: "먼저 「생성」으로 로그인 링크를 발급하세요." });
       return;
     }
-    const ok = await copyOperatorCredentials(buildCopyText(op));
+    const ok = await copyOperatorCredentials(buildCopyText(opForShare));
     if (ok) {
       toast({
         description: `${op.username} 로그인 링크를 복사했습니다. 카톡에 붙여넣기 하세요.`,
@@ -333,7 +356,8 @@ export default function ManagerListPage() {
                     <button
                       type="button"
                       onClick={() => void shareKakaoCredentials(op)}
-                      className="px-2.5 py-1.5 text-[10px] md:text-xs font-semibold bg-[#FEE500] text-[#3C1E1E] rounded hover:brightness-95"
+                      disabled={!op.loginLinkToken}
+                      className="px-2.5 py-1.5 text-[10px] md:text-xs font-semibold bg-[#FEE500] text-[#3C1E1E] rounded hover:brightness-95 disabled:opacity-40 disabled:cursor-not-allowed"
                       data-testid={`operator-kakao-share-${index}`}
                     >
                       카톡 공유

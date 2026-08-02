@@ -2,6 +2,9 @@ import { MatchModel, StadiumModel } from "./db";
 import type { Match, InsertMatch } from "@shared/schema";
 import { getKstDateString } from "../utils/dateUtils";
 import { getApiSyncEnabledBySlot } from "../managerOperatorService";
+import { resolveMatchTeamNames, type MatchHeadToHeadRecord, type MatchTeamNameInput } from "@shared/matchTeamDisplay";
+import { refreshMatchHeadToHeadIfDue } from "../apiSports/h2hService";
+import type { MatchHeadToHeadSnapshot } from "@shared/apiSportsTypes";
 
 function extractMatchNumber(name: string): number {
   const match = name.match(/\d+/);
@@ -33,19 +36,38 @@ function todayMatchDateFilter() {
 
 export type ClientMatchView = Match & {
   stadiumName: string;
+  awayTeamName: string;
+  homeTeamName: string;
+  headToHead: MatchHeadToHeadRecord | null;
   registrationOrder: number;
   sideBetEnabled: boolean;
   sideBetsLocked: boolean;
 };
 
 async function enrichForClient(
-  match: Match & { stadiumName: string; registrationOrder?: number | null; sideBetsLocked?: boolean },
+  match: Match & {
+    stadiumName: string;
+    registrationOrder?: number | null;
+    sideBetsLocked?: boolean;
+    matchHeadToHead?: MatchHeadToHeadSnapshot | null;
+  },
   syncBySlot: Map<number, boolean>,
 ): Promise<ClientMatchView> {
   const registrationOrder = resolveRegistrationOrder(match);
   const sideBetEnabled = syncBySlot.get(registrationOrder) ?? false;
+  const { awayTeamName, homeTeamName } = resolveMatchTeamNames({
+    apiSportsAwayTeam: match.apiSportsAwayTeam,
+    apiSportsHomeTeam: match.apiSportsHomeTeam,
+    liveScoreboard: match.liveScoreboard as MatchTeamNameInput["liveScoreboard"],
+  });
+  const headToHead = match.matchHeadToHead
+    ? { awayWins: match.matchHeadToHead.awayWins, homeWins: match.matchHeadToHead.homeWins }
+    : null;
   return {
     ...match,
+    awayTeamName,
+    homeTeamName,
+    headToHead,
     registrationOrder,
     sideBetEnabled,
     sideBetsLocked: Boolean(match.sideBetsLocked),
@@ -78,7 +100,23 @@ export class MatchStorage {
 
     const syncBySlot = await getApiSyncEnabledBySlot();
     const enriched = await Promise.all(matches.map((m) => enrichWithStadiumName(m)));
-    return Promise.all(enriched.map((m) => enrichForClient(m, syncBySlot)));
+
+    const withHeadToHead = await Promise.all(
+      enriched.map(async (m) => {
+        const row = m as Match & { matchHeadToHead?: MatchHeadToHeadSnapshot | null };
+        if (!row.apiSportsAwayTeamId || !row.apiSportsHomeTeamId) return row;
+        const snapshot = await refreshMatchHeadToHeadIfDue(row.id, {
+          id: row.id,
+          startTime: row.startTime,
+          apiSportsAwayTeamId: row.apiSportsAwayTeamId,
+          apiSportsHomeTeamId: row.apiSportsHomeTeamId,
+          matchHeadToHead: row.matchHeadToHead ?? null,
+        });
+        return snapshot ? { ...row, matchHeadToHead: snapshot } : row;
+      }),
+    );
+
+    return Promise.all(withHeadToHead.map((m) => enrichForClient(m, syncBySlot)));
   }
 
   async getTodayActiveMatches(): Promise<Array<Match & { stadiumName: string }>> {

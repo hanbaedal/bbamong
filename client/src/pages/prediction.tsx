@@ -14,6 +14,7 @@ import {
   collectStadiumOptions,
   filterJoinableMatches,
   formatMatchTitle,
+  formatGameMatchTeamLine,
   pickDefaultMatch,
   pickFirstMatchAtStadium,
   pickNextScheduledMatch,
@@ -38,7 +39,8 @@ import { lockGameLandscape } from "@/lib/gameOrientation";
 import { navigateToHome, openMallFromApp } from "@/lib/appNavigation";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
-import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import { formatBatterStatsLine } from "@shared/batterDisplay";
+import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
 
@@ -76,6 +78,7 @@ export default function PredictionPage() {
   const [activePanel, setActivePanel] = useState<GameMenuAction | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [liveScoreboard, setLiveScoreboard] = useState<LiveScoreboard | null>(null);
+  const [currentBatter, setCurrentBatter] = useState<CurrentBatterPreview | null>(null);
   const [gamePhase, setGamePhase] = useState<GamePhasePayload | null>(null);
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [stadiumModalOpen, setStadiumModalOpen] = useState(false);
@@ -310,6 +313,9 @@ export default function PredictionPage() {
     if (scoreboardData?.scoreboard) {
       setLiveScoreboard(scoreboardData.scoreboard);
     }
+    if (scoreboardData?.currentBatter !== undefined) {
+      setCurrentBatter(scoreboardData.currentBatter);
+    }
   }, [scoreboardData]);
 
   const shouldPollPhase = selectedMatch
@@ -354,11 +360,17 @@ export default function PredictionPage() {
 
   const matchModalItems = useMemo(
     () =>
-      viewableMatches.map((match) => ({
-        id: match.id,
-        label: formatMatchTitle(match.name),
-        sublabel: getDisplayStadiumName(match.stadiumName) ?? undefined,
-      })),
+      viewableMatches.map((match) => {
+        const stadium = getDisplayStadiumName(match.stadiumName);
+        const teams = formatGameMatchTeamLine(match);
+        const sublabel =
+          stadium && teams ? `${stadium} · ${teams}` : stadium ?? teams ?? undefined;
+        return {
+          id: match.id,
+          label: formatMatchTitle(match.name),
+          sublabel,
+        };
+      }),
     [viewableMatches],
   );
 
@@ -410,7 +422,12 @@ export default function PredictionPage() {
 
   const matchTitle = displayMatch ? formatMatchTitle(displayMatch.name) : "오늘의 경기";
   const stadiumName = getDisplayStadiumName(displayMatch?.stadiumName) ?? "";
+  const teamMatchLine = displayMatch
+    ? formatGameMatchTeamLine(displayMatch, liveScoreboard)
+    : null;
   const batterText = gameDayPhase === "live" ? batterTextFromPhase(gamePhase) : "—";
+  const batterSubtext =
+    gameDayPhase === "live" ? formatBatterStatsLine(currentBatter) : null;
   const canSelectMatch = viewableMatches.length > 0;
   const canSelectStadium = stadiumOptions.length > 0;
   const shellDayPhase = gameDayPhase === "loading" ? "pregame" : gameDayPhase;
@@ -464,7 +481,9 @@ export default function PredictionPage() {
       <LandscapeGameShell
         matchTitle={matchTitle}
         stadiumName={stadiumName}
+        teamMatchLine={teamMatchLine}
         batterText={batterText}
+        batterSubtext={batterSubtext}
         scoreboard={liveScoreboard}
         scoreLoading={scoreLoading && Boolean(selectedMatch)}
         matchesLoading={matchesLoading}

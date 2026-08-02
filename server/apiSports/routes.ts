@@ -16,6 +16,9 @@ import {
 } from "./syncService";
 import { syncOperatorMatchAssignments } from "../managerOperatorService";
 import { rescheduleTodayMatchTimers } from "./matchManagementSchedule";
+import { buildCurrentBatterPreviewFromMatch } from "./lineupService";
+import { parseInningHalf } from "@shared/gamePhaseTypes";
+import type { CurrentBatterPreview, MatchLineupSnapshot, MatchPlayerStatsEntry } from "@shared/apiSportsTypes";
 
 export async function apiSportsRoutes(app: Express): Promise<void> {
   app.get("/api/api-sports/health", async (_req, res) => {
@@ -125,14 +128,33 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
   app.get("/api/matches/:id/scoreboard", async (req, res) => {
     try {
       const match = await MatchModel.findOne({ id: req.params.id })
-        .select("id liveScoreboard apiSportsHomeTeam apiSportsAwayTeam controlMode apiSportsGameId")
+        .select(
+          "id liveScoreboard apiSportsHomeTeam apiSportsAwayTeam controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
+        )
         .lean();
       if (!match) return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
+
+      let currentBatter: CurrentBatterPreview | null = null;
+      const scoreboardHalf = match.liveScoreboard?.inningHalf ?? null;
+      const inningHalf = parseInningHalf(match.inningHalf ?? scoreboardHalf);
+      currentBatter = buildCurrentBatterPreviewFromMatch(
+        {
+          id: match.id,
+          startTime: match.startTime,
+          batterIndexInHalf: match.batterIndexInHalf ?? 1,
+          matchLineup: (match.matchLineup as MatchLineupSnapshot | null) ?? null,
+          matchPlayerStats:
+            (match.matchPlayerStats as Record<string, MatchPlayerStatsEntry> | null) ?? null,
+        },
+        inningHalf,
+      );
+
       res.json({
         matchId: match.id,
         scoreboard: match.liveScoreboard ?? null,
         controlMode: match.controlMode ?? "auto",
         linked: Boolean(match.apiSportsGameId),
+        currentBatter,
       });
     } catch (error) {
       console.error("scoreboard error:", error);

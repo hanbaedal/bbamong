@@ -64,6 +64,8 @@ const matchSchema = new Schema(
     apiSportsGameId: { type: Number, default: null },
     apiSportsHomeTeam: { type: String, default: null },
     apiSportsAwayTeam: { type: String, default: null },
+    apiSportsHomeTeamId: { type: Number, default: null },
+    apiSportsAwayTeamId: { type: Number, default: null },
     liveScoreboard: { type: Schema.Types.Mixed, default: null },
     lastInningKey: { type: String, default: null },
     controlMode: { type: String, default: "auto" },
@@ -76,6 +78,12 @@ const matchSchema = new Schema(
     batterIndexInHalf: { type: Number, default: 1 },
     /** 현재 공수(초/말) 누적 아웃 — 공수교대 시 0 */
     outsInHalf: { type: Number, default: 0 },
+    /** API-Sports 라인업 스냅샷 (home/away 타순) */
+    matchLineup: { type: Schema.Types.Mixed, default: null },
+    /** playerId → 시즌 타율 캐시 */
+    matchPlayerStats: { type: Schema.Types.Mixed, default: null },
+    /** 시즌 상대전적 (awayWins/homeWins) */
+    matchHeadToHead: { type: Schema.Types.Mixed, default: null },
     createdAt: { type: Date, default: Date.now },
   },
   { versionKey: false },

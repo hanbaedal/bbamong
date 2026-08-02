@@ -1,10 +1,19 @@
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
+import {
+  formatMatchTeamLineWithHeadToHead,
+  resolveMatchTeamNames,
+  type MatchHeadToHeadRecord,
+  type MatchTeamNameInput,
+} from "@shared/matchTeamDisplay";
 
 export interface GameMatchItem {
   id: string;
   name: string;
   stadiumName: string;
+  awayTeamName?: string;
+  homeTeamName?: string;
+  headToHead?: MatchHeadToHeadRecord | null;
   stadiumId: number;
   startTime: string;
   matchStatus: string;
@@ -19,6 +28,19 @@ export function formatMatchTitle(name: string): string {
   const trimmed = name.trim();
   if (trimmed.startsWith("제 ")) return trimmed;
   return `제 ${trimmed}`;
+}
+
+/** 경기 + (선택) live 스코어보드에서 팀명 1줄 */
+export function formatGameMatchTeamLine(
+  match: Pick<GameMatchItem, "awayTeamName" | "homeTeamName" | "headToHead">,
+  liveScoreboard?: MatchTeamNameInput["liveScoreboard"],
+): string {
+  const { awayTeamName, homeTeamName } = resolveMatchTeamNames({
+    apiSportsAwayTeam: match.awayTeamName,
+    apiSportsHomeTeam: match.homeTeamName,
+    liveScoreboard,
+  });
+  return formatMatchTeamLineWithHeadToHead(awayTeamName, homeTeamName, match.headToHead);
 }
 
 export function matchOrderKey(name: string): number {

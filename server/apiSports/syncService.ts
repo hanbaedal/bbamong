@@ -3,9 +3,9 @@ import { MatchModel, StadiumModel, PredictionModel, getNextSequence } from "../U
 import { finalizeMatchEnd } from "../liveMatch/sideBetStorage";
 import { broadcastManager } from "../liveMatch/broadcastManager";
 import { addKstDays, getKstDateString, getKstDayRange } from "../utils/dateUtils";
-import { fetchGameById, type ApiSportsGameResponse } from "./client";
+import { fetchGameById, apiSportsTeamIdsFromGame, type ApiSportsGameResponse } from "./client";
 import { markApiSportsError } from "./healthState";
-import type { ApiSportsTodayGame, LiveScoreboard } from "@shared/apiSportsTypes";
+import type { ApiSportsTodayGame, LiveScoreboard, MatchHeadToHeadSnapshot, MatchLineupSnapshot, MatchPlayerStatsEntry } from "@shared/apiSportsTypes";
 import {
   buildInningKey,
   isGameFinished,
@@ -16,9 +16,19 @@ import {
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
 import { isStaleFinishedScoreboard, isStalePostponedScoreboard, isMisclassifiedTerminalStatus } from "@shared/matchManagementStatus";
+import { refreshMatchLineupIfDue } from "./lineupService";
+import { refreshMatchHeadToHeadIfDue } from "./h2hService";
 
 const MAX_DAILY_MATCHES = 5;
 const API_DEFAULT_STADIUM_NAME = "API자동";
+
+function apiSportsTeamsUpdate(game: ApiSportsGameResponse, scoreboard: LiveScoreboard) {
+  return {
+    apiSportsHomeTeam: scoreboard.homeTeamName,
+    apiSportsAwayTeam: scoreboard.awayTeamName,
+    ...apiSportsTeamIdsFromGame(game),
+  };
+}
 
 async function syncOperatorAccountForMatch(matchId: string): Promise<void> {
   try {
@@ -337,8 +347,7 @@ export async function syncTodayGamesFromApiSports(
       matchStatus: resolvedStatus,
       registrationOrder: order,
       apiSportsGameId: external.id,
-      apiSportsHomeTeam: scoreboard.homeTeamName,
-      apiSportsAwayTeam: scoreboard.awayTeamName,
+      ...apiSportsTeamsUpdate(external, scoreboard),
       liveScoreboard: useFreshScoreboard
         ? scoreboard
         : existing!.liveScoreboard,
@@ -609,6 +618,7 @@ async function updateMatchStatusFromApiGame(
         inningLabel: scoreboard.inningLabel,
         syncedAt: scoreboard.syncedAt,
       },
+      ...apiSportsTeamsUpdate(game, scoreboard),
     },
   );
 
@@ -632,8 +642,7 @@ async function updateMatchScoreFromApiGame(
     {
       matchStatus: nextStatus,
       liveScoreboard: scoreboard,
-      apiSportsHomeTeam: scoreboard.homeTeamName,
-      apiSportsAwayTeam: scoreboard.awayTeamName,
+      ...apiSportsTeamsUpdate(game, scoreboard),
       lastInningKey: buildInningKey(scoreboard),
       sideBetsLocked:
         match.sideBetsLocked ||
@@ -660,6 +669,29 @@ export async function refreshMatchFromApiAtStart(matchId: string): Promise<void>
 
     const nextStatus = await updateMatchStatusFromApiGame(match, game);
     console.log(`[MatchMgmtSchedule] start ${match.name} (${matchId}) → ${nextStatus}`);
+
+    await refreshMatchLineupIfDue(
+      matchId,
+      {
+        id: matchId,
+        apiSportsGameId: match.apiSportsGameId,
+        startTime: match.startTime,
+        gameInning: match.gameInning,
+        inningHalf: match.inningHalf,
+        batterIndexInHalf: match.batterIndexInHalf,
+        matchLineup: match.matchLineup as MatchLineupSnapshot | null | undefined,
+        matchPlayerStats: match.matchPlayerStats as Record<string, MatchPlayerStatsEntry> | null | undefined,
+      },
+      [game.teams.home.id, game.teams.away.id].filter((id) => Number.isFinite(id) && id > 0),
+    );
+
+    await refreshMatchHeadToHeadIfDue(matchId, {
+      id: matchId,
+      startTime: match.startTime,
+      apiSportsAwayTeamId: game.teams.away.id,
+      apiSportsHomeTeamId: game.teams.home.id,
+      matchHeadToHead: match.matchHeadToHead as MatchHeadToHeadSnapshot | null | undefined,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown sync error";
     markApiSportsError(message);
@@ -694,6 +726,14 @@ export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
     }
 
     console.log(`[MatchMgmtSchedule] end ${match.name} (${matchId}) → score updated (${nextStatus})`);
+
+    await refreshMatchHeadToHeadIfDue(matchId, {
+      id: matchId,
+      startTime: match.startTime,
+      apiSportsAwayTeamId: game.teams.away.id,
+      apiSportsHomeTeamId: game.teams.home.id,
+      matchHeadToHead: match.matchHeadToHead as MatchHeadToHeadSnapshot | null | undefined,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown sync error";
     markApiSportsError(message);
@@ -737,8 +777,7 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
       {
         matchStatus: nextStatus,
         liveScoreboard: scoreboard,
-        apiSportsHomeTeam: scoreboard.homeTeamName,
-        apiSportsAwayTeam: scoreboard.awayTeamName,
+        ...apiSportsTeamsUpdate(game, scoreboard),
         lastInningKey: buildInningKey(scoreboard),
         sideBetsLocked:
           match.sideBetsLocked ||
@@ -748,6 +787,33 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
     );
 
     await syncOperatorAccountForMatch(matchId);
+
+    void refreshMatchLineupIfDue(
+      matchId,
+      {
+        id: matchId,
+        apiSportsGameId: match.apiSportsGameId,
+        startTime: match.startTime,
+        gameInning: match.gameInning,
+        inningHalf: match.inningHalf,
+        batterIndexInHalf: match.batterIndexInHalf,
+        matchLineup: match.matchLineup as MatchLineupSnapshot | null | undefined,
+        matchPlayerStats: match.matchPlayerStats as Record<string, MatchPlayerStatsEntry> | null | undefined,
+      },
+      [game.teams.home.id, game.teams.away.id].filter((id) => Number.isFinite(id) && id > 0),
+    ).catch((err) => {
+      console.warn(`[LiveScoreSync] lineup refresh ${matchId}:`, err);
+    });
+
+    void refreshMatchHeadToHeadIfDue(matchId, {
+      id: matchId,
+      startTime: match.startTime,
+      apiSportsAwayTeamId: game.teams.away.id,
+      apiSportsHomeTeamId: game.teams.home.id,
+      matchHeadToHead: match.matchHeadToHead as MatchHeadToHeadSnapshot | null,
+    }).catch((err) => {
+      console.warn(`[LiveScoreSync] h2h refresh ${matchId}:`, err);
+    });
 
     if (nextStatus === "completed" && previousStatus !== "completed") {
       const { match } = await finalizeMatchEnd(matchId);
@@ -793,8 +859,7 @@ export async function linkMatchToApiSports(matchId: string, apiSportsGameId: num
     { id: matchId },
     {
       apiSportsGameId,
-      apiSportsHomeTeam: scoreboard.homeTeamName,
-      apiSportsAwayTeam: scoreboard.awayTeamName,
+      ...apiSportsTeamsUpdate(game, scoreboard),
       liveScoreboard: scoreboard,
       lastInningKey: buildInningKey(scoreboard),
     },
@@ -802,5 +867,14 @@ export async function linkMatchToApiSports(matchId: string, apiSportsGameId: num
   ).lean();
 
   if (!updated) throw new Error("경기를 찾을 수 없습니다.");
+
+  await refreshMatchHeadToHeadIfDue(matchId, {
+    id: matchId,
+    startTime: updated.startTime,
+    apiSportsAwayTeamId: game.teams.away.id,
+    apiSportsHomeTeamId: game.teams.home.id,
+    matchHeadToHead: updated.matchHeadToHead as MatchHeadToHeadSnapshot | null | undefined,
+  });
+
   return updated;
 }

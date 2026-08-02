@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getFullUrl } from "@/lib/queryClient";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
-import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
 
 type LiveScoreboardOptions = {
   pollMs?: number;
@@ -17,7 +17,12 @@ export function useLiveScoreboard(matchId?: string | null, options?: LiveScorebo
   const shouldPoll =
     alwaysPoll || shouldClientPollMatch(options?.startTime, options?.matchStatus);
 
-  return useQuery<{ scoreboard: LiveScoreboard | null; controlMode: string; linked: boolean }>({
+  return useQuery<{
+    scoreboard: LiveScoreboard | null;
+    controlMode: string;
+    linked: boolean;
+    currentBatter: CurrentBatterPreview | null;
+  }>({
     queryKey: ["/api/matches", matchId, "scoreboard"],
     enabled: Boolean(matchId),
     refetchInterval: shouldPoll ? pollMs : false,

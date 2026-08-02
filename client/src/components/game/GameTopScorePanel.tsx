@@ -5,7 +5,9 @@ import type { InningHalf } from "@shared/gamePhaseTypes";
 interface GameTopScorePanelProps {
   matchTitle: string;
   stadiumName: string;
+  teamMatchLine?: string | null;
   batterText: string;
+  batterSubtext?: string | null;
   scoreboard: LiveScoreboard | null;
   isLoading?: boolean;
   battingHalf?: InningHalf | null;
@@ -25,7 +27,9 @@ const scorePanelTop = "top-[calc(0.375rem+1.35rem)] sm:top-[calc(0.5rem+1.35rem)
 export default function GameTopScorePanel({
   matchTitle,
   stadiumName,
+  teamMatchLine,
   batterText,
+  batterSubtext,
   scoreboard,
   isLoading,
   battingHalf = null,
@@ -79,6 +83,15 @@ export default function GameTopScorePanel({
             </p>
           )
         ) : null}
+
+        {teamMatchLine ? (
+          <p
+            className={`mt-0.5 text-xs sm:text-sm font-normal text-white/95 whitespace-nowrap ${titleShadow}`}
+            data-testid="game-match-teams"
+          >
+            {teamMatchLine}
+          </p>
+        ) : null}
       </div>
 
       {/* 우측: 스코어보드 + n번째 타자 (한 칸 아래, 함께 이동) */}
@@ -104,6 +117,15 @@ export default function GameTopScorePanel({
         >
           {batterText}
         </p>
+        {batterSubtext ? (
+          <p
+            className={`text-[10px] sm:text-xs font-normal text-white/90 whitespace-nowrap pr-0.5 max-w-[42vw] truncate ${titleShadow}`}
+            data-testid="game-batter-stats"
+            title={batterSubtext}
+          >
+            {batterSubtext}
+          </p>
+        ) : null}
       </div>
     </>
   );
