@@ -1,6 +1,14 @@
 export const API_SPORTS_BASE_URL = "https://v1.baseball.api-sports.io";
-/** 3단계 스케줄만 사용 시 — 헬스 API 표시용 */
-export const MATCH_MGMT_SCHEDULED_SYNC_MS = 0;
+/**
+ * 경기관리 프리게임 시간당 sync (09:00 이후 ~ 첫 경기 시작 전).
+ * 헬스 API 표시·문서용 — 실제 타이머는 matchManagementSchedule.
+ */
+export const MATCH_MGMT_PREGAME_HOURLY_MS = Math.max(
+  60_000,
+  parseInt(process.env.MATCH_MGMT_PREGAME_HOURLY_MS || String(60 * 60 * 1000), 10) || 60 * 60 * 1000,
+);
+/** @deprecated 헬스 폴백 — 프리게임 시간당 주기와 동일 */
+export const MATCH_MGMT_SCHEDULED_SYNC_MS = MATCH_MGMT_PREGAME_HOURLY_MS;
 /** 1경기 실시간 스코어 api-sports 주기 (기본 2.5초 — 사용자 DB 폴링 3초와 맞춤) */
 export const LIVE_SCORE_SYNC_INTERVAL_MS = Math.max(
   2_500,

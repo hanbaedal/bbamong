@@ -10,13 +10,24 @@ import {
   buildInningKey,
   isGameFinished,
   isGameLiveStatus,
+  isGamePostponedOrCancelled,
   parseLiveScoreboard,
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
-import { LIVE_SCORE_MAX_REGISTRATION_ORDER } from "./constants";
+import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
+import { isStaleFinishedScoreboard } from "@shared/matchManagementStatus";
 
 const MAX_DAILY_MATCHES = 5;
 const API_DEFAULT_STADIUM_NAME = "API자동";
+
+async function syncOperatorAccountForMatch(matchId: string): Promise<void> {
+  try {
+    const { syncOperatorAccountStatusForMatchId } = await import("../managerOperatorService");
+    await syncOperatorAccountStatusForMatchId(matchId);
+  } catch (error) {
+    console.error(`[Operators] account status sync failed (${matchId}):`, error);
+  }
+}
 
 function gameStartDate(game: ApiSportsGameResponse): Date {
   if (game.timestamp && Number.isFinite(game.timestamp)) {
@@ -31,8 +42,8 @@ function gameStartDate(game: ApiSportsGameResponse): Date {
 
 function matchStatusFromApi(statusShort: string): string {
   const short = (statusShort || "").toUpperCase();
+  if (isGamePostponedOrCancelled(short)) return "cancelled";
   if (isGameFinished(short)) return "completed";
-  if (short === "CAN" || short === "PST" || short === "ABD" || short === "SUSP") return "cancelled";
   if (short === "NS" || short === "TBD") return "scheduled";
   return "ongoing";
 }
@@ -48,11 +59,36 @@ export function resolveMatchStatusFromScoreboard(
   scoreboard: LiveScoreboard,
   startTime?: Date | null,
 ): string {
-  if (currentStatus === "completed" || currentStatus === "cancelled") {
-    return currentStatus;
+  if (isGamePostponedOrCancelled(scoreboard.statusShort)) {
+    return "cancelled";
   }
-  if (isGameFinished(scoreboard.statusShort)) {
+  if (
+    isGameFinished(scoreboard.statusShort) &&
+    !isStaleFinishedScoreboard({
+      matchStatus: currentStatus,
+      statusShort: scoreboard.statusShort,
+      homeScore: scoreboard.homeScore,
+      awayScore: scoreboard.awayScore,
+      inning: scoreboard.inning,
+      inningLabel: scoreboard.inningLabel,
+    })
+  ) {
     return "completed";
+  }
+  if (currentStatus === "completed" || currentStatus === "cancelled") {
+    const staleCompleted =
+      currentStatus === "completed" &&
+      isStaleFinishedScoreboard({
+        matchStatus: currentStatus,
+        statusShort: scoreboard.statusShort,
+        homeScore: scoreboard.homeScore,
+        awayScore: scoreboard.awayScore,
+        inning: scoreboard.inning,
+        inningLabel: scoreboard.inningLabel,
+      });
+    if (!staleCompleted) {
+      return currentStatus;
+    }
   }
   if (isGameLiveStatus(scoreboard.statusShort) || scoreboard.inning !== null) {
     return "ongoing";
@@ -254,15 +290,29 @@ export async function syncTodayGamesFromApiSports(
       continue;
     }
 
-    const resolvedStatus = isGameFinished(scoreboard.statusShort)
-      ? "completed"
-      : existing?.matchStatus === "completed"
+    const staleFinished = isStaleFinishedScoreboard({
+      matchStatus: existing?.matchStatus,
+      statusShort: scoreboard.statusShort,
+      homeScore: scoreboard.homeScore,
+      awayScore: scoreboard.awayScore,
+      inning: scoreboard.inning,
+      inningLabel: scoreboard.inningLabel,
+    });
+
+    const resolvedStatus = isGamePostponedOrCancelled(scoreboard.statusShort)
+      ? "cancelled"
+      : isGameFinished(scoreboard.statusShort) && !staleFinished
         ? "completed"
-        : matchStatus;
+        : staleFinished
+          ? matchStatusFromApi(external.status.short)
+          : existing?.matchStatus === "completed" || existing?.matchStatus === "cancelled"
+            ? (existing.matchStatus as string)
+            : matchStatus;
     const useFreshScoreboard =
       options?.forceApi ||
       isPastDate ||
       isGameFinished(scoreboard.statusShort) ||
+      isGamePostponedOrCancelled(scoreboard.statusShort) ||
       !existing?.liveScoreboard ||
       existing.matchStatus !== "ongoing";
 
@@ -550,6 +600,7 @@ async function updateMatchStatusFromApiGame(
     },
   );
 
+  await syncOperatorAccountForMatch(match.id);
   return nextStatus;
 }
 
@@ -558,7 +609,11 @@ async function updateMatchScoreFromApiGame(
   game: ApiSportsGameResponse,
 ): Promise<string> {
   const scoreboard = parseLiveScoreboard(game);
-  const nextStatus = isGameFinished(scoreboard.statusShort) ? "completed" : (match.matchStatus ?? "ongoing");
+  const nextStatus = isGamePostponedOrCancelled(scoreboard.statusShort)
+    ? "cancelled"
+    : isGameFinished(scoreboard.statusShort)
+      ? "completed"
+      : (match.matchStatus ?? "ongoing");
 
   await MatchModel.updateOne(
     { id: match.id },
@@ -575,6 +630,7 @@ async function updateMatchScoreFromApiGame(
     },
   );
 
+  await syncOperatorAccountForMatch(match.id);
   return nextStatus;
 }
 
@@ -634,8 +690,9 @@ export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
 }
 
 /**
- * 1경기(registrationOrder≤LIVE_SCORE_MAX) live sync — api-sports → Match DB 전체 스코어보드
- * @returns true면 live sync 중단(종료·취소·대상 아님)
+ * live sync — api-sports → Match DB 스코어보드
+ * 해당 registrationOrder 슬롯 운영자 API 폴링 ON일 때만 호출
+ * @returns true면 live sync 중단(종료·취소·API OFF·대상 아님)
  */
 export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boolean> {
   if (!process.env.API_SPORTS_KEY?.trim()) return true;
@@ -645,7 +702,15 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
   if (match.matchStatus === "completed" || match.matchStatus === "cancelled") return true;
 
   const order = match.registrationOrder ?? 99;
-  if (order > LIVE_SCORE_MAX_REGISTRATION_ORDER) return true;
+  if (order < 1 || order > 5) return true;
+
+  const apiSyncEnabled = await isApiSyncEnabledForRegistrationOrder(order);
+  if (!apiSyncEnabled) {
+    console.log(
+      `[LiveScoreSync] tick skipped ${matchId} (order=${order}) — 운영자 API 폴링 OFF`,
+    );
+    return true;
+  }
 
   try {
     const game = await fetchGameById(match.apiSportsGameId);
@@ -670,6 +735,8 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
       },
     );
 
+    await syncOperatorAccountForMatch(matchId);
+
     if (nextStatus === "completed" && previousStatus !== "completed") {
       const { match } = await finalizeMatchEnd(matchId);
       broadcastManager.sendToMatch(matchId, "end", {
@@ -678,6 +745,11 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
         matchStatus: match.matchStatus,
       });
       console.log(`[LiveScoreSync] ${match.name} (${matchId}) → completed`);
+      return true;
+    }
+
+    if (nextStatus === "cancelled" || isGamePostponedOrCancelled(scoreboard.statusShort)) {
+      console.log(`[LiveScoreSync] ${match.name} (${matchId}) → cancelled/postponed`);
       return true;
     }
 

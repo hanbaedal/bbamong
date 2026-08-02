@@ -14,14 +14,19 @@ import {
   shareOperatorCredentials,
   type OperatorSharePayload,
 } from "@/lib/operatorCredentialsShare";
+import {
+  operatorAccountStatusClass,
+  operatorMatchPhaseBadgeClass,
+  type OperatorMatchPhase,
+} from "@shared/operatorMatchStatus";
 
 interface OperatorAccount {
   id: string;
   username: string;
   name: string;
   assignedMatchNumber: string | null;
+  assignedMatchStatusLabel: OperatorMatchPhase | null;
   assignedMatchDetail: string | null;
-  assignmentLabel: string;
   status: string;
   apiSyncEnabled: boolean;
   dailyPasswordPlain: string;
@@ -88,7 +93,8 @@ function buildSharePayload(op: OperatorAccount): OperatorSharePayload {
 export default function ManagerListPage() {
   const { assets } = useAdminAssets();
   const { toast } = useToast();
-  const shareSupported = useMemo(() => canUseNativeShare(), []);
+  /** 스마트폰·태블릿만 false — PC에서는 「QR」로 폰 카톡 전달 */
+  const showQrButton = useMemo(() => !canUseNativeShare(), []);
   const [qrModal, setQrModal] = useState<{
     username: string;
     loginLinkUrl: string;
@@ -106,20 +112,6 @@ export default function ManagerListPage() {
   });
 
   const operators = data?.operators ?? [];
-
-  const statusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "활성화" | "비활성화" }) => {
-      return apiRequest("PATCH", `/api/admin/operators/${id}/status`, { status });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/operators"] });
-      toast({ description: "운영자 상태가 변경되었습니다." });
-    },
-    onError: (err: unknown) => {
-      const message = err instanceof Error ? err.message : "상태 변경에 실패했습니다.";
-      toast({ variant: "destructive", description: message });
-    },
-  });
 
   const rotateMutation = useMutation({
     mutationFn: async (operatorId: string) => {
@@ -142,9 +134,7 @@ export default function ManagerListPage() {
         }
         if (shareResult === "copied") {
           toast({
-            description: shareSupported
-              ? "공유 창을 열지 못해 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요."
-              : "생성 후 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요.",
+            description: "클립보드에 복사했습니다. 카톡에 붙여넣기 하세요.",
           });
           return;
         }
@@ -154,9 +144,9 @@ export default function ManagerListPage() {
         }
       }
       toast({
-        description: shareSupported
-          ? "로그인 링크가 생성되었습니다. 「카톡 공유」를 눌러 주세요."
-          : "로그인 링크가 생성되었습니다. 「복사」 또는 「QR」을 이용하세요.",
+        description: showQrButton
+          ? "로그인 링크가 생성되었습니다. 「카톡 공유」「복사」또는 「QR」을 이용하세요."
+          : "로그인 링크가 생성되었습니다. 「카톡 공유」또는 「복사」를 이용하세요.",
       });
     },
     onError: (err: unknown) => {
@@ -201,7 +191,7 @@ export default function ManagerListPage() {
     const copied = await copyOperatorCredentials(payload.fullText);
     if (copied) {
       toast({
-        description: "공유를 열 수 없어 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요.",
+        description: "공유 창을 열 수 없어 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요.",
       });
       return;
     }
@@ -253,9 +243,12 @@ export default function ManagerListPage() {
               운영자 리스트
             </h1>
             <p className="text-sm text-[#666] mt-1">
-              {shareSupported
-                ? "스마트폰: 「생성」→「카톡 공유」로 바로 전송. 링크 클릭 시 운영자 앱 자동 로그인."
-                : "PC: 「생성」→「복사」 또는 「QR」로 폰 카톡에 전달. 관리 열에서 활성화·API 폴링 설정."}
+              op1~op5는 제1~5경기 고정. 「생성」→「카톡 공유」(또는 「복사」)로 전달.
+              {showQrButton ? " PC는 「QR」도 가능." : ""}
+              {" "}
+              API 폴링 ON인 담당 경기만 실시간 스코어 sync.
+              {" "}
+              계정 상태는 담당 경기(경기전·경기중=활성화, 종료·연기=비활성화)에 따라 자동 반영됩니다.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -293,13 +286,22 @@ export default function ManagerListPage() {
               >
                 <div className="font-medium">{op.username}</div>
                 <div>
-                  <div className="font-medium">{op.assignedMatchNumber ?? "—"}</div>
-                  {op.assignedMatchDetail && (
-                    <div className="text-[10px] text-[#888] mt-0.5">{op.assignedMatchDetail}</div>
-                  )}
-                  {!op.assignedMatchNumber && op.assignmentLabel && (
-                    <div className="text-[10px] text-[#888] mt-0.5">{op.assignmentLabel}</div>
-                  )}
+                  <div className="font-medium leading-snug">{op.assignedMatchNumber ?? "—"}</div>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    {op.assignedMatchStatusLabel && (
+                      <span
+                        className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${operatorMatchPhaseBadgeClass(op.assignedMatchStatusLabel)}`}
+                      >
+                        {op.assignedMatchStatusLabel}
+                      </span>
+                    )}
+                    {op.assignedMatchDetail && op.assignedMatchStatusLabel && (
+                      <span className="text-[10px] text-[#888]">· {op.assignedMatchDetail}</span>
+                    )}
+                    {op.assignedMatchDetail && !op.assignedMatchStatusLabel && (
+                      <span className="text-[10px] text-[#888]">{op.assignedMatchDetail}</span>
+                    )}
+                  </div>
                 </div>
                 <div
                   className="font-mono text-[#E11936] font-bold tracking-wider select-all"
@@ -314,7 +316,7 @@ export default function ManagerListPage() {
                     <span className="text-[#BFBFBF]">없음</span>
                   )}
                 </div>
-                <div>{op.status}</div>
+                <div className={`text-xs ${operatorAccountStatusClass(op.status)}`}>{op.status}</div>
                 <div className="text-[#666] text-xs">
                   {op.lastLogin ? new Date(op.lastLogin).toLocaleString("ko-KR") : "-"}
                 </div>
@@ -328,58 +330,29 @@ export default function ManagerListPage() {
                     >
                       생성
                     </button>
-                    {shareSupported ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => void shareKakaoCredentials(op)}
-                          className="px-2.5 py-1.5 text-[10px] md:text-xs font-semibold bg-[#FEE500] text-[#3C1E1E] rounded hover:brightness-95"
-                          data-testid={`operator-kakao-share-${index}`}
-                        >
-                          카톡 공유
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void copyCredentials(op)}
-                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-[#4285F4] border border-[#4285F4] rounded hover:bg-[#F0F7FF]"
-                        >
-                          복사
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => void copyCredentials(op)}
-                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#4285F4] rounded hover:bg-[#357AE8]"
-                        >
-                          복사
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openQrModal(op)}
-                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-[#201E22] bg-[#E9E9E9] rounded hover:bg-[#D8D8D8]"
-                          data-testid={`operator-qr-${index}`}
-                        >
-                          QR
-                        </button>
-                      </>
-                    )}
-                    {op.status === "활성화" ? (
+                    <button
+                      type="button"
+                      onClick={() => void shareKakaoCredentials(op)}
+                      className="px-2.5 py-1.5 text-[10px] md:text-xs font-semibold bg-[#FEE500] text-[#3C1E1E] rounded hover:brightness-95"
+                      data-testid={`operator-kakao-share-${index}`}
+                    >
+                      카톡 공유
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void copyCredentials(op)}
+                      className="px-2 py-1 text-[10px] md:text-xs font-medium text-[#4285F4] border border-[#4285F4] rounded hover:bg-[#F0F7FF]"
+                    >
+                      복사
+                    </button>
+                    {showQrButton && (
                       <button
                         type="button"
-                        onClick={() => statusMutation.mutate({ id: op.id, status: "비활성화" })}
-                        className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530]"
+                        onClick={() => openQrModal(op)}
+                        className="px-2 py-1 text-[10px] md:text-xs font-medium text-[#201E22] bg-[#E9E9E9] rounded hover:bg-[#D8D8D8]"
+                        data-testid={`operator-qr-${index}`}
                       >
-                        비활성화
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => statusMutation.mutate({ id: op.id, status: "활성화" })}
-                        className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#34A853] rounded hover:bg-[#2D8E47]"
-                      >
-                        활성화
+                        QR
                       </button>
                     )}
                   </div>

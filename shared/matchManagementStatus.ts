@@ -1,0 +1,83 @@
+import {
+  isGameFinished,
+  isGameLiveStatus,
+  resolveOperatorMatchPhase,
+} from "./operatorMatchStatus";
+
+/** FT/completed인데 0:0·이닝 없음 — 종료 오인 (스케줄 stale·DB 오류) */
+export function isStaleFinishedScoreboard(input: {
+  matchStatus?: string | null;
+  statusShort?: string | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  inning?: number | null;
+  inningLabel?: string | null;
+}): boolean {
+  const total = (input.homeScore ?? 0) + (input.awayScore ?? 0);
+  if (total > 0) return false;
+  if (input.inning != null) return false;
+
+  const label = input.inningLabel ?? "";
+  if (/\d+회/.test(label)) return false;
+
+  if (input.matchStatus === "completed") return true;
+  if (isGameFinished(input.statusShort)) return true;
+  if (input.matchStatus === "ongoing" || isGameLiveStatus(input.statusShort)) return true;
+
+  return false;
+}
+
+/** 경기관리·운영자 리스트 공통 상태 라벨 (진행 중은 N회 표시 유지) */
+export function resolveMatchManagementStatusDisplay(input: {
+  matchStatus?: string | null;
+  statusShort?: string | null;
+  statusLong?: string | null;
+  inningLabel?: string | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  inning?: number | null;
+}): string {
+  const inningLabel = input.inningLabel?.trim();
+
+  if (inningLabel && /\d+회/.test(inningLabel) && !/종료|연기|취소/.test(inningLabel)) {
+    return inningLabel;
+  }
+
+  if (
+    isStaleFinishedScoreboard({
+      matchStatus: input.matchStatus,
+      statusShort: input.statusShort,
+      homeScore: input.homeScore,
+      awayScore: input.awayScore,
+      inning: input.inning,
+      inningLabel,
+    })
+  ) {
+    return input.matchStatus === "ongoing" ? "경기중" : "경기전";
+  }
+
+  const phase = resolveOperatorMatchPhase({
+    matchStatus: input.matchStatus,
+    statusShort: input.statusShort,
+    statusLong: input.statusLong,
+  });
+
+  if (phase === "경기중" && inningLabel && !/종료|연기|취소/.test(inningLabel)) {
+    return inningLabel;
+  }
+
+  return phase ?? "경기전";
+}
+
+export function matchManagementStatusBadgeClass(display: string): string {
+  if (display === "경기중" || display === "진행" || /\d+회/.test(display)) {
+    return "bg-green-50 text-green-700";
+  }
+  if (display === "경기종료" || display === "종료" || display === "경기 종료") {
+    return "bg-gray-100 text-gray-600";
+  }
+  if (display === "연기됨" || display === "연기" || display === "취소" || display === "중단") {
+    return "bg-purple-50 text-purple-700";
+  }
+  return "bg-amber-50 text-amber-700";
+}

@@ -16,14 +16,31 @@ export interface ImagePoint {
 }
 
 /**
- * 야구장 PNG 위 베이스·홈플레이트 위치 (1536×1024 기준)
+ * 하단 날짜(text-[10px]) 한 줄 ≈ 화면 높이 대비 비율.
+ * 랜드스케이프 기준 높이 ~400px → 10/400 = 0.025
  */
-export const BASE_IMAGE_POINTS: Record<PredictionOption, ImagePoint> = {
+const DATE_LINE_Y = 0.025;
+
+/** 조정 전 좌표 (이동량 계산용) */
+const PREV_IMAGE_POINTS = {
   아웃: { x: 0.5, y: 0.845 },
   "1루": { x: 0.705, y: 0.595 },
   "2루": { x: 0.5, y: 0.435 },
   "3루": { x: 0.295, y: 0.595 },
   홈런: { x: 0.5, y: 0.175 },
+} as const;
+
+/**
+ * 야구장 PNG 위 베이스·홈플레이트 위치 (1536×1024 기준)
+ * - 아웃: +0.5줄 / 2루: +4줄 / 홈런: 이전 2루 자리
+ * - 1·3루: 아웃·2루 중앙축(x=0.5)에서 기존 거리 유지, +1줄
+ */
+export const BASE_IMAGE_POINTS: Record<PredictionOption, ImagePoint> = {
+  아웃: { x: 0.5, y: PREV_IMAGE_POINTS.아웃.y + DATE_LINE_Y * 0.5 },
+  "1루": { x: PREV_IMAGE_POINTS["1루"].x, y: PREV_IMAGE_POINTS["1루"].y + DATE_LINE_Y },
+  "2루": { x: 0.5, y: PREV_IMAGE_POINTS["2루"].y + DATE_LINE_Y * 4 },
+  "3루": { x: PREV_IMAGE_POINTS["3루"].x, y: PREV_IMAGE_POINTS["3루"].y + DATE_LINE_Y },
+  홈런: { x: 0.5, y: PREV_IMAGE_POINTS["2루"].y },
 };
 
 /** 경기 시작 전 대기 — 3루 위치 */
