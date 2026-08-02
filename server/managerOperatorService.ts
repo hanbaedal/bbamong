@@ -18,6 +18,7 @@ import {
   isGameFinished,
   isGameLiveStatus,
   isGamePostponedOrCancelled,
+  isConfirmedPostponedMatch,
 } from "../shared/apiSportsStatus";
 
 export const OPERATOR_USERNAMES = ["op1", "op2", "op3", "op4", "op5"] as const;
@@ -363,6 +364,10 @@ export function resolveOperatorMatchPhaseFromTodayMatch(
   const inningLabel = match.inningLabel?.trim() ?? "";
   if (inningLabel === "경기 종료" || inningLabel === "종료") {
     return "경기종료";
+  }
+
+  if (isConfirmedPostponedMatch({ ...staleInput, inningLabel })) {
+    return "연기됨";
   }
 
   if (match.matchStatus === "completed") {
@@ -736,6 +741,12 @@ export async function listOperatorAccounts(): Promise<{
   todayMatches: OrderedTodayMatch[];
 }> {
   await ensureOperatorsReady();
+  try {
+    const { refreshTodayMatchStatusesForOperatorList } = await import("./apiSports/syncService");
+    await refreshTodayMatchStatusesForOperatorList();
+  } catch (error) {
+    console.error("[Operators] today match status refresh failed:", error);
+  }
   await syncAllOperatorAccountStatuses();
 
   const todayMatches = await getTodayMatchesByRegistrationOrder();

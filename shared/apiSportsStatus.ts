@@ -65,3 +65,26 @@ export function apiStatusDisplayLabel(
 
   return null;
 }
+
+/** KBO·API 연기 확정 — stale 보정으로 경기중 오표시 방지 */
+export function isConfirmedPostponedMatch(input: {
+  matchStatus?: string | null;
+  statusShort?: string | null;
+  statusLong?: string | null;
+  inningLabel?: string | null;
+}): boolean {
+  const short = normalizeApiStatusShort(input.statusShort);
+  const long = (input.statusLong ?? "").toLowerCase();
+  const label = (input.inningLabel ?? "").trim();
+
+  if (label === "연기" || label === "취소" || label === "중단") return true;
+  if (short === "PST" || short === "POSTPONED") return true;
+  if (short === "CAN" || short === "CANCELLED" || short === "CANCELED" || short === "ABD") {
+    return true;
+  }
+  if (/postpon|연기|postponement|time.*undecided|시간 미정/.test(long)) return true;
+  if (input.matchStatus === "cancelled") {
+    return !isGameNotStarted(short);
+  }
+  return false;
+}

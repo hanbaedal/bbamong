@@ -15,6 +15,7 @@ import {
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
+import { isConfirmedPostponedMatch } from "@shared/apiSportsStatus";
 import { isStaleFinishedScoreboard, isStalePostponedScoreboard, isMisclassifiedTerminalStatus } from "@shared/matchManagementStatus";
 import { refreshMatchLineupIfDue } from "./lineupService";
 import { refreshMatchHeadToHeadIfDue } from "./h2hService";
@@ -78,6 +79,10 @@ export function resolveMatchStatusFromScoreboard(
     inning: scoreboard.inning,
     inningLabel: scoreboard.inningLabel,
   };
+
+  if (isConfirmedPostponedMatch(staleInput)) {
+    return "cancelled";
+  }
 
   if (isGamePostponedOrCancelled(scoreboard.statusShort)) {
     if (!isStalePostponedScoreboard(staleInput)) {
@@ -632,7 +637,12 @@ async function updateMatchScoreFromApiGame(
   game: ApiSportsGameResponse,
 ): Promise<string> {
   const scoreboard = parseLiveScoreboard(game);
-  const nextStatus = isGamePostponedOrCancelled(scoreboard.statusShort)
+  const nextStatus = isConfirmedPostponedMatch({
+    matchStatus: match.matchStatus,
+    statusShort: scoreboard.statusShort,
+    statusLong: scoreboard.statusLong,
+    inningLabel: scoreboard.inningLabel,
+  })
     ? "cancelled"
     : isGameFinished(scoreboard.statusShort)
       ? "completed"
@@ -851,6 +861,51 @@ export async function setMatchControlMode(matchId: string, mode: "auto" | "manua
   ).lean();
   if (!updated) throw new Error("경기를 찾을 수 없습니다.");
   return updated;
+}
+
+/** 운영자 리스트 — op1~5 당일 경기 상태 1회 갱신 (API 폴링 ON/OFF 무관) */
+export async function refreshTodayMatchStatusesForOperatorList(): Promise<void> {
+  if (!process.env.API_SPORTS_KEY?.trim()) return;
+
+  const kstToday = getKstDateString();
+  const { start, end } = getKstDayRange(new Date(`${kstToday}T12:00:00+09:00`));
+
+  const matches = await MatchModel.find({
+    registrationOrder: { $gte: 1, $lte: MAX_DAILY_MATCHES },
+    apiSportsGameId: { $exists: true, $ne: null },
+    $or: [
+      { matchDate: kstToday },
+      { matchDate: null, startTime: { $gte: start, $lte: end } },
+    ],
+  })
+    .select("id name matchStatus startTime liveScoreboard apiSportsGameId registrationOrder")
+    .lean();
+
+  await Promise.all(
+    matches.map(async (match) => {
+      if (match.matchStatus === "completed" || match.matchStatus === "cancelled") {
+        return;
+      }
+      if (!match.apiSportsGameId) return;
+
+      try {
+        const game = await fetchGameById(match.apiSportsGameId);
+        if (!game) return;
+
+        const nextStatus = await updateMatchStatusFromApiGame(match, game);
+        console.log(
+          `[Operators] status refresh order=${match.registrationOrder ?? "?"} ${match.name} (${match.id}) → ${nextStatus}`,
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown sync error";
+        markApiSportsError(message);
+        console.warn(
+          `[Operators] status refresh failed order=${match.registrationOrder ?? "?"} (${match.id}):`,
+          error,
+        );
+      }
+    }),
+  );
 }
 
 export async function linkMatchToApiSports(matchId: string, apiSportsGameId: number) {

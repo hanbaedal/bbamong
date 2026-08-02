@@ -2,6 +2,7 @@ import {
   isGameFinished,
   isGameLiveStatus,
   isGamePostponedOrCancelled,
+  isConfirmedPostponedMatch,
   normalizeApiStatusShort,
 } from "./apiSportsStatus";
 import { resolveOperatorMatchPhase } from "./operatorMatchStatus";
@@ -74,6 +75,8 @@ export function isStalePostponedScoreboard(input: {
   inning?: number | null;
   inningLabel?: string | null;
 }): boolean {
+  if (isConfirmedPostponedMatch(input)) return false;
+
   const short = normalizeApiStatusShort(input.statusShort);
   const looksPostponed =
     input.matchStatus === "cancelled" ||
@@ -88,12 +91,12 @@ export function isStalePostponedScoreboard(input: {
   if (/\d+회/.test(input.inningLabel ?? "")) return false;
 
   const long = (input.statusLong ?? "").toLowerCase();
-  // PST/POSTPONED + 명확한 long만 진짜 연기. POST 단독은 api-sports 스케줄 stale 빈번
-  if ((short === "PST" || short === "POSTPONED") && /postponed|postponement|연기/.test(long)) {
-    return false;
+  // POST 단독은 api-sports 스케줄 stale 빈번 — long 없으면 연기 오인
+  if (short === "POST" && !/postponed|postponement|연기/.test(long)) {
+    return true;
   }
 
-  return true;
+  return false;
 }
 
 function scoreboardStaleInput(input: {
