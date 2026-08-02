@@ -82,12 +82,11 @@ async function enrichWithStadiumName(
 }
 
 export class MatchStorage {
-  /** 오늘 취소 제외 전체 (종료 포함 — side bet 결과 표시용) */
+  /** 오늘 전체 (종료·연기 포함 — 경기 선택 슬롯·side bet 결과 표시용) */
   async getTodayMatchesForClient(): Promise<ClientMatchView[]> {
     const { filter } = todayMatchDateFilter();
 
     const docs = await MatchModel.find({
-      matchStatus: { $ne: "cancelled" },
       ...filter,
     }).lean();
 

@@ -192,10 +192,7 @@ export default function LandscapeGameShell({
               onSelect={onFieldSelect}
             />
 
-            <GameDefenseLayer
-              visible={screenPhase === "picking"}
-              inningHalf={inningHalf}
-            />
+            <GameDefenseLayer visible={false} inningHalf={inningHalf} />
 
             <GameCharacterLayer
               phase={screenPhase}

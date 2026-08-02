@@ -328,7 +328,7 @@ export async function startRound(matchId: string): Promise<Match> {
 
     const updatedMatch = await MatchModel.findOneAndUpdate(
       { id: matchId },
-      { predictionEnabled: true },
+      { predictionEnabled: true, sideBetsLocked: true },
       { new: true, session },
     ).lean();
 

@@ -11,13 +11,13 @@ import type { SideBetActionTarget } from "@/components/game/TodayMatchesSideBetM
 import type { SideBetBottomSummary } from "@/components/game/GameBottomStatusBar";
 import type { GameMenuAction } from "@/components/game/GameLeftMenu";
 import {
+  buildDailyMatchSlots,
   collectStadiumOptions,
   filterJoinableMatches,
   formatMatchTitle,
   formatGameMatchTeamLine,
-  pickDefaultMatch,
-  pickFirstMatchAtStadium,
-  pickNextScheduledMatch,
+  formatMatchStatusLabel,
+  isMatchSelectableForGame,
   sortMatchesByOrder,
   type GameMatchItem,
 } from "@/components/game/gameMatchUtils";
@@ -31,7 +31,10 @@ import {
   formatStartTimeKst,
   msUntilMatchStart,
 } from "@/lib/matchStartCountdown";
-import { isSideBetActionEnabled } from "@/lib/sideBetMatchUtils";
+import {
+  isSideBetActionEnabled,
+  shouldAutoOpenSideBetModal,
+} from "@/lib/sideBetMatchUtils";
 import type { SideBetRecord } from "@/lib/sideBetMatchUtils";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { useLandscapePredictionFlow } from "@/hooks/useLandscapePredictionFlow";
@@ -52,10 +55,14 @@ interface GamePhasePayload {
   name?: string;
 }
 
-function batterTextFromPhase(phase: GamePhasePayload | null | undefined): string {
+function resolveBatterText(
+  phase: GamePhasePayload | null | undefined,
+  batter: CurrentBatterPreview | null | undefined,
+): string {
   if (phase?.batterIndexInHalf != null) {
     return `${phase.batterIndexInHalf}번째 타자`;
   }
+  if (batter?.orderLabel) return batter.orderLabel;
   if (phase?.displayLabel) {
     const parts = phase.displayLabel.split(" · ");
     const batterPart = parts.find((p) => p.includes("번째"));
@@ -90,6 +97,7 @@ export default function PredictionPage() {
     matchTitle: string;
   } | null>(null);
   const sideBetAutoForMatchRef = useRef<string | null>(null);
+  const matchPickPromptedRef = useRef(false);
   const sideBetStatusPrevRef = useRef<Map<number, string>>(new Map());
 
   const handleDayEndComplete = useCallback(() => {
@@ -137,15 +145,11 @@ export default function PredictionPage() {
   );
 
   const selectedMatch = useMemo(() => {
-    if (selectedMatchId) {
-      const found = viewableMatches.find((m) => m.id === selectedMatchId);
-      if (found) return found;
-    }
-    if (gameDayPhase === "live") {
-      return pickDefaultMatch(joinableMatches, nowMs) ?? viewableMatches[0] ?? null;
-    }
-    return pickNextScheduledMatch(viewableMatches) ?? viewableMatches[0] ?? null;
-  }, [viewableMatches, joinableMatches, selectedMatchId, gameDayPhase, nowMs]);
+    if (!selectedMatchId) return null;
+    const found = orderedMatches.find((m) => m.id === selectedMatchId);
+    if (!found || !isMatchSelectableForGame(found)) return null;
+    return found;
+  }, [orderedMatches, selectedMatchId, nowMs]);
 
   const displayMatch = selectedMatch;
 
@@ -242,13 +246,16 @@ export default function PredictionPage() {
     if (sideBetAutoForMatchRef.current === displayMatch.id) return;
     sideBetAutoForMatchRef.current = displayMatch.id;
 
-    if (hasSideBetPrediction) {
-      setSideBetModalOpen(false);
-      return;
-    }
+    setSideBetModalOpen(
+      shouldAutoOpenSideBetModal(displayMatch, hasSideBetPrediction, nowMs),
+    );
+  }, [matchesLoading, displayMatch, currentSideBets, hasSideBetPrediction, nowMs]);
 
-    setSideBetModalOpen(true);
-  }, [matchesLoading, displayMatch?.id, currentSideBets, hasSideBetPrediction]);
+  useEffect(() => {
+    if (!sideBetModalOpen || !displayMatch) return;
+    if (shouldAutoOpenSideBetModal(displayMatch, hasSideBetPrediction, nowMs)) return;
+    setSideBetModalOpen(false);
+  }, [sideBetModalOpen, displayMatch, hasSideBetPrediction, nowMs]);
 
   useEffect(() => {
     if (matchesLoading) return;
@@ -266,14 +273,25 @@ export default function PredictionPage() {
   }, [selectedMatchId, viewableMatches]);
 
   useEffect(() => {
-    if (!selectedMatchId && selectedMatch?.id) {
-      setSelectedMatchId(selectedMatch.id);
-    }
-  }, [selectedMatch, selectedMatchId]);
+    if (!selectedMatchId || !selectedMatch) return;
+    const found = orderedMatches.find((m) => m.id === selectedMatchId);
+    if (found && isMatchSelectableForGame(found)) return;
+    setSelectedMatchId(null);
+    matchPickPromptedRef.current = false;
+    setMatchModalOpen(true);
+  }, [selectedMatchId, selectedMatch, orderedMatches, nowMs]);
+
+  useEffect(() => {
+    if (matchesLoading || matchPickPromptedRef.current) return;
+    if (selectedMatchId) return;
+    matchPickPromptedRef.current = true;
+    setMatchModalOpen(true);
+  }, [matchesLoading, selectedMatchId]);
 
   useEffect(() => {
     setLiveScoreboard(null);
     setGamePhase(null);
+    setCurrentBatter(null);
   }, [selectedMatchId]);
 
   useEffect(() => {
@@ -360,18 +378,29 @@ export default function PredictionPage() {
 
   const matchModalItems = useMemo(
     () =>
-      viewableMatches.map((match) => {
+      buildDailyMatchSlots(orderedMatches).map(({ order, match }) => {
+        const label = `제 ${order}경기`;
+        if (!match) {
+          return {
+            id: `slot-${order}`,
+            label,
+            sublabel: "오늘 경기 없음",
+            disabled: true,
+          };
+        }
         const stadium = getDisplayStadiumName(match.stadiumName);
         const teams = formatGameMatchTeamLine(match);
-        const sublabel =
-          stadium && teams ? `${stadium} · ${teams}` : stadium ?? teams ?? undefined;
+        const status = formatMatchStatusLabel(match, nowMs);
+        const parts = [stadium, teams, status].filter(Boolean);
+        const selectable = isMatchSelectableForGame(match);
         return {
           id: match.id,
-          label: formatMatchTitle(match.name),
-          sublabel,
+          label,
+          sublabel: parts.length > 0 ? parts.join(" · ") : undefined,
+          disabled: !selectable,
         };
       }),
-    [viewableMatches],
+    [orderedMatches, nowMs],
   );
 
   const stadiumModalItems = useMemo(
@@ -402,6 +431,9 @@ export default function PredictionPage() {
   };
 
   const handleMatchSelect = (matchId: string) => {
+    if (matchId.startsWith("slot-")) return;
+    const match = orderedMatches.find((m) => m.id === matchId);
+    if (!match || !isMatchSelectableForGame(match)) return;
     setSelectedMatchId(matchId);
     setMatchModalOpen(false);
     sideBetAutoForMatchRef.current = null;
@@ -410,9 +442,9 @@ export default function PredictionPage() {
   const handleStadiumSelect = (stadiumIdStr: string) => {
     const stadiumId = Number.parseInt(stadiumIdStr, 10);
     const nextMatch =
-      pickFirstMatchAtStadium(joinableMatches, stadiumId, nowMs) ??
-      viewableMatches.find((m) => m.stadiumId === stadiumId) ??
-      null;
+      orderedMatches.find(
+        (m) => m.stadiumId === stadiumId && isMatchSelectableForGame(m),
+      ) ?? null;
     if (nextMatch) {
       setSelectedMatchId(nextMatch.id);
       sideBetAutoForMatchRef.current = null;
@@ -420,22 +452,26 @@ export default function PredictionPage() {
     setStadiumModalOpen(false);
   };
 
-  const matchTitle = displayMatch ? formatMatchTitle(displayMatch.name) : "오늘의 경기";
+  const matchTitle = displayMatch ? formatMatchTitle(displayMatch.name) : "경기 선택";
   const stadiumName = getDisplayStadiumName(displayMatch?.stadiumName) ?? "";
   const teamMatchLine = displayMatch
     ? formatGameMatchTeamLine(displayMatch, liveScoreboard)
     : null;
-  const batterText = gameDayPhase === "live" ? batterTextFromPhase(gamePhase) : "—";
-  const batterSubtext =
-    gameDayPhase === "live" ? formatBatterStatsLine(currentBatter) : null;
-  const canSelectMatch = viewableMatches.length > 0;
+  const showBatterInfo = Boolean(
+    displayMatch
+      && (gameDayPhase === "live"
+        || shouldClientPollMatch(displayMatch.startTime, displayMatch.matchStatus, undefined, nowMs)),
+  );
+  const batterText = showBatterInfo ? resolveBatterText(gamePhase, currentBatter) : "—";
+  const batterSubtext = showBatterInfo ? formatBatterStatsLine(currentBatter) : null;
+  const canSelectMatch = true;
   const canSelectStadium = stadiumOptions.length > 0;
   const shellDayPhase = gameDayPhase === "loading" ? "pregame" : gameDayPhase;
   const isLivePlay = gameDayPhase === "live";
 
   const openSideBetSheet = useCallback(
     (betType: "winner" | "score") => {
-      if (!displayMatch) return;
+      if (!displayMatch || !isSideBetActionEnabled(displayMatch, nowMs)) return;
       setSideBetAction({
         matchId: displayMatch.id,
         matchTitle: formatMatchTitle(displayMatch.name),
@@ -443,7 +479,7 @@ export default function PredictionPage() {
       });
       setSideBetModalOpen(true);
     },
-    [displayMatch],
+    [displayMatch, nowMs],
   );
 
   const sideBetSummary = useMemo((): SideBetBottomSummary | null => {
@@ -462,9 +498,9 @@ export default function PredictionPage() {
     return {
       winnerLabel,
       scoreLabel,
-      canEdit: isSideBetActionEnabled(displayMatch),
+      canEdit: isSideBetActionEnabled(displayMatch, nowMs),
     };
-  }, [displayMatch, currentSideBets, winnerBet, scoreBet]);
+  }, [displayMatch, currentSideBets, winnerBet, scoreBet, nowMs]);
 
   const inningHalfForUi = useMemo(() => {
     if (gamePhase?.inningHalf != null) {
@@ -537,7 +573,7 @@ export default function PredictionPage() {
         title="경기 선택"
         items={matchModalItems}
         selectedId={selectedMatch?.id ?? null}
-        emptyMessage="오늘 선택 가능한 경기가 없습니다."
+        emptyMessage="오늘 등록된 경기가 없습니다."
         onSelect={handleMatchSelect}
         onClose={() => setMatchModalOpen(false)}
       />

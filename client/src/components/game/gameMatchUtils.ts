@@ -1,11 +1,16 @@
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import {
+  normalizeApiStatusShort,
+} from "@shared/apiSportsStatus";
+import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import {
   formatMatchTeamLineWithHeadToHead,
   resolveMatchTeamNames,
   type MatchHeadToHeadRecord,
   type MatchTeamNameInput,
 } from "@shared/matchTeamDisplay";
+import { resolveOperatorMatchPhase } from "@shared/operatorMatchStatus";
 
 export interface GameMatchItem {
   id: string;
@@ -22,6 +27,7 @@ export interface GameMatchItem {
   /** 관리자 API 폴링 ON/OFF와 동일 (opN) */
   sideBetEnabled?: boolean;
   sideBetsLocked?: boolean;
+  liveScoreboard?: Pick<LiveScoreboard, "statusShort" | "statusLong" | "inningLabel"> | null;
 }
 
 export function formatMatchTitle(name: string): string {
@@ -46,6 +52,38 @@ export function formatGameMatchTeamLine(
 export function matchOrderKey(name: string): number {
   const match = name.match(/\d+/);
   return match ? parseInt(match[0], 10) : 0;
+}
+
+/** 당일 경기 선택 슬롯 수 (제1~5경기) */
+export const DAILY_MATCH_SLOT_COUNT = 5;
+
+export interface DailyMatchSlot {
+  order: number;
+  match: GameMatchItem | null;
+}
+
+export function resolveMatchSlotOrder(match: GameMatchItem): number {
+  if (match.registrationOrder != null && match.registrationOrder >= 1) {
+    return match.registrationOrder;
+  }
+  return matchOrderKey(match.name);
+}
+
+/** 제1~5경기 슬롯 — DB에 없는 번호는 match=null */
+export function buildDailyMatchSlots(
+  matches: GameMatchItem[],
+  maxSlots = DAILY_MATCH_SLOT_COUNT,
+): DailyMatchSlot[] {
+  const byOrder = new Map<number, GameMatchItem>();
+  for (const match of matches) {
+    const order = resolveMatchSlotOrder(match);
+    if (order < 1 || order > maxSlots) continue;
+    if (!byOrder.has(order)) byOrder.set(order, match);
+  }
+  return Array.from({ length: maxSlots }, (_, index) => ({
+    order: index + 1,
+    match: byOrder.get(index + 1) ?? null,
+  }));
 }
 
 export function sortMatchesByOrder<T extends { name: string }>(matches: T[]): T[] {
@@ -80,6 +118,50 @@ export function pickDefaultMatch(
   const ongoing = joinable.filter((m) => m.matchStatus === "ongoing");
   if (ongoing.length > 0) return sortMatchesByOrder(ongoing)[0] ?? null;
   return sortMatchesByOrder(joinable)[0] ?? null;
+}
+
+/** 경기 선택 모달 — 진행 상태 라벨 */
+export function formatMatchStatusLabel(
+  match: GameMatchItem,
+  nowMs = Date.now(),
+): string {
+  const short = normalizeApiStatusShort(match.liveScoreboard?.statusShort);
+  if (short === "SUSP" || short === "SUSPENDED") return "지연";
+
+  const phase = resolveOperatorMatchPhase({
+    matchStatus: match.matchStatus,
+    statusShort: match.liveScoreboard?.statusShort,
+    statusLong: match.liveScoreboard?.statusLong,
+  });
+
+  switch (phase) {
+    case "경기종료":
+      return "종료";
+    case "연기됨":
+      return "연기";
+    case "경기중":
+      return "경기 중";
+    case "경기전":
+      if (shouldClientPollMatch(match.startTime, match.matchStatus, undefined, nowMs)) {
+        return "참여 가능";
+      }
+      return "시작 전";
+    default:
+      return "시작 전";
+  }
+}
+
+/** 경기전·경기중만 선택 가능 (종료·연기·지연 등 비활성) */
+export function isMatchSelectableForGame(match: GameMatchItem): boolean {
+  const short = normalizeApiStatusShort(match.liveScoreboard?.statusShort);
+  if (short === "SUSP" || short === "SUSPENDED") return false;
+
+  const phase = resolveOperatorMatchPhase({
+    matchStatus: match.matchStatus,
+    statusShort: match.liveScoreboard?.statusShort,
+    statusLong: match.liveScoreboard?.statusLong,
+  });
+  return phase === "경기전" || phase === "경기중";
 }
 
 export interface StadiumOption {

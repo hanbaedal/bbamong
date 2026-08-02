@@ -14,6 +14,11 @@ import {
   isMisclassifiedTerminalStatus,
   hasLiveInningProgress,
 } from "../shared/matchManagementStatus";
+import {
+  isGameFinished,
+  isGameLiveStatus,
+  isGamePostponedOrCancelled,
+} from "../shared/apiSportsStatus";
 
 export const OPERATOR_USERNAMES = ["op1", "op2", "op3", "op4", "op5"] as const;
 const OPERATOR_COUNT = 5;
@@ -347,10 +352,6 @@ export function resolveOperatorMatchPhaseFromTodayMatch(
     inningLabel: match.inningLabel,
   };
 
-  if (isMisclassifiedTerminalStatus(staleInput)) {
-    return "경기중";
-  }
-
   const recoverFromStale = (): OperatorMatchPhase => {
     const started = Date.now() >= new Date(match.startTime).getTime();
     if (started || match.matchStatus === "ongoing" || hasLiveInningProgress(staleInput)) {
@@ -359,8 +360,43 @@ export function resolveOperatorMatchPhaseFromTodayMatch(
     return "경기전";
   };
 
+  const inningLabel = match.inningLabel?.trim() ?? "";
+  if (inningLabel === "경기 종료" || inningLabel === "종료") {
+    return "경기종료";
+  }
+
+  if (match.matchStatus === "completed") {
+    return "경기종료";
+  }
+  if (match.matchStatus === "cancelled") {
+    if (isStalePostponedScoreboard(staleInput)) {
+      return recoverFromStale();
+    }
+    return "연기됨";
+  }
+
+  if (isGameFinished(match.statusShort)) {
+    return "경기종료";
+  }
+  if (isGamePostponedOrCancelled(match.statusShort)) {
+    if (isStalePostponedScoreboard(staleInput)) {
+      return recoverFromStale();
+    }
+    return "연기됨";
+  }
+
+  if (isMisclassifiedTerminalStatus(staleInput)) {
+    return "경기중";
+  }
+
   if (isStalePostponedScoreboard(staleInput) || isStaleFinishedScoreboard(staleInput)) {
     return recoverFromStale();
+  }
+
+  if (match.endTime && Date.now() > new Date(match.endTime).getTime()) {
+    if (!isGameLiveStatus(match.statusShort) && match.matchStatus !== "scheduled") {
+      return "경기종료";
+    }
   }
 
   return resolveOperatorMatchPhase({
@@ -412,11 +448,15 @@ export async function syncOperatorAccountStatusForMatchId(matchId: string): Prom
 
   const board = (match as { liveScoreboard?: { statusShort?: string; statusLong?: string } | null })
     .liveScoreboard;
-  const phase = resolveOperatorMatchPhase({
-    matchStatus: match.matchStatus,
-    statusShort: board?.statusShort,
-    statusLong: board?.statusLong,
-  });
+  const todayMatches = await getTodayMatchesByRegistrationOrder();
+  const ordered = findTodayMatchByRegistrationOrder(todayMatches, order);
+  const phase = ordered
+    ? resolveOperatorMatchPhaseFromTodayMatch(ordered)
+    : resolveOperatorMatchPhase({
+        matchStatus: match.matchStatus,
+        statusShort: board?.statusShort,
+        statusLong: board?.statusLong,
+      });
   await syncOperatorAccountStatusForSlot(order, phase);
 }
 

@@ -2,6 +2,7 @@ export interface GameSelectModalItem {
   id: string;
   label: string;
   sublabel?: string;
+  disabled?: boolean;
 }
 
 interface GameSelectModalProps {
@@ -46,16 +47,22 @@ export default function GameSelectModal({
             <ul className="space-y-2">
               {items.map((item) => {
                 const selected = selectedId === item.id;
+                const disabled = item.disabled === true;
                 return (
                   <li key={item.id}>
                     <button
                       type="button"
-                      onClick={() => onSelect(item.id)}
+                      disabled={disabled}
+                      onClick={() => {
+                        if (!disabled) onSelect(item.id);
+                      }}
                       data-testid={`game-select-item-${item.id}`}
                       className={`w-full text-left rounded-lg px-4 py-3 transition-colors ${
-                        selected
-                          ? "bg-[#CCF501]/20 border border-[#CCF501] text-white"
-                          : "bg-[#2A2A2A] border border-[#444] text-white hover:bg-[#333]"
+                        disabled
+                          ? "cursor-not-allowed border border-[#333] bg-[#222] text-white/45"
+                          : selected
+                            ? "bg-[#CCF501]/20 border border-[#CCF501] text-white"
+                            : "bg-[#2A2A2A] border border-[#444] text-white hover:bg-[#333]"
                       }`}
                     >
                       <span className="block text-sm font-bold">{item.label}</span>

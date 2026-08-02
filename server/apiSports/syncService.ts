@@ -355,6 +355,7 @@ export async function syncTodayGamesFromApiSports(
       controlMode: existing?.controlMode ?? "auto",
       sideBetsLocked:
         existing?.sideBetsLocked ||
+        resolvedStatus === "ongoing" ||
         scoreboard.inning !== null ||
         isGameFinished(scoreboard.statusShort),
     };
@@ -646,6 +647,7 @@ async function updateMatchScoreFromApiGame(
       lastInningKey: buildInningKey(scoreboard),
       sideBetsLocked:
         match.sideBetsLocked ||
+        nextStatus === "ongoing" ||
         scoreboard.inning !== null ||
         isGameFinished(scoreboard.statusShort),
     },
@@ -781,6 +783,7 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
         lastInningKey: buildInningKey(scoreboard),
         sideBetsLocked:
           match.sideBetsLocked ||
+          nextStatus === "ongoing" ||
           scoreboard.inning !== null ||
           isGameFinished(scoreboard.statusShort),
       },

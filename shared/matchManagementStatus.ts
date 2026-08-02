@@ -16,7 +16,7 @@ export function hasLiveInningProgress(input: {
   return /\d+회/.test(label) && !/종료|연기|취소/.test(label);
 }
 
-/** DB/API 종료·연기인데 이닝 진행 중 — 상태 오분류 */
+/** DB/API 종료·연기인데 이닝 진행 중 — 상태 오분류 (실제로는 경기 중) */
 export function isMisclassifiedTerminalStatus(input: {
   matchStatus?: string | null;
   statusShort?: string | null;
@@ -24,7 +24,17 @@ export function isMisclassifiedTerminalStatus(input: {
   inningLabel?: string | null;
 }): boolean {
   if (!hasLiveInningProgress(input)) return false;
-  if (input.matchStatus === "completed" || input.matchStatus === "cancelled") return true;
+
+  const label = input.inningLabel ?? "";
+  if (/종료/.test(label)) return false;
+
+  if (input.matchStatus === "completed") {
+    return !isGameFinished(input.statusShort);
+  }
+  if (input.matchStatus === "cancelled") {
+    return !isGamePostponedOrCancelled(input.statusShort);
+  }
+
   if (isGameFinished(input.statusShort) || isGamePostponedOrCancelled(input.statusShort)) {
     return true;
   }

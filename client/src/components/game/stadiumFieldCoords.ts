@@ -21,6 +21,9 @@ export interface ImagePoint {
  */
 const DATE_LINE_Y = 0.025;
 
+/** 날짜 글자 1자 ≈ 10px — 6글자 가로 이동 (1536px 이미지 기준) */
+const DATE_LINE_X = (10 / STADIUM_IMAGE.width) * 6;
+
 /** 조정 전 좌표 (이동량 계산용) */
 const PREV_IMAGE_POINTS = {
   아웃: { x: 0.5, y: 0.845 },
@@ -32,14 +35,21 @@ const PREV_IMAGE_POINTS = {
 
 /**
  * 야구장 PNG 위 베이스·홈플레이트 위치 (1536×1024 기준)
- * - 아웃: +0.5줄 / 2루: +4줄 / 홈런: 이전 2루 자리
- * - 1·3루: 아웃·2루 중앙축(x=0.5)에서 기존 거리 유지, +1줄
+ * 한 줄·6글자 기준 = 하단 날짜(text-[10px]) 크기
+ * - 아웃: +1줄 / 2루: +2줄 / 홈런: 이전 2루 자리
+ * - 1루: +1줄, +6글자(오른쪽) / 3루: +1줄, -6글자(왼쪽)
  */
 export const BASE_IMAGE_POINTS: Record<PredictionOption, ImagePoint> = {
-  아웃: { x: 0.5, y: PREV_IMAGE_POINTS.아웃.y + DATE_LINE_Y * 0.5 },
-  "1루": { x: PREV_IMAGE_POINTS["1루"].x, y: PREV_IMAGE_POINTS["1루"].y + DATE_LINE_Y },
-  "2루": { x: 0.5, y: PREV_IMAGE_POINTS["2루"].y + DATE_LINE_Y * 4 },
-  "3루": { x: PREV_IMAGE_POINTS["3루"].x, y: PREV_IMAGE_POINTS["3루"].y + DATE_LINE_Y },
+  아웃: { x: 0.5, y: PREV_IMAGE_POINTS.아웃.y + DATE_LINE_Y },
+  "1루": {
+    x: PREV_IMAGE_POINTS["1루"].x + DATE_LINE_X,
+    y: PREV_IMAGE_POINTS["1루"].y + DATE_LINE_Y,
+  },
+  "2루": { x: PREV_IMAGE_POINTS["2루"].x, y: PREV_IMAGE_POINTS["2루"].y + DATE_LINE_Y * 2 },
+  "3루": {
+    x: PREV_IMAGE_POINTS["3루"].x - DATE_LINE_X,
+    y: PREV_IMAGE_POINTS["3루"].y + DATE_LINE_Y,
+  },
   홈런: { x: 0.5, y: PREV_IMAGE_POINTS["2루"].y },
 };
 
