@@ -39,6 +39,10 @@ import type { SideBetRecord } from "@/lib/sideBetMatchUtils";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { useLandscapePredictionFlow } from "@/hooks/useLandscapePredictionFlow";
 import { lockGameLandscape } from "@/lib/gameOrientation";
+import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
+import { GAME_PATH } from "@/lib/appNavigation";
+import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { navigateToHome, openMallFromApp } from "@/lib/appNavigation";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
@@ -88,6 +92,26 @@ export default function PredictionPage() {
 
   useEffect(() => {
     void lockGameLandscape();
+  }, []);
+
+  useEffect(() => {
+    void setGameImmersiveMode(true);
+
+    let resumeHandle: { remove: () => void } | null = null;
+    if (Capacitor.isNativePlatform()) {
+      void App.addListener("appStateChange", ({ isActive }) => {
+        if (isActive && window.location.pathname === GAME_PATH) {
+          void setGameImmersiveMode(true);
+        }
+      }).then((handle) => {
+        resumeHandle = handle;
+      });
+    }
+
+    return () => {
+      resumeHandle?.remove();
+      void setGameImmersiveMode(false);
+    };
   }, []);
 
   const nowMs = useNowMs();

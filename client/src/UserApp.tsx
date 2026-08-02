@@ -44,7 +44,7 @@ import VictoryHistoryPage from "@/pages/setting/victory-history";
 import InvitePage from "@/pages/setting/invite";
 import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
-import { completeLoginNavigation, openMallFromApp, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
+import { completeLoginNavigation, openMallFromApp, DEFAULT_POST_LOGIN_FALLBACK, GAME_PATH } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
 import { peekSkipLoginBootstrap, shouldSkipLoginBootstrap } from "@/lib/loginSession";
 
@@ -232,9 +232,13 @@ function AppStateManager({ children }: { children: React.ReactNode }) {
 
       backHandle = await App.addListener('backButton', () => {
         const path = window.location.pathname;
-        const exitPages = ['/prediction', '/login'];
-        
-        if (exitPages.includes(path)) {
+
+        // 예측게임 — 실수 종료 방지: 시스템 BACK 무시 (나가기는 좌측 메뉴 「홈」)
+        if (path === GAME_PATH) {
+          return;
+        }
+
+        if (path === '/login') {
           App.minimizeApp();
         } else {
           window.history.go(-1);
