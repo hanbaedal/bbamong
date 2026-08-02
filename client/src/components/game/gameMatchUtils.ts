@@ -55,7 +55,7 @@ export function formatGameMatchTeamLine(
 export function resolveGameMatchHeaderLines(
   match: Pick<GameMatchItem, "awayTeamName" | "homeTeamName" | "headToHead">,
   liveScoreboard?: MatchTeamNameInput["liveScoreboard"],
-): { teamNamesLine: string; headToHeadLine: string | null } {
+): { teamNamesLine: string; headToHeadLine: string } {
   const { awayTeamName, homeTeamName } = resolveMatchTeamNames({
     apiSportsAwayTeam: match.awayTeamName,
     apiSportsHomeTeam: match.homeTeamName,

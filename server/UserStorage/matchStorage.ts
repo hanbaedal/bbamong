@@ -102,11 +102,17 @@ export class MatchStorage {
 
     const withHeadToHead = await Promise.all(
       enriched.map(async (m) => {
-        const row = m as Match & { matchHeadToHead?: MatchHeadToHeadSnapshot | null };
-        if (!row.apiSportsAwayTeamId || !row.apiSportsHomeTeamId) return row;
+        const row = m as Match & {
+          matchHeadToHead?: MatchHeadToHeadSnapshot | null;
+          apiSportsGameId?: number | null;
+        };
+        if (!row.apiSportsGameId && (!row.apiSportsAwayTeamId || !row.apiSportsHomeTeamId)) {
+          return row;
+        }
         const snapshot = await refreshMatchHeadToHeadIfDue(row.id, {
           id: row.id,
           startTime: row.startTime,
+          apiSportsGameId: row.apiSportsGameId,
           apiSportsAwayTeamId: row.apiSportsAwayTeamId,
           apiSportsHomeTeamId: row.apiSportsHomeTeamId,
           matchHeadToHead: row.matchHeadToHead ?? null,

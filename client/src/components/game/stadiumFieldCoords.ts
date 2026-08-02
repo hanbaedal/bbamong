@@ -33,7 +33,7 @@ export const BASE_IMAGE_POINTS: Record<PredictionOption, ImagePoint> = {
   아웃: { x: 0.5, y: 0.89 },
   "1루": { x: 0.835, y: 0.708 },
   "2루": { x: 0.5, y: 0.631 },
-  "3루": { x: 0.188, y: 0.718 },
+  "3루": { x: 0.158, y: 0.718 },
   홈런: { x: 0.5, y: 0.435 },
 };
 

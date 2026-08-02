@@ -1,6 +1,6 @@
 import type { MatchHeadToHeadSnapshot } from "@shared/apiSportsTypes";
 import { MatchModel } from "../UserStorage/db";
-import { fetchHeadToHeadGames } from "./client";
+import { apiSportsTeamIdsFromGame, fetchGameById, fetchHeadToHeadGames } from "./client";
 import { KBO_LEAGUE_ID, resolveApiSportsSeason } from "./constants";
 import { computeHeadToHeadRecord } from "./h2hParser";
 
@@ -13,6 +13,7 @@ const H2H_REFRESH_MS = Math.max(
 type MatchH2hRow = {
   id: string;
   startTime?: Date;
+  apiSportsGameId?: number | null;
   apiSportsAwayTeamId?: number | null;
   apiSportsHomeTeamId?: number | null;
   matchHeadToHead?: MatchHeadToHeadSnapshot | null;
@@ -33,10 +34,22 @@ export async function refreshMatchHeadToHeadIfDue(
   const match =
     prefetched ??
     ((await MatchModel.findOne({ id: matchId })
-      .select("id startTime apiSportsAwayTeamId apiSportsHomeTeamId matchHeadToHead")
+      .select("id startTime apiSportsGameId apiSportsAwayTeamId apiSportsHomeTeamId matchHeadToHead")
       .lean()) as MatchH2hRow | null);
 
-  if (!match?.apiSportsAwayTeamId || !match?.apiSportsHomeTeamId) return null;
+  let awayTeamId = match?.apiSportsAwayTeamId ?? null;
+  let homeTeamId = match?.apiSportsHomeTeamId ?? null;
+
+  if ((!awayTeamId || !homeTeamId) && match?.apiSportsGameId) {
+    const game = await fetchGameById(match.apiSportsGameId);
+    if (game) {
+      awayTeamId = game.teams.away.id;
+      homeTeamId = game.teams.home.id;
+      await MatchModel.updateOne({ id: matchId }, apiSportsTeamIdsFromGame(game));
+    }
+  }
+
+  if (!match || !awayTeamId || !homeTeamId) return null;
 
   const season = resolveApiSportsSeason(match.startTime);
   if (!headToHeadIsStale(match.matchHeadToHead, season)) {
@@ -44,8 +57,8 @@ export async function refreshMatchHeadToHeadIfDue(
   }
 
   const games = await fetchHeadToHeadGames(
-    match.apiSportsAwayTeamId,
-    match.apiSportsHomeTeamId,
+    awayTeamId,
+    homeTeamId,
     season,
     KBO_LEAGUE_ID,
   );
@@ -53,8 +66,8 @@ export async function refreshMatchHeadToHeadIfDue(
 
   const { awayWins, homeWins } = computeHeadToHeadRecord(
     games,
-    match.apiSportsAwayTeamId,
-    match.apiSportsHomeTeamId,
+    awayTeamId,
+    homeTeamId,
   );
 
   const snapshot: MatchHeadToHeadSnapshot = {

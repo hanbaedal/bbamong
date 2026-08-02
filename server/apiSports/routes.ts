@@ -16,7 +16,7 @@ import {
 } from "./syncService";
 import { syncOperatorMatchAssignments } from "../managerOperatorService";
 import { rescheduleTodayMatchTimers } from "./matchManagementSchedule";
-import { buildCurrentBatterPreviewFromMatch } from "./lineupService";
+import { buildCurrentBatterPreviewFromMatch, refreshMatchLineupIfDue } from "./lineupService";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
 import type { CurrentBatterPreview, MatchLineupSnapshot, MatchPlayerStatsEntry } from "@shared/apiSportsTypes";
 
@@ -127,12 +127,47 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
 
   app.get("/api/matches/:id/scoreboard", async (req, res) => {
     try {
-      const match = await MatchModel.findOne({ id: req.params.id })
+      const matchId = req.params.id;
+      let match = await MatchModel.findOne({ id: matchId })
         .select(
-          "id liveScoreboard apiSportsHomeTeam apiSportsAwayTeam controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
+          "id liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
         )
         .lean();
       if (!match) return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
+
+      const lineupMissing =
+        !match.matchLineup?.syncedAt ||
+        ((match.matchLineup as MatchLineupSnapshot).home.length === 0 &&
+          (match.matchLineup as MatchLineupSnapshot).away.length === 0);
+
+      if (lineupMissing && match.apiSportsGameId) {
+        await refreshMatchLineupIfDue(
+          matchId,
+          {
+            id: matchId,
+            apiSportsGameId: match.apiSportsGameId,
+            startTime: match.startTime,
+            gameInning: match.gameInning,
+            inningHalf: match.inningHalf,
+            batterIndexInHalf: match.batterIndexInHalf,
+            matchLineup: (match.matchLineup as MatchLineupSnapshot | null) ?? null,
+            matchPlayerStats:
+              (match.matchPlayerStats as Record<string, MatchPlayerStatsEntry> | null) ?? null,
+          },
+          [match.apiSportsHomeTeamId, match.apiSportsAwayTeamId].filter(
+            (id): id is number => typeof id === "number" && id > 0,
+          ),
+        ).catch((err) => {
+          console.warn(`[Scoreboard] lineup refresh ${matchId}:`, err);
+        });
+
+        const refreshed = await MatchModel.findOne({ id: matchId })
+          .select(
+            "id liveScoreboard apiSportsHomeTeam apiSportsAwayTeam controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
+          )
+          .lean();
+        if (refreshed) match = refreshed;
+      }
 
       let currentBatter: CurrentBatterPreview | null = null;
       const scoreboardHalf = match.liveScoreboard?.inningHalf ?? null;

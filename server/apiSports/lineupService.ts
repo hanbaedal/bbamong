@@ -63,7 +63,22 @@ function statsEntryIsFresh(entry: MatchPlayerStatsEntry | undefined): boolean {
   if (!entry?.syncedAt) return false;
   const age = Date.now() - new Date(entry.syncedAt).getTime();
   if (age >= 6 * 60 * 60 * 1000) return false;
+  const hasExtended =
+    entry.hits != null || entry.homeRuns != null || entry.rbi != null || entry.ops != null;
+  if (!hasExtended) return false;
   return entry.battingAverage != null || entry.hits != null;
+}
+
+function playerStatsNeedRefresh(
+  lineup: MatchLineupSnapshot | null | undefined,
+  stats: Record<string, MatchPlayerStatsEntry> | null | undefined,
+): boolean {
+  if (!lineup?.syncedAt) return false;
+  if (lineup.home.length === 0 && lineup.away.length === 0) return false;
+  for (const playerId of collectLineupPlayerIds(lineup)) {
+    if (!statsEntryIsFresh(stats?.[String(playerId)])) return true;
+  }
+  return false;
 }
 
 async function fetchSeasonStatsForPlayer(
@@ -144,18 +159,30 @@ export async function refreshMatchLineupIfDue(
       .lean()) as MatchLineupRow | null);
 
   if (!match?.apiSportsGameId) return;
-  if (!lineupIsStale(match.matchLineup)) return;
 
-  const game = await fetchLineupSnapshot(match.apiSportsGameId);
-  if (!game) return;
+  const lineupStale = lineupIsStale(match.matchLineup);
+  const statsStale = playerStatsNeedRefresh(match.matchLineup, match.matchPlayerStats);
+  if (!lineupStale && !statsStale) return;
+
+  let lineup = match.matchLineup ?? null;
+  if (lineupStale) {
+    const fetched = await fetchLineupSnapshot(match.apiSportsGameId);
+    if (fetched) {
+      lineup = fetched;
+    } else if (!lineup) {
+      return;
+    }
+  }
+
+  if (!lineup) return;
 
   const season = resolveApiSportsSeason(match.startTime);
-  const stats = await enrichPlayerStatsForLineup(game, match.matchPlayerStats, season, teamIds);
+  const stats = await enrichPlayerStatsForLineup(lineup, match.matchPlayerStats, season, teamIds);
 
   await MatchModel.updateOne(
     { id: matchId },
     {
-      matchLineup: game,
+      ...(lineupStale ? { matchLineup: lineup } : {}),
       matchPlayerStats: stats,
     },
   );
