@@ -6,8 +6,6 @@ interface GameTopScorePanelProps {
   matchTitle: string;
   stadiumName: string;
   teamMatchLine?: string | null;
-  batterText: string;
-  batterSubtext?: string | null;
   scoreboard: LiveScoreboard | null;
   isLoading?: boolean;
   battingHalf?: InningHalf | null;
@@ -28,8 +26,6 @@ export default function GameTopScorePanel({
   matchTitle,
   stadiumName,
   teamMatchLine,
-  batterText,
-  batterSubtext,
   scoreboard,
   isLoading,
   battingHalf = null,
@@ -94,7 +90,7 @@ export default function GameTopScorePanel({
         ) : null}
       </div>
 
-      {/* 우측: 스코어보드 + n번째 타자 (한 칸 아래, 함께 이동) */}
+      {/* 우측: 스코어보드 */}
       <div
         className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-1 sm:gap-1.5 ${scorePanelTop}`}
         data-testid="game-top-score-panel"
@@ -111,21 +107,6 @@ export default function GameTopScorePanel({
             />
           )}
         </div>
-        <p
-          className={`text-sm sm:text-base font-bold text-white whitespace-nowrap pr-0.5 ${titleShadow}`}
-          data-testid="game-batter-text"
-        >
-          {batterText}
-        </p>
-        {batterSubtext ? (
-          <p
-            className={`text-[10px] sm:text-xs font-normal text-white/90 whitespace-nowrap pr-0.5 max-w-[42vw] truncate ${titleShadow}`}
-            data-testid="game-batter-stats"
-            title={batterSubtext}
-          >
-            {batterSubtext}
-          </p>
-        ) : null}
       </div>
     </>
   );

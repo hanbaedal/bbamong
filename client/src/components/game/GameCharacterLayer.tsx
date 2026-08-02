@@ -142,7 +142,7 @@ export default function GameCharacterLayer({
       )}
 
       {phase === "success_celebrate" && (
-        <StadiumFieldMarker point={BASE_IMAGE_POINTS["2루"]}>
+        <StadiumFieldMarker point={BASE_IMAGE_POINTS[runTarget]}>
           <img
             src={pyamongSuccess}
             alt=""

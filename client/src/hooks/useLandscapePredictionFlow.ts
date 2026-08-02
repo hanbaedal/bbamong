@@ -259,7 +259,7 @@ export function useLandscapePredictionFlow(
           resultShownRef.current = true;
           setPredictionResult(data.status as PredictionResult);
           setLastWonAmount(data.wonAmount ?? 0);
-          setScreenPhase(data.status === "success" ? "success_celebrate" : "fail");
+          setScreenPhase(data.status === "success" ? "success_running" : "fail");
           activeBetRef.current = null;
         } else {
           if (resolvedId != null) lastResultPredictionIdRef.current = resolvedId;
@@ -504,7 +504,7 @@ export function useLandscapePredictionFlow(
         resultShownRef.current = true;
         setPredictionResult(data.status);
         setLastWonAmount(data.wonAmount ?? 0);
-        setScreenPhase(data.status === "success" ? "success_celebrate" : "fail");
+        setScreenPhase(data.status === "success" ? "success_running" : "fail");
         return;
       }
 

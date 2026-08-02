@@ -42,8 +42,7 @@ import { lockGameLandscape } from "@/lib/gameOrientation";
 import { navigateToHome, openMallFromApp } from "@/lib/appNavigation";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
-import { formatBatterStatsLine } from "@shared/batterDisplay";
-import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
+import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
 
@@ -53,22 +52,6 @@ interface GamePhasePayload {
   batterIndexInHalf?: number;
   displayLabel?: string;
   name?: string;
-}
-
-function resolveBatterText(
-  phase: GamePhasePayload | null | undefined,
-  batter: CurrentBatterPreview | null | undefined,
-): string {
-  if (phase?.batterIndexInHalf != null) {
-    return `${phase.batterIndexInHalf}번째 타자`;
-  }
-  if (batter?.orderLabel) return batter.orderLabel;
-  if (phase?.displayLabel) {
-    const parts = phase.displayLabel.split(" · ");
-    const batterPart = parts.find((p) => p.includes("번째"));
-    if (batterPart) return batterPart;
-  }
-  return "—";
 }
 
 interface SideBetsMeResponse {
@@ -85,7 +68,6 @@ export default function PredictionPage() {
   const [activePanel, setActivePanel] = useState<GameMenuAction | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [liveScoreboard, setLiveScoreboard] = useState<LiveScoreboard | null>(null);
-  const [currentBatter, setCurrentBatter] = useState<CurrentBatterPreview | null>(null);
   const [gamePhase, setGamePhase] = useState<GamePhasePayload | null>(null);
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [stadiumModalOpen, setStadiumModalOpen] = useState(false);
@@ -331,9 +313,6 @@ export default function PredictionPage() {
     if (scoreboardData?.scoreboard) {
       setLiveScoreboard(scoreboardData.scoreboard);
     }
-    if (scoreboardData?.currentBatter !== undefined) {
-      setCurrentBatter(scoreboardData.currentBatter);
-    }
   }, [scoreboardData]);
 
   const shouldPollPhase = selectedMatch
@@ -457,13 +436,6 @@ export default function PredictionPage() {
   const teamMatchLine = displayMatch
     ? formatGameMatchTeamLine(displayMatch, liveScoreboard)
     : null;
-  const showBatterInfo = Boolean(
-    displayMatch
-      && (gameDayPhase === "live"
-        || shouldClientPollMatch(displayMatch.startTime, displayMatch.matchStatus, undefined, nowMs)),
-  );
-  const batterText = showBatterInfo ? resolveBatterText(gamePhase, currentBatter) : "—";
-  const batterSubtext = showBatterInfo ? formatBatterStatsLine(currentBatter) : null;
   const canSelectMatch = true;
   const canSelectStadium = stadiumOptions.length > 0;
   const shellDayPhase = gameDayPhase === "loading" ? "pregame" : gameDayPhase;
@@ -518,8 +490,6 @@ export default function PredictionPage() {
         matchTitle={matchTitle}
         stadiumName={stadiumName}
         teamMatchLine={teamMatchLine}
-        batterText={batterText}
-        batterSubtext={batterSubtext}
         scoreboard={liveScoreboard}
         scoreLoading={scoreLoading && Boolean(selectedMatch)}
         matchesLoading={matchesLoading}

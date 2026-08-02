@@ -27,8 +27,6 @@ interface LandscapeGameShellProps {
   matchTitle: string;
   stadiumName: string;
   teamMatchLine?: string | null;
-  batterText: string;
-  batterSubtext?: string | null;
   scoreboard: LiveScoreboard | null;
   scoreLoading?: boolean;
   matchesLoading?: boolean;
@@ -77,8 +75,6 @@ export default function LandscapeGameShell({
   matchTitle,
   stadiumName,
   teamMatchLine,
-  batterText,
-  batterSubtext,
   scoreboard,
   scoreLoading,
   matchesLoading,
@@ -168,8 +164,6 @@ export default function LandscapeGameShell({
               matchTitle={matchTitle}
               stadiumName={stadiumName}
               teamMatchLine={teamMatchLine}
-              batterText={batterText}
-              batterSubtext={batterSubtext}
               scoreboard={scoreboard}
               isLoading={scoreLoading}
               battingHalf={inningHalf ?? null}
