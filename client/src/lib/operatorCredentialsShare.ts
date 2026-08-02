@@ -15,7 +15,7 @@ function isMobileBrowser(): boolean {
   return /Android|iPhone|iPad|iPod|Mobile|SamsungBrowser/i.test(navigator.userAgent);
 }
 
-/** 스마트폰·태블릿 등 OS 공유(카톡 선택) — PC Chrome share API는 제외 */
+/** 스마트폰·태블릿 등 OS 공유 가능 여부 (PC QR 표시 판별에도 사용) */
 export function canUseNativeShare(): boolean {
   if (Capacitor.isNativePlatform()) return true;
   return isMobileBrowser() && typeof navigator.share === "function";
@@ -89,17 +89,16 @@ export function buildLoginLinkQrImageUrl(loginLinkUrl: string): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(loginLinkUrl)}`;
 }
 
-/** 생성 직후: 공유 가능하면 공유, PC면 복사 */
+/**
+ * 생성 직후: OS/브라우저 공유를 먼저 시도하고, 불가·실패 시 클립보드 복사.
+ * (스마트폰·PC 동일 — PC는 공유 API가 없으면 바로 복사)
+ */
 export async function deliverOperatorCredentials(
   payload: OperatorSharePayload,
 ): Promise<ShareCredentialsResult> {
-  if (canUseNativeShare()) {
-    const shared = await shareOperatorCredentials(payload);
-    if (shared === "shared") return "shared";
-    if (shared === "cancelled") return "cancelled";
-    const copied = await copyOperatorCredentials(payload.fullText);
-    return copied ? "copied" : "failed";
-  }
+  const shared = await shareOperatorCredentials(payload);
+  if (shared === "shared") return "shared";
+  if (shared === "cancelled") return "cancelled";
   const copied = await copyOperatorCredentials(payload.fullText);
   return copied ? "copied" : "failed";
 }

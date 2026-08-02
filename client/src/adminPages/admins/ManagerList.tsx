@@ -88,7 +88,8 @@ function buildSharePayload(op: OperatorAccount): OperatorSharePayload {
 export default function ManagerListPage() {
   const { assets } = useAdminAssets();
   const { toast } = useToast();
-  const shareSupported = useMemo(() => canUseNativeShare(), []);
+  /** 스마트폰·태블릿만 false — PC에서는 「QR」로 폰 카톡 전달 */
+  const showQrButton = useMemo(() => !canUseNativeShare(), []);
   const [qrModal, setQrModal] = useState<{
     username: string;
     loginLinkUrl: string;
@@ -142,9 +143,7 @@ export default function ManagerListPage() {
         }
         if (shareResult === "copied") {
           toast({
-            description: shareSupported
-              ? "공유 창을 열지 못해 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요."
-              : "생성 후 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요.",
+            description: "클립보드에 복사했습니다. 카톡에 붙여넣기 하세요.",
           });
           return;
         }
@@ -154,9 +153,9 @@ export default function ManagerListPage() {
         }
       }
       toast({
-        description: shareSupported
-          ? "로그인 링크가 생성되었습니다. 「카톡 공유」를 눌러 주세요."
-          : "로그인 링크가 생성되었습니다. 「복사」 또는 「QR」을 이용하세요.",
+        description: showQrButton
+          ? "로그인 링크가 생성되었습니다. 「카톡 공유」「복사」또는 「QR」을 이용하세요."
+          : "로그인 링크가 생성되었습니다. 「카톡 공유」또는 「복사」를 이용하세요.",
       });
     },
     onError: (err: unknown) => {
@@ -201,7 +200,7 @@ export default function ManagerListPage() {
     const copied = await copyOperatorCredentials(payload.fullText);
     if (copied) {
       toast({
-        description: "공유를 열 수 없어 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요.",
+        description: "공유 창을 열 수 없어 클립보드에 복사했습니다. 카톡에 붙여넣기 하세요.",
       });
       return;
     }
@@ -253,9 +252,8 @@ export default function ManagerListPage() {
               운영자 리스트
             </h1>
             <p className="text-sm text-[#666] mt-1">
-              {shareSupported
-                ? "스마트폰: 「생성」→「카톡 공유」로 바로 전송. 링크 클릭 시 운영자 앱 자동 로그인."
-                : "PC: 「생성」→「복사」 또는 「QR」로 폰 카톡에 전달. 관리 열에서 활성화·API 폴링 설정."}
+              「생성」→「카톡 공유」(또는 「복사」)로 전달. 링크 클릭 시 운영자 앱 자동 로그인.
+              {showQrButton ? " PC는 「QR」로 폰 카톡 전달도 가능." : ""}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -328,42 +326,30 @@ export default function ManagerListPage() {
                     >
                       생성
                     </button>
-                    {shareSupported ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => void shareKakaoCredentials(op)}
-                          className="px-2.5 py-1.5 text-[10px] md:text-xs font-semibold bg-[#FEE500] text-[#3C1E1E] rounded hover:brightness-95"
-                          data-testid={`operator-kakao-share-${index}`}
-                        >
-                          카톡 공유
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void copyCredentials(op)}
-                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-[#4285F4] border border-[#4285F4] rounded hover:bg-[#F0F7FF]"
-                        >
-                          복사
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => void copyCredentials(op)}
-                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#4285F4] rounded hover:bg-[#357AE8]"
-                        >
-                          복사
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openQrModal(op)}
-                          className="px-2 py-1 text-[10px] md:text-xs font-medium text-[#201E22] bg-[#E9E9E9] rounded hover:bg-[#D8D8D8]"
-                          data-testid={`operator-qr-${index}`}
-                        >
-                          QR
-                        </button>
-                      </>
+                    <button
+                      type="button"
+                      onClick={() => void shareKakaoCredentials(op)}
+                      className="px-2.5 py-1.5 text-[10px] md:text-xs font-semibold bg-[#FEE500] text-[#3C1E1E] rounded hover:brightness-95"
+                      data-testid={`operator-kakao-share-${index}`}
+                    >
+                      카톡 공유
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void copyCredentials(op)}
+                      className="px-2 py-1 text-[10px] md:text-xs font-medium text-[#4285F4] border border-[#4285F4] rounded hover:bg-[#F0F7FF]"
+                    >
+                      복사
+                    </button>
+                    {showQrButton && (
+                      <button
+                        type="button"
+                        onClick={() => openQrModal(op)}
+                        className="px-2 py-1 text-[10px] md:text-xs font-medium text-[#201E22] bg-[#E9E9E9] rounded hover:bg-[#D8D8D8]"
+                        data-testid={`operator-qr-${index}`}
+                      >
+                        QR
+                      </button>
                     )}
                     {op.status === "활성화" ? (
                       <button
