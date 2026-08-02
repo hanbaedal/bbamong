@@ -606,7 +606,7 @@ export async function syncOperatorMatchAssignments(): Promise<void> {
   for (let slot = 1; slot <= OPERATOR_COUNT; slot++) {
     const username = `op${slot}`;
     const match = findTodayMatchByRegistrationOrder(matches, slot);
-    const assignedMatchNumber = formatOperatorMatchTitle(slot, match);
+    const assignedMatchNumber = `${slot}경기`;
 
     await AdminUserModel.updateOne(
       { username, userType: "매니저" },

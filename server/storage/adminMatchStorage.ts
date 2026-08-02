@@ -11,6 +11,10 @@ import {
 } from "../UserStorage/db";
 import type { Match, InsertMatch } from "@shared/schema";
 import { getKstDateString } from "../utils/dateUtils";
+import {
+  OPERATOR_USERNAMES,
+  resolveOperatorSlot,
+} from "../managerOperatorService";
 
 export class MatchConflictError extends Error {
   constructor(message: string) {
@@ -86,16 +90,36 @@ export class AdminMatchStorage implements IAdminMatchStorage {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     const manager = await AdminUserModel.findOne({ id: managerId })
-      .select("assignedMatchNumber")
+      .select("assignedMatchNumber username operatorSlot")
       .lean();
-    if (!manager?.assignedMatchNumber) return [];
+    if (!manager) return [];
 
-    const docs = await MatchModel.find({
-      name: manager.assignedMatchNumber,
-      ...buildTodayFilter(kstToday, today, tomorrow),
-    })
-      .sort({ startTime: 1 })
-      .lean();
+    const slot = resolveOperatorSlot(
+      manager.username,
+      (manager as { operatorSlot?: number }).operatorSlot,
+    );
+    const isSystemOperator = OPERATOR_USERNAMES.includes(
+      manager.username as (typeof OPERATOR_USERNAMES)[number],
+    );
+
+    let docs;
+    if (isSystemOperator && slot >= 1 && slot <= 5) {
+      docs = await MatchModel.find({
+        registrationOrder: slot,
+        ...buildTodayFilter(kstToday, today, tomorrow),
+      })
+        .sort({ startTime: 1 })
+        .lean();
+    } else if (manager.assignedMatchNumber) {
+      docs = await MatchModel.find({
+        name: manager.assignedMatchNumber,
+        ...buildTodayFilter(kstToday, today, tomorrow),
+      })
+        .sort({ startTime: 1 })
+        .lean();
+    } else {
+      return [];
+    }
 
     return Promise.all((docs as Match[]).map(attachStadium));
   }
@@ -108,15 +132,30 @@ export class AdminMatchStorage implements IAdminMatchStorage {
 
   async getMatchByIdForManager(id: string, managerId: string) {
     const manager = await AdminUserModel.findOne({ id: managerId })
-      .select("assignedMatchNumber")
+      .select("assignedMatchNumber username operatorSlot")
       .lean();
-    if (!manager?.assignedMatchNumber) return undefined;
+    if (!manager) return undefined;
 
-    const match = await MatchModel.findOne({
-      id,
-      name: manager.assignedMatchNumber,
-    }).lean();
+    const match = await MatchModel.findOne({ id }).lean();
     if (!match) return undefined;
+
+    const slot = resolveOperatorSlot(
+      manager.username,
+      (manager as { operatorSlot?: number }).operatorSlot,
+    );
+    const isSystemOperator = OPERATOR_USERNAMES.includes(
+      manager.username as (typeof OPERATOR_USERNAMES)[number],
+    );
+
+    if (isSystemOperator && slot >= 1 && slot <= 5) {
+      if ((match as { registrationOrder?: number }).registrationOrder !== slot) {
+        return undefined;
+      }
+    } else if (manager.assignedMatchNumber) {
+      if (match.name !== manager.assignedMatchNumber) return undefined;
+    } else {
+      return undefined;
+    }
 
     const [stadium, roundStats] = await Promise.all([
       StadiumModel.findOne({ id: match.stadiumId }).select("id name").lean(),
