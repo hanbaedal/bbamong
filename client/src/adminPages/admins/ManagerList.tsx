@@ -14,12 +14,18 @@ import {
   shareOperatorCredentials,
   type OperatorSharePayload,
 } from "@/lib/operatorCredentialsShare";
+import {
+  operatorAccountStatusClass,
+  operatorMatchPhaseBadgeClass,
+  type OperatorMatchPhase,
+} from "@shared/operatorMatchStatus";
 
 interface OperatorAccount {
   id: string;
   username: string;
   name: string;
   assignedMatchNumber: string | null;
+  assignedMatchStatusLabel: OperatorMatchPhase | null;
   assignedMatchDetail: string | null;
   status: string;
   apiSyncEnabled: boolean;
@@ -106,20 +112,6 @@ export default function ManagerListPage() {
   });
 
   const operators = data?.operators ?? [];
-
-  const statusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "활성화" | "비활성화" }) => {
-      return apiRequest("PATCH", `/api/admin/operators/${id}/status`, { status });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/operators"] });
-      toast({ description: "운영자 상태가 변경되었습니다." });
-    },
-    onError: (err: unknown) => {
-      const message = err instanceof Error ? err.message : "상태 변경에 실패했습니다.";
-      toast({ variant: "destructive", description: message });
-    },
-  });
 
   const rotateMutation = useMutation({
     mutationFn: async (operatorId: string) => {
@@ -255,6 +247,8 @@ export default function ManagerListPage() {
               {showQrButton ? " PC는 「QR」도 가능." : ""}
               {" "}
               API 폴링 ON인 담당 경기만 실시간 스코어 sync.
+              {" "}
+              계정 상태는 담당 경기(경기전·경기중=활성화, 종료·연기=비활성화)에 따라 자동 반영됩니다.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -293,9 +287,21 @@ export default function ManagerListPage() {
                 <div className="font-medium">{op.username}</div>
                 <div>
                   <div className="font-medium leading-snug">{op.assignedMatchNumber ?? "—"}</div>
-                  {op.assignedMatchDetail && (
-                    <div className="text-[10px] text-[#888] mt-0.5">{op.assignedMatchDetail}</div>
-                  )}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    {op.assignedMatchStatusLabel && (
+                      <span
+                        className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${operatorMatchPhaseBadgeClass(op.assignedMatchStatusLabel)}`}
+                      >
+                        {op.assignedMatchStatusLabel}
+                      </span>
+                    )}
+                    {op.assignedMatchDetail && op.assignedMatchStatusLabel && (
+                      <span className="text-[10px] text-[#888]">· {op.assignedMatchDetail}</span>
+                    )}
+                    {op.assignedMatchDetail && !op.assignedMatchStatusLabel && (
+                      <span className="text-[10px] text-[#888]">{op.assignedMatchDetail}</span>
+                    )}
+                  </div>
                 </div>
                 <div
                   className="font-mono text-[#E11936] font-bold tracking-wider select-all"
@@ -310,7 +316,7 @@ export default function ManagerListPage() {
                     <span className="text-[#BFBFBF]">없음</span>
                   )}
                 </div>
-                <div>{op.status}</div>
+                <div className={`text-xs ${operatorAccountStatusClass(op.status)}`}>{op.status}</div>
                 <div className="text-[#666] text-xs">
                   {op.lastLogin ? new Date(op.lastLogin).toLocaleString("ko-KR") : "-"}
                 </div>
@@ -347,23 +353,6 @@ export default function ManagerListPage() {
                         data-testid={`operator-qr-${index}`}
                       >
                         QR
-                      </button>
-                    )}
-                    {op.status === "활성화" ? (
-                      <button
-                        type="button"
-                        onClick={() => statusMutation.mutate({ id: op.id, status: "비활성화" })}
-                        className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530]"
-                      >
-                        비활성화
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => statusMutation.mutate({ id: op.id, status: "활성화" })}
-                        className="px-2 py-1 text-[10px] md:text-xs font-medium text-white bg-[#34A853] rounded hover:bg-[#2D8E47]"
-                      >
-                        활성화
                       </button>
                     )}
                   </div>

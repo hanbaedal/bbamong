@@ -2,59 +2,105 @@ import { MatchModel } from "../UserStorage/db";
 import { getKstDateString } from "../utils/dateUtils";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
 import {
-  LIVE_SCORE_MAX_REGISTRATION_ORDER,
   LIVE_SCORE_SYNC_INTERVAL_MS,
   LIVE_SCORE_SYNC_START_BEFORE_MS,
 } from "./constants";
 import { refreshMatchLiveScoreFromApi } from "./syncService";
 
-const liveTimers = {
-  windowStart: null as NodeJS.Timeout | null,
-  windowEnd: null as NodeJS.Timeout | null,
-  interval: null as NodeJS.Timeout | null,
+type MatchLiveTimers = {
+  windowStart: NodeJS.Timeout | null;
+  windowEnd: NodeJS.Timeout | null;
+  interval: NodeJS.Timeout | null;
 };
 
-let activeMatchId: string | null = null;
+const liveTimersByMatch = new Map<string, MatchLiveTimers>();
+
+function getOrCreateTimers(matchId: string): MatchLiveTimers {
+  let timers = liveTimersByMatch.get(matchId);
+  if (!timers) {
+    timers = { windowStart: null, windowEnd: null, interval: null };
+    liveTimersByMatch.set(matchId, timers);
+  }
+  return timers;
+}
 
 export function isLiveScoreSyncActive(): boolean {
-  return liveTimers.interval !== null;
+  return liveTimersByMatch.size > 0;
+}
+
+function stopLiveScoreSyncForMatch(matchId: string): void {
+  const timers = liveTimersByMatch.get(matchId);
+  if (!timers) return;
+
+  if (timers.windowStart) clearTimeout(timers.windowStart);
+  if (timers.windowEnd) clearTimeout(timers.windowEnd);
+  if (timers.interval) clearInterval(timers.interval);
+  liveTimersByMatch.delete(matchId);
 }
 
 export function stopLiveScoreSync(): void {
-  if (liveTimers.windowStart) clearTimeout(liveTimers.windowStart);
-  if (liveTimers.windowEnd) clearTimeout(liveTimers.windowEnd);
-  if (liveTimers.interval) clearInterval(liveTimers.interval);
-  liveTimers.windowStart = null;
-  liveTimers.windowEnd = null;
-  liveTimers.interval = null;
-  activeMatchId = null;
+  for (const matchId of Array.from(liveTimersByMatch.keys())) {
+    stopLiveScoreSyncForMatch(matchId);
+  }
 }
 
 async function runLiveScoreTick(matchId: string): Promise<void> {
   try {
     const shouldStop = await refreshMatchLiveScoreFromApi(matchId);
-    if (shouldStop) stopLiveScoreSync();
+    if (shouldStop) stopLiveScoreSyncForMatch(matchId);
   } catch (error) {
     console.error(`[LiveScoreSync] tick failed (${matchId}):`, error);
   }
 }
 
-function beginLiveScoreInterval(matchId: string): void {
-  if (activeMatchId === matchId && liveTimers.interval) return;
+function beginLiveScoreInterval(matchId: string, registrationOrder?: number): void {
+  const timers = getOrCreateTimers(matchId);
+  if (timers.interval) return;
 
-  if (liveTimers.interval) clearInterval(liveTimers.interval);
-
-  activeMatchId = matchId;
   void runLiveScoreTick(matchId);
-  liveTimers.interval = setInterval(() => void runLiveScoreTick(matchId), LIVE_SCORE_SYNC_INTERVAL_MS);
+  timers.interval = setInterval(() => void runLiveScoreTick(matchId), LIVE_SCORE_SYNC_INTERVAL_MS);
   console.log(
-    `[LiveScoreSync] started ${matchId} every ${LIVE_SCORE_SYNC_INTERVAL_MS}ms (order≤${LIVE_SCORE_MAX_REGISTRATION_ORDER}, operator API ON)`,
+    `[LiveScoreSync] started ${matchId} every ${LIVE_SCORE_SYNC_INTERVAL_MS}ms (order=${registrationOrder ?? "?"}, operator API ON)`,
   );
 }
 
+function scheduleLiveScoreWindow(
+  match: { id: string; startTime?: Date | null; endTime?: Date | null; registrationOrder?: number | null },
+): void {
+  if (!match.startTime || !match.endTime) return;
+
+  const now = Date.now();
+  const windowStartMs = new Date(match.startTime).getTime() - LIVE_SCORE_SYNC_START_BEFORE_MS;
+  const windowEndMs = new Date(match.endTime).getTime();
+  if (now >= windowEndMs) return;
+
+  const matchId = match.id;
+  const order = match.registrationOrder ?? undefined;
+  const timers = getOrCreateTimers(matchId);
+
+  if (now >= windowStartMs) {
+    beginLiveScoreInterval(matchId, order);
+  } else if (!timers.windowStart) {
+    timers.windowStart = setTimeout(
+      () => beginLiveScoreInterval(matchId, order),
+      windowStartMs - now,
+    );
+    console.log(
+      `[LiveScoreSync] armed ${matchId} (order=${order ?? "?"}) in ${Math.round((windowStartMs - now) / 1000)}s`,
+    );
+  }
+
+  if (now < windowEndMs && !timers.windowEnd) {
+    timers.windowEnd = setTimeout(() => {
+      console.log(`[LiveScoreSync] window ended ${matchId}`);
+      stopLiveScoreSyncForMatch(matchId);
+    }, windowEndMs - now);
+  }
+}
+
 /**
- * 오늘 registrationOrder≤LIVE_SCORE_MAX 경기 live sync.
- * 운영자 리스트 API 폴링 ON인 슬롯만 대상 (기본 1경기=op1).
+ * 오늘 op1~op5 담당 경기 중 API 폴링 ON인 경기만 live sync.
+ * op3 ON → 제3경기만 — 담당 경기 표시·폴링 모두 슬롯 고정.
  */
 export async function scheduleLiveScoreSync(): Promise<void> {
   stopLiveScoreSync();
@@ -69,14 +115,13 @@ export async function scheduleLiveScoreSync(): Promise<void> {
 
   const candidates = await MatchModel.find({
     apiSportsGameId: { $ne: null },
-    registrationOrder: { $gte: 1, $lte: LIVE_SCORE_MAX_REGISTRATION_ORDER },
+    registrationOrder: { $gte: 1, $lte: 5 },
     matchStatus: { $nin: ["completed", "cancelled"] },
     $or: [{ matchDate: kstToday }, { matchDate: null, startTime: { $gte: today, $lt: tomorrow } }],
   })
     .sort({ registrationOrder: 1 })
     .lean();
 
-  let match: (typeof candidates)[number] | null = null;
   for (const candidate of candidates) {
     const order = candidate.registrationOrder ?? 0;
     const enabled = await isApiSyncEnabledForRegistrationOrder(order);
@@ -86,33 +131,6 @@ export async function scheduleLiveScoreSync(): Promise<void> {
       );
       continue;
     }
-    match = candidate;
-    break;
-  }
-
-  if (!match?.startTime || !match.endTime) return;
-
-  const now = Date.now();
-  const windowStartMs = new Date(match.startTime).getTime() - LIVE_SCORE_SYNC_START_BEFORE_MS;
-  const windowEndMs = new Date(match.endTime).getTime();
-
-  if (now >= windowEndMs) return;
-
-  if (now >= windowStartMs) {
-    beginLiveScoreInterval(match.id);
-  } else {
-    const matchId = match.id;
-    liveTimers.windowStart = setTimeout(() => beginLiveScoreInterval(matchId), windowStartMs - now);
-    console.log(
-      `[LiveScoreSync] armed ${matchId} (order=${match.registrationOrder}) in ${Math.round((windowStartMs - now) / 1000)}s`,
-    );
-  }
-
-  if (now < windowEndMs) {
-    const matchId = match.id;
-    liveTimers.windowEnd = setTimeout(() => {
-      console.log(`[LiveScoreSync] window ended ${matchId}`);
-      stopLiveScoreSync();
-    }, windowEndMs - now);
+    scheduleLiveScoreWindow(candidate);
   }
 }

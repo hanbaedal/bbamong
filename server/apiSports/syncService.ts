@@ -14,11 +14,19 @@ import {
   parseLiveScoreboard,
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
-import { LIVE_SCORE_MAX_REGISTRATION_ORDER } from "./constants";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
 
 const MAX_DAILY_MATCHES = 5;
 const API_DEFAULT_STADIUM_NAME = "API자동";
+
+async function syncOperatorAccountForMatch(matchId: string): Promise<void> {
+  try {
+    const { syncOperatorAccountStatusForMatchId } = await import("../managerOperatorService");
+    await syncOperatorAccountStatusForMatchId(matchId);
+  } catch (error) {
+    console.error(`[Operators] account status sync failed (${matchId}):`, error);
+  }
+}
 
 function gameStartDate(game: ApiSportsGameResponse): Date {
   if (game.timestamp && Number.isFinite(game.timestamp)) {
@@ -558,6 +566,7 @@ async function updateMatchStatusFromApiGame(
     },
   );
 
+  await syncOperatorAccountForMatch(match.id);
   return nextStatus;
 }
 
@@ -587,6 +596,7 @@ async function updateMatchScoreFromApiGame(
     },
   );
 
+  await syncOperatorAccountForMatch(match.id);
   return nextStatus;
 }
 
@@ -647,7 +657,7 @@ export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
 
 /**
  * live sync — api-sports → Match DB 스코어보드
- * registrationOrder≤LIVE_SCORE_MAX 이고 해당 슬롯 운영자 API 폴링 ON일 때만 호출
+ * 해당 registrationOrder 슬롯 운영자 API 폴링 ON일 때만 호출
  * @returns true면 live sync 중단(종료·취소·API OFF·대상 아님)
  */
 export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boolean> {
@@ -658,7 +668,7 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
   if (match.matchStatus === "completed" || match.matchStatus === "cancelled") return true;
 
   const order = match.registrationOrder ?? 99;
-  if (order > LIVE_SCORE_MAX_REGISTRATION_ORDER) return true;
+  if (order < 1 || order > 5) return true;
 
   const apiSyncEnabled = await isApiSyncEnabledForRegistrationOrder(order);
   if (!apiSyncEnabled) {
@@ -690,6 +700,8 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
           isGameFinished(scoreboard.statusShort),
       },
     );
+
+    await syncOperatorAccountForMatch(matchId);
 
     if (nextStatus === "completed" && previousStatus !== "completed") {
       const { match } = await finalizeMatchEnd(matchId);

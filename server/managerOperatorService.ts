@@ -3,6 +3,11 @@ import bcrypt from "bcrypt";
 import { AdminUserModel, MatchModel, StadiumModel } from "./UserStorage/db";
 import { deleteSession } from "./sessionManager";
 import { getKstDateString } from "./utils/dateUtils";
+import {
+  operatorAccountStatusFromPhase,
+  resolveOperatorMatchPhase,
+  type OperatorMatchPhase,
+} from "../shared/operatorMatchStatus";
 
 export const OPERATOR_USERNAMES = ["op1", "op2", "op3", "op4", "op5"] as const;
 const OPERATOR_COUNT = 5;
@@ -15,20 +20,39 @@ function defaultApiSyncEnabledForSlot(slot: number): boolean {
   return slot === 1;
 }
 
+/** op1~op5 — username이 슬롯의 기준 (op3 → 3) */
+export function resolveOperatorSlot(username: string, operatorSlot?: number | null): number {
+  const m = username.match(/^op(\d+)$/i);
+  if (m) {
+    const fromName = parseInt(m[1]!, 10);
+    if (fromName >= 1 && fromName <= OPERATOR_COUNT) return fromName;
+  }
+  if (operatorSlot != null && operatorSlot >= 1 && operatorSlot <= OPERATOR_COUNT) {
+    return operatorSlot;
+  }
+  return 0;
+}
+
+function isOperatorApiSyncEnabled(doc: { apiSyncEnabled?: boolean | null }, slot: number): boolean {
+  if (doc.apiSyncEnabled === true) return true;
+  if (doc.apiSyncEnabled === false) return false;
+  return defaultApiSyncEnabledForSlot(slot);
+}
+
 /** op1~op5 슬롯별 API 폴링 ON/OFF (관리자 화면과 동일) */
 export async function getApiSyncEnabledBySlot(): Promise<Map<number, boolean>> {
   const docs = await AdminUserModel.find({
     username: { $in: [...OPERATOR_USERNAMES] },
     userType: "매니저",
   })
-    .select("operatorSlot apiSyncEnabled")
+    .select("username operatorSlot apiSyncEnabled")
     .lean();
 
   const map = new Map<number, boolean>();
   for (const doc of docs) {
-    const slot = (doc as { operatorSlot?: number }).operatorSlot ?? 0;
+    const slot = resolveOperatorSlot(doc.username, (doc as { operatorSlot?: number }).operatorSlot);
     if (slot > 0) {
-      map.set(slot, (doc as { apiSyncEnabled?: boolean }).apiSyncEnabled !== false);
+      map.set(slot, isOperatorApiSyncEnabled(doc as { apiSyncEnabled?: boolean }, slot));
     }
   }
   return map;
@@ -44,14 +68,17 @@ export async function getApiSyncEnabledRegistrationOrders(): Promise<number[]> {
   const docs = await AdminUserModel.find({
     username: { $in: [...OPERATOR_USERNAMES] },
     userType: "매니저",
-    apiSyncEnabled: { $ne: false },
   })
-    .select("operatorSlot")
+    .select("username operatorSlot apiSyncEnabled")
     .lean();
 
   return docs
-    .map((doc) => (doc as { operatorSlot?: number }).operatorSlot ?? 0)
-    .filter((slot) => slot > 0)
+    .map((doc) => {
+      const slot = resolveOperatorSlot(doc.username, (doc as { operatorSlot?: number }).operatorSlot);
+      if (slot <= 0) return null;
+      return isOperatorApiSyncEnabled(doc as { apiSyncEnabled?: boolean }, slot) ? slot : null;
+    })
+    .filter((slot): slot is number => slot != null)
     .sort((a, b) => a - b);
 }
 
@@ -90,7 +117,7 @@ export async function getOperatorCredentialsExpiryDate(operatorSlot: number): Pr
     return getLoginLinkExpiryDate();
   }
   const matches = await getTodayMatchesByRegistrationOrder();
-  const match = matches[operatorSlot - 1];
+  const match = findTodayMatchByRegistrationOrder(matches, operatorSlot);
   if (!match || match.matchStatus === "completed" || match.matchStatus === "cancelled") {
     return getLoginLinkExpiryDate();
   }
@@ -101,10 +128,7 @@ function isMatchEnded(matchStatus: string): boolean {
   return matchStatus === "completed" || matchStatus === "cancelled";
 }
 
-async function getAssignedMatchForOperator(doc: {
-  operatorSlot?: number;
-}): Promise<{ id: string; endTime: Date; matchStatus: string } | null> {
-  const slot = doc.operatorSlot ?? 0;
+async function getAssignedMatchForOperator(slot: number): Promise<{ id: string; endTime: Date; matchStatus: string } | null> {
   if (slot <= 0) return null;
 
   const matches = await getTodayMatchesByRegistrationOrder();
@@ -122,7 +146,7 @@ async function getAssignedMatchForOperator(doc: {
 export async function assertOperatorLoginAllowed(doc: {
   id?: string;
   username: string;
-  operatorSlot?: number;
+  operatorSlot?: number | null;
 }): Promise<void> {
   if (!OPERATOR_USERNAMES.includes(doc.username as (typeof OPERATOR_USERNAMES)[number])) {
     return;
@@ -140,9 +164,11 @@ export async function assertOperatorLoginAllowed(doc: {
     throw new Error("로그인 정보가 만료되었습니다. 관리자에게 새 정보를 요청하세요.");
   }
 
-  const slot =
-    (credDoc as { operatorSlot?: number } | null)?.operatorSlot ?? doc.operatorSlot ?? 0;
-  const match = await getAssignedMatchForOperator({ operatorSlot: slot });
+  const slot = resolveOperatorSlot(
+    (credDoc as { username?: string } | null)?.username ?? doc.username,
+    (credDoc as { operatorSlot?: number | null } | null)?.operatorSlot ?? doc.operatorSlot,
+  );
+  const match = await getAssignedMatchForOperator(slot);
   if (!match) {
     throw new Error("오늘 배정된 경기가 없습니다. 관리자에게 문의하세요.");
   }
@@ -178,21 +204,6 @@ export async function revokeOperatorAccessForMatchEnd(matchId: string): Promise<
   const operatorIds: string[] = [];
   const seen = new Set<string>();
 
-  const byAssignment = await AdminUserModel.find({
-    userType: "매니저",
-    username: { $in: [...OPERATOR_USERNAMES] },
-    assignedMatchNumber: match.name,
-  })
-    .select("id")
-    .lean();
-
-  for (const op of byAssignment) {
-    if (!seen.has(op.id)) {
-      seen.add(op.id);
-      operatorIds.push(op.id);
-    }
-  }
-
   const order = (match as { registrationOrder?: number | null }).registrationOrder;
   if (order != null && order >= 1 && order <= OPERATOR_COUNT) {
     const slotOp = await AdminUserModel.findOne({
@@ -209,6 +220,7 @@ export async function revokeOperatorAccessForMatchEnd(matchId: string): Promise<
 
   for (const operatorId of operatorIds) {
     await invalidateOperatorCredentials(operatorId);
+    await AdminUserModel.updateOne({ id: operatorId }, { status: "비활성화" });
     await deleteSession("manager", operatorId);
   }
 
@@ -270,6 +282,8 @@ export interface OrderedTodayMatch {
   registrationOrder: number;
   awayTeamName: string;
   homeTeamName: string;
+  statusShort?: string;
+  statusLong?: string;
 }
 
 function teamNamesFromMatchRow(row: Record<string, unknown>): { away: string; home: string } {
@@ -308,10 +322,83 @@ export function formatOperatorMatchStartTime(match?: OrderedTodayMatch | null): 
   return new Date(match.startTime).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
 }
 
+export function resolveOperatorMatchPhaseFromTodayMatch(
+  match?: OrderedTodayMatch | null,
+): OperatorMatchPhase | null {
+  if (!match) return null;
+  return resolveOperatorMatchPhase({
+    matchStatus: match.matchStatus,
+    statusShort: match.statusShort,
+    statusLong: match.statusLong,
+  });
+}
+
+/** 담당 경기 2줄 — 「경기중 · 2026. 8. 2. 오후 6:00:00」 */
+export function formatOperatorMatchDetail(
+  match?: OrderedTodayMatch | null,
+  phase?: OperatorMatchPhase | null,
+): string {
+  if (!match && !phase) return "(오늘 경기 없음)";
+  const time = formatOperatorMatchStartTime(match);
+  if (phase && time) return `${phase} · ${time}`;
+  if (phase) return phase;
+  if (time) return time;
+  return "(오늘 경기 없음)";
+}
+
+/** opN 계정 상태를 담당 경기 phase에 맞춤 */
+export async function syncOperatorAccountStatusForSlot(
+  slot: number,
+  phase: OperatorMatchPhase | null,
+): Promise<void> {
+  if (slot < 1 || slot > OPERATOR_COUNT) return;
+
+  const username = `op${slot}`;
+  const nextStatus = operatorAccountStatusFromPhase(phase);
+  const operator = await AdminUserModel.findOne({ username, userType: "매니저" })
+    .select("status")
+    .lean();
+  if (!operator || operator.status === nextStatus) return;
+
+  await AdminUserModel.updateOne({ username, userType: "매니저" }, { status: nextStatus });
+}
+
+/** registrationOrder 1~5 경기 상태 변경 시 해당 op 슬롯 계정 상태 동기화 */
+export async function syncOperatorAccountStatusForMatchId(matchId: string): Promise<void> {
+  const match = await MatchModel.findOne({ id: matchId })
+    .select("registrationOrder matchStatus liveScoreboard")
+    .lean();
+  if (!match) return;
+
+  const order = (match as { registrationOrder?: number | null }).registrationOrder;
+  if (order == null || order < 1 || order > OPERATOR_COUNT) return;
+
+  const board = (match as { liveScoreboard?: { statusShort?: string; statusLong?: string } | null })
+    .liveScoreboard;
+  const phase = resolveOperatorMatchPhase({
+    matchStatus: match.matchStatus,
+    statusShort: board?.statusShort,
+    statusLong: board?.statusLong,
+  });
+  await syncOperatorAccountStatusForSlot(order, phase);
+}
+
+/** op1~op5 전원 — 오늘 담당 경기 기준 계정 상태 동기화 */
+export async function syncAllOperatorAccountStatuses(): Promise<void> {
+  const matches = await getTodayMatchesByRegistrationOrder();
+  for (let slot = 1; slot <= OPERATOR_COUNT; slot++) {
+    const match = findTodayMatchByRegistrationOrder(matches, slot);
+    const phase = resolveOperatorMatchPhaseFromTodayMatch(match);
+    await syncOperatorAccountStatusForSlot(slot, phase);
+  }
+}
+
 export async function getTodayMatchesByRegistrationOrder(): Promise<OrderedTodayMatch[]> {
-  const docs = await MatchModel.find(todayMatchFilter())
+  const docs = await MatchModel.find({
+    ...todayMatchFilter(),
+    registrationOrder: { $gte: 1, $lte: OPERATOR_COUNT },
+  })
     .sort({ registrationOrder: 1, createdAt: 1, _id: 1 })
-    .limit(OPERATOR_COUNT)
     .lean();
 
   const result: OrderedTodayMatch[] = [];
@@ -319,6 +406,8 @@ export async function getTodayMatchesByRegistrationOrder(): Promise<OrderedToday
     const row = docs[i]!;
     const stadium = await StadiumModel.findOne({ id: row.stadiumId }).select("name").lean();
     const { away, home } = teamNamesFromMatchRow(row as Record<string, unknown>);
+    const board = (row as { liveScoreboard?: { statusShort?: string; statusLong?: string } | null })
+      .liveScoreboard;
     result.push({
       id: row.id,
       name: row.name,
@@ -329,6 +418,8 @@ export async function getTodayMatchesByRegistrationOrder(): Promise<OrderedToday
       registrationOrder: (row as { registrationOrder?: number }).registrationOrder ?? i + 1,
       awayTeamName: away,
       homeTeamName: home,
+      statusShort: board?.statusShort,
+      statusLong: board?.statusLong,
     });
   }
   return result;
@@ -339,9 +430,9 @@ async function setOperatorPassword(
   plain: string,
 ): Promise<{ loginLinkToken: string }> {
   const operator = await AdminUserModel.findOne({ id: managerId })
-    .select("operatorSlot")
+    .select("username operatorSlot")
     .lean();
-  const slot = (operator as { operatorSlot?: number } | null)?.operatorSlot ?? 0;
+  const slot = resolveOperatorSlot(operator?.username ?? "", operator?.operatorSlot);
   const hash = await bcrypt.hash(plain, 10);
   const today = getKstDateKey();
   const loginLinkToken = generateLoginLinkToken();
@@ -467,19 +558,20 @@ export async function consumeLoginLinkToken(token: string): Promise<LoginLinkCon
   return resolved;
 }
 
-/** opN → 오늘 registrationOrder N 경기 고정 (API ON/OFF와 무관) */
+/** opN → 제N경기 고정 (API ON/OFF와 무관) */
 export async function syncOperatorMatchAssignments(): Promise<void> {
   const matches = await getTodayMatchesByRegistrationOrder();
 
   for (let slot = 1; slot <= OPERATOR_COUNT; slot++) {
     const username = `op${slot}`;
     const match = findTodayMatchByRegistrationOrder(matches, slot);
-    const assignedMatchNumber = match?.name ?? `${slot}경기`;
+    const assignedMatchNumber = formatOperatorMatchTitle(slot, match);
 
     await AdminUserModel.updateOne(
       { username, userType: "매니저" },
       {
         assignedMatchNumber,
+        operatorSlot: slot,
         name: `${slot}번 운영자`,
       },
     );
@@ -546,6 +638,7 @@ export interface OperatorAccountView {
   username: string;
   name: string;
   assignedMatchNumber: string | null;
+  assignedMatchStatusLabel: OperatorMatchPhase | null;
   assignedMatchDetail: string | null;
   status: string;
   dailyPasswordPlain: string;
@@ -562,6 +655,7 @@ export async function listOperatorAccounts(): Promise<{
   todayMatches: OrderedTodayMatch[];
 }> {
   await ensureOperatorsReady();
+  await syncAllOperatorAccountStatuses();
 
   const todayMatches = await getTodayMatchesByRegistrationOrder();
 
@@ -579,7 +673,7 @@ export async function listOperatorAccounts(): Promise<{
   const now = Date.now();
 
   for (const doc of docs) {
-    const slot = (doc as { operatorSlot?: number }).operatorSlot ?? 0;
+    const slot = resolveOperatorSlot(doc.username, (doc as { operatorSlot?: number }).operatorSlot);
     const plain = (doc as { dailyPasswordPlain?: string }).dailyPasswordPlain ?? "";
     const dateKey = (doc as { dailyPasswordDate?: string }).dailyPasswordDate ?? "";
     const linkToken = (doc as { loginLinkToken?: string }).loginLinkToken ?? "";
@@ -589,19 +683,21 @@ export async function listOperatorAccounts(): Promise<{
       ? new Date(assignedMatch.endTime).getTime() <= now
       : false;
     const loginLinkActive = Boolean(linkToken) && !matchEnded && !matchExpired;
-    const apiSyncEnabled = (doc as { apiSyncEnabled?: boolean }).apiSyncEnabled !== false;
-
+    const apiSyncEnabled = isOperatorApiSyncEnabled(doc as { apiSyncEnabled?: boolean }, slot);
+    const assignedMatchPhase = resolveOperatorMatchPhaseFromTodayMatch(assignedMatch);
     const assignedMatchDetail = assignedMatch
       ? formatOperatorMatchStartTime(assignedMatch)
       : "(오늘 경기 없음)";
+    const accountStatus = operatorAccountStatusFromPhase(assignedMatchPhase);
 
     operators.push({
       id: doc.id,
       username: doc.username,
       name: doc.name,
       assignedMatchNumber: formatOperatorMatchTitle(slot, assignedMatch),
+      assignedMatchStatusLabel: assignedMatchPhase,
       assignedMatchDetail,
-      status: doc.status,
+      status: accountStatus,
       dailyPasswordPlain: plain,
       dailyPasswordDate: dateKey,
       loginLinkToken: loginLinkActive ? linkToken : "",
@@ -635,9 +731,8 @@ export async function setOperatorApiSyncEnabled(operatorId: string, enabled: boo
     throw new Error("시스템 운영자 계정만 동기화 설정을 변경할 수 있습니다.");
   }
   await AdminUserModel.updateOne({ id: operatorId }, { apiSyncEnabled: enabled });
-  await syncOperatorMatchAssignments();
 
-  // 라이브 폴링은 운영자 API ON/OFF를 즉시 반영
+  // 배정은 opN→제N경기 고정 — API ON/OFF는 라이브 폴링 대상만 변경
   const { scheduleLiveScoreSync } = await import("./apiSports/liveScoreSync");
   await scheduleLiveScoreSync();
 }
