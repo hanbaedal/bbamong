@@ -1,8 +1,5 @@
-import {
-  isGameFinished,
-  isGameLiveStatus,
-  resolveOperatorMatchPhase,
-} from "./operatorMatchStatus";
+import { isGameFinished, isGameLiveStatus } from "./apiSportsStatus";
+import { resolveOperatorMatchPhase } from "./operatorMatchStatus";
 
 /** FT/completed인데 0:0·이닝 없음 — 종료 오인 (스케줄 stale·DB 오류) */
 export function isStaleFinishedScoreboard(input: {
