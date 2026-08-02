@@ -1,4 +1,9 @@
-import { isGameFinished, isGameLiveStatus } from "./apiSportsStatus";
+import {
+  isGameFinished,
+  isGameLiveStatus,
+  isGamePostponedOrCancelled,
+  normalizeApiStatusShort,
+} from "./apiSportsStatus";
 import { resolveOperatorMatchPhase } from "./operatorMatchStatus";
 
 /** FT/completed인데 0:0·이닝 없음 — 종료 오인 (스케줄 stale·DB 오류) */
@@ -24,6 +29,52 @@ export function isStaleFinishedScoreboard(input: {
   return false;
 }
 
+/** POST/PST + 0:0·이닝 없음 — 연기 오인 (스케줄 stale, 동시간대 타 경기 진행) */
+export function isStalePostponedScoreboard(input: {
+  matchStatus?: string | null;
+  statusShort?: string | null;
+  statusLong?: string | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  inning?: number | null;
+  inningLabel?: string | null;
+}): boolean {
+  const short = normalizeApiStatusShort(input.statusShort);
+  const looksPostponed =
+    input.matchStatus === "cancelled" ||
+    isGamePostponedOrCancelled(short) ||
+    input.inningLabel === "연기";
+
+  if (!looksPostponed) return false;
+
+  const total = (input.homeScore ?? 0) + (input.awayScore ?? 0);
+  if (total > 0) return false;
+  if (input.inning != null) return false;
+  if (/\d+회/.test(input.inningLabel ?? "")) return false;
+
+  const long = (input.statusLong ?? "").toLowerCase();
+  if (
+    (short === "PST" || short === "POST" || short === "POSTPONED") &&
+    /postponed|postponement|연기/.test(long)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function scoreboardStaleInput(input: {
+  matchStatus?: string | null;
+  statusShort?: string | null;
+  statusLong?: string | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  inning?: number | null;
+  inningLabel?: string | null;
+}) {
+  return input;
+}
+
 /** 경기관리·운영자 리스트 공통 상태 라벨 (진행 중은 N회 표시 유지) */
 export function resolveMatchManagementStatusDisplay(input: {
   matchStatus?: string | null;
@@ -41,16 +92,38 @@ export function resolveMatchManagementStatusDisplay(input: {
   }
 
   if (
-    isStaleFinishedScoreboard({
-      matchStatus: input.matchStatus,
-      statusShort: input.statusShort,
-      homeScore: input.homeScore,
-      awayScore: input.awayScore,
-      inning: input.inning,
-      inningLabel,
-    })
+    isStaleFinishedScoreboard(
+      scoreboardStaleInput({
+        matchStatus: input.matchStatus,
+        statusShort: input.statusShort,
+        homeScore: input.homeScore,
+        awayScore: input.awayScore,
+        inning: input.inning,
+        inningLabel,
+      }),
+    )
   ) {
     return input.matchStatus === "ongoing" ? "경기중" : "경기전";
+  }
+
+  if (
+    isStalePostponedScoreboard(
+      scoreboardStaleInput({
+        matchStatus: input.matchStatus,
+        statusShort: input.statusShort,
+        statusLong: input.statusLong,
+        homeScore: input.homeScore,
+        awayScore: input.awayScore,
+        inning: input.inning,
+        inningLabel,
+      }),
+    )
+  ) {
+    return input.matchStatus === "ongoing" ? "경기중" : "경기전";
+  }
+
+  if (inningLabel === "경기 종료") {
+    return "경기종료";
   }
 
   const phase = resolveOperatorMatchPhase({

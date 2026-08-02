@@ -2,7 +2,7 @@ import { ApiSportsScheduleCacheModel } from "../UserStorage/db";
 import { getKstDateString } from "../utils/dateUtils";
 import { fetchGamesByDate, type ApiSportsGameResponse } from "./client";
 import { KBO_LEAGUE_ID } from "./constants";
-import { isGameFinished, isGamePostponedOrCancelled } from "./scoreboardParser";
+import { isGameFinished, isGameLiveStatus, isGamePostponedOrCancelled } from "./scoreboardParser";
 
 function venueNameFromGame(game: ApiSportsGameResponse): string {
   return game.venue?.name?.trim() || "API자동";
@@ -46,15 +46,33 @@ function isPastMatchDate(matchDate: string): boolean {
 /** 과거 날짜 캐시가 NS 등 미종료 상태면 API 재조회 필요 */
 function isScheduleCacheStale(
   matchDate: string,
-  cached: Array<{ statusShort?: string | null }>,
+  cached: Array<{ statusShort?: string | null; homeScore?: number | null; awayScore?: number | null }>,
 ): boolean {
   if (cached.length === 0) return false;
-  if (!isPastMatchDate(matchDate)) return false;
-  return cached.some((doc) => {
+
+  if (isPastMatchDate(matchDate)) {
+    return cached.some((doc) => {
+      const short = (doc.statusShort ?? "NS").toUpperCase();
+      if (isGamePostponedOrCancelled(short)) return false;
+      return !isGameFinished(short);
+    });
+  }
+
+  if (matchDate !== getKstDateString()) return false;
+
+  let hasSuspiciousZero = false;
+  let hasLive = false;
+  for (const doc of cached) {
     const short = (doc.statusShort ?? "NS").toUpperCase();
-    if (isGamePostponedOrCancelled(short)) return false;
-    return !isGameFinished(short);
-  });
+    const total = (doc.homeScore ?? 0) + (doc.awayScore ?? 0);
+    if (total === 0 && (isGamePostponedOrCancelled(short) || isGameFinished(short))) {
+      hasSuspiciousZero = true;
+    }
+    if (total > 0 || isGameLiveStatus(short)) {
+      hasLive = true;
+    }
+  }
+  return hasSuspiciousZero && hasLive;
 }
 
 export async function upsertScheduleCacheFromApiGames(

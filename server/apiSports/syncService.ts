@@ -15,7 +15,7 @@ import {
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
-import { isStaleFinishedScoreboard } from "@shared/matchManagementStatus";
+import { isStaleFinishedScoreboard, isStalePostponedScoreboard } from "@shared/matchManagementStatus";
 
 const MAX_DAILY_MATCHES = 5;
 const API_DEFAULT_STADIUM_NAME = "API자동";
@@ -59,34 +59,36 @@ export function resolveMatchStatusFromScoreboard(
   scoreboard: LiveScoreboard,
   startTime?: Date | null,
 ): string {
+  const staleInput = {
+    matchStatus: currentStatus,
+    statusShort: scoreboard.statusShort,
+    statusLong: scoreboard.statusLong,
+    homeScore: scoreboard.homeScore,
+    awayScore: scoreboard.awayScore,
+    inning: scoreboard.inning,
+    inningLabel: scoreboard.inningLabel,
+  };
+
   if (isGamePostponedOrCancelled(scoreboard.statusShort)) {
+    if (!isStalePostponedScoreboard(staleInput)) {
+      return "cancelled";
+    }
+  } else if (currentStatus === "cancelled" && !isStalePostponedScoreboard(staleInput)) {
     return "cancelled";
   }
+
   if (
     isGameFinished(scoreboard.statusShort) &&
-    !isStaleFinishedScoreboard({
-      matchStatus: currentStatus,
-      statusShort: scoreboard.statusShort,
-      homeScore: scoreboard.homeScore,
-      awayScore: scoreboard.awayScore,
-      inning: scoreboard.inning,
-      inningLabel: scoreboard.inningLabel,
-    })
+    !isStaleFinishedScoreboard(staleInput)
   ) {
     return "completed";
   }
   if (currentStatus === "completed" || currentStatus === "cancelled") {
     const staleCompleted =
-      currentStatus === "completed" &&
-      isStaleFinishedScoreboard({
-        matchStatus: currentStatus,
-        statusShort: scoreboard.statusShort,
-        homeScore: scoreboard.homeScore,
-        awayScore: scoreboard.awayScore,
-        inning: scoreboard.inning,
-        inningLabel: scoreboard.inningLabel,
-      });
-    if (!staleCompleted) {
+      currentStatus === "completed" && isStaleFinishedScoreboard(staleInput);
+    const staleCancelled =
+      currentStatus === "cancelled" && isStalePostponedScoreboard(staleInput);
+    if (!staleCompleted && !staleCancelled) {
       return currentStatus;
     }
   }
@@ -290,6 +292,11 @@ export async function syncTodayGamesFromApiSports(
       continue;
     }
 
+    const resolvedStatus = resolveMatchStatusFromScoreboard(
+      existing?.matchStatus ?? matchStatus,
+      scoreboard,
+      startTime,
+    );
     const staleFinished = isStaleFinishedScoreboard({
       matchStatus: existing?.matchStatus,
       statusShort: scoreboard.statusShort,
@@ -298,19 +305,20 @@ export async function syncTodayGamesFromApiSports(
       inning: scoreboard.inning,
       inningLabel: scoreboard.inningLabel,
     });
-
-    const resolvedStatus = isGamePostponedOrCancelled(scoreboard.statusShort)
-      ? "cancelled"
-      : isGameFinished(scoreboard.statusShort) && !staleFinished
-        ? "completed"
-        : staleFinished
-          ? matchStatusFromApi(external.status.short)
-          : existing?.matchStatus === "completed" || existing?.matchStatus === "cancelled"
-            ? (existing.matchStatus as string)
-            : matchStatus;
+    const stalePostponed = isStalePostponedScoreboard({
+      matchStatus: existing?.matchStatus,
+      statusShort: scoreboard.statusShort,
+      statusLong: scoreboard.statusLong,
+      homeScore: scoreboard.homeScore,
+      awayScore: scoreboard.awayScore,
+      inning: scoreboard.inning,
+      inningLabel: scoreboard.inningLabel,
+    });
     const useFreshScoreboard =
       options?.forceApi ||
       isPastDate ||
+      staleFinished ||
+      stalePostponed ||
       isGameFinished(scoreboard.statusShort) ||
       isGamePostponedOrCancelled(scoreboard.statusShort) ||
       !existing?.liveScoreboard ||

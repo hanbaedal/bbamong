@@ -46,6 +46,7 @@ interface MatchRow {
     statusShort?: string;
     statusLong?: string;
     inningLabel?: string;
+    inning?: number | null;
   } | null;
 }
 
@@ -86,6 +87,7 @@ function matchStatusDisplay(match: MatchRow): string {
     inningLabel: match.liveScoreboard?.inningLabel,
     homeScore: match.liveScoreboard?.homeScore,
     awayScore: match.liveScoreboard?.awayScore,
+    inning: match.liveScoreboard?.inning,
   });
 }
 
