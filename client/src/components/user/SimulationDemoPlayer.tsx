@@ -21,7 +21,45 @@ function highlightClass(id: string | null, target: string, pulse?: string | null
   return pulse === target ? "user-sim-demo-block user-sim-demo-block--pulse" : "user-sim-demo-block user-sim-demo-block--hot";
 }
 
-function DemoStage({ state }: { state: DemoVisualState }) {
+function DemoChrome({ state }: { state: DemoVisualState }) {
+  const showScore =
+    state.matchStatus === "live" || state.matchStatus === "ended" || state.view === "settle";
+  const scoreHome = state.finalScore?.home ?? 0;
+  const scoreAway = state.finalScore?.away ?? 0;
+
+  return (
+    <div className="user-sim-demo-chrome">
+      <div className="user-sim-demo-statusbar">
+        <span className="user-sim-demo-badge">연습 {state.practicePoints}P</span>
+        <span className="user-sim-demo-badge user-sim-demo-badge--muted">
+          {state.matchStatus === "pregame"
+            ? "경기 전"
+            : state.matchStatus === "live"
+              ? "경기 중 · 1회"
+              : "경기 종료"}
+        </span>
+        {state.sideLocked && state.matchStatus !== "ended" && (
+          <span className="user-sim-demo-badge user-sim-demo-badge--warn">사이드 마감</span>
+        )}
+      </div>
+      {showScore && (
+        <div className="user-sim-demo-scoreboard user-sim-demo-scoreboard--compact">
+          <div>
+            <span className="user-sim-demo-score-label">홈</span>
+            <span className="user-sim-demo-score-num">{scoreHome}</span>
+          </div>
+          <span className="user-sim-demo-score-colon">:</span>
+          <div>
+            <span className="user-sim-demo-score-label">원정</span>
+            <span className="user-sim-demo-score-num">{scoreAway}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DemoStage({ state, sceneId }: { state: DemoVisualState; sceneId: string }) {
   const { view, highlightId, pulseId } = state;
 
   if (view === "intro") {
@@ -55,182 +93,209 @@ function DemoStage({ state }: { state: DemoVisualState }) {
     );
   }
 
-  const scoreHome = state.finalScore?.home ?? 0;
-  const scoreAway = state.finalScore?.away ?? 0;
+  const activeMatch = MATCH_ROWS.find((row) => row.active)!;
+  const showFullMatchList = view === "side-matches" && sceneId === "side-list";
 
-  return (
-    <div className="user-sim-demo-stage-inner">
-      <div className="user-sim-demo-statusbar">
-        <span className="user-sim-demo-badge">연습 {state.practicePoints}P</span>
-        <span className="user-sim-demo-badge user-sim-demo-badge--muted">
-          {state.matchStatus === "pregame"
-            ? "경기 전"
-            : state.matchStatus === "live"
-              ? "경기 중 · 1회"
-              : "경기 종료"}
-        </span>
-        {state.sideLocked && state.matchStatus !== "ended" && (
-          <span className="user-sim-demo-badge user-sim-demo-badge--warn">사이드 마감</span>
-        )}
-      </div>
+  let screen: React.ReactNode = null;
 
-      <div className="user-sim-demo-scoreboard">
-        <div>
-          <span className="user-sim-demo-score-label">홈팀</span>
-          <span className="user-sim-demo-score-num">{scoreHome}</span>
-        </div>
-        <span className="user-sim-demo-score-colon">:</span>
-        <div>
-          <span className="user-sim-demo-score-label">원정팀</span>
-          <span className="user-sim-demo-score-num">{scoreAway}</span>
-        </div>
-      </div>
-
-      {(view === "side-matches" || view === "side-winner" || view === "side-score") && (
+  if (view === "side-matches") {
+    if (showFullMatchList) {
+      screen = (
         <div className={highlightClass(highlightId, "demo-match-list", pulseId)}>
           <p className="user-sim-demo-panel-title">오늘의 경기</p>
-          <ul className="user-sim-demo-match-list">
+          <p className="user-sim-demo-panel-sub">5경기</p>
+          <ul className="user-sim-demo-match-list user-sim-demo-match-list--compact">
             {MATCH_ROWS.map((row) => (
               <li
                 key={row.id}
-                id={row.active ? "demo-match-m1" : undefined}
-                className={`user-sim-demo-match-row ${row.active ? highlightClass(highlightId, "demo-match-m1", pulseId) : ""}`}
+                className={`user-sim-demo-match-row user-sim-demo-match-row--compact ${row.active ? "user-sim-demo-match-row--active" : ""}`}
               >
-                <div className="user-sim-demo-match-row-top">
-                  <span>{row.title}</span>
-                  <span className="user-sim-demo-match-stadium">{row.stadium}</span>
-                </div>
-                {row.active && state.winnerBet && (
-                  <span className="user-sim-demo-match-bet">
-                    우승팀: {state.winnerBet.side === "home" ? "홈팀" : "원정팀"} · {state.winnerBet.amount}P
-                  </span>
-                )}
-                {row.active && state.scoreBet && (
-                  <span className="user-sim-demo-match-bet">
-                    스코어: {state.scoreBet.home}-{state.scoreBet.away} · {state.scoreBet.amount}P
-                  </span>
-                )}
-                {row.active && view === "side-matches" && !state.sideLocked && (
-                  <div className="user-sim-demo-match-actions">
-                    <span
-                      id="demo-winner-btn"
-                      className={highlightClass(highlightId, "demo-winner-btn", pulseId)}
-                    >
-                      우승팀 맞추기
-                    </span>
-                    <span
-                      id="demo-score-btn"
-                      className={highlightClass(highlightId, "demo-score-btn", pulseId)}
-                    >
-                      점수 맞추기
-                    </span>
-                  </div>
-                )}
+                <span>{row.title}</span>
+                <span className="user-sim-demo-match-stadium">{row.stadium}</span>
               </li>
             ))}
           </ul>
         </div>
-      )}
-
-      {view === "side-winner" && (
-        <div className={highlightClass(highlightId, "demo-pick-home", pulseId)}>
-          <p className="user-sim-demo-panel-title">우승팀 맞추기 · 제 1경기</p>
-          <p className="user-sim-demo-panel-sub">100P</p>
-          <div className="user-sim-demo-pick-row">
-            <span id="demo-pick-home" className="user-sim-demo-pick user-sim-demo-pick--on">
-              홈팀
-            </span>
-            <span className="user-sim-demo-pick">원정팀</span>
-          </div>
+      );
+    } else {
+      screen = (
+        <div
+          id="demo-match-m1"
+          className={`user-sim-demo-match-card ${highlightClass(highlightId, "demo-match-m1", pulseId)}`}
+        >
+          <p className="user-sim-demo-panel-title">{activeMatch.title}</p>
+          <p className="user-sim-demo-panel-sub">{activeMatch.stadium}</p>
+          {state.winnerBet && (
+            <p className="user-sim-demo-match-bet">
+              우승팀: {state.winnerBet.side === "home" ? "홈팀" : "원정팀"} · {state.winnerBet.amount}P
+            </p>
+          )}
+          {state.scoreBet && (
+            <p className="user-sim-demo-match-bet">
+              스코어: {state.scoreBet.home}-{state.scoreBet.away} · {state.scoreBet.amount}P
+            </p>
+          )}
+          {!state.sideLocked && !state.scoreBet && (
+            <div className="user-sim-demo-match-actions">
+              <span
+                id="demo-winner-btn"
+                className={highlightClass(highlightId, "demo-winner-btn", pulseId)}
+              >
+                우승팀 맞추기
+              </span>
+              <span
+                id="demo-score-btn"
+                className={highlightClass(highlightId, "demo-score-btn", pulseId)}
+              >
+                점수 맞추기
+              </span>
+            </div>
+          )}
+          {!state.sideLocked && state.winnerBet && !state.scoreBet && (
+            <div className="user-sim-demo-match-actions">
+              <span
+                id="demo-score-btn"
+                className={highlightClass(highlightId, "demo-score-btn", pulseId)}
+              >
+                점수 맞추기
+              </span>
+            </div>
+          )}
         </div>
-      )}
+      );
+    }
+  }
 
-      {view === "side-score" && (
-        <div id="demo-score-input" className={highlightClass(highlightId, "demo-score-input", pulseId)}>
-          <p className="user-sim-demo-panel-title">점수 맞추기 · 제 1경기</p>
-          <p className="user-sim-demo-panel-sub">100P</p>
-          <div className="user-sim-demo-score-form">
-            <span className="user-sim-demo-score-box">3</span>
-            <span className="user-sim-demo-score-colon">-</span>
-            <span className="user-sim-demo-score-box">2</span>
-          </div>
-        </div>
-      )}
-
-      {view === "match-start" && (
-        <div className="user-sim-demo-center-block">
-          <p className="user-sim-demo-panel-title">제 1경기 · 잠실</p>
-          <p className="user-sim-demo-panel-sub">사이드 배팅 접수 완료</p>
-          <span id="demo-start-btn" className={`user-sim-demo-cta ${highlightClass(highlightId, "demo-start-btn", pulseId)}`}>
-            경기 시작 (1회 · 사이드 마감)
+  if (view === "side-winner") {
+    screen = (
+      <div className={highlightClass(highlightId, "demo-pick-home", pulseId)}>
+        <p className="user-sim-demo-panel-title">우승팀 맞추기</p>
+        <p className="user-sim-demo-panel-sub">{activeMatch.title} · 100P</p>
+        <div className="user-sim-demo-pick-row">
+          <span id="demo-pick-home" className="user-sim-demo-pick user-sim-demo-pick--on">
+            홈팀
           </span>
+          <span className="user-sim-demo-pick">원정팀</span>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {view === "atbat" && (
-        <div id="demo-atbat-wait" className={highlightClass(highlightId, "demo-atbat-wait", pulseId)}>
-          <p className="user-sim-demo-panel-title">타석 예측 · 제 1경기</p>
-          {state.atBatPhase === "pick" && (
-            <>
-              <p className="user-sim-demo-panel-sub">배팅 금액</p>
-              <div id="demo-bet-amount" className={`user-sim-demo-chips ${highlightClass(highlightId, "demo-bet-amount", pulseId)}`}>
-                {[50, 100, 200, 500, 1000].map((n) => (
-                  <span
-                    key={n}
-                    className={`user-sim-demo-chip ${state.betAmount === n ? "user-sim-demo-chip--on" : ""}`}
-                  >
-                    {n}
-                  </span>
-                ))}
-              </div>
-              <p className="user-sim-demo-panel-sub">예측 선택</p>
-              <div className="user-sim-demo-pick-grid">
-                {AT_BAT_OPTIONS.map((opt) => (
-                  <span
-                    key={opt}
-                    id={opt === "1루" ? "demo-pick-1루" : undefined}
-                    className={`user-sim-demo-pick user-sim-demo-pick--odds ${
-                      state.prediction === opt ? "user-sim-demo-pick--on" : ""
-                    } ${opt === "1루" ? highlightClass(highlightId, "demo-pick-1루", pulseId) : ""}`}
-                  >
-                    <span>{opt}</span>
-                    <span className="user-sim-demo-odds">{ODDS_MAP[opt as keyof typeof ODDS_MAP]}배</span>
-                  </span>
-                ))}
-              </div>
-            </>
-          )}
-          {state.atBatPhase === "wait" && (
-            <div className="user-sim-demo-wait">
-              <p>결과 대기…</p>
-              <p className="user-sim-demo-panel-sub">
-                {state.prediction} · {state.betAmount}P
-              </p>
-            </div>
-          )}
-          {state.atBatPhase === "result" && state.actualResult && (
-            <div id="demo-atbat-result" className={highlightClass(highlightId, "demo-atbat-result", pulseId)}>
-              <p className="user-sim-demo-result-main">{state.actualResult}</p>
-              <p className={state.atBatHit ? "user-sim-demo-hit" : "user-sim-demo-miss"}>
-                {state.atBatHit ? "적중!" : "미적중"}
-              </p>
-            </div>
-          )}
+  if (view === "side-score") {
+    screen = (
+      <div id="demo-score-input" className={highlightClass(highlightId, "demo-score-input", pulseId)}>
+        <p className="user-sim-demo-panel-title">점수 맞추기</p>
+        <p className="user-sim-demo-panel-sub">{activeMatch.title} · 100P</p>
+        <div className="user-sim-demo-score-form">
+          <span className="user-sim-demo-score-box">3</span>
+          <span className="user-sim-demo-score-colon">-</span>
+          <span className="user-sim-demo-score-box">2</span>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {view === "settle" && (
-        <div id="demo-settle" className={highlightClass(highlightId, "demo-settle", pulseId)}>
-          <p className="user-sim-demo-panel-title">경기 종료 · 정산</p>
-          <p className="user-sim-demo-result-main">
-            {scoreHome} : {scoreAway}
-          </p>
-          <div id="demo-settle-detail" className={highlightClass(highlightId, "demo-settle-detail", pulseId)}>
-            {state.winnerSettle && <p className="user-sim-demo-settle-line">승리팀 — {state.winnerSettle}</p>}
-            {state.scoreSettle && <p className="user-sim-demo-settle-line">스코어 — {state.scoreSettle}</p>}
+  if (view === "match-start") {
+    screen = (
+      <div className="user-sim-demo-center-block">
+        <p className="user-sim-demo-panel-title">{activeMatch.title} · {activeMatch.stadium}</p>
+        <p className="user-sim-demo-panel-sub">사이드 배팅 접수 완료</p>
+        <span id="demo-start-btn" className={`user-sim-demo-cta ${highlightClass(highlightId, "demo-start-btn", pulseId)}`}>
+          경기 시작
+        </span>
+        <p className="user-sim-demo-panel-sub">1회 시작 · 사이드 마감</p>
+      </div>
+    );
+  }
+
+  if (view === "atbat") {
+    if (state.atBatPhase === "pick" && highlightId === "demo-bet-amount") {
+      screen = (
+        <div id="demo-bet-amount" className={highlightClass(highlightId, "demo-bet-amount", pulseId)}>
+          <p className="user-sim-demo-panel-title">타석 예측</p>
+          <p className="user-sim-demo-panel-sub">배팅 금액 선택</p>
+          <div className="user-sim-demo-chips">
+            {[50, 100, 200, 500, 1000].map((n) => (
+              <span
+                key={n}
+                className={`user-sim-demo-chip ${state.betAmount === n ? "user-sim-demo-chip--on" : ""}`}
+              >
+                {n}P
+              </span>
+            ))}
           </div>
         </div>
-      )}
+      );
+    } else if (state.atBatPhase === "pick") {
+      screen = (
+        <div className={highlightClass(highlightId, "demo-pick-1루", pulseId)}>
+          <p className="user-sim-demo-panel-title">타석 예측</p>
+          <p className="user-sim-demo-panel-sub">{state.betAmount}P · 결과 선택</p>
+          <div className="user-sim-demo-pick-grid">
+            {AT_BAT_OPTIONS.map((opt) => (
+              <span
+                key={opt}
+                id={opt === "1루" ? "demo-pick-1루" : undefined}
+                className={`user-sim-demo-pick user-sim-demo-pick--odds ${
+                  state.prediction === opt ? "user-sim-demo-pick--on" : ""
+                }`}
+              >
+                <span>{opt}</span>
+                <span className="user-sim-demo-odds">{ODDS_MAP[opt as keyof typeof ODDS_MAP]}배</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      );
+    } else if (state.atBatPhase === "wait") {
+      screen = (
+        <div id="demo-atbat-wait" className={`user-sim-demo-wait ${highlightClass(highlightId, "demo-atbat-wait", pulseId)}`}>
+          <p className="user-sim-demo-panel-title">타석 예측</p>
+          <p className="user-sim-demo-wait-msg">결과 대기…</p>
+          <p className="user-sim-demo-panel-sub">
+            {state.prediction} · {state.betAmount}P
+          </p>
+        </div>
+      );
+    } else if (state.atBatPhase === "result") {
+      screen = (
+        <div id="demo-atbat-result" className={highlightClass(highlightId, "demo-atbat-result", pulseId)}>
+          <p className="user-sim-demo-panel-title">타석 결과</p>
+          <p className="user-sim-demo-result-main">{state.actualResult}</p>
+          <p className={state.atBatHit ? "user-sim-demo-hit" : "user-sim-demo-miss"}>
+            {state.atBatHit ? "적중!" : "미적중"}
+          </p>
+        </div>
+      );
+    }
+  }
+
+  if (view === "settle") {
+    const scoreHome = state.finalScore?.home ?? 0;
+    const scoreAway = state.finalScore?.away ?? 0;
+    screen = (
+      <div id="demo-settle" className={highlightClass(highlightId, "demo-settle", pulseId)}>
+        <p className="user-sim-demo-panel-title">경기 종료 · 정산</p>
+        <p className="user-sim-demo-result-main">
+          {scoreHome} : {scoreAway}
+        </p>
+        <div id="demo-settle-detail" className={highlightClass(highlightId, "demo-settle-detail", pulseId)}>
+          {state.winnerSettle && <p className="user-sim-demo-settle-line">승리팀 — {state.winnerSettle}</p>}
+          {state.scoreSettle && <p className="user-sim-demo-settle-line">스코어 — {state.scoreSettle}</p>}
+          {!state.winnerSettle && !state.scoreSettle && (
+            <p className="user-sim-demo-panel-sub">최종 스코어 확인 중…</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="user-sim-demo-stage-inner">
+      <DemoChrome state={state} />
+      <div key={sceneId} className="user-sim-demo-screen">
+        {screen}
+      </div>
     </div>
   );
 }
@@ -360,7 +425,7 @@ export default function SimulationDemoPlayer() {
               </button>
             </div>
           ) : (
-            <DemoStage state={visualState} />
+            <DemoStage state={visualState} sceneId={scene.id} />
           )}
         </div>
 

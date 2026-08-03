@@ -2315,10 +2315,11 @@
   padding: 0;
 }
 
-/* 게임 시뮬레이션 — 자동 데모 플레이어 */
+/* 게임 시뮬레이션 — 자동 데모 플레이어 (스마트폰 1화면) */
 .user-sim-demo-page {
-  padding-left: max(var(--safe-area-inset-left, 0px), clamp(10px, 2.5vw, 20px));
-  padding-right: max(var(--safe-area-inset-right, 0px), clamp(10px, 2.5vw, 20px));
+  padding-left: max(var(--safe-area-inset-left, 0px), clamp(8px, 2vw, 16px));
+  padding-right: max(var(--safe-area-inset-right, 0px), clamp(8px, 2vw, 16px));
+  padding-bottom: max(var(--safe-area-inset-bottom, 0px), clamp(4px, 1vh, 8px));
 }
 
 .user-sim-demo-shell {
@@ -2326,10 +2327,11 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: clamp(6px, 1.2vh, 10px);
+  gap: clamp(4px, 0.8vh, 8px);
   max-width: 920px;
   width: 100%;
   margin: 0 auto;
+  overflow: hidden;
 }
 
 .user-sim-demo-header {
@@ -2370,10 +2372,17 @@
 }
 
 .user-sim-demo-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: clamp(4px, 1vw, 6px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(3px, 0.6vh, 5px);
   flex-shrink: 0;
+}
+
+@media (min-width: 520px) {
+  .user-sim-demo-steps {
+    display: flex;
+    flex-wrap: wrap;
+  }
 }
 
 .user-sim-demo-step {
@@ -2406,12 +2415,44 @@
 
 .user-sim-demo-stage-inner {
   height: 100%;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: clamp(10px, 2vh, 14px) clamp(10px, 2.5vw, 16px);
+  overflow: hidden;
+  padding: clamp(8px, 1.5vh, 12px) clamp(8px, 2vw, 14px);
   display: flex;
   flex-direction: column;
-  gap: clamp(8px, 1.5vh, 12px);
+  gap: clamp(6px, 1vh, 8px);
+  min-height: 0;
+}
+
+.user-sim-demo-chrome {
+  flex-shrink: 0;
+}
+
+.user-sim-demo-screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  animation: user-sim-demo-fade 0.3s ease;
+}
+
+@keyframes user-sim-demo-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.user-sim-demo-match-card {
+  border-radius: 10px;
+  padding: clamp(10px, 2vh, 14px);
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
 }
 
 .user-sim-demo-stage-inner--center {
@@ -2476,8 +2517,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(10px, 3vw, 18px);
-  padding: clamp(8px, 1.5vh, 12px) 0;
+  gap: clamp(8px, 2.5vw, 14px);
+  padding: clamp(2px, 0.5vh, 4px) 0;
+}
+
+.user-sim-demo-scoreboard--compact .user-sim-demo-score-num {
+  font-size: clamp(18px, 5vw, 24px);
 }
 
 .user-sim-demo-score-label {
@@ -2552,12 +2597,35 @@
   gap: clamp(4px, 0.8vh, 6px);
 }
 
+.user-sim-demo-match-list--compact {
+  gap: clamp(2px, 0.5vh, 4px);
+}
+
 .user-sim-demo-match-row {
-  padding: clamp(6px, 1.2vh, 8px);
   border-radius: 8px;
   background: #1a1a1a;
-  font-size: clamp(10px, 2.3vw, 12px);
   color: #bfbfbf;
+  list-style: none;
+}
+
+.user-sim-demo-match-row--compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: clamp(5px, 1vh, 7px) clamp(8px, 2vw, 10px);
+  font-size: clamp(10px, 2.3vw, 12px);
+}
+
+.user-sim-demo-match-row--compact.user-sim-demo-match-row--active {
+  border: 1px solid #cdff0044;
+  background: #1f2212;
+}
+
+.user-sim-demo-wait-msg {
+  margin: clamp(8px, 1.5vh, 12px) 0 0;
+  font-size: clamp(14px, 3.5vw, 18px);
+  color: #bfbfbf;
+  text-align: center;
 }
 
 .user-sim-demo-match-row-top {
@@ -2751,12 +2819,17 @@
 .user-sim-demo-caption {
   flex-shrink: 0;
   margin: 0;
-  min-height: clamp(36px, 5.5vh, 44px);
-  font-size: clamp(12px, 2.8vw, 15px);
+  min-height: clamp(28px, 4.5vh, 36px);
+  max-height: clamp(28px, 4.5vh, 36px);
+  overflow: hidden;
+  font-size: clamp(12px, 2.8vw, 14px);
   color: #e0e0e0;
-  line-height: 1.55;
+  line-height: 1.45;
   text-align: center;
   padding: 0 clamp(4px, 1vw, 8px);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .user-sim-demo-controls {
