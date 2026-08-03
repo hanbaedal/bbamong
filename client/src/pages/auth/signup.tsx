@@ -66,7 +66,11 @@ export default function SignupPage() {
     hasError ? "user-login-box user-login-box--error" : "user-login-box";
 
   useEffect(() => {
-    void lockSignupPortrait();
+    void lockSignupPortrait(true);
+    const retries = [250, 700, 1500].map((ms) =>
+      window.setTimeout(() => void lockSignupPortrait(true), ms),
+    );
+    return () => retries.forEach((id) => window.clearTimeout(id));
   }, []);
 
   useEffect(() => {

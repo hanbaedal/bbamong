@@ -6,8 +6,8 @@ type AppOrientation = "landscape" | "portrait";
 
 let lastLockedOrientation: AppOrientation | null = null;
 
-async function lockOrientation(orientation: AppOrientation): Promise<void> {
-  if (lastLockedOrientation === orientation) {
+async function lockOrientation(orientation: AppOrientation, force = false): Promise<void> {
+  if (!force && lastLockedOrientation === orientation) {
     return;
   }
 
@@ -57,8 +57,8 @@ export async function unlockGameLandscape(): Promise<void> {
 }
 
 /** 회원가입 — 세로 고정 */
-export async function lockSignupPortrait(): Promise<void> {
-  await lockOrientation("portrait");
+export async function lockSignupPortrait(force = false): Promise<void> {
+  await lockOrientation("portrait", force);
 }
 
 /** 경로에 맞는 화면 방향: /shop → 세로, /signup → 세로, 그 외 → 가로 */

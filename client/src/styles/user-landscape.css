@@ -1228,6 +1228,29 @@ html.user-signup-portrait-active #root {
   overflow: hidden;
 }
 
+/* 기기가 가로로 잠긴 상태에서도 회원가입만 세로처럼 표시 */
+@media (orientation: landscape) {
+  html.user-signup-portrait-active .user-signup-form {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 100vh;
+    height: 100vw;
+    min-height: 100vw;
+    max-height: 100vw;
+    margin-top: -50vw;
+    margin-left: -50vh;
+    transform: rotate(90deg);
+    transform-origin: center center;
+    overflow: hidden;
+  }
+
+  html.user-signup-portrait-active .user-signup-portrait-page {
+    min-height: 100%;
+    max-height: 100%;
+  }
+}
+
 .user-signup-form {
   height: 100dvh;
   min-height: 100dvh;
