@@ -131,6 +131,9 @@ export default function ManagerLoginPage() {
     }
   }, [location]);
 
+  const keepErrorOnOneLine =
+    linkLoginPhase === "error" && linkLoginMessage.startsWith("담당 경기가 종료");
+
   return (
     <div
       className="fixed inset-0 bg-[#111111] flex flex-col items-center justify-center px-8"
@@ -149,8 +152,12 @@ export default function ManagerLoginPage() {
         data-testid="img-link-login-mascot"
       />
       <p
-        className={`text-lg font-semibold text-center leading-relaxed max-w-[320px] ${
-          linkLoginPhase === "error" ? "text-[#FF8A8A]" : "text-[#E9E9E9]"
+        className={`font-semibold text-center ${
+          linkLoginPhase === "error"
+            ? keepErrorOnOneLine
+              ? "whitespace-nowrap text-[15px] text-[#FF8A8A] sm:text-lg"
+              : "max-w-[320px] text-base leading-relaxed text-[#FF8A8A] sm:text-lg"
+            : "max-w-[320px] text-lg leading-relaxed text-[#E9E9E9]"
         }`}
         data-testid="text-link-login-message"
       >
