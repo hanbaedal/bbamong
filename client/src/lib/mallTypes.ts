@@ -21,6 +21,9 @@ export interface MallProduct {
   shippingLabel?: string;
   detailImages?: string[];
   categoryName?: string;
+  reviewCount?: number;
+  averageRating?: number;
+  rewardPoints?: number;
 }
 
 export interface MallProductVariant {
@@ -49,10 +52,12 @@ export type MallProductDetailTab = "info" | "reviews" | "recommend" | "inquiry";
 
 export interface MallCategory {
   id: number;
+  parentId?: number | null;
   name: string;
   description: string;
   imageUrl: string;
   productCount?: number;
+  children?: MallCategory[];
 }
 
 export interface MallCartItem {

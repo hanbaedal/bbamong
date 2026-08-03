@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Minus, Plus } from "lucide-react";
+import { ChevronLeft, Heart, Minus, Plus } from "lucide-react";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
+import { calculateMallRewardPoints, MALL_REWARD_RATE } from "@shared/mallRewards";
 import { resolveAvailableStock, isProcureFulfillment, MALL_DEFAULT_PROCURE_NOTICE } from "@shared/mallProduct";
 import MemberOnlyGate from "@/components/mall/MemberOnlyGate";
 import MallProductDetailTabs from "@/components/mall/product/MallProductDetailTabs";
@@ -11,10 +12,14 @@ import { resolvePrice } from "@/components/mall/ProductCard";
 import { addToMallCart, discountRate, formatKrw } from "@/lib/mallCart";
 import { fetchMemberSessionKind, type MemberSessionKind } from "@/lib/appNavigation";
 import { getFullUrl } from "@/lib/queryClient";
+import { useMallWishlist } from "@/hooks/useMallWishlist";
+import { useToast } from "@/hooks/use-toast";
 import type { MallProduct, MallProductDetailTab } from "@/lib/mallTypes";
 import { cn } from "@/lib/utils";
 
 export default function MallProductPage() {
+  const { toast } = useToast();
+  const { isWishlisted, toggle, toggling } = useMallWishlist();
   const [, params] = useRoute("/shop/product/:productId");
   const productId = parseInt(params?.productId ?? "", 10);
   const [quantity, setQuantity] = useState(1);
@@ -78,6 +83,8 @@ export default function MallProductPage() {
   }, [maxQuantity]);
 
   const price = product ? resolvePrice(product) : 0;
+  const rewardPoints = product?.rewardPoints ?? calculateMallRewardPoints(price);
+  const rewardRatePercent = Math.round(MALL_REWARD_RATE * 100);
   const rate =
     product?.discountPercent && product.discountPercent > 0
       ? product.discountPercent
@@ -155,7 +162,38 @@ export default function MallProductPage() {
           {product.categoryName && (
             <p className="text-xs text-neutral-400 mb-2">{product.categoryName}</p>
           )}
-          <h1 className="text-2xl font-bold text-neutral-900 mb-4">{product.name}</h1>
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <h1 className="text-2xl font-bold text-neutral-900 flex-1">{product.name}</h1>
+            <button
+              type="button"
+              disabled={toggling}
+              className={cn(
+                "shrink-0 rounded-full p-2 border border-neutral-200 transition-colors",
+                isWishlisted(product.id)
+                  ? "text-red-500 border-red-200 bg-red-50"
+                  : "text-neutral-400 hover:text-red-500 hover:border-red-200",
+              )}
+              aria-label={isWishlisted(product.id) ? "찜 해제" : "찜"}
+              onClick={async () => {
+                const result = await toggle(product.id);
+                if (!result.ok) {
+                  toast({
+                    title: "로그인이 필요합니다",
+                    description: "찜은 게임 앱 정회원만 이용할 수 있습니다.",
+                  });
+                  return;
+                }
+                toast({
+                  description: result.wishlisted ? "찜 목록에 추가했습니다." : "찜 목록에서 제거했습니다.",
+                });
+              }}
+            >
+              <Heart
+                className="w-5 h-5"
+                fill={isWishlisted(product.id) ? "currentColor" : "none"}
+              />
+            </button>
+          </div>
 
           {isSoldOut && (
             <p className="mb-4 text-lg font-bold text-red-600 animate-pulse" role="status">
@@ -184,6 +222,13 @@ export default function MallProductPage() {
               </span>
             )}
           </div>
+
+          {rewardPoints > 0 && (
+            <p className="text-sm text-emerald-700 mb-4 -mt-2">
+              배송(택배 인계) 완료 후 결제 금액의 {rewardRatePercent}% →{" "}
+              <span className="font-semibold">{rewardPoints.toLocaleString("ko-KR")}P</span> 게임 포인트 적립
+            </p>
+          )}
 
           {product.summary && (
             <p className="text-sm text-neutral-600 mb-4 leading-relaxed">{product.summary}</p>

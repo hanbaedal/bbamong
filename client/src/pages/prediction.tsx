@@ -39,6 +39,8 @@ import {
 import type { SideBetRecord } from "@/lib/sideBetMatchUtils";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { useLandscapePredictionFlow } from "@/hooks/useLandscapePredictionFlow";
+import { keepAliveUserSession } from "@/lib/queryClient";
+import { flushDeferredSessionEvents, setGameSessionProtected } from "@/lib/sessionGuard";
 import { lockGameLandscape } from "@/lib/gameOrientation";
 import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
 import { GAME_PATH } from "@/lib/appNavigation";
@@ -96,6 +98,22 @@ export default function PredictionPage() {
     void lockGameLandscape();
   }, []);
 
+  /** 게임 중 세션 만료 팝업 차단 + access token 선제 갱신 */
+  useEffect(() => {
+    setGameSessionProtected(true);
+    void keepAliveUserSession();
+
+    const intervalId = window.setInterval(() => {
+      void keepAliveUserSession();
+    }, 10 * 60 * 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      setGameSessionProtected(false);
+      flushDeferredSessionEvents();
+    };
+  }, []);
+
   useEffect(() => {
     void setGameImmersiveMode(true);
 
@@ -104,6 +122,7 @@ export default function PredictionPage() {
       void App.addListener("appStateChange", ({ isActive }) => {
         if (isActive && window.location.pathname === GAME_PATH) {
           void setGameImmersiveMode(true);
+          void keepAliveUserSession();
         }
       }).then((handle) => {
         resumeHandle = handle;

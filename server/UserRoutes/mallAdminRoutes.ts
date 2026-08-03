@@ -12,6 +12,7 @@ import { adminAuthMiddleware } from "../middleware/adminAuth";
 import { goodsStorage } from "../UserStorage/goodsStorage";
 import { mallInventoryStorage } from "../UserStorage/mallInventoryStorage";
 import { mallOrderStorage } from "../UserStorage/mallOrderStorage";
+import { grantMallOrderRewardPoints } from "../UserStorage/mallRewardService";
 import { mallPurchaseStorage } from "../UserStorage/mallPurchaseStorage";
 import { userStorage } from "../UserStorage/userStorage";
 
@@ -152,7 +153,18 @@ export async function mallAdminRoutes(app: Express): Promise<void> {
       if (nextStatus === "shipped") update.shippedAt = new Date();
 
       const order = await mallOrderStorage.updateOrder(id, update);
-      res.json({ order });
+      if (!order) return res.status(404).json({ error: "주문을 찾을 수 없습니다." });
+
+      if (nextStatus === "shipped" && existing.status !== "shipped") {
+        try {
+          await grantMallOrderRewardPoints(id);
+        } catch (rewardError) {
+          console.error(`Mall order #${id} reward grant failed:`, rewardError);
+        }
+      }
+
+      const refreshed = await mallOrderStorage.getById(id);
+      res.json({ order: refreshed ?? order });
     } catch (error) {
       console.error("Admin update mall order error:", error);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearch } from "wouter";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
+import { calculateMallRewardPoints, MALL_REWARD_RATE } from "@shared/mallRewards";
 import MemberOnlyGate from "@/components/mall/MemberOnlyGate";
 import { notifyMallCartChanged } from "@/components/mall/MallHeader";
 import { resolvePrice } from "@/components/mall/ProductCard";
@@ -83,6 +84,8 @@ export default function MallCheckoutPage() {
   }, [buyProductId, buyQty, buyColor, buySize]);
 
   const total = mallCartTotal(items);
+  const expectedRewardPoints = calculateMallRewardPoints(total);
+  const rewardRatePercent = Math.round(MALL_REWARD_RATE * 100);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,7 +148,17 @@ export default function MallCheckoutPage() {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
         <h1 className="text-2xl font-bold text-neutral-900 mb-2">주문이 접수되었습니다</h1>
-        <p className="text-sm text-neutral-600 mb-8">관리자 확인 후 연락드리겠습니다.</p>
+        <p className="text-sm text-neutral-600 mb-2">관리자 확인 후 연락드리겠습니다.</p>
+        {expectedRewardPoints > 0 && (
+          <p className="text-sm text-neutral-600 mb-8">
+            배송 완료 시 게임 포인트{" "}
+            <span className="font-semibold text-neutral-900">
+              {expectedRewardPoints.toLocaleString("ko-KR")}P
+            </span>
+            가 적립됩니다.
+          </p>
+        )}
+        {!expectedRewardPoints && <div className="mb-8" />}
         <Link
           href={MALL_BASE_PATH}
           className="inline-flex h-10 px-6 items-center text-sm font-semibold text-white bg-neutral-900 rounded-md"
@@ -191,6 +204,12 @@ export default function MallCheckoutPage() {
           <span>합계</span>
           <span>{formatKrw(total)}</span>
         </div>
+        {expectedRewardPoints > 0 && (
+          <p className="text-xs text-emerald-700 mt-2">
+            배송(택배 인계) 완료 후 {rewardRatePercent}% →{" "}
+            <span className="font-semibold">{expectedRewardPoints.toLocaleString("ko-KR")}P</span> 적립
+          </p>
+        )}
         <p className="text-xs text-neutral-500 mt-2">결제: 무통장/관리자 확인 (1차)</p>
       </div>
 

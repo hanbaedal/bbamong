@@ -36,6 +36,37 @@ export class MallProductReviewStorage {
     return { reviews, totalCount, averageRating };
   }
 
+  /** 상품 목록용 — productId별 리뷰 수·평균 평점 */
+  async getSummariesByProductIds(
+    productIds: number[],
+  ): Promise<Record<number, { reviewCount: number; averageRating: number }>> {
+    if (productIds.length === 0) return {};
+
+    const rows = await MallProductReviewModel.aggregate<{
+      _id: number;
+      reviewCount: number;
+      averageRating: number;
+    }>([
+      { $match: { productId: { $in: productIds }, isVisible: true } },
+      {
+        $group: {
+          _id: "$productId",
+          reviewCount: { $sum: 1 },
+          averageRating: { $avg: "$rating" },
+        },
+      },
+    ]);
+
+    const out: Record<number, { reviewCount: number; averageRating: number }> = {};
+    for (const row of rows) {
+      out[row._id] = {
+        reviewCount: row.reviewCount,
+        averageRating: Math.round(row.averageRating * 10) / 10,
+      };
+    }
+    return out;
+  }
+
   async create(data: {
     productId: number;
     authorName: string;

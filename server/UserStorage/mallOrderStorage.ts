@@ -26,6 +26,8 @@ export interface MallOrder {
   trackingNumber: string;
   shippedAt?: Date;
   stockRestored: boolean;
+  rewardPointsGranted?: boolean;
+  rewardPointsAmount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -94,6 +96,8 @@ export class MallOrderStorage {
       trackingNumber?: string;
       shippedAt?: Date;
       stockRestored?: boolean;
+      rewardPointsGranted?: boolean;
+      rewardPointsAmount?: number;
     },
   ): Promise<MallOrder | undefined> {
     const doc = await MallOrderModel.findOneAndUpdate(

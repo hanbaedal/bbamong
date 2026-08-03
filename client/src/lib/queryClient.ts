@@ -1,6 +1,9 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clearTokens } from "./tokenManager";
-import { notifyUserSessionExpired } from "./userLoginAuth";
+import {
+  isGameSessionProtected,
+  notifyUserSessionExpiredSafe,
+} from "./sessionGuard";
 import { Capacitor } from "@capacitor/core";
 
 // API Base URL - 모바일 앱용 (실제 도메인)
@@ -54,14 +57,16 @@ async function throwIfResNotOk(res: Response) {
 
 let refreshPromise: Promise<boolean> | null = null;
 let refreshFailedAt: number = 0;
-let networkFailCount: number = 0;
-const REFRESH_COOLDOWN_MS = 30000;
-const MAX_NETWORK_FAILURES = 3;
+const REFRESH_COOLDOWN_MS = 5000;
+const REFRESH_TIMEOUT_MS = 15_000;
 
 export function resetRefreshCooldown(): void {
   refreshFailedAt = 0;
-  networkFailCount = 0;
   refreshPromise = null;
+}
+
+function isRefreshAuthFailure(status: number): boolean {
+  return status === 401 || status === 403;
 }
 
 async function refreshUserAccessToken(): Promise<boolean> {
@@ -76,63 +81,58 @@ async function refreshUserAccessToken(): Promise<boolean> {
   refreshPromise = (async () => {
     try {
       const refreshToken = await getRefreshToken();
-      
+
       if (!refreshToken) {
         console.log("[Token] No refresh token found");
-        networkFailCount++;
-        if (networkFailCount >= MAX_NETWORK_FAILURES) {
-          console.log("[Token] No refresh token after repeated attempts, clearing tokens");
+        if (!isGameSessionProtected()) {
           refreshFailedAt = Date.now();
-          networkFailCount = 0;
           await clearTokens();
-          notifyUserSessionExpired();
+          notifyUserSessionExpiredSafe();
         } else {
-          console.log(`[Token] No refresh token (${networkFailCount}/${MAX_NETWORK_FAILURES} - keeping tokens)`);
+          console.log("[Token] No refresh token during game — deferring session notice");
+          notifyUserSessionExpiredSafe();
         }
         return false;
       }
 
-      const res = await fetch(getFullUrl("/api/users/refresh"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ refreshToken }),
-      });
-      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+
+      let res: Response;
+      try {
+        res = await fetch(getFullUrl("/api/users/refresh"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
       if (!res.ok) {
-        networkFailCount++;
-        if (networkFailCount >= MAX_NETWORK_FAILURES) {
-          console.log("[Token] Refresh rejected repeatedly, clearing tokens");
+        if (isRefreshAuthFailure(res.status)) {
+          console.log("[Token] Refresh token rejected (auth)");
           refreshFailedAt = Date.now();
-          networkFailCount = 0;
-          await clearTokens();
-          notifyUserSessionExpired();
+          if (!isGameSessionProtected()) {
+            await clearTokens();
+          }
+          notifyUserSessionExpiredSafe();
         } else {
-          console.log(`[Token] Refresh token rejected (${networkFailCount}/${MAX_NETWORK_FAILURES} - keeping tokens for retry)`);
+          console.log(`[Token] Refresh failed (${res.status}) — keeping tokens for retry`);
         }
         return false;
       }
 
       const data = await res.json();
-      
+
       setAccessToken(data.accessToken);
       await saveRefreshToken(data.refreshToken);
       refreshFailedAt = 0;
-      networkFailCount = 0;
-      
+
       return true;
     } catch (error) {
-      networkFailCount++;
-      if (networkFailCount >= MAX_NETWORK_FAILURES) {
-        console.error("[Token] Token refresh failed repeatedly, clearing tokens:", error);
-        refreshFailedAt = Date.now();
-        networkFailCount = 0;
-        await clearTokens();
-        notifyUserSessionExpired();
-      } else {
-        console.error(`[Token] Token refresh failed (network error ${networkFailCount}/${MAX_NETWORK_FAILURES} - keeping tokens):`, error);
-      }
+      console.error("[Token] Token refresh network error — keeping tokens:", error);
       return false;
     } finally {
       refreshPromise = null;
@@ -140,6 +140,11 @@ async function refreshUserAccessToken(): Promise<boolean> {
   })();
 
   return refreshPromise;
+}
+
+/** 게임 중 주기적 갱신 — refresh token으로 access token 선제 재발급 */
+export async function keepAliveUserSession(): Promise<boolean> {
+  return refreshUserAccessToken();
 }
 
 export async function getOrRefreshAccessToken(): Promise<string | null> {
@@ -186,7 +191,9 @@ export async function apiRequest(
       // 재발급 성공 시 원래 요청 재시도
       res = await makeRequest();
     } else {
-      // Refresh 실패 -> 이미 로그인 페이지로 리다이렉트됨
+      if (isGameSessionProtected()) {
+        throw new Error("일시적으로 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+      }
       throw new Error("세션이 만료되었습니다. 다시 로그인해주세요.");
     }
   }

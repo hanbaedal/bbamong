@@ -3,6 +3,7 @@ import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appN
 import { getFullUrl, getOrRefreshAccessToken, resetRefreshCooldown } from "@/lib/queryClient";
 import { clearGuestSessionArtifacts } from "@/lib/shopRoutes";
 import { clearTokens, getRefreshToken, saveRefreshToken, setAccessToken } from "@/lib/tokenManager";
+import { notifyUserSessionExpiredSafe } from "@/lib/sessionGuard";
 
 type NavigateFn = (to: string, options?: { replace?: boolean }) => void;
 
@@ -90,6 +91,5 @@ export async function tryRestoreUserSession(
 }
 
 export function notifyUserSessionExpired(): void {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent("user-session-expired"));
+  notifyUserSessionExpiredSafe();
 }

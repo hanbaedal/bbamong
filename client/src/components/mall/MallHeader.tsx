@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Search } from "lucide-react";
+import { Heart, ShoppingBag, Search } from "lucide-react";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
 import { resolveShopSectionTitle } from "@/lib/shopBranding";
 import { readMallCart } from "@/lib/mallCart";
+import { useMallWishlist } from "@/hooks/useMallWishlist";
 import MallCategoryNav, { resolveMallActiveCategoryId } from "@/components/mall/MallCategoryNav";
 import MallGameButton from "@/components/mall/MallGameButton";
 import type { MallCategory } from "@/lib/mallTypes";
@@ -17,6 +18,8 @@ export default function MallHeader({ categories, mallTitle }: MallHeaderProps) {
   const [location, setLocation] = useLocation();
   const [cartCount, setCartCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const { productIds: wishlistIds } = useMallWishlist();
+  const wishlistCount = wishlistIds.length;
 
   useEffect(() => {
     const sync = () => {
@@ -71,6 +74,19 @@ export default function MallHeader({ categories, mallTitle }: MallHeaderProps) {
 
           <div className="flex items-center gap-2 shrink-0 ml-auto md:ml-0">
             <MallGameButton />
+
+            <Link
+              href={`${MALL_BASE_PATH}/wishlist`}
+              className="relative p-2 text-neutral-700 hover:text-neutral-900"
+              aria-label="찜 목록"
+            >
+              <Heart className="w-5 h-5" />
+              {wishlistCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full">
+                  {wishlistCount > 99 ? "99+" : wishlistCount}
+                </span>
+              )}
+            </Link>
 
             <Link
               href={`${MALL_BASE_PATH}/cart`}

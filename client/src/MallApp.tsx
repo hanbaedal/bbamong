@@ -12,6 +12,7 @@ import MallCategoryPage from "@/pages/mall/MallCategoryPage";
 import MallProductPage from "@/pages/mall/MallProductPage";
 import MallCartPage from "@/pages/mall/MallCartPage";
 import MallCheckoutPage from "@/pages/mall/MallCheckoutPage";
+import MallWishlistPage from "@/pages/mall/MallWishlistPage";
 import NotFound from "@/pages/not-found";
 import { useQuery } from "@tanstack/react-query";
 import { getFullUrl } from "@/lib/queryClient";
@@ -67,6 +68,7 @@ function Router() {
         <Route path="/shop/category/:categoryId" component={MallCategoryPage} />
         <Route path="/shop/product/:productId" component={MallProductPage} />
         <Route path="/shop/cart" component={MallCartPage} />
+        <Route path="/shop/wishlist" component={MallWishlistPage} />
         <Route path="/shop/checkout" component={MallCheckoutPage} />
         <Route component={NotFound} />
       </Switch>

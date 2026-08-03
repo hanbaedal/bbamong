@@ -402,6 +402,7 @@ export const HomePageSettingsModel = mongoose.model("HomePageSettings", homePage
 const goodsCategorySchema = new Schema(
   {
     id: { type: Number, required: true, unique: true },
+    parentId: { type: Number, default: null },
     name: { type: String, required: true },
     description: { type: String, default: "" },
     imageUrl: { type: String, default: "" },
@@ -412,6 +413,7 @@ const goodsCategorySchema = new Schema(
   },
   { versionKey: false },
 );
+goodsCategorySchema.index({ parentId: 1, displayOrder: 1 });
 export const GoodsCategoryModel = mongoose.model("GoodsCategory", goodsCategorySchema);
 
 const goodsProductSchema = new Schema(
@@ -541,6 +543,8 @@ const mallOrderSchema = new Schema(
     trackingNumber: { type: String, default: "" },
     shippedAt: { type: Date },
     stockRestored: { type: Boolean, default: false },
+    rewardPointsGranted: { type: Boolean, default: false },
+    rewardPointsAmount: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
   },
@@ -549,6 +553,18 @@ const mallOrderSchema = new Schema(
 mallOrderSchema.index({ userId: 1, createdAt: -1 });
 mallOrderSchema.index({ status: 1, createdAt: -1 });
 export const MallOrderModel = mongoose.model("MallOrder", mallOrderSchema);
+
+const mallWishlistSchema = new Schema(
+  {
+    userId: { type: String, required: true },
+    productId: { type: Number, required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+mallWishlistSchema.index({ userId: 1, productId: 1 }, { unique: true });
+mallWishlistSchema.index({ userId: 1, createdAt: -1 });
+export const MallWishlistModel = mongoose.model("MallWishlist", mallWishlistSchema);
 
 const mallWarehouseSchema = new Schema(
   {

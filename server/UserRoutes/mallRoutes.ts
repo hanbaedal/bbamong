@@ -9,6 +9,8 @@ import { goodsStorage } from "../UserStorage/goodsStorage";
 import { mallOrderStorage } from "../UserStorage/mallOrderStorage";
 import { mallProductReviewStorage } from "../UserStorage/mallProductReviewStorage";
 import { shopInquiryStorage } from "../UserStorage/shopInquiryStorage";
+import { mallWishlistStorage } from "../UserStorage/mallWishlistStorage";
+import { calculateMallRewardPoints, MALL_REWARD_RATE } from "@shared/mallRewards";
 
 const orderItemSchema = z.object({
   productId: z.number().int(),
@@ -46,6 +48,32 @@ const createMallInquirySchema = z.object({
   }
 });
 
+function enrichProductForList(
+  p: Awaited<ReturnType<typeof goodsStorage.listAllProducts>>[number],
+  reviewSummaries: Record<number, { reviewCount: number; averageRating: number }>,
+) {
+  const summary = reviewSummaries[p.id];
+  const price = parsePriceAmount(p.priceLabel, p.priceAmount);
+  return {
+    ...p,
+    reviewCount: summary?.reviewCount ?? 0,
+    averageRating: summary?.averageRating ?? 0,
+    rewardPoints: calculateMallRewardPoints(price),
+  };
+}
+
+async function requireMallMember(req: AuthenticatedUserRequest, res: import("express").Response) {
+  const member = await userStorage.getUserById(req.user!.userId);
+  if (!member || member.provider === "guest") {
+    res.status(403).json({
+      error: "정회원만 이용할 수 있습니다. 게임 앱에서 회원가입 후 이용해 주세요.",
+      code: "GUEST_NOT_ALLOWED",
+    });
+    return null;
+  }
+  return member;
+}
+
 function parsePriceAmount(priceLabel: string, priceAmount?: number): number {
   if (priceAmount && priceAmount > 0) return priceAmount;
   const digits = priceLabel.replace(/[^\d]/g, "");
@@ -78,6 +106,75 @@ function sortProducts(
 }
 
 export async function mallRoutes(app: Express): Promise<void> {
+  app.get("/api/mall/rewards-policy", (_req, res) => {
+    res.json({
+      rate: MALL_REWARD_RATE,
+      ratePercent: Math.round(MALL_REWARD_RATE * 100),
+      grantOn: "shipped",
+      description: "배송(택배 인계) 완료 후 게임 포인트로 적립됩니다.",
+    });
+  });
+
+  app.get("/api/mall/wishlist/ids", userAuthMiddleware, async (req: AuthenticatedUserRequest, res) => {
+    try {
+      const member = await requireMallMember(req, res);
+      if (!member) return;
+      const productIds = await mallWishlistStorage.listProductIds(member.id);
+      res.json({ productIds });
+    } catch (error) {
+      console.error("List mall wishlist ids error:", error);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.get("/api/mall/wishlist/me", userAuthMiddleware, async (req: AuthenticatedUserRequest, res) => {
+    try {
+      const member = await requireMallMember(req, res);
+      if (!member) return;
+      const productIds = await mallWishlistStorage.listProductIds(member.id);
+      const products = [];
+      for (const productId of productIds) {
+        const product = await goodsStorage.getProduct(productId, true);
+        if (product) {
+          const price = parsePriceAmount(product.priceLabel, product.priceAmount);
+          products.push({
+            ...product,
+            rewardPoints: calculateMallRewardPoints(price),
+          });
+        }
+      }
+      res.json({ productIds, products });
+    } catch (error) {
+      console.error("List mall wishlist error:", error);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.post(
+    "/api/mall/wishlist/:productId/toggle",
+    userAuthMiddleware,
+    async (req: AuthenticatedUserRequest, res) => {
+      try {
+        const member = await requireMallMember(req, res);
+        if (!member) return;
+        const productId = parseInt(req.params.productId, 10);
+        if (isNaN(productId)) {
+          return res.status(400).json({ error: "잘못된 상품 ID입니다." });
+        }
+        const product = await goodsStorage.getProduct(productId, true);
+        if (!product) {
+          return res.status(404).json({ error: "상품을 찾을 수 없습니다." });
+        }
+        const wishlisted = await mallWishlistStorage.toggle(member.id, productId);
+        const productIds = await mallWishlistStorage.listProductIds(member.id);
+        res.json({ wishlisted, productIds });
+      } catch (error) {
+        console.error("Toggle mall wishlist error:", error);
+        res.status(500).json({ error: "서버 오류가 발생했습니다." });
+      }
+    },
+  );
+
   app.get("/api/mall/products", async (req, res) => {
     try {
       const categoryId = req.query.categoryId
@@ -110,8 +207,31 @@ export async function mallRoutes(app: Express): Promise<void> {
         });
       }
 
+      const brand = String(req.query.brand || "").trim();
+      if (brand) {
+        products = products.filter((p) => (p.brand || "").trim() === brand);
+      }
+
       products = sortProducts(products, sort);
-      res.json({ products });
+
+      const brands = [
+        ...new Set(
+          (categoryId
+            ? await goodsStorage.listProductsByCategory(categoryId, true)
+            : await goodsStorage.listAllProducts(true)
+          )
+            .map((p) => (p.brand || "").trim())
+            .filter(Boolean),
+        ),
+      ].sort((a, b) => a.localeCompare(b, "ko"));
+
+      const reviewSummaries = await mallProductReviewStorage.getSummariesByProductIds(
+        products.map((p) => p.id),
+      );
+
+      const enriched = products.map((p) => enrichProductForList(p, reviewSummaries));
+
+      res.json({ products: enriched, brands });
     } catch (error) {
       console.error("List mall products error:", error);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });
@@ -120,7 +240,7 @@ export async function mallRoutes(app: Express): Promise<void> {
 
   app.get("/api/mall/categories", async (_req, res) => {
     try {
-      const categories = await goodsStorage.listCategories(true);
+      const categories = await goodsStorage.listCategoryTree(true);
       res.json({ categories });
     } catch (error) {
       console.error("List mall categories error:", error);
@@ -282,7 +402,13 @@ export async function mallRoutes(app: Express): Promise<void> {
         await goodsStorage.decrementStock(item.productId, item.quantity, item.color, item.size);
       }
 
-      res.status(201).json({ success: true, order });
+      const expectedRewardPoints = calculateMallRewardPoints(totalAmount);
+
+      res.status(201).json({
+        success: true,
+        order,
+        expectedRewardPoints,
+      });
     } catch (error) {
       console.error("Create mall order error:", error);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });

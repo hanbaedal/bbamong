@@ -734,7 +734,8 @@
   /* 발 위치를 면책 쪽을 향해 한 줄 내림 */
   bottom: -1.15em;
   left: 0;
-  animation: ppamong-login-walk-x 5s ease-in-out infinite alternate;
+  transform-origin: center bottom;
+  animation: ppamong-login-walk-x 10s ease-in-out infinite;
   will-change: transform;
 }
 
@@ -749,11 +750,20 @@
 }
 
 @keyframes ppamong-login-walk-x {
-  from {
-    transform: translateX(0);
+  0% {
+    transform: translateX(0) scaleX(1);
   }
-  to {
-    transform: translateX(calc(100cqw - 100%));
+  48% {
+    transform: translateX(calc(100cqw - 100%)) scaleX(1);
+  }
+  52% {
+    transform: translateX(calc(100cqw - 100%)) scaleX(-1);
+  }
+  98% {
+    transform: translateX(0) scaleX(-1);
+  }
+  100% {
+    transform: translateX(0) scaleX(1);
   }
 }
 
@@ -979,6 +989,8 @@
 /* 로그인 — 가로 2분할 */
 .user-landscape-page--login {
   overflow: hidden;
+  --login-content-width: min(280px, 88%);
+  --login-bottom-inset: clamp(10px, 2.5vh, 16px);
 }
 
 /* 로그인 — 라벨 · 입력 1줄 */
@@ -1037,19 +1049,25 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: clamp(6px, 1.4vh, 10px);
+  justify-content: flex-start;
+  gap: 0;
+  padding-bottom: var(--login-bottom-inset, clamp(10px, 2.5vh, 16px));
 }
 
 .user-login-panel--core {
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .user-login-disclaimer {
   flex-shrink: 0;
-  max-width: min(280px, 88%);
-  margin-top: clamp(1.2em, 3vh, 2em);
+  width: 100%;
+  max-width: var(--login-content-width, min(280px, 88%));
+  margin-top: clamp(8px, 2vh, 12px);
 }
 
 .user-login-right-shell {
@@ -1060,6 +1078,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding-bottom: var(--login-bottom-inset, clamp(10px, 2.5vh, 16px));
 }
 
 .user-login-right-brand {
@@ -1074,9 +1093,9 @@
 .user-login-panel--extras {
   flex-shrink: 0;
   width: 100%;
-  max-width: min(340px, 100%);
+  max-width: var(--login-content-width, min(280px, 88%));
   margin: 0 auto;
-  padding-bottom: clamp(4px, 1vh, 8px);
+  padding-bottom: 0;
 }
 
 .user-landscape-page--login .user-landscape-left {
@@ -1086,8 +1105,23 @@
 }
 
 .user-landscape-page--login .user-landscape-right {
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: stretch;
+}
+
+.user-landscape-page--login .user-login-panel {
+  max-width: var(--login-content-width);
+}
+
+.user-landscape-page--login .user-login-submit {
+  border-color: #555;
+  background: #474747;
+  color: #fff;
+}
+
+.user-landscape-page--login .user-login-submit:not(:disabled):hover {
+  background: #525252;
+  border-color: #666;
 }
 
 .user-landscape-page--login .user-landscape-left:has(.user-auth-panel-modal) {

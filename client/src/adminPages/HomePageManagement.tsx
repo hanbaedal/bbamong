@@ -18,7 +18,7 @@ import MallProductForm, {
   validateMallProductForm,
   type MallProductFormValues,
 } from "@/components/admin/MallProductForm";
-import { MALL_DEFAULT_CATEGORIES } from "@shared/mallConfig";
+import { MALL_CATEGORY_TREE } from "@shared/mallConfig";
 import { adminFormGridClass, adminPageShellClass, adminTableClass, adminTableWrapClass } from "./components/adminPageStyles";
 import { calculateDiscountedPrice, MALL_DEFAULT_SHIPPING_LABEL, MALL_DEFAULT_PROCURE_NOTICE } from "@shared/mallProduct";
 import { formatKrw } from "@/lib/mallCart";
@@ -360,7 +360,7 @@ export default function HomePageManagementPage() {
     selectedCategoryId === null
       ? null
       : categories.find((c) => c.id === selectedCategoryId) ?? null;
-  const mallMenuNames = MALL_DEFAULT_CATEGORIES.map((c) => c.name).join(" · ");
+  const mallMenuNames = MALL_CATEGORY_TREE.map((c) => c.name).join(" · ");
 
   return (
     <AdminLayout>

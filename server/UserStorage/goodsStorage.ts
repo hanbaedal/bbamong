@@ -3,7 +3,7 @@ import {
   GoodsProductModel,
   getNextSequence,
 } from "./db";
-import { MALL_CATEGORY_NAMES, MALL_DEFAULT_CATEGORIES } from "@shared/mallConfig";
+import { flattenMallCategoryTree, MALL_CATEGORY_NAMES } from "@shared/mallConfig";
 import {
   calculateDiscountedPrice,
   formatProductPriceLabel,
@@ -18,6 +18,7 @@ import {
 
 export interface GoodsCategory {
   id: number;
+  parentId?: number | null;
   name: string;
   description: string;
   imageUrl: string;
@@ -26,6 +27,7 @@ export interface GoodsCategory {
   createdAt: Date;
   updatedAt: Date;
   productCount?: number;
+  children?: GoodsCategory[];
 }
 
 export interface GoodsProduct {
@@ -58,7 +60,7 @@ export interface GoodsProduct {
   categoryName?: string;
 }
 
-const SHOP_CATEGORIES = MALL_DEFAULT_CATEGORIES.map((c) => ({ ...c }));
+const SHOP_CATEGORIES = flattenMallCategoryTree();
 const SHOP_CATEGORY_NAMES = MALL_CATEGORY_NAMES;
 
 function normalizeProductPricing(data: {
@@ -101,37 +103,78 @@ function normalizeStockQuantity(raw?: number): number {
 
 export class GoodsStorage {
   async ensureDefaultCategories(): Promise<void> {
-    for (const cat of SHOP_CATEGORIES) {
-      const existing = await GoodsCategoryModel.findOne({ name: cat.name }).lean();
+    const nameToId = new Map<string, number>();
+
+    for (const cat of SHOP_CATEGORIES.filter((c) => !c.parentName)) {
+      const existing = await GoodsCategoryModel.findOne({ name: cat.name, parentId: null }).lean();
       if (!existing) {
         const id = await getNextSequence("goodsCategory");
         await GoodsCategoryModel.create({
           id,
-          ...cat,
+          parentId: null,
+          name: cat.name,
+          description: cat.description,
+          displayOrder: cat.displayOrder,
           imageUrl: "",
           isActive: true,
         });
-        continue;
+        nameToId.set(cat.name, id);
+      } else {
+        nameToId.set(cat.name, existing.id as number);
+        if (existing.displayOrder !== cat.displayOrder || existing.description !== cat.description) {
+          await GoodsCategoryModel.updateOne(
+            { id: existing.id },
+            { displayOrder: cat.displayOrder, description: cat.description, updatedAt: new Date() },
+          );
+        }
       }
-      if (existing.displayOrder !== cat.displayOrder) {
+    }
+
+    for (const cat of SHOP_CATEGORIES.filter((c) => c.parentName)) {
+      const parentId = nameToId.get(cat.parentName!);
+      if (!parentId) continue;
+      const existing = await GoodsCategoryModel.findOne({ name: cat.name, parentId }).lean();
+      if (!existing) {
+        const id = await getNextSequence("goodsCategory");
+        await GoodsCategoryModel.create({
+          id,
+          parentId,
+          name: cat.name,
+          description: cat.description,
+          displayOrder: cat.displayOrder,
+          imageUrl: "",
+          isActive: true,
+        });
+      } else if (existing.displayOrder !== cat.displayOrder || existing.description !== cat.description) {
         await GoodsCategoryModel.updateOne(
           { id: existing.id },
-          { displayOrder: cat.displayOrder, updatedAt: new Date() },
+          { displayOrder: cat.displayOrder, description: cat.description, updatedAt: new Date() },
         );
       }
     }
+
+    await GoodsCategoryModel.updateMany(
+      { name: "중고나라" },
+      { isActive: false, updatedAt: new Date() },
+    );
+    await GoodsCategoryModel.updateMany(
+      { name: { $nin: SHOP_CATEGORY_NAMES } },
+      { isActive: false, updatedAt: new Date() },
+    );
   }
 
-  /** 카테고리별 상품이 없으면 관리자 수정용 예시 상품 1개 생성 */
+  /** 카테고리별 상품이 없으면 관리자 수정용 예시 상품 1개 생성 (빠몽이상품 등 시드 전용) */
   async ensureSampleProducts(): Promise<void> {
     await this.ensureDefaultCategories();
     const categories = await GoodsCategoryModel.find({
       name: { $in: SHOP_CATEGORY_NAMES },
+      isActive: true,
     }).lean();
 
     for (const cat of categories) {
       const count = await GoodsProductModel.countDocuments({ categoryId: cat.id });
       if (count > 0) continue;
+      if (cat.parentId == null && (cat.name !== "빠몽이상품")) continue;
 
       await this.createProduct({
         categoryId: cat.id,
@@ -146,9 +189,35 @@ export class GoodsStorage {
     }
   }
 
+  private async resolveCategoryIdsIncludingChildren(categoryId: number): Promise<number[]> {
+    await this.ensureDefaultCategories();
+    const childIds = await GoodsCategoryModel.find({ parentId: categoryId, isActive: true })
+      .select("id")
+      .lean();
+    if (childIds.length > 0) {
+      return childIds.map((c) => c.id as number);
+    }
+    return [categoryId];
+  }
+
+  buildCategoryTree(categories: GoodsCategory[]): GoodsCategory[] {
+    const byId = new Map(categories.map((c) => [c.id, { ...c, children: [] as GoodsCategory[] }]));
+    const roots: GoodsCategory[] = [];
+    for (const cat of byId.values()) {
+      if (cat.parentId != null && byId.has(cat.parentId)) {
+        byId.get(cat.parentId)!.children!.push(cat);
+      } else if (cat.parentId == null) {
+        roots.push(cat);
+      }
+    }
+    for (const root of roots) {
+      root.children?.sort((a, b) => a.displayOrder - b.displayOrder || a.id - b.id);
+    }
+    return roots.sort((a, b) => a.displayOrder - b.displayOrder || a.id - b.id);
+  }
+
   async listCategories(activeOnly = false): Promise<GoodsCategory[]> {
     await this.ensureDefaultCategories();
-    await this.ensureSampleProducts();
     const filter: Record<string, unknown> = { name: { $in: SHOP_CATEGORY_NAMES } };
     if (activeOnly) filter.isActive = true;
     const categories = await GoodsCategoryModel.find(filter)
@@ -157,14 +226,20 @@ export class GoodsStorage {
 
     const withCounts = await Promise.all(
       categories.map(async (cat) => {
+        const categoryIds = await this.resolveCategoryIdsIncludingChildren(cat.id as number);
         const productCount = await GoodsProductModel.countDocuments({
-          categoryId: cat.id,
+          categoryId: { $in: categoryIds },
           ...(activeOnly ? { isActive: true } : {}),
         });
         return { ...cat, productCount } as GoodsCategory;
       }),
     );
     return withCounts;
+  }
+
+  async listCategoryTree(activeOnly = false): Promise<GoodsCategory[]> {
+    const flat = await this.listCategories(activeOnly);
+    return this.buildCategoryTree(flat);
   }
 
   async getCategory(id: number, activeOnly = false): Promise<GoodsCategory | undefined> {
@@ -211,8 +286,8 @@ export class GoodsStorage {
   }
 
   async listProductsByCategory(categoryId: number, activeOnly = false): Promise<GoodsProduct[]> {
-    await this.ensureSampleProducts();
-    const filter: Record<string, unknown> = { categoryId };
+    const categoryIds = await this.resolveCategoryIdsIncludingChildren(categoryId);
+    const filter: Record<string, unknown> = { categoryId: { $in: categoryIds } };
     if (activeOnly) filter.isActive = true;
     const docs = await GoodsProductModel.find(filter)
       .sort({ displayOrder: 1, id: 1 })
