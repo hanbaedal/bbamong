@@ -92,11 +92,15 @@ export default function SignupPage() {
     void (async () => {
       try {
         const res = await fetch(getFullUrl("/api/phone/verification-config"));
+        if (res.status === 404) {
+          setPhoneVerificationRequired(false);
+          return;
+        }
         if (!res.ok) return;
         const data = (await res.json()) as { required?: boolean };
         setPhoneVerificationRequired(data.required === true);
       } catch {
-        /* SOLAPI 미설정 시 인증 UI 숨김 */
+        setPhoneVerificationRequired(false);
       }
     })();
   }, []);

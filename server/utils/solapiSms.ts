@@ -8,8 +8,15 @@ export function isSolapiConfigured(): boolean {
   return Boolean(process.env.SOLAPI_API_KEY?.trim() && process.env.SOLAPI_API_SECRET?.trim());
 }
 
-/** SOLAPI 설정 시에만 회원가입 등 전화번호 SMS 인증 필수 */
+/** SOLAPI 설정 + PHONE_VERIFICATION_REQUIRED !== false 일 때만 SMS 인증 필수 */
 export function isPhoneVerificationRequired(): boolean {
+  const override = process.env.PHONE_VERIFICATION_REQUIRED?.trim().toLowerCase();
+  if (override === "false" || override === "0" || override === "no") {
+    return false;
+  }
+  if (override === "true" || override === "1" || override === "yes") {
+    return isSolapiConfigured();
+  }
   return isSolapiConfigured();
 }
 
