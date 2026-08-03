@@ -8,6 +8,11 @@ export function isSolapiConfigured(): boolean {
   return Boolean(process.env.SOLAPI_API_KEY?.trim() && process.env.SOLAPI_API_SECRET?.trim());
 }
 
+/** SOLAPI 설정 시에만 회원가입 등 전화번호 SMS 인증 필수 */
+export function isPhoneVerificationRequired(): boolean {
+  return isSolapiConfigured();
+}
+
 export function getSolapiSenderPhone(): string {
   return (process.env.SOLAPI_SENDER_PHONE || "01049961316").replace(/-/g, "");
 }

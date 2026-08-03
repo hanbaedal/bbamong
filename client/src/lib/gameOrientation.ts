@@ -39,11 +39,18 @@ export async function unlockGameLandscape(): Promise<void> {
   /* intentionally no-op */
 }
 
-/** 경로에 맞는 화면 방향: /shop → 세로, 그 외 → 가로 */
+/** 회원가입 — 세로 고정 */
+export async function lockSignupPortrait(): Promise<void> {
+  await lockOrientation("portrait");
+}
+
+/** 경로에 맞는 화면 방향: /shop → 세로, /signup → 세로, 그 외 → 가로 */
 export async function syncOrientationForPath(pathname: string): Promise<void> {
   const base = pathname.split("?")[0];
   if (isMallPath(base)) {
     await lockMallPortrait();
+  } else if (base === "/signup") {
+    await lockSignupPortrait();
   } else {
     await lockGameLandscape();
   }

@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Eye, EyeOff } from "lucide-react";
-import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
 import "@/styles/user-landscape.css";
-import { useUserAssets } from "@/contexts/UserAssetContext";
 import Popup from "@/components/customUi/infoPopup";
 import SignupPanelModal from "@/components/user/SignupPanelModal";
 import { Term } from "@shared/schema";
@@ -15,7 +13,6 @@ type SignupPanelModalType = "service" | "privacy" | "disclaimer";
 
 export default function SignupPage() {
   const [, setLocation] = useLocation();
-  const { assets } = useUserAssets();
   const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -39,6 +36,7 @@ export default function SignupPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [phoneVerificationRequired, setPhoneVerificationRequired] = useState(false);
 
   const [serviceTerm, setServiceTerm] = useState<Term | null>(null);
   const [privacyTerm, setPrivacyTerm] = useState<Term | null>(null);
@@ -85,6 +83,19 @@ export default function SignupPage() {
     };
 
     void fetchTerms();
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch(getFullUrl("/api/phone/verification-config"));
+        if (!res.ok) return;
+        const data = (await res.json()) as { required?: boolean };
+        setPhoneVerificationRequired(data.required === true);
+      } catch {
+        /* 기본값: 인증 필요 */
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -140,7 +151,12 @@ export default function SignupPage() {
         setVerificationCode("");
         setIsPhoneVerified(false);
         setErrors((prev) => ({ ...prev, phone: "" }));
+        if (data.devCode && import.meta.env.DEV) {
+          console.info("[dev] phone verification code:", data.devCode);
+        }
       } else {
+        setShowVerificationInput(false);
+        setVerificationTimer(0);
         setErrors((prev) => ({
           ...prev,
           phone: data.error || "인증번호 전송에 실패했습니다.",
@@ -318,8 +334,13 @@ export default function SignupPage() {
 
     if (!phone.trim()) {
       newErrors.phone = "전화번호를 입력해 주세요.";
-    } else if (!isPhoneVerified) {
+    } else if (phoneVerificationRequired && !isPhoneVerified) {
       newErrors.phone = "전화번호 인증을 완료해 주세요.";
+    } else {
+      const cleanPhone = phone.replace(/-/g, "");
+      if (!/^01[0-9]{8,9}$/.test(cleanPhone)) {
+        newErrors.phone = "올바른 전화번호 형식이 아닙니다.";
+      }
     }
 
     if (!agreeToTerms || !agreeToPrivacy) {
@@ -380,117 +401,9 @@ export default function SignupPage() {
   return (
     <>
       <form onSubmit={handleSubmit} className="user-signup-form" data-testid="signup-page">
-        <LandscapeSplitShell
-          testId="signup-landscape"
-          pageClassName="user-landscape-page--signup"
-          left={
-            <>
-              <div className="user-signup-left-top">
-                <div className="user-signup-mascot">
-                  <img
-                    src={assets.userMascot}
-                    alt=""
-                    className="user-signup-mascot-img"
-                    data-testid="img-signup-mascot"
-                  />
-                </div>
-              </div>
-
-              <div className="user-signup-left-bottom">
-                <div
-                  className={`user-login-card user-signup-terms-card${
-                    errors.terms ? " user-signup-terms-card--error" : ""
-                  }`}
-                >
-                  <div className="user-signup-terms-row">
-                    <label htmlFor="terms-service" className="user-signup-terms-label">
-                      <input
-                        id="terms-service"
-                        type="checkbox"
-                        data-testid="checkbox-terms-service"
-                        checked={agreeToTerms}
-                        onChange={(e) => {
-                          setAgreeToTerms(e.target.checked);
-                          setErrors((prev) => ({ ...prev, terms: "" }));
-                        }}
-                        className="user-signup-terms-checkbox"
-                      />
-                      <span>[필수] 서비스 이용약관</span>
-                    </label>
-                    <button
-                      type="button"
-                      data-testid="button-terms-service"
-                      onClick={() => setPanelModal("service")}
-                      className="user-signup-terms-view"
-                    >
-                      전문보기
-                    </button>
-                  </div>
-
-                  <div className="user-signup-terms-row">
-                    <label htmlFor="terms-privacy" className="user-signup-terms-label">
-                      <input
-                        id="terms-privacy"
-                        type="checkbox"
-                        data-testid="checkbox-terms-privacy"
-                        checked={agreeToPrivacy}
-                        onChange={(e) => {
-                          setAgreeToPrivacy(e.target.checked);
-                          setErrors((prev) => ({ ...prev, terms: "" }));
-                        }}
-                        className="user-signup-terms-checkbox"
-                      />
-                      <span>[필수] 개인정보 처리방침</span>
-                    </label>
-                    <button
-                      type="button"
-                      data-testid="button-terms-privacy"
-                      onClick={() => setPanelModal("privacy")}
-                      className="user-signup-terms-view"
-                    >
-                      전문보기
-                    </button>
-                  </div>
-
-                  <div className="user-signup-disclaimer-row">
-                    <span className="user-signup-disclaimer-label">15세 이용가 · 재화 안내</span>
-                    <button
-                      type="button"
-                      data-testid="button-disclaimer-view"
-                      onClick={() => setPanelModal("disclaimer")}
-                      className="user-signup-terms-view"
-                    >
-                      전문보기
-                    </button>
-                  </div>
-                </div>
-
-                {errors.terms ? (
-                  <p className="user-login-error" data-testid="error-terms">
-                    {errors.terms}
-                  </p>
-                ) : null}
-
-                <button
-                  type="submit"
-                  data-testid="button-signup"
-                  disabled={isLoading}
-                  className="user-signup-submit"
-                >
-                  {isLoading ? "가입 중..." : "회원가입"}
-                </button>
-
-                <p className="user-signup-back">
-                  <Link href="/login" data-testid="link-back-login">
-                    로그인으로 돌아가기
-                  </Link>
-                </p>
-              </div>
-            </>
-          }
-          right={
-            <div className="user-signup-right-shell">
-              <div className="user-signup-panel">
+        <div className="user-signup-portrait-page" data-testid="signup-portrait">
+          <div className="user-signup-portrait-scroll">
+            <div className="user-signup-panel">
               <div className="user-login-card">
                 <div className="user-login-field">
                   <label htmlFor="name" className="user-login-field-label">
@@ -647,16 +560,20 @@ export default function SignupPage() {
                   <label htmlFor="phone" className="user-login-field-label">
                     전화번호
                   </label>
-                  <div className="user-signup-inline-field">
+                  <div
+                    className={
+                      phoneVerificationRequired ? "user-signup-inline-field" : "user-login-box-wrap"
+                    }
+                  >
                     <input
                       id="phone"
                       type="tel"
                       data-testid="input-phone"
                       placeholder="010-0000-0000"
                       value={phone}
-                      disabled={isPhoneVerified}
+                      disabled={phoneVerificationRequired && isPhoneVerified}
                       onChange={(e) => {
-                        if (isPhoneVerified) return;
+                        if (phoneVerificationRequired && isPhoneVerified) return;
                         const formatted = formatPhoneNumber(e.target.value);
                         if (formatted === phone) return;
                         setPhone(formatted);
@@ -667,21 +584,27 @@ export default function SignupPage() {
                           setErrors((prev) => ({ ...prev, phone: "" }));
                         }
                       }}
-                      className={boxErrorClass(Boolean(errors.phone && !isPhoneVerified))}
+                      className={
+                        phoneVerificationRequired
+                          ? boxErrorClass(Boolean(errors.phone && !isPhoneVerified))
+                          : boxErrorClass(Boolean(errors.phone))
+                      }
                       autoComplete="tel"
                     />
-                    <button
-                      type="button"
-                      onClick={sendVerificationCode}
-                      disabled={isSendingCode || isPhoneVerified}
-                      data-testid="button-send-verification"
-                      className="user-signup-inline-btn"
-                    >
-                      {isSendingCode ? "전송 중..." : showVerificationInput ? "재요청" : "인증요청"}
-                    </button>
+                    {phoneVerificationRequired ? (
+                      <button
+                        type="button"
+                        onClick={sendVerificationCode}
+                        disabled={isSendingCode || isPhoneVerified}
+                        data-testid="button-send-verification"
+                        className="user-signup-inline-btn"
+                      >
+                        {isSendingCode ? "전송 중..." : showVerificationInput ? "재요청" : "인증요청"}
+                      </button>
+                    ) : null}
                   </div>
 
-                  {showVerificationInput ? (
+                  {phoneVerificationRequired && showVerificationInput ? (
                     <div className="user-signup-verify-row">
                       <div className="user-login-box-wrap">
                         <input
@@ -717,13 +640,21 @@ export default function SignupPage() {
                     </div>
                   ) : null}
 
-                  {isPhoneVerified ? (
+                  {phoneVerificationRequired && isPhoneVerified ? (
                     <p className="user-signup-success" data-testid="text-verification-success">
                       인증되었습니다.
                     </p>
                   ) : errors.phone ? (
                     <p className="user-login-error user-login-error--card" data-testid="error-phone">
                       {errors.phone}
+                      {errors.phone.includes("이미 가입된 전화번호") ? (
+                        <>
+                          {" "}
+                          <Link href="/login" className="underline underline-offset-2">
+                            로그인
+                          </Link>
+                        </>
+                      ) : null}
                     </p>
                   ) : showVerificationInput && verificationTimer === 0 ? (
                     <p className="user-login-error user-login-error--card">
@@ -786,54 +717,144 @@ export default function SignupPage() {
                   />
                 </div>
               </div>
+            </div>
+
+            <div className="user-signup-portrait-footer">
+              <div
+                className={`user-login-card user-signup-terms-card${
+                  errors.terms ? " user-signup-terms-card--error" : ""
+                }`}
+              >
+                <div className="user-signup-terms-row">
+                  <label htmlFor="terms-service" className="user-signup-terms-label">
+                    <input
+                      id="terms-service"
+                      type="checkbox"
+                      data-testid="checkbox-terms-service"
+                      checked={agreeToTerms}
+                      onChange={(e) => {
+                        setAgreeToTerms(e.target.checked);
+                        setErrors((prev) => ({ ...prev, terms: "" }));
+                      }}
+                      className="user-signup-terms-checkbox"
+                    />
+                    <span>[필수] 서비스 이용약관</span>
+                  </label>
+                  <button
+                    type="button"
+                    data-testid="button-terms-service"
+                    onClick={() => setPanelModal("service")}
+                    className="user-signup-terms-view"
+                  >
+                    전문보기
+                  </button>
+                </div>
+
+                <div className="user-signup-terms-row">
+                  <label htmlFor="terms-privacy" className="user-signup-terms-label">
+                    <input
+                      id="terms-privacy"
+                      type="checkbox"
+                      data-testid="checkbox-terms-privacy"
+                      checked={agreeToPrivacy}
+                      onChange={(e) => {
+                        setAgreeToPrivacy(e.target.checked);
+                        setErrors((prev) => ({ ...prev, terms: "" }));
+                      }}
+                      className="user-signup-terms-checkbox"
+                    />
+                    <span>[필수] 개인정보 처리방침</span>
+                  </label>
+                  <button
+                    type="button"
+                    data-testid="button-terms-privacy"
+                    onClick={() => setPanelModal("privacy")}
+                    className="user-signup-terms-view"
+                  >
+                    전문보기
+                  </button>
+                </div>
+
+                <div className="user-signup-disclaimer-row">
+                  <span className="user-signup-disclaimer-label">15세 이용가 · 재화 안내</span>
+                  <button
+                    type="button"
+                    data-testid="button-disclaimer-view"
+                    onClick={() => setPanelModal("disclaimer")}
+                    className="user-signup-terms-view"
+                  >
+                    전문보기
+                  </button>
+                </div>
               </div>
 
-              <SignupPanelModal
-                open={panelModal !== null}
-                title={
-                  panelModal === "service"
-                    ? serviceTerm?.title || "서비스 이용약관"
-                    : panelModal === "privacy"
-                      ? privacyTerm?.title || "개인정보 처리방침"
-                      : "이용 안내"
-                }
-                onClose={() => setPanelModal(null)}
-                testId={
-                  panelModal === "service"
-                    ? "terms-modal"
-                    : panelModal === "privacy"
-                      ? "terms-modal"
-                      : "disclaimer-modal"
-                }
+              {errors.terms ? (
+                <p className="user-login-error" data-testid="error-terms">
+                  {errors.terms}
+                </p>
+              ) : null}
+
+              <button
+                type="submit"
+                data-testid="button-signup"
+                disabled={isLoading}
+                className="user-signup-submit"
               >
-                {panelModal === "disclaimer" ? (
-                  <img
-                    src={splashDisclaimer}
-                    alt="15세 이용가 및 재화 안내"
-                    className="user-auth-panel-modal-image"
-                    data-testid="disclaimer-modal-image"
-                  />
-                ) : panelModal === "service" ? (
-                  serviceTerm?.content ? (
-                    <p className="user-auth-panel-modal-text" data-testid="terms-content">
-                      {serviceTerm.content}
-                    </p>
-                  ) : (
-                    <p className="user-auth-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
-                  )
-                ) : panelModal === "privacy" ? (
-                  privacyTerm?.content ? (
-                    <p className="user-auth-panel-modal-text" data-testid="terms-content">
-                      {privacyTerm.content}
-                    </p>
-                  ) : (
-                    <p className="user-auth-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
-                  )
-                ) : null}
-              </SignupPanelModal>
+                {isLoading ? "가입 중..." : "회원가입"}
+              </button>
+
+              <p className="user-signup-back">
+                <Link href="/login" data-testid="link-back-login">
+                  로그인으로 돌아가기
+                </Link>
+              </p>
             </div>
-          }
-        />
+          </div>
+
+          <SignupPanelModal
+            open={panelModal !== null}
+            title={
+              panelModal === "service"
+                ? serviceTerm?.title || "서비스 이용약관"
+                : panelModal === "privacy"
+                  ? privacyTerm?.title || "개인정보 처리방침"
+                  : "이용 안내"
+            }
+            onClose={() => setPanelModal(null)}
+            testId={
+              panelModal === "service"
+                ? "terms-modal"
+                : panelModal === "privacy"
+                  ? "terms-modal"
+                  : "disclaimer-modal"
+            }
+          >
+            {panelModal === "disclaimer" ? (
+              <img
+                src={splashDisclaimer}
+                alt="15세 이용가 및 재화 안내"
+                className="user-auth-panel-modal-image"
+                data-testid="disclaimer-modal-image"
+              />
+            ) : panelModal === "service" ? (
+              serviceTerm?.content ? (
+                <p className="user-auth-panel-modal-text" data-testid="terms-content">
+                  {serviceTerm.content}
+                </p>
+              ) : (
+                <p className="user-auth-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
+              )
+            ) : panelModal === "privacy" ? (
+              privacyTerm?.content ? (
+                <p className="user-auth-panel-modal-text" data-testid="terms-content">
+                  {privacyTerm.content}
+                </p>
+              ) : (
+                <p className="user-auth-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
+              )
+            ) : null}
+          </SignupPanelModal>
+        </div>
       </form>
 
       {showSuccessPopup ? (

@@ -21,7 +21,7 @@ import { hasActiveSession, createSession, deleteSession } from "../sessionManage
 import { getSocialPendingData, deleteSocialPendingData } from "./socialAuthRoutes";
 import { getRedisClient } from "../redis";
 import { getKstDayRange } from "../utils/dateUtils";
-import { maskUsername } from "../utils/maskUsername";
+import { isPhoneVerificationRequired } from "../utils/solapiSms";
 
 const PHONE_REGEX = /^01[0-9]{8,9}$/;
 const FIND_USERNAME_PREFIX = "find_username:";
@@ -148,7 +148,7 @@ export async function userRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "올바른 전화번호 형식이 아닙니다." });
       }
 
-      if (cleanPhone) {
+      if (cleanPhone && isPhoneVerificationRequired()) {
         const redis = getRedisClient();
         const verifiedKey = `phone_verified:${cleanPhone}`;
         const isPhoneVerified = await redis.get(verifiedKey);
