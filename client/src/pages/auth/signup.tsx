@@ -40,7 +40,6 @@ export default function SignupPage() {
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [phoneVerificationRequired, setPhoneVerificationRequired] = useState(false);
-  const [systemDisplayCode, setSystemDisplayCode] = useState("");
 
   const [serviceTerm, setServiceTerm] = useState<Term | null>(null);
   const [privacyTerm, setPrivacyTerm] = useState<Term | null>(null);
@@ -156,14 +155,12 @@ export default function SignupPage() {
       if (response.ok) {
         setShowVerificationInput(true);
         setVerificationTimer(data.expiresIn || 180);
-        setVerificationCode("");
+        setVerificationCode(typeof data.displayCode === "string" ? data.displayCode : "");
         setIsPhoneVerified(false);
-        setSystemDisplayCode(typeof data.displayCode === "string" ? data.displayCode : "");
         setErrors((prev) => ({ ...prev, phone: "" }));
       } else {
         setShowVerificationInput(false);
         setVerificationTimer(0);
-        setSystemDisplayCode("");
         setErrors((prev) => ({
           ...prev,
           phone: data.error || "인증번호 전송에 실패했습니다.",
@@ -200,7 +197,6 @@ export default function SignupPage() {
       if (response.ok && data.verified) {
         setIsPhoneVerified(true);
         setVerificationTimer(0);
-        setSystemDisplayCode("");
         setErrors((prev) => ({ ...prev, phone: "" }));
       } else {
         setErrors((prev) => ({
@@ -696,7 +692,7 @@ export default function SignupPage() {
                         setIsPhoneVerified(false);
                         setShowVerificationInput(false);
                         setVerificationTimer(0);
-                        setSystemDisplayCode("");
+                        setVerificationCode("");
                         if (touched.phone) {
                           setErrors((prev) => ({ ...prev, phone: "" }));
                         }
@@ -722,15 +718,6 @@ export default function SignupPage() {
                   </div>
 
                   {phoneVerificationRequired && showVerificationInput ? (
-                    <>
-                      {systemDisplayCode ? (
-                        <p className="user-signup-system-code" data-testid="text-system-verification-code">
-                          인증번호: <strong>{systemDisplayCode}</strong>
-                          <span className="user-signup-system-code-hint">
-                            문자 대신 화면에 표시됩니다. 위 번호를 입력해 주세요.
-                          </span>
-                        </p>
-                      ) : null}
                     <div className="user-signup-verify-row">
                       <div className="user-login-box-wrap">
                         <input
@@ -764,7 +751,6 @@ export default function SignupPage() {
                         </button>
                       ) : null}
                     </div>
-                    </>
                   ) : null}
 
                   {phoneVerificationRequired && isPhoneVerified ? (
