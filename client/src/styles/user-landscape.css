@@ -2315,23 +2315,50 @@
   padding: 0;
 }
 
-/* 게임 시뮬레이션 — 자동 데모 플레이어 (스마트폰 1화면) */
+/* 게임 시뮬레이션 — 자동 데모 (가로 2분할) */
 .user-sim-demo-page {
   padding-left: max(var(--safe-area-inset-left, 0px), clamp(8px, 2vw, 16px));
   padding-right: max(var(--safe-area-inset-right, 0px), clamp(8px, 2vw, 16px));
   padding-bottom: max(var(--safe-area-inset-bottom, 0px), clamp(4px, 1vh, 8px));
+  gap: clamp(4px, 0.8vh, 8px);
 }
 
-.user-sim-demo-shell {
+.user-sim-demo-split {
+  align-items: stretch;
+  gap: clamp(8px, 1.5vw, 14px);
+}
+
+.user-sim-demo-guide-wrap {
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.user-sim-demo-stage-wrap {
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.user-sim-demo-guide {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.5vh, 12px);
+  padding: clamp(8px, 1.5vh, 12px);
+  border-radius: clamp(10px, 2vw, 14px);
+  border: 1px solid #2a2a2a;
+  background: #141414;
+  overflow: hidden;
+}
+
+.user-sim-demo-guide-intro {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: clamp(4px, 0.8vh, 8px);
-  max-width: 920px;
-  width: 100%;
-  margin: 0 auto;
-  overflow: hidden;
+  justify-content: center;
+  gap: clamp(6px, 1vh, 10px);
 }
 
 .user-sim-demo-header {
@@ -2339,6 +2366,7 @@
   align-items: center;
   gap: clamp(6px, 1.5vw, 10px);
   flex-shrink: 0;
+  width: 100%;
 }
 
 .user-sim-demo-back {
@@ -2371,18 +2399,19 @@
   border-radius: 999px;
 }
 
-.user-sim-demo-steps {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: clamp(3px, 0.6vh, 5px);
+.user-sim-demo-steps--stack {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(4px, 0.8vh, 6px);
   flex-shrink: 0;
 }
 
-@media (min-width: 520px) {
-  .user-sim-demo-steps {
-    display: flex;
-    flex-wrap: wrap;
-  }
+.user-sim-demo-steps--stack .user-sim-demo-step {
+  width: 100%;
+  text-align: left;
+  font-size: clamp(10px, 2.3vw, 12px);
+  padding: clamp(5px, 1vh, 7px) clamp(8px, 2vw, 10px);
+  border-radius: 8px;
 }
 
 .user-sim-demo-step {
@@ -2405,22 +2434,22 @@
 }
 
 .user-sim-demo-stage {
-  flex: 1;
+  width: 100%;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   border-radius: clamp(10px, 2vw, 14px);
   border: 1px solid #2a2a2a;
   background: linear-gradient(180deg, #161616 0%, #121212 100%);
-}
-
-.user-sim-demo-stage-inner {
-  height: 100%;
-  overflow: hidden;
-  padding: clamp(8px, 1.5vh, 12px) clamp(8px, 2vw, 14px);
   display: flex;
   flex-direction: column;
-  gap: clamp(6px, 1vh, 8px);
-  min-height: 0;
+}
+
+.user-sim-demo-screen--center {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: clamp(10px, 2vh, 16px);
 }
 
 .user-sim-demo-chrome {
@@ -2430,10 +2459,12 @@
 .user-sim-demo-screen {
   flex: 1;
   min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
+  padding: clamp(10px, 2vh, 14px) clamp(10px, 2.5vw, 16px);
   animation: user-sim-demo-fade 0.3s ease;
 }
 
@@ -2475,7 +2506,8 @@
 }
 
 .user-sim-demo-start-btn {
-  margin-top: clamp(14px, 3vh, 20px);
+  margin-top: clamp(8px, 1.5vh, 12px);
+  align-self: flex-start;
   border: 0;
   border-radius: 10px;
   padding: clamp(10px, 2vh, 12px) clamp(20px, 5vw, 28px);
@@ -2817,19 +2849,25 @@
 }
 
 .user-sim-demo-caption {
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
   margin: 0;
-  min-height: clamp(28px, 4.5vh, 36px);
-  max-height: clamp(28px, 4.5vh, 36px);
-  overflow: hidden;
-  font-size: clamp(12px, 2.8vw, 14px);
-  color: #e0e0e0;
-  line-height: 1.45;
-  text-align: center;
-  padding: 0 clamp(4px, 1vw, 8px);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  font-size: clamp(12px, 2.8vw, 15px);
+  color: #e8e8e8;
+  line-height: 1.55;
+  text-align: left;
+  padding: clamp(6px, 1vh, 8px) 0;
+}
+
+.user-sim-demo-footer {
+  padding-top: clamp(2px, 0.5vh, 4px);
+}
+
+.user-sim-demo-footer .user-sim-demo-controls {
+  width: 100%;
+  max-width: none;
 }
 
 .user-sim-demo-controls {
@@ -2900,6 +2938,19 @@
 .user-sim-demo-time {
   font-size: clamp(9px, 2vw, 10px);
   color: #717680;
+  text-align: center;
+}
+
+.user-sim-demo-outro-actions--stack {
+  flex-direction: column;
+  align-items: stretch;
+  flex-shrink: 0;
+  gap: clamp(4px, 0.8vh, 6px);
+  padding: 0;
+}
+
+.user-sim-demo-outro-actions--stack .user-sim-demo-outro-btn {
+  width: 100%;
   text-align: center;
 }
 

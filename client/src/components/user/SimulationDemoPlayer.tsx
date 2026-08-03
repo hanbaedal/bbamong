@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { ChevronLeft, Pause, Play, SkipForward } from "lucide-react";
 import {
@@ -9,6 +9,7 @@ import {
   formatDemoTime,
   formatDemoDurationLabel,
   getElapsedBeforeScene,
+  type DemoStepId,
   type DemoVisualState,
 } from "@/lib/simulationDemoScript";
 import { PREDICTION_ODDS as ODDS_MAP } from "@shared/predictionOdds";
@@ -59,17 +60,80 @@ function DemoChrome({ state }: { state: DemoVisualState }) {
   );
 }
 
-function DemoStage({ state, sceneId }: { state: DemoVisualState; sceneId: string }) {
+function DemoStepsNav({ activeStep }: { activeStep: DemoStepId }) {
+  return (
+    <nav className="user-sim-demo-steps user-sim-demo-steps--stack" aria-label="데모 단계">
+      {DEMO_STEPS.map((step) => (
+        <span
+          key={step.id}
+          className={`user-sim-demo-step ${activeStep === step.id ? "user-sim-demo-step--active" : ""} ${
+            DEMO_STEPS.findIndex((s) => s.id === step.id) <
+            DEMO_STEPS.findIndex((s) => s.id === activeStep)
+              ? "user-sim-demo-step--done"
+              : ""
+          }`}
+        >
+          {step.label}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+function DemoGuidePanel({
+  activeStep,
+  state,
+  caption,
+  started,
+  onStart,
+  showOutroActions,
+  outroActions,
+}: {
+  activeStep: DemoStepId;
+  state: DemoVisualState;
+  caption: string;
+  started: boolean;
+  onStart: () => void;
+  showOutroActions: boolean;
+  outroActions: ReactNode;
+}) {
+  return (
+    <div className="user-sim-demo-guide">
+      <DemoStepsNav activeStep={activeStep} />
+      {started ? <DemoChrome state={state} /> : null}
+      {!started ? (
+        <div className="user-sim-demo-guide-intro">
+          <p className="user-sim-demo-stage-kicker">{formatDemoDurationLabel(DEMO_TOTAL_MS)} · 자동 재생</p>
+          <p className="user-sim-demo-stage-lead">
+            왼쪽에서 단계와 안내를 읽고,
+            <br />
+            오른쪽에서 게임 화면을 보세요.
+          </p>
+          <button type="button" className="user-sim-demo-start-btn" onClick={onStart}>
+            데모 시작
+          </button>
+        </div>
+      ) : (
+        <p className="user-sim-demo-caption" data-testid="sim-demo-caption">
+          {caption}
+        </p>
+      )}
+      {showOutroActions ? <div className="user-sim-demo-outro-actions user-sim-demo-outro-actions--stack">{outroActions}</div> : null}
+    </div>
+  );
+}
+
+function DemoScreen({ state, sceneId }: { state: DemoVisualState; sceneId: string }) {
   const { view, highlightId, pulseId } = state;
 
   if (view === "intro") {
     return (
-      <div className="user-sim-demo-stage-inner user-sim-demo-stage-inner--center">
+      <div className="user-sim-demo-screen user-sim-demo-screen--center">
         <p className="user-sim-demo-stage-kicker">자동 데모</p>
         <p className="user-sim-demo-stage-lead">
-          오늘의 경기 → 경기 시작 → 타석 예측 → 정산
+          오늘의 경기 → 경기 시작
           <br />
-          순서대로 재생됩니다
+          → 타석 예측 → 정산
         </p>
       </div>
     );
@@ -77,18 +141,14 @@ function DemoStage({ state, sceneId }: { state: DemoVisualState; sceneId: string
 
   if (view === "outro") {
     return (
-      <div className="user-sim-demo-stage-inner user-sim-demo-stage-inner--center">
+      <div className="user-sim-demo-screen user-sim-demo-screen--center">
         <p className="user-sim-demo-stage-kicker">데모 종료</p>
-        <p className="user-sim-demo-stage-lead">
-          실제 경기는 「예측게임 하러가기」에서
-          <br />
-          참여할 수 있습니다
-        </p>
         {state.finalScore && (
-          <p className="user-sim-demo-outro-score">
-            연습 최종 {state.finalScore.home} : {state.finalScore.away} · {state.practicePoints}P
+          <p className="user-sim-demo-result-main">
+            {state.finalScore.home} : {state.finalScore.away}
           </p>
         )}
+        <p className="user-sim-demo-outro-score">연습 {state.practicePoints}P</p>
       </div>
     );
   }
@@ -96,7 +156,7 @@ function DemoStage({ state, sceneId }: { state: DemoVisualState; sceneId: string
   const activeMatch = MATCH_ROWS.find((row) => row.active)!;
   const showFullMatchList = view === "side-matches" && sceneId === "side-list";
 
-  let screen: React.ReactNode = null;
+  let screen: ReactNode = null;
 
   if (view === "side-matches") {
     if (showFullMatchList) {
@@ -198,7 +258,9 @@ function DemoStage({ state, sceneId }: { state: DemoVisualState; sceneId: string
   if (view === "match-start") {
     screen = (
       <div className="user-sim-demo-center-block">
-        <p className="user-sim-demo-panel-title">{activeMatch.title} · {activeMatch.stadium}</p>
+        <p className="user-sim-demo-panel-title">
+          {activeMatch.title} · {activeMatch.stadium}
+        </p>
         <p className="user-sim-demo-panel-sub">사이드 배팅 접수 완료</p>
         <span id="demo-start-btn" className={`user-sim-demo-cta ${highlightClass(highlightId, "demo-start-btn", pulseId)}`}>
           경기 시작
@@ -291,11 +353,27 @@ function DemoStage({ state, sceneId }: { state: DemoVisualState; sceneId: string
   }
 
   return (
-    <div className="user-sim-demo-stage-inner">
-      <DemoChrome state={state} />
-      <div key={sceneId} className="user-sim-demo-screen">
-        {screen}
-      </div>
+    <div key={sceneId} className="user-sim-demo-screen">
+      {screen}
+    </div>
+  );
+}
+
+function DemoPreStartVisual() {
+  return (
+    <div className="user-sim-demo-screen user-sim-demo-screen--center">
+      <p className="user-sim-demo-stage-kicker">게임 화면</p>
+      <p className="user-sim-demo-stage-lead">
+        오늘의 경기
+        <br />
+        ↓
+        <br />
+        경기 시작 → 타석 예측
+        <br />
+        ↓
+        <br />
+        정산
+      </p>
     </div>
   );
 }
@@ -377,64 +455,64 @@ export default function SimulationDemoPlayer() {
   };
 
   const activeStep = scene.stepId === "outro" ? "settle" : scene.stepId;
+  const showOutroActions = started && scene.stepId === "outro" && !playing;
+
+  const outroActions = (
+    <>
+      <button
+        type="button"
+        className="user-sim-demo-outro-btn user-sim-demo-outro-btn--primary"
+        onClick={() => setLocation("/prediction")}
+      >
+        예측 게임 하러가기
+      </button>
+      <button type="button" className="user-sim-demo-outro-btn" onClick={openUserGuide}>
+        사용 설명서
+      </button>
+      <button type="button" className="user-sim-demo-outro-btn" onClick={() => setLocation("/home")}>
+        홈
+      </button>
+    </>
+  );
 
   return (
     <div className="user-landscape-page user-sim-demo-page" data-testid="simulation-demo-page">
-      <div className="user-sim-demo-shell">
-        <header className="user-sim-demo-header">
-          <button
-            type="button"
-            onClick={() => setLocation("/home")}
-            className="user-sim-demo-back"
-            aria-label="홈으로"
-            data-testid="button-sim-back"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h1 className="user-sim-demo-title">게임 시뮬레이션</h1>
-          <span className="user-sim-demo-tag">자동 데모</span>
-        </header>
+      <header className="user-sim-demo-header">
+        <button
+          type="button"
+          onClick={() => setLocation("/home")}
+          className="user-sim-demo-back"
+          aria-label="홈으로"
+          data-testid="button-sim-back"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <h1 className="user-sim-demo-title">게임 시뮬레이션</h1>
+        <span className="user-sim-demo-tag">자동 데모</span>
+      </header>
 
-        <nav className="user-sim-demo-steps" aria-label="데모 단계">
-          {DEMO_STEPS.map((step) => (
-            <span
-              key={step.id}
-              className={`user-sim-demo-step ${activeStep === step.id ? "user-sim-demo-step--active" : ""} ${
-                DEMO_STEPS.findIndex((s) => s.id === step.id) <
-                DEMO_STEPS.findIndex((s) => s.id === activeStep)
-                  ? "user-sim-demo-step--done"
-                  : ""
-              }`}
-            >
-              {step.label}
-            </span>
-          ))}
-        </nav>
-
-        <div className="user-sim-demo-stage">
-          {!started ? (
-            <div className="user-sim-demo-stage-inner user-sim-demo-stage-inner--center">
-              <p className="user-sim-demo-stage-kicker">{formatDemoDurationLabel(DEMO_TOTAL_MS)} · 자동 재생</p>
-              <p className="user-sim-demo-stage-lead">
-                예측 게임 흐름을
-                <br />
-                동영상처럼 보여 드립니다
-              </p>
-              <button type="button" className="user-sim-demo-start-btn" onClick={handleStart}>
-                데모 시작
-              </button>
-            </div>
-          ) : (
-            <DemoStage state={visualState} sceneId={scene.id} />
-          )}
+      <div className="user-landscape-split user-sim-demo-split">
+        <div className="user-landscape-left user-sim-demo-guide-wrap">
+          <DemoGuidePanel
+            activeStep={activeStep}
+            state={visualState}
+            caption={started ? scene.caption : "재생을 시작하면 자막이 표시됩니다."}
+            started={started}
+            onStart={handleStart}
+            showOutroActions={showOutroActions}
+            outroActions={outroActions}
+          />
         </div>
+        <div className="user-landscape-right user-sim-demo-stage-wrap">
+          <div className="user-sim-demo-stage">
+            {started ? <DemoScreen state={visualState} sceneId={scene.id} /> : <DemoPreStartVisual />}
+          </div>
+        </div>
+      </div>
 
-        <p className="user-sim-demo-caption" data-testid="sim-demo-caption">
-          {started ? scene.caption : "재생을 시작하면 자막이 표시됩니다."}
-        </p>
-
-        {started && (
-          <footer className="user-sim-demo-controls">
+      {started ? (
+        <footer className="user-landscape-footer user-sim-demo-footer">
+          <div className="user-sim-demo-controls">
             <button
               type="button"
               className="user-sim-demo-ctrl"
@@ -464,27 +542,9 @@ export default function SimulationDemoPlayer() {
             <button type="button" className="user-sim-demo-ctrl-text" onClick={handleRestart}>
               처음
             </button>
-          </footer>
-        )}
-
-        {started && scene.stepId === "outro" && !playing && (
-          <div className="user-sim-demo-outro-actions">
-            <button
-              type="button"
-              className="user-sim-demo-outro-btn user-sim-demo-outro-btn--primary"
-              onClick={() => setLocation("/prediction")}
-            >
-              예측 게임 하러가기
-            </button>
-            <button type="button" className="user-sim-demo-outro-btn" onClick={openUserGuide}>
-              사용 설명서
-            </button>
-            <button type="button" className="user-sim-demo-outro-btn" onClick={() => setLocation("/home")}>
-              홈
-            </button>
           </div>
-        )}
-      </div>
+        </footer>
+      ) : null}
     </div>
   );
 }
