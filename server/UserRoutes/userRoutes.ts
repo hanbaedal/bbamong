@@ -21,8 +21,13 @@ import { hasActiveSession, createSession, deleteSession } from "../sessionManage
 import { getSocialPendingData, deleteSocialPendingData } from "./socialAuthRoutes";
 import { getRedisClient } from "../redis";
 import { getKstDayRange } from "../utils/dateUtils";
+import { maskUsername } from "../utils/maskUsername";
 
 const PHONE_REGEX = /^01[0-9]{8,9}$/;
+const FIND_USERNAME_PREFIX = "find_username:";
+const FIND_USERNAME_TTL = 180;
+
+const FIND_USERNAME_NOT_FOUND = "입력하신 정보와 일치하는 회원을 찾을 수 없습니다.";
 
 async function ensureGuestProviderId(user: { id: string; provider?: string; providerId?: string | null }) {
   if (user.provider !== "guest" || user.providerId) {
@@ -361,6 +366,105 @@ export async function userRoutes(app: Express): Promise<void> {
         });
       }
       return res.status(500).json({ error: "게스트 로그인 중 오류가 발생했습니다." });
+    }
+  });
+
+  // 아이디 찾기 — 이름 + 전화번호 SMS 인증
+  app.post("/api/find-username/send-code", async (req, res) => {
+    try {
+      const { name, phone } = req.body as { name?: string; phone?: string };
+      if (!name?.trim() || !phone) {
+        return res.status(400).json({ error: "이름과 전화번호를 입력해주세요." });
+      }
+
+      const cleanPhone = phone.replace(/-/g, "");
+      if (!PHONE_REGEX.test(cleanPhone)) {
+        return res.status(400).json({ error: "올바른 전화번호 형식이 아닙니다." });
+      }
+
+      const user = await storage.getUserByPhone(cleanPhone);
+      if (
+        !user?.username ||
+        user.provider === "guest" ||
+        (user.name ?? "").trim() !== name.trim()
+      ) {
+        return res.status(404).json({ error: FIND_USERNAME_NOT_FOUND });
+      }
+
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const redis = getRedisClient();
+      await redis.set(
+        `${FIND_USERNAME_PREFIX}${cleanPhone}`,
+        JSON.stringify({ code: verificationCode, name: name.trim(), userId: user.id }),
+        "EX",
+        FIND_USERNAME_TTL,
+      );
+
+      const { formatSolapiError, sendSolapiSms } = await import("../utils/solapiSms");
+      try {
+        const smsResult = await sendSolapiSms({
+          to: cleanPhone,
+          text: `[아이디 찾기] 인증번호: ${verificationCode}\n유효시간 3분`,
+          logLabel: "find-username",
+        });
+        if (smsResult.devMode) {
+          console.log(`[개발모드] 아이디 찾기 인증번호: ${verificationCode} (전화번호: ${cleanPhone})`);
+        }
+      } catch (smsError) {
+        console.error("SMS 전송 실패:", formatSolapiError(smsError), smsError);
+        if (smsError instanceof Error && smsError.message === "SOLAPI_NOT_CONFIGURED") {
+          return res.status(503).json({
+            error: "문자 인증 서비스(SOLAPI)가 설정되지 않았습니다. 관리자에게 문의해 주세요.",
+          });
+        }
+        return res.status(500).json({ error: "SMS 전송에 실패했습니다. 잠시 후 다시 시도해주세요." });
+      }
+
+      return res.json({ success: true, message: "인증번호가 전송되었습니다.", expiresIn: FIND_USERNAME_TTL });
+    } catch (error) {
+      console.error("Find username send-code error:", error);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.post("/api/find-username/verify", async (req, res) => {
+    try {
+      const { name, phone, code } = req.body as { name?: string; phone?: string; code?: string };
+      if (!name?.trim() || !phone || !code) {
+        return res.status(400).json({ error: "이름, 전화번호, 인증번호를 입력해주세요." });
+      }
+
+      const cleanPhone = phone.replace(/-/g, "");
+      const redis = getRedisClient();
+      const raw = await redis.get(`${FIND_USERNAME_PREFIX}${cleanPhone}`);
+      if (!raw) {
+        return res.status(400).json({ error: "인증번호가 만료되었습니다. 다시 요청해주세요." });
+      }
+
+      const payload = JSON.parse(raw) as { code?: string; name?: string; userId?: string };
+      if (payload.name !== name.trim() || payload.code !== code.trim()) {
+        return res.status(400).json({ error: "인증번호가 일치하지 않습니다." });
+      }
+
+      const user = payload.userId ? await storage.getUserById(payload.userId) : undefined;
+      if (
+        !user?.username ||
+        user.provider === "guest" ||
+        (user.name ?? "").trim() !== name.trim()
+      ) {
+        return res.status(404).json({ error: FIND_USERNAME_NOT_FOUND });
+      }
+
+      await redis.del(`${FIND_USERNAME_PREFIX}${cleanPhone}`);
+
+      return res.json({
+        success: true,
+        username: user.username,
+        maskedUsername: maskUsername(user.username),
+      });
+    } catch (error) {
+      console.error("Find username verify error:", error);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   });
 

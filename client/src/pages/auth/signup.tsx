@@ -810,24 +810,24 @@ export default function SignupPage() {
                   <img
                     src={splashDisclaimer}
                     alt="15세 이용가 및 재화 안내"
-                    className="user-signup-panel-modal-image"
+                    className="user-auth-panel-modal-image"
                     data-testid="disclaimer-modal-image"
                   />
                 ) : panelModal === "service" ? (
                   serviceTerm?.content ? (
-                    <p className="user-signup-panel-modal-text" data-testid="terms-content">
+                    <p className="user-auth-panel-modal-text" data-testid="terms-content">
                       {serviceTerm.content}
                     </p>
                   ) : (
-                    <p className="user-signup-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
+                    <p className="user-auth-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
                   )
                 ) : panelModal === "privacy" ? (
                   privacyTerm?.content ? (
-                    <p className="user-signup-panel-modal-text" data-testid="terms-content">
+                    <p className="user-auth-panel-modal-text" data-testid="terms-content">
                       {privacyTerm.content}
                     </p>
                   ) : (
-                    <p className="user-signup-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
+                    <p className="user-auth-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
                   )
                 ) : null}
               </SignupPanelModal>

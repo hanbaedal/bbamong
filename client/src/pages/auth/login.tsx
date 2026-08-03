@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { Eye, EyeOff } from "lucide-react";
 import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
+import AuthPanelModal from "@/components/user/AuthPanelModal";
+import FindUsernameForm from "@/components/user/FindUsernameForm";
+import FindPasswordForm from "@/components/user/FindPasswordForm";
 import "@/styles/user-landscape.css";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
@@ -16,6 +19,7 @@ import SimpleInfoPopup from "@/components/customUi/simpleInfoPopup";
 import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
 
 type LoginBootstrapPhase = "checking" | "ready";
+type LoginLeftPanel = "find-id" | "find-password";
 
 function hasSocialLoginCallback(search: string): boolean {
   return (
@@ -64,6 +68,7 @@ export default function LoginPage() {
   const socialLoginSucceededRef = useRef(false);
   const [isGuestLoading, setIsGuestLoading] = useState(false);
   const [awaitingLoginAfterSignup, setAwaitingLoginAfterSignup] = useState(false);
+  const [leftPanel, setLeftPanel] = useState<LoginLeftPanel | null>(null);
 
   const boxErrorClass = (hasError: boolean) =>
     hasError ? "user-login-box user-login-box--error" : "user-login-box";
@@ -503,23 +508,45 @@ export default function LoginPage() {
         testId="login-page"
         pageClassName="user-landscape-page--login"
         left={
-          <div className="user-login-left">
-            <div className="user-login-mascot-track" aria-hidden>
-              <div className="user-login-mascot-walker">
-                <img
-                  src={assets.userMascot}
-                  alt=""
-                  className="user-login-mascot-img"
-                  data-testid="img-login-logo"
-                />
+          <div className="user-login-left-shell">
+            <div className="user-login-left">
+              <div className="user-login-mascot-track" aria-hidden>
+                <div className="user-login-mascot-walker">
+                  <img
+                    src={assets.userMascot}
+                    alt=""
+                    className="user-login-mascot-img"
+                    data-testid="img-login-logo"
+                  />
+                </div>
               </div>
+              <img
+                src={splashDisclaimer}
+                alt="15세 이용가 및 재화 안내"
+                className="user-landscape-disclaimer"
+                data-testid="img-login-disclaimer"
+              />
             </div>
-            <img
-              src={splashDisclaimer}
-              alt="15세 이용가 및 재화 안내"
-              className="user-landscape-disclaimer"
-              data-testid="img-login-disclaimer"
-            />
+
+            <AuthPanelModal
+              anchor="left"
+              open={leftPanel !== null}
+              title={leftPanel === "find-id" ? "아이디 찾기" : "비밀번호 찾기"}
+              onClose={() => setLeftPanel(null)}
+              testId={leftPanel === "find-id" ? "find-username-modal" : "find-password-modal"}
+            >
+              {leftPanel === "find-id" ? (
+                <FindUsernameForm
+                  onClose={() => setLeftPanel(null)}
+                  onUseUsername={(username) => {
+                    setEmail(username);
+                    setErrors((prev) => ({ ...prev, email: "", general: "" }));
+                  }}
+                />
+              ) : leftPanel === "find-password" ? (
+                <FindPasswordForm onClose={() => setLeftPanel(null)} />
+              ) : null}
+            </AuthPanelModal>
           </div>
         }
         right={
@@ -602,11 +629,27 @@ export default function LoginPage() {
                 >
                   {isLoading ? "로그인 중..." : "로그인"}
                 </button>
-                <p className="user-login-forgot">
-                  <Link href="/forgot-password" data-testid="link-forgot-password">
-                    비밀번호를 잊으셨나요?
-                  </Link>
-                </p>
+                <div className="user-login-recovery">
+                  <button
+                    type="button"
+                    className="user-login-recovery-btn"
+                    data-testid="link-find-username"
+                    onClick={() => setLeftPanel("find-id")}
+                  >
+                    아이디 찾기
+                  </button>
+                  <span className="user-login-recovery-sep" aria-hidden>
+                    ·
+                  </span>
+                  <button
+                    type="button"
+                    className="user-login-recovery-btn"
+                    data-testid="link-find-password"
+                    onClick={() => setLeftPanel("find-password")}
+                  >
+                    비밀번호 찾기
+                  </button>
+                </div>
               </div>
             </div>
 
