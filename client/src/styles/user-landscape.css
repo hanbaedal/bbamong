@@ -976,9 +976,9 @@
   color: #bfbfbf;
 }
 
-/* 로그인 — 세로(모바일 웹) 1열 스택 */
+/* 로그인 — 가로 2분할 */
 .user-landscape-page--login {
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 /* 로그인 — 라벨 · 입력 1줄 */
@@ -1038,11 +1038,56 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: clamp(6px, 1.4vh, 10px);
+}
+
+.user-login-panel--core {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.user-login-disclaimer {
+  flex-shrink: 0;
+  max-width: min(280px, 88%);
+  margin-top: clamp(1.2em, 3vh, 2em);
+}
+
+.user-login-right-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.user-login-right-brand {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-login-panel--extras {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: min(340px, 100%);
+  margin: 0 auto;
+  padding-bottom: clamp(4px, 1vh, 8px);
 }
 
 .user-landscape-page--login .user-landscape-left {
   position: relative;
   overflow: hidden;
+  justify-content: center;
+}
+
+.user-landscape-page--login .user-landscape-right {
+  justify-content: space-between;
+  align-items: stretch;
 }
 
 .user-landscape-page--login .user-landscape-left:has(.user-auth-panel-modal) {
@@ -1137,47 +1182,6 @@
   font-weight: 700;
   text-align: center;
   letter-spacing: 0.04em;
-}
-
-@media (orientation: portrait), (max-aspect-ratio: 1/1) {
-  .user-landscape-page--login .user-landscape-split {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: clamp(8px, 2vh, 16px);
-    align-items: stretch;
-  }
-
-  .user-landscape-page--login .user-landscape-left {
-    justify-content: flex-end;
-    padding-top: clamp(4px, 1vh, 8px);
-  }
-
-  .user-landscape-page--login .user-login-mascot-track {
-    height: clamp(72px, 14vh, 104px);
-  }
-
-  .user-landscape-page--login .user-login-mascot-img {
-    max-height: clamp(64px, 12vh, 88px);
-    width: clamp(72px, 18vw, 96px);
-  }
-
-  .user-landscape-page--login .user-landscape-disclaimer {
-    max-width: min(260px, 92%);
-    margin-top: clamp(0.6em, 1.5vh, 1em);
-  }
-
-  .user-landscape-page--login .user-landscape-right {
-    justify-content: flex-start;
-    padding-bottom: clamp(8px, 2vh, 16px);
-  }
-
-  .user-landscape-page--login .user-login-panel {
-    max-width: min(360px, 100%);
-  }
-
-  .user-landscape-page--login .user-login-fields {
-    margin-top: 0;
-  }
 }
 
 /* 회원가입 — 가로 2분할 · 우측만 스크롤 */
@@ -1587,63 +1591,6 @@
   font-size: clamp(12px, 2.8vw, 14px);
   text-align: center;
   padding: clamp(24px, 6vh, 40px) 0;
-}
-
-@media (orientation: portrait), (max-aspect-ratio: 1/1) {
-  .user-landscape-page--signup {
-    overflow-y: auto;
-  }
-
-  .user-landscape-page--signup .user-landscape-split {
-    display: flex;
-    flex-direction: column;
-    overflow: visible;
-    min-height: min-content;
-  }
-
-  .user-landscape-page--signup .user-landscape-left {
-    display: contents;
-  }
-
-  .user-landscape-page--signup .user-landscape-right {
-    overflow-y: visible;
-    order: 2;
-  }
-
-  .user-signup-left-top {
-    order: 1;
-  }
-
-  .user-signup-left-bottom {
-    order: 3;
-    padding-bottom: clamp(12px, 3vh, 20px);
-  }
-
-  .user-signup-mascot-img {
-    width: clamp(72px, 18vw, 96px);
-    max-height: clamp(64px, 12vh, 88px);
-  }
-
-  .user-signup-panel {
-    padding-bottom: clamp(8px, 2vh, 12px);
-  }
-
-  .user-auth-panel-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    align-items: center;
-    padding: clamp(16px, 4vw, 24px);
-    background: rgba(0, 0, 0, 0.55);
-  }
-
-  .user-auth-panel-modal-backdrop {
-    background: transparent;
-  }
-
-  .user-auth-panel-modal-sheet {
-    max-height: min(70vh, 520px);
-  }
 }
 
 /* 게임 시뮬레이션 — 가로 2등분 */

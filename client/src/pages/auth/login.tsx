@@ -509,24 +509,116 @@ export default function LoginPage() {
         pageClassName="user-landscape-page--login"
         left={
           <div className="user-login-left-shell">
-            <div className="user-login-left">
-              <div className="user-login-mascot-track" aria-hidden>
-                <div className="user-login-mascot-walker">
-                  <img
-                    src={assets.userMascot}
-                    alt=""
-                    className="user-login-mascot-img"
-                    data-testid="img-login-logo"
-                  />
+            <form onSubmit={handleSubmit} className="user-login-panel user-login-panel--core">
+              <div className="user-login-fields">
+                <div className="user-login-card">
+                  <div className="user-login-field">
+                    <label htmlFor="email" className="user-login-field-label">
+                      아이디
+                    </label>
+                    <input
+                      id="email"
+                      type="text"
+                      data-testid="input-email"
+                      placeholder="아이디 입력"
+                      value={email}
+                      onChange={handleEmailChange}
+                      className={boxErrorClass(Boolean(errors.email))}
+                      autoComplete="username"
+                    />
+                    {errors.email ? (
+                      <p className="user-login-error user-login-error--card" data-testid="error-email">
+                        {errors.email}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="user-login-field">
+                    <label htmlFor="password" className="user-login-field-label">
+                      비밀번호
+                    </label>
+                    <div className="user-login-box-wrap">
+                      <input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        data-testid="input-password"
+                        placeholder="비밀번호 입력"
+                        value={password}
+                        onChange={handlePasswordChange}
+                        className={boxErrorClass(Boolean(errors.password))}
+                        style={{ paddingRight: 36 }}
+                        autoComplete="current-password"
+                      />
+                      <button
+                        type="button"
+                        data-testid="button-toggle-password"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="user-login-box-toggle"
+                        aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {errors.password ? (
+                      <p className="user-login-error user-login-error--card" data-testid="error-password">
+                        {errors.password}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                {awaitingLoginAfterSignup ? (
+                  <p className="user-login-hint" data-testid="text-signup-login-hint">
+                    회원가입이 완료되었습니다. 로그인해 주세요.
+                  </p>
+                ) : null}
+
+                {errors.general ? (
+                  <p className="user-login-error user-login-error--below" data-testid="error-general">
+                    {errors.general}
+                  </p>
+                ) : null}
+
+                <div className="user-login-actions">
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    data-testid="button-login"
+                    className="user-login-submit"
+                  >
+                    {isLoading ? "로그인 중..." : "로그인"}
+                  </button>
+                  <div className="user-login-recovery">
+                    <button
+                      type="button"
+                      className="user-login-recovery-btn"
+                      data-testid="link-find-username"
+                      onClick={() => setLeftPanel("find-id")}
+                    >
+                      아이디 찾기
+                    </button>
+                    <span className="user-login-recovery-sep" aria-hidden>
+                      ·
+                    </span>
+                    <button
+                      type="button"
+                      className="user-login-recovery-btn"
+                      data-testid="link-find-password"
+                      onClick={() => setLeftPanel("find-password")}
+                    >
+                      비밀번호 찾기
+                    </button>
+                  </div>
                 </div>
               </div>
-              <img
-                src={splashDisclaimer}
-                alt="15세 이용가 및 재화 안내"
-                className="user-landscape-disclaimer"
-                data-testid="img-login-disclaimer"
-              />
-            </div>
+            </form>
+
+            <img
+              src={splashDisclaimer}
+              alt="15세 이용가 및 재화 안내"
+              className="user-landscape-disclaimer user-login-disclaimer"
+              data-testid="img-login-disclaimer"
+            />
 
             <AuthPanelModal
               anchor="left"
@@ -550,165 +642,78 @@ export default function LoginPage() {
           </div>
         }
         right={
-          <form onSubmit={handleSubmit} className="user-login-panel">
-            <div className="user-login-fields">
-              <div className="user-login-card">
-                <div className="user-login-field">
-                  <label htmlFor="email" className="user-login-field-label">
-                    아이디
-                  </label>
-                  <input
-                    id="email"
-                    type="text"
-                    data-testid="input-email"
-                    placeholder="아이디 입력"
-                    value={email}
-                    onChange={handleEmailChange}
-                    className={boxErrorClass(Boolean(errors.email))}
-                    autoComplete="username"
+          <div className="user-login-right-shell">
+            <div className="user-login-right-brand">
+              <div className="user-login-mascot-track" aria-hidden>
+                <div className="user-login-mascot-walker">
+                  <img
+                    src={assets.userMascot}
+                    alt=""
+                    className="user-login-mascot-img"
+                    data-testid="img-login-logo"
                   />
-                  {errors.email ? (
-                    <p className="user-login-error user-login-error--card" data-testid="error-email">
-                      {errors.email}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="user-login-field">
-                  <label htmlFor="password" className="user-login-field-label">
-                    비밀번호
-                  </label>
-                  <div className="user-login-box-wrap">
-                    <input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      data-testid="input-password"
-                      placeholder="비밀번호 입력"
-                      value={password}
-                      onChange={handlePasswordChange}
-                      className={boxErrorClass(Boolean(errors.password))}
-                      style={{ paddingRight: 36 }}
-                      autoComplete="current-password"
-                    />
-                    <button
-                      type="button"
-                      data-testid="button-toggle-password"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="user-login-box-toggle"
-                      aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {errors.password ? (
-                    <p className="user-login-error user-login-error--card" data-testid="error-password">
-                      {errors.password}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-
-              {awaitingLoginAfterSignup ? (
-                <p className="user-login-hint" data-testid="text-signup-login-hint">
-                  회원가입이 완료되었습니다. 로그인해 주세요.
-                </p>
-              ) : null}
-
-              {errors.general ? (
-                <p className="user-login-error user-login-error--below" data-testid="error-general">
-                  {errors.general}
-                </p>
-              ) : null}
-
-              <div className="user-login-actions">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  data-testid="button-login"
-                  className="user-login-submit"
-                >
-                  {isLoading ? "로그인 중..." : "로그인"}
-                </button>
-                <div className="user-login-recovery">
-                  <button
-                    type="button"
-                    className="user-login-recovery-btn"
-                    data-testid="link-find-username"
-                    onClick={() => setLeftPanel("find-id")}
-                  >
-                    아이디 찾기
-                  </button>
-                  <span className="user-login-recovery-sep" aria-hidden>
-                    ·
-                  </span>
-                  <button
-                    type="button"
-                    className="user-login-recovery-btn"
-                    data-testid="link-find-password"
-                    onClick={() => setLeftPanel("find-password")}
-                  >
-                    비밀번호 찾기
-                  </button>
                 </div>
               </div>
             </div>
 
-            {guestLoginAllowed ? (
-              <>
-                <div className="user-login-divider" aria-hidden />
+            <div className="user-login-panel user-login-panel--extras">
+              {guestLoginAllowed ? (
+                <>
+                  <div className="user-login-divider" aria-hidden />
+                  <button
+                    type="button"
+                    onClick={handleGuestLogin}
+                    data-testid="button-guest-login"
+                    disabled={isGuestLoading}
+                    className="user-login-link"
+                  >
+                    {isGuestLoading ? "로그인 중..." : "게스트로 로그인"}
+                  </button>
+                </>
+              ) : null}
+
+              <div className="user-login-divider" aria-hidden />
+
+              <div className="user-login-socials">
                 <button
                   type="button"
-                  onClick={handleGuestLogin}
-                  data-testid="button-guest-login"
-                  disabled={isGuestLoading}
-                  className="user-login-link"
+                  data-testid="button-kakao-login"
+                  onClick={handleKakaoLogin}
+                  className="user-login-social-btn bg-[#FEE500]"
+                  aria-label="카카오 로그인"
                 >
-                  {isGuestLoading ? "로그인 중..." : "게스트로 로그인"}
+                  <img src={assets.kakaoIcon} alt="" />
                 </button>
-              </>
-            ) : null}
+                <button
+                  type="button"
+                  data-testid="button-google-login"
+                  onClick={handleGoogleLogin}
+                  className="user-login-social-btn bg-white"
+                  aria-label="구글 로그인"
+                >
+                  <img src={assets.googleIcon} alt="" />
+                </button>
+                <button
+                  type="button"
+                  data-testid="button-apple-login"
+                  onClick={handleAppleLogin}
+                  className="user-login-social-btn bg-[#3A383C]"
+                  aria-label="애플 로그인"
+                >
+                  <img src={assets.appleIcon} alt="" />
+                </button>
+              </div>
 
-            <div className="user-login-divider" aria-hidden />
+              <div className="user-login-divider" aria-hidden />
 
-            <div className="user-login-socials">
-              <button
-                type="button"
-                data-testid="button-kakao-login"
-                onClick={handleKakaoLogin}
-                className="user-login-social-btn bg-[#FEE500]"
-                aria-label="카카오 로그인"
-              >
-                <img src={assets.kakaoIcon} alt="" />
-              </button>
-              <button
-                type="button"
-                data-testid="button-google-login"
-                onClick={handleGoogleLogin}
-                className="user-login-social-btn bg-white"
-                aria-label="구글 로그인"
-              >
-                <img src={assets.googleIcon} alt="" />
-              </button>
-              <button
-                type="button"
-                data-testid="button-apple-login"
-                onClick={handleAppleLogin}
-                className="user-login-social-btn bg-[#3A383C]"
-                aria-label="애플 로그인"
-              >
-                <img src={assets.appleIcon} alt="" />
-              </button>
+              <p className="user-login-signup">
+                계정이 없으신가요?{" "}
+                <Link href={`/signup${window.location.search}`} data-testid="link-signup">
+                  신규 회원 가입
+                </Link>
+              </p>
             </div>
-
-            <div className="user-login-divider" aria-hidden />
-
-            <p className="user-login-signup">
-              계정이 없으신가요?{" "}
-              <Link href={`/signup${window.location.search}`} data-testid="link-signup">
-                신규 회원 가입
-              </Link>
-            </p>
-          </form>
+          </div>
         }
       />
 
