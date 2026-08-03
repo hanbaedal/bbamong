@@ -1,3 +1,4 @@
+import SpinnerField from "@/components/game/SpinnerField";
 import {
   SIDE_BET_AMOUNT_OPTIONS,
   WINNER_ODDS,
@@ -12,6 +13,7 @@ interface SideBetAmountSelectorProps {
   onChange: (amount: SideBetAmountOption) => void;
   betType: SideBetType;
   disabled?: boolean;
+  compact?: boolean;
 }
 
 export default function SideBetAmountSelector({
@@ -19,32 +21,39 @@ export default function SideBetAmountSelector({
   onChange,
   betType,
   disabled = false,
+  compact = false,
 }: SideBetAmountSelectorProps) {
   const odds = betType === "winner" ? WINNER_ODDS : EXACT_SCORE_ODDS;
   const payout = calculateSideBetPayout(value, betType);
+  const idx = SIDE_BET_AMOUNT_OPTIONS.indexOf(value);
+
+  const increase = () => {
+    if (idx < SIDE_BET_AMOUNT_OPTIONS.length - 1) {
+      onChange(SIDE_BET_AMOUNT_OPTIONS[idx + 1]!);
+    }
+  };
+
+  const decrease = () => {
+    if (idx > 0) {
+      onChange(SIDE_BET_AMOUNT_OPTIONS[idx - 1]!);
+    }
+  };
 
   return (
-    <div className="mb-3">
-      <p className="text-[#888] text-xs mb-2">
-        배팅 포인트 (100P 단위) · {odds}배 · 적중 시 {payout}P
+    <div className={compact ? "mb-2" : "mb-3"}>
+      <p className={`text-[#888] ${compact ? "mb-1.5 text-[10px]" : "mb-2 text-xs"}`}>
+        배팅 P · {odds}배 · 적중 {payout}P
       </p>
-      <div className="grid grid-cols-4 gap-2">
-        {SIDE_BET_AMOUNT_OPTIONS.map((amount) => (
-          <button
-            key={amount}
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(amount)}
-            className={`rounded-lg border px-2 py-2 text-sm font-semibold transition-colors ${
-              value === amount
-                ? "border-[#CDFF00] bg-[#CDFF00] text-black"
-                : "border-[#373539] bg-[#1A1A1A] text-white hover:border-[#6B6B6B]"
-            } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            {amount}
-          </button>
-        ))}
-      </div>
+      <SpinnerField
+        value={`${value}P`}
+        onIncrease={increase}
+        onDecrease={decrease}
+        canIncrease={!disabled && idx < SIDE_BET_AMOUNT_OPTIONS.length - 1}
+        canDecrease={!disabled && idx > 0}
+        disabled={disabled}
+        compact={compact}
+        testId={`side-bet-amount-${betType}`}
+      />
     </div>
   );
 }

@@ -1,35 +1,50 @@
 import { Capacitor } from "@capacitor/core";
 import { ScreenOrientation } from "@capacitor/screen-orientation";
+import { isMallPath } from "./shopRoutes";
 
-/** 사용자 앱 전체 가로 고정 (Capacitor 네이티브 + Web API 폴백) */
-export async function lockGameLandscape(): Promise<void> {
+async function lockOrientation(orientation: "landscape" | "portrait"): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     try {
-      await ScreenOrientation.lock({ orientation: "landscape" });
+      await ScreenOrientation.lock({ orientation });
       return;
     } catch (err) {
-      console.warn("[Orientation] landscape lock failed:", err);
+      console.warn(`[Orientation] ${orientation} lock failed:`, err);
     }
   }
 
   try {
-    const orientation = screen.orientation as ScreenOrientation & {
+    const screenOrientation = screen.orientation as ScreenOrientation & {
       lock?: (orientation: string) => Promise<void>;
     };
-    if (typeof orientation?.lock === "function") {
-      await orientation.lock("landscape");
+    if (typeof screenOrientation?.lock === "function") {
+      await screenOrientation.lock(orientation);
     }
   } catch {
     /* 브라우저 정책상 거부될 수 있음 */
   }
 }
 
-/** @deprecated 사용자 앱은 가로 고정 — unlock 호출하지 않음 */
-export async function unlockGameLandscape(): Promise<void> {
-  /* intentionally no-op: 앱 전체 가로 사용 */
+/** 게임·로그인·회원가입 — 가로 고정 (Capacitor 네이티브 + Web API 폴백) */
+export async function lockGameLandscape(): Promise<void> {
+  await lockOrientation("landscape");
 }
 
-/** 경로와 무관하게 가로 유지 */
-export async function syncOrientationForPath(_pathname: string): Promise<void> {
-  await lockGameLandscape();
+/** 빠몽이 기념품(쇼핑몰) — 세로 고정 */
+export async function lockMallPortrait(): Promise<void> {
+  await lockOrientation("portrait");
+}
+
+/** @deprecated unlock 호출하지 않음 — 앱별 lock으로 전환 */
+export async function unlockGameLandscape(): Promise<void> {
+  /* intentionally no-op */
+}
+
+/** 경로에 맞는 화면 방향: /shop → 세로, 그 외 → 가로 */
+export async function syncOrientationForPath(pathname: string): Promise<void> {
+  const base = pathname.split("?")[0];
+  if (isMallPath(base)) {
+    await lockMallPortrait();
+  } else {
+    await lockGameLandscape();
+  }
 }

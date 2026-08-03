@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import SideBetAmountSelector from "@/components/SideBetAmountSelector";
+import ScorePicker from "@/components/game/ScorePicker";
 import { useToast } from "@/hooks/use-toast";
 import {
   DEFAULT_SIDE_BET_AMOUNT,
@@ -50,8 +51,8 @@ export default function SideBetActionPanel({
 
   const [amount, setAmount] = useState<SideBetAmountOption>(DEFAULT_SIDE_BET_AMOUNT);
   const [winnerPick, setWinnerPick] = useState<WinnerSide | null>(null);
-  const [homeScore, setHomeScore] = useState("");
-  const [awayScore, setAwayScore] = useState("");
+  const [homeScore, setHomeScore] = useState<number | null>(null);
+  const [awayScore, setAwayScore] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const { data, isLoading } = useQuery<SideBetsMeResponse>({
@@ -72,8 +73,8 @@ export default function SideBetActionPanel({
 
   useEffect(() => {
     setWinnerPick(null);
-    setHomeScore("");
-    setAwayScore("");
+    setHomeScore(null);
+    setAwayScore(null);
     setAmount(DEFAULT_SIDE_BET_AMOUNT);
   }, [matchId, betType]);
 
@@ -82,8 +83,8 @@ export default function SideBetActionPanel({
       setWinnerPick(existingBet.winnerPick);
     }
     if (existingBet?.type === "score") {
-      if (existingBet.homeScorePick != null) setHomeScore(String(existingBet.homeScorePick));
-      if (existingBet.awayScorePick != null) setAwayScore(String(existingBet.awayScorePick));
+      if (existingBet.homeScorePick != null) setHomeScore(existingBet.homeScorePick);
+      if (existingBet.awayScorePick != null) setAwayScore(existingBet.awayScorePick);
     }
     if (existingBet?.amount) {
       setAmount(existingBet.amount as SideBetAmountOption);
@@ -124,10 +125,8 @@ export default function SideBetActionPanel({
   };
 
   const submitScore = async () => {
-    const home = parseInt(homeScore, 10);
-    const away = parseInt(awayScore, 10);
-    if (!Number.isInteger(home) || !Number.isInteger(away) || home < 0 || away < 0) {
-      toast({ variant: "destructive", description: "원정·홈 점수를 입력해주세요." });
+    if (homeScore == null || awayScore == null) {
+      toast({ variant: "destructive", description: "원정·홈 점수를 선택해주세요." });
       return;
     }
     setSubmitting(true);
@@ -136,8 +135,8 @@ export default function SideBetActionPanel({
         matchId,
         type: "score",
         amount: existingBet?.amount ?? amount,
-        homeScorePick: home,
-        awayScorePick: away,
+        homeScorePick: homeScore,
+        awayScorePick: awayScore,
       });
       toast({ description: isEdit ? "점수 예측이 수정되었습니다." : "최종 스코어 배팅이 접수되었습니다." });
       invalidate();
@@ -186,6 +185,7 @@ export default function SideBetActionPanel({
                 onChange={setAmount}
                 betType="winner"
                 disabled={formDisabled}
+                compact
               />
             )}
             <div className="grid grid-cols-2 gap-2">
@@ -230,42 +230,27 @@ export default function SideBetActionPanel({
                 onChange={setAmount}
                 betType="score"
                 disabled={formDisabled}
+                compact
               />
             )}
             <div className="flex items-end gap-2">
-              <label className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="truncate text-center text-[10px] text-[#888]">원정 · {awayName}</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  min={0}
-                  max={30}
-                  value={awayScore}
-                  disabled={formDisabled}
-                  onChange={(e) => setAwayScore(e.target.value)}
-                  placeholder="0"
-                  className="h-9 w-full rounded-md border border-[#373539] bg-[#141414] text-center text-sm text-white disabled:opacity-50"
-                />
-              </label>
-              <span className="pb-2 text-sm text-[#888]">:</span>
-              <label className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="truncate text-center text-[10px] text-[#888]">홈 · {homeName}</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  min={0}
-                  max={30}
-                  value={homeScore}
-                  disabled={formDisabled}
-                  onChange={(e) => setHomeScore(e.target.value)}
-                  placeholder="0"
-                  className="h-9 w-full rounded-md border border-[#373539] bg-[#141414] text-center text-sm text-white disabled:opacity-50"
-                />
-              </label>
+              <ScorePicker
+                label={`원정 · ${awayName}`}
+                value={awayScore}
+                onChange={setAwayScore}
+                disabled={formDisabled}
+                testId="side-bet-away-score-picker"
+              />
+              <span className="shrink-0 pb-[1.625rem] text-sm text-[#888]">:</span>
+              <ScorePicker
+                label={`홈 · ${homeName}`}
+                value={homeScore}
+                onChange={setHomeScore}
+                disabled={formDisabled}
+                testId="side-bet-home-score-picker"
+              />
             </div>
-            {!locked && !existingBet && homeScore !== "" && awayScore !== "" && (
+            {!locked && !existingBet && homeScore != null && awayScore != null && (
               <p className="text-center text-[11px] text-[#888]">
                 적중 시 {calculateSideBetPayout(amount, "score")}P
               </p>
@@ -287,7 +272,7 @@ export default function SideBetActionPanel({
             type="button"
             disabled={
               formDisabled ||
-              (betType === "winner" ? !winnerPick : homeScore === "" || awayScore === "")
+              (betType === "winner" ? !winnerPick : homeScore == null || awayScore == null)
             }
             onClick={() => void (betType === "winner" ? submitWinner() : submitScore())}
             className="h-10 flex-1 rounded-lg bg-[#CDFF00] text-sm font-bold text-black disabled:opacity-50"
