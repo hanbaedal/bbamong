@@ -1,19 +1,21 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Eye, EyeOff } from "lucide-react";
+import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
 import "@/styles/user-landscape.css";
+import { useUserAssets } from "@/contexts/UserAssetContext";
 import Popup from "@/components/customUi/infoPopup";
 import SignupPanelModal from "@/components/user/SignupPanelModal";
 import { Term } from "@shared/schema";
 import { getFullUrl } from "@/lib/queryClient";
 import { stashSignupLoginPrefill } from "@/lib/loginSession";
-import { lockSignupPortrait } from "@/lib/gameOrientation";
 import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
 
 type SignupPanelModalType = "service" | "privacy" | "disclaimer";
 
 export default function SignupPage() {
   const [, setLocation] = useLocation();
+  const { assets } = useUserAssets();
   const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -66,14 +68,6 @@ export default function SignupPage() {
     hasError ? "user-login-box user-login-box--error" : "user-login-box";
 
   useEffect(() => {
-    void lockSignupPortrait(true);
-    const retries = [250, 700, 1500].map((ms) =>
-      window.setTimeout(() => void lockSignupPortrait(true), ms),
-    );
-    return () => retries.forEach((id) => window.clearTimeout(id));
-  }, []);
-
-  useEffect(() => {
     const fetchTerms = async () => {
       try {
         const [serviceRes, privacyRes] = await Promise.all([
@@ -102,7 +96,7 @@ export default function SignupPage() {
         const data = (await res.json()) as { required?: boolean };
         setPhoneVerificationRequired(data.required === true);
       } catch {
-        /* 기본값: 인증 필요 */
+        /* SOLAPI 미설정 시 인증 UI 숨김 */
       }
     })();
   }, []);
@@ -410,9 +404,117 @@ export default function SignupPage() {
   return (
     <>
       <form onSubmit={handleSubmit} className="user-signup-form" data-testid="signup-page">
-        <div className="user-signup-portrait-page" data-testid="signup-portrait">
-          <div className="user-signup-portrait-scroll">
-            <div className="user-signup-panel">
+        <LandscapeSplitShell
+          testId="signup-landscape"
+          pageClassName="user-landscape-page--signup"
+          left={
+            <>
+              <div className="user-signup-left-top">
+                <div className="user-signup-mascot">
+                  <img
+                    src={assets.userMascot}
+                    alt=""
+                    className="user-signup-mascot-img"
+                    data-testid="img-signup-mascot"
+                  />
+                </div>
+              </div>
+
+              <div className="user-signup-left-bottom">
+                <div
+                  className={`user-login-card user-signup-terms-card${
+                    errors.terms ? " user-signup-terms-card--error" : ""
+                  }`}
+                >
+                  <div className="user-signup-terms-row">
+                    <label htmlFor="terms-service" className="user-signup-terms-label">
+                      <input
+                        id="terms-service"
+                        type="checkbox"
+                        data-testid="checkbox-terms-service"
+                        checked={agreeToTerms}
+                        onChange={(e) => {
+                          setAgreeToTerms(e.target.checked);
+                          setErrors((prev) => ({ ...prev, terms: "" }));
+                        }}
+                        className="user-signup-terms-checkbox"
+                      />
+                      <span>[필수] 서비스 이용약관</span>
+                    </label>
+                    <button
+                      type="button"
+                      data-testid="button-terms-service"
+                      onClick={() => setPanelModal("service")}
+                      className="user-signup-terms-view"
+                    >
+                      전문보기
+                    </button>
+                  </div>
+
+                  <div className="user-signup-terms-row">
+                    <label htmlFor="terms-privacy" className="user-signup-terms-label">
+                      <input
+                        id="terms-privacy"
+                        type="checkbox"
+                        data-testid="checkbox-terms-privacy"
+                        checked={agreeToPrivacy}
+                        onChange={(e) => {
+                          setAgreeToPrivacy(e.target.checked);
+                          setErrors((prev) => ({ ...prev, terms: "" }));
+                        }}
+                        className="user-signup-terms-checkbox"
+                      />
+                      <span>[필수] 개인정보 처리방침</span>
+                    </label>
+                    <button
+                      type="button"
+                      data-testid="button-terms-privacy"
+                      onClick={() => setPanelModal("privacy")}
+                      className="user-signup-terms-view"
+                    >
+                      전문보기
+                    </button>
+                  </div>
+
+                  <div className="user-signup-disclaimer-row">
+                    <span className="user-signup-disclaimer-label">15세 이용가 · 재화 안내</span>
+                    <button
+                      type="button"
+                      data-testid="button-disclaimer-view"
+                      onClick={() => setPanelModal("disclaimer")}
+                      className="user-signup-terms-view"
+                    >
+                      전문보기
+                    </button>
+                  </div>
+                </div>
+
+                {errors.terms ? (
+                  <p className="user-login-error" data-testid="error-terms">
+                    {errors.terms}
+                  </p>
+                ) : null}
+
+                <button
+                  type="submit"
+                  data-testid="button-signup"
+                  disabled={isLoading}
+                  className="user-signup-submit"
+                >
+                  {isLoading ? "가입 중..." : "회원가입"}
+                </button>
+
+                <p className="user-signup-back">
+                  <Link href="/login" data-testid="link-back-login">
+                    로그인으로 돌아가기
+                  </Link>
+                </p>
+              </div>
+            </>
+          }
+          right={
+            <div className="user-signup-right-shell">
+              <div className="user-signup-panel">
               <div className="user-login-card">
                 <div className="user-login-field">
                   <label htmlFor="name" className="user-login-field-label">
@@ -665,7 +767,7 @@ export default function SignupPage() {
                         </>
                       ) : null}
                     </p>
-                  ) : showVerificationInput && verificationTimer === 0 ? (
+                  ) : phoneVerificationRequired && showVerificationInput && verificationTimer === 0 ? (
                     <p className="user-login-error user-login-error--card">
                       인증시간이 만료되었습니다. 재요청 버튼을 눌러주세요.
                     </p>
@@ -726,144 +828,54 @@ export default function SignupPage() {
                   />
                 </div>
               </div>
-            </div>
-
-            <div className="user-signup-portrait-footer">
-              <div
-                className={`user-login-card user-signup-terms-card${
-                  errors.terms ? " user-signup-terms-card--error" : ""
-                }`}
-              >
-                <div className="user-signup-terms-row">
-                  <label htmlFor="terms-service" className="user-signup-terms-label">
-                    <input
-                      id="terms-service"
-                      type="checkbox"
-                      data-testid="checkbox-terms-service"
-                      checked={agreeToTerms}
-                      onChange={(e) => {
-                        setAgreeToTerms(e.target.checked);
-                        setErrors((prev) => ({ ...prev, terms: "" }));
-                      }}
-                      className="user-signup-terms-checkbox"
-                    />
-                    <span>[필수] 서비스 이용약관</span>
-                  </label>
-                  <button
-                    type="button"
-                    data-testid="button-terms-service"
-                    onClick={() => setPanelModal("service")}
-                    className="user-signup-terms-view"
-                  >
-                    전문보기
-                  </button>
-                </div>
-
-                <div className="user-signup-terms-row">
-                  <label htmlFor="terms-privacy" className="user-signup-terms-label">
-                    <input
-                      id="terms-privacy"
-                      type="checkbox"
-                      data-testid="checkbox-terms-privacy"
-                      checked={agreeToPrivacy}
-                      onChange={(e) => {
-                        setAgreeToPrivacy(e.target.checked);
-                        setErrors((prev) => ({ ...prev, terms: "" }));
-                      }}
-                      className="user-signup-terms-checkbox"
-                    />
-                    <span>[필수] 개인정보 처리방침</span>
-                  </label>
-                  <button
-                    type="button"
-                    data-testid="button-terms-privacy"
-                    onClick={() => setPanelModal("privacy")}
-                    className="user-signup-terms-view"
-                  >
-                    전문보기
-                  </button>
-                </div>
-
-                <div className="user-signup-disclaimer-row">
-                  <span className="user-signup-disclaimer-label">15세 이용가 · 재화 안내</span>
-                  <button
-                    type="button"
-                    data-testid="button-disclaimer-view"
-                    onClick={() => setPanelModal("disclaimer")}
-                    className="user-signup-terms-view"
-                  >
-                    전문보기
-                  </button>
-                </div>
               </div>
 
-              {errors.terms ? (
-                <p className="user-login-error" data-testid="error-terms">
-                  {errors.terms}
-                </p>
-              ) : null}
-
-              <button
-                type="submit"
-                data-testid="button-signup"
-                disabled={isLoading}
-                className="user-signup-submit"
+              <SignupPanelModal
+                open={panelModal !== null}
+                title={
+                  panelModal === "service"
+                    ? serviceTerm?.title || "서비스 이용약관"
+                    : panelModal === "privacy"
+                      ? privacyTerm?.title || "개인정보 처리방침"
+                      : "이용 안내"
+                }
+                onClose={() => setPanelModal(null)}
+                testId={
+                  panelModal === "service"
+                    ? "terms-modal"
+                    : panelModal === "privacy"
+                      ? "terms-modal"
+                      : "disclaimer-modal"
+                }
               >
-                {isLoading ? "가입 중..." : "회원가입"}
-              </button>
-
-              <p className="user-signup-back">
-                <Link href="/login" data-testid="link-back-login">
-                  로그인으로 돌아가기
-                </Link>
-              </p>
+                {panelModal === "disclaimer" ? (
+                  <img
+                    src={splashDisclaimer}
+                    alt="15세 이용가 및 재화 안내"
+                    className="user-auth-panel-modal-image"
+                    data-testid="disclaimer-modal-image"
+                  />
+                ) : panelModal === "service" ? (
+                  serviceTerm?.content ? (
+                    <p className="user-auth-panel-modal-text" data-testid="terms-content">
+                      {serviceTerm.content}
+                    </p>
+                  ) : (
+                    <p className="user-auth-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
+                  )
+                ) : panelModal === "privacy" ? (
+                  privacyTerm?.content ? (
+                    <p className="user-auth-panel-modal-text" data-testid="terms-content">
+                      {privacyTerm.content}
+                    </p>
+                  ) : (
+                    <p className="user-auth-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
+                  )
+                ) : null}
+              </SignupPanelModal>
             </div>
-          </div>
-
-          <SignupPanelModal
-            open={panelModal !== null}
-            title={
-              panelModal === "service"
-                ? serviceTerm?.title || "서비스 이용약관"
-                : panelModal === "privacy"
-                  ? privacyTerm?.title || "개인정보 처리방침"
-                  : "이용 안내"
-            }
-            onClose={() => setPanelModal(null)}
-            testId={
-              panelModal === "service"
-                ? "terms-modal"
-                : panelModal === "privacy"
-                  ? "terms-modal"
-                  : "disclaimer-modal"
-            }
-          >
-            {panelModal === "disclaimer" ? (
-              <img
-                src={splashDisclaimer}
-                alt="15세 이용가 및 재화 안내"
-                className="user-auth-panel-modal-image"
-                data-testid="disclaimer-modal-image"
-              />
-            ) : panelModal === "service" ? (
-              serviceTerm?.content ? (
-                <p className="user-auth-panel-modal-text" data-testid="terms-content">
-                  {serviceTerm.content}
-                </p>
-              ) : (
-                <p className="user-auth-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
-              )
-            ) : panelModal === "privacy" ? (
-              privacyTerm?.content ? (
-                <p className="user-auth-panel-modal-text" data-testid="terms-content">
-                  {privacyTerm.content}
-                </p>
-              ) : (
-                <p className="user-auth-panel-modal-empty">약관 내용을 불러올 수 없습니다.</p>
-              )
-            ) : null}
-          </SignupPanelModal>
-        </div>
+          }
+        />
       </form>
 
       {showSuccessPopup ? (
