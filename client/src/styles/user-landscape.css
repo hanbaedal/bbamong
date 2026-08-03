@@ -976,6 +976,52 @@
   color: #bfbfbf;
 }
 
+/* 로그인 — 세로(모바일 웹) 1열 스택 */
+.user-landscape-page--login {
+  overflow-y: auto;
+}
+
+@media (orientation: portrait), (max-aspect-ratio: 1/1) {
+  .user-landscape-page--login .user-landscape-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: clamp(8px, 2vh, 16px);
+    align-items: stretch;
+  }
+
+  .user-landscape-page--login .user-landscape-left {
+    justify-content: flex-end;
+    padding-top: clamp(4px, 1vh, 8px);
+  }
+
+  .user-landscape-page--login .user-login-mascot-track {
+    height: clamp(72px, 14vh, 104px);
+  }
+
+  .user-landscape-page--login .user-login-mascot-img {
+    max-height: clamp(64px, 12vh, 88px);
+    width: clamp(72px, 18vw, 96px);
+  }
+
+  .user-landscape-page--login .user-landscape-disclaimer {
+    max-width: min(260px, 92%);
+    margin-top: clamp(0.6em, 1.5vh, 1em);
+  }
+
+  .user-landscape-page--login .user-landscape-right {
+    justify-content: flex-start;
+    padding-bottom: clamp(8px, 2vh, 16px);
+  }
+
+  .user-landscape-page--login .user-login-panel {
+    max-width: min(360px, 100%);
+  }
+
+  .user-landscape-page--login .user-login-fields {
+    margin-top: 0;
+  }
+}
+
 /* 게임 시뮬레이션 — 가로 2등분 */
 .user-sim-left {
   display: flex;

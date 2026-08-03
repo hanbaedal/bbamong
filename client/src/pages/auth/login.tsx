@@ -491,6 +491,7 @@ export default function LoginPage() {
     <>
       <LandscapeSplitShell
         testId="login-page"
+        pageClassName="user-landscape-page--login"
         left={
           <div className="user-login-left">
             <div className="user-login-mascot-track" aria-hidden>
@@ -526,7 +527,7 @@ export default function LoginPage() {
                     placeholder="아이디 입력"
                     value={email}
                     onChange={handleEmailChange}
-                    className={boxErrorClass(Boolean(errors.email || errors.general))}
+                    className={boxErrorClass(Boolean(errors.email))}
                     autoComplete="username"
                   />
                   {errors.email ? (
@@ -548,7 +549,7 @@ export default function LoginPage() {
                       placeholder="비밀번호 입력"
                       value={password}
                       onChange={handlePasswordChange}
-                      className={boxErrorClass(Boolean(errors.password || errors.general))}
+                      className={boxErrorClass(Boolean(errors.password))}
                       style={{ paddingRight: 36 }}
                       autoComplete="current-password"
                     />
