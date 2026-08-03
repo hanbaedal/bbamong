@@ -1,12 +1,11 @@
-import { Switch, Route, Redirect, useLocation, useRoute } from "wouter";
+import { Switch, Route, Redirect, useRoute } from "wouter";
 import { useState, useEffect } from "react";
-import { queryClient, getOrRefreshAccessToken } from "./lib/queryClient";
+import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UserProvider, useUser } from "@/contexts/UserContext";
 import { UserAssetProvider } from "@/contexts/UserAssetContext";
-import { clearTokens } from "@/lib/tokenManager";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
@@ -44,89 +43,15 @@ import VictoryHistoryPage from "@/pages/setting/victory-history";
 import InvitePage from "@/pages/setting/invite";
 import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
-import { completeLoginNavigation, openMallFromApp, DEFAULT_POST_LOGIN_FALLBACK, GAME_PATH } from "@/lib/appNavigation";
+import UserSessionExpiredPopup from "@/components/UserSessionExpiredPopup";
+import { openMallFromApp, GAME_PATH } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
-import { peekSkipLoginBootstrap, shouldSkipLoginBootstrap } from "@/lib/loginSession";
-
-type LoginBootstrapPhase = "checking" | "ready";
 
 function LegacyMallRedirect({ target }: { target: string }) {
   useEffect(() => {
     window.location.replace(target);
   }, [target]);
   return null;
-}
-
-function BootstrapLoading() {
-  return (
-    <div className="fixed inset-0 bg-white flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-[#E11936] border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
-}
-
-function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
-  const [location, setLocation] = useLocation();
-  const isLoginPath = location.split("?")[0] === "/login";
-  const skipBootstrap = isLoginPath && peekSkipLoginBootstrap(location);
-  const [loginPhase, setLoginPhase] = useState<LoginBootstrapPhase>(
-    isLoginPath && !skipBootstrap ? "checking" : "ready",
-  );
-  const { refetchUser } = useUser();
-
-  useEffect(() => {
-    preloadUserAssets();
-  }, []);
-
-  useEffect(() => {
-    if (!isLoginPath) {
-      setLoginPhase("ready");
-      return;
-    }
-
-    if (shouldSkipLoginBootstrap(location)) {
-      setLoginPhase("ready");
-      return;
-    }
-
-    let cancelled = false;
-
-    const bootstrapLogin = async () => {
-      setLoginPhase("checking");
-
-      try {
-        const token = await getOrRefreshAccessToken();
-        if (cancelled) return;
-
-        if (token) {
-          await refetchUser();
-          if (cancelled) return;
-
-          await completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
-          setLoginPhase("ready");
-          return;
-        }
-      } catch (error) {
-        console.log("Auto login failed:", error);
-        await clearTokens();
-      }
-
-      if (cancelled) return;
-      setLoginPhase("ready");
-    };
-
-    void bootstrapLogin();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isLoginPath, location, setLocation, refetchUser]);
-
-  if (isLoginPath && loginPhase === "checking") {
-    return <BootstrapLoading />;
-  }
-
-  return <>{children}</>;
 }
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType<any> }) {
@@ -290,6 +215,10 @@ function AppStateManager({ children }: { children: React.ReactNode }) {
 
 function UserApp() {
   useEffect(() => {
+    preloadUserAssets();
+  }, []);
+
+  useEffect(() => {
     const iconLink =
       document.querySelector<HTMLLinkElement>("link[rel='icon']") ??
       (() => {
@@ -316,10 +245,9 @@ function UserApp() {
             <AppStateManager>
               <GameOrientationManager />
               <GameEmbedBootstrap />
-              <AutoLoginWrapper>
-                <Toaster />
-                <Router />
-              </AutoLoginWrapper>
+              <Toaster />
+              <UserSessionExpiredPopup />
+              <Router />
             </AppStateManager>
           </TooltipProvider>
         </UserProvider>

@@ -1,5 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clearTokens } from "./tokenManager";
+import { notifyUserSessionExpired } from "./userLoginAuth";
 import { Capacitor } from "@capacitor/core";
 
 // API Base URL - 모바일 앱용 (실제 도메인)
@@ -84,6 +85,7 @@ async function refreshUserAccessToken(): Promise<boolean> {
           refreshFailedAt = Date.now();
           networkFailCount = 0;
           await clearTokens();
+          notifyUserSessionExpired();
         } else {
           console.log(`[Token] No refresh token (${networkFailCount}/${MAX_NETWORK_FAILURES} - keeping tokens)`);
         }
@@ -105,6 +107,7 @@ async function refreshUserAccessToken(): Promise<boolean> {
           refreshFailedAt = Date.now();
           networkFailCount = 0;
           await clearTokens();
+          notifyUserSessionExpired();
         } else {
           console.log(`[Token] Refresh token rejected (${networkFailCount}/${MAX_NETWORK_FAILURES} - keeping tokens for retry)`);
         }
@@ -126,6 +129,7 @@ async function refreshUserAccessToken(): Promise<boolean> {
         refreshFailedAt = Date.now();
         networkFailCount = 0;
         await clearTokens();
+        notifyUserSessionExpired();
       } else {
         console.error(`[Token] Token refresh failed (network error ${networkFailCount}/${MAX_NETWORK_FAILURES} - keeping tokens):`, error);
       }

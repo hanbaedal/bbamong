@@ -63,13 +63,6 @@ export function SessionExpiredPopup() {
       setLocation("/manager/login");
     };
 
-    const handleUserSessionExpired = () => {
-      if (isProcessingRef.current) return;
-      isProcessingRef.current = true;
-      setRedirectPath("/");
-      setPopupType("session-expired");
-    };
-
     const handleAdminDuplicateLogin = () => {
       if (isProcessingRef.current) return;
       isProcessingRef.current = true;
@@ -90,29 +83,18 @@ export function SessionExpiredPopup() {
       setPopupType("duplicate-login");
     };
 
-    const handleUserDuplicateLogin = () => {
-      if (isProcessingRef.current) return;
-      isProcessingRef.current = true;
-      setRedirectPath("/");
-      setPopupType("duplicate-login");
-    };
-
     window.addEventListener("admin-session-expired", handleAdminSessionExpired);
     window.addEventListener("manager-session-expired", handleManagerSessionExpired);
     window.addEventListener("manager-match-ended", handleManagerMatchEnded);
-    window.addEventListener("user-session-expired", handleUserSessionExpired);
     window.addEventListener("admin-duplicate-login", handleAdminDuplicateLogin);
     window.addEventListener("manager-duplicate-login", handleManagerDuplicateLogin);
-    window.addEventListener("user-duplicate-login", handleUserDuplicateLogin);
 
     return () => {
       window.removeEventListener("admin-session-expired", handleAdminSessionExpired);
       window.removeEventListener("manager-session-expired", handleManagerSessionExpired);
       window.removeEventListener("manager-match-ended", handleManagerMatchEnded);
-      window.removeEventListener("user-session-expired", handleUserSessionExpired);
       window.removeEventListener("admin-duplicate-login", handleAdminDuplicateLogin);
       window.removeEventListener("manager-duplicate-login", handleManagerDuplicateLogin);
-      window.removeEventListener("user-duplicate-login", handleUserDuplicateLogin);
     };
   }, []);
 

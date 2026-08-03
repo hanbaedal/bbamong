@@ -45,11 +45,6 @@ export function isMemberOnlyLoginIntent(search = window.location.search): boolea
   return new URLSearchParams(search).get("guest") === "0";
 }
 
-/** @deprecated */
-export function isIntroStaffLoginReturn(search = window.location.search): boolean {
-  return false;
-}
-
 /** @deprecated 보물창고 제거 */
 export function isMemberShopPath(path: string): boolean {
   return false;

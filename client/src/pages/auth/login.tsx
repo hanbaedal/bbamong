@@ -5,20 +5,48 @@ import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
 import "@/styles/user-landscape.css";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
-import { getFullUrl, resetRefreshCooldown } from "@/lib/queryClient";
-import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
-import { isIntroStaffLoginReturn, clearGuestSessionArtifacts } from "@/lib/shopRoutes";
-import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
+import { getFullUrl } from "@/lib/queryClient";
+import { isGuestLoginAllowed } from "@/lib/shopRoutes";
+import { finalizeUserSessionLogin, tryRestoreUserSession } from "@/lib/userLoginAuth";
+import { peekSkipLoginBootstrap, shouldSkipLoginBootstrap } from "@/lib/loginSession";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import SimpleInfoPopup from "@/components/customUi/simpleInfoPopup";
 import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
 
+type LoginBootstrapPhase = "checking" | "ready";
+
+function hasSocialLoginCallback(search: string): boolean {
+  return (
+    search.includes("kakao_login") ||
+    search.includes("google_login") ||
+    search.includes("apple_login") ||
+    search.includes("error")
+  );
+}
+
+function LoginBootstrapLoading() {
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-[#111111] flex items-center justify-center"
+      data-testid="login-bootstrap-loading"
+    >
+      <div className="w-8 h-8 border-2 border-[#CDFF00] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
 export default function LoginPage() {
-  const [, setLocation] = useLocation();
-  const { user, setUser, isUserLoaded } = useUser();
+  const [location, setLocation] = useLocation();
+  const { setUser } = useUser();
   const { assets } = useUserAssets();
+  const guestLoginAllowed = isGuestLoginAllowed(location);
+  const skipInitialBootstrap = peekSkipLoginBootstrap();
+  const [bootstrapPhase, setBootstrapPhase] = useState<LoginBootstrapPhase>(
+    skipInitialBootstrap ? "ready" : "checking",
+  );
+  const bootstrapStartedRef = useRef(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -35,31 +63,36 @@ export default function LoginPage() {
 
   const socialLoginSucceededRef = useRef(false);
   const [isGuestLoading, setIsGuestLoading] = useState(false);
-  const sessionRedirectDoneRef = useRef(false);
 
-  // 공개 홈 소개(/)의 구 회원 로그인 링크 → 관리자 로그인
-  useEffect(() => {
-    if (isIntroStaffLoginReturn()) {
-      window.location.replace("/admin/login");
-    }
-  }, []);
+  const boxErrorClass = (hasError: boolean) =>
+    hasError ? "user-login-box user-login-box--error" : "user-login-box";
 
-  // 이미 로그인된 회원이 /login 접속 시에만 이동 (게스트·홈페이지 로그인 처리 중 제외)
   useEffect(() => {
-    if (
-      sessionRedirectDoneRef.current ||
-      !isUserLoaded ||
-      !user ||
-      isGuestLoading ||
-      isLoading
-    ) {
+    if (bootstrapStartedRef.current) return;
+    bootstrapStartedRef.current = true;
+
+    const search = window.location.search;
+    if (hasSocialLoginCallback(search) || shouldSkipLoginBootstrap()) {
+      setBootstrapPhase("ready");
       return;
     }
-    if (user) {
-      sessionRedirectDoneRef.current = true;
-      void completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
-    }
-  }, [isUserLoaded, user, isGuestLoading, isLoading, setLocation]);
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await tryRestoreUserSession(setUser, setLocation);
+      } catch (error) {
+        console.log("[Login] session restore failed:", error);
+      } finally {
+        if (!cancelled) setBootstrapPhase("ready");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setLocation, setUser]);
 
   const handleGuestLogin = async () => {
     if (isGuestLoading || isLoading) return;
@@ -84,9 +117,7 @@ export default function LoginPage() {
         if (savedGuestId && response.status >= 500) {
           localStorage.removeItem("guest_user_id");
         }
-        if (data.error === "already_logged_in") {
-          setErrors({ email: "", password: "", general: "이미 다른 기기에서 로그인 중입니다." });
-        } else if (data.error === "suspended") {
+        if (data.error === "suspended") {
           setErrors({
             email: "",
             password: "",
@@ -106,23 +137,16 @@ export default function LoginPage() {
         localStorage.setItem("guest_user_id", data.user.id);
       }
 
-      resetRefreshCooldown();
-      if (data.accessToken) {
-        setAccessToken(data.accessToken);
+      const ok = await finalizeUserSessionLogin(
+        data.accessToken,
+        data.refreshToken,
+        setUser,
+        setLocation,
+        data.user ?? null,
+      );
+      if (!ok) {
+        setErrors({ email: "", password: "", general: "게스트 로그인 후 사용자 정보를 불러오지 못했습니다." });
       }
-      if (data.refreshToken) {
-        try {
-          await saveRefreshToken(data.refreshToken);
-        } catch (tokenError) {
-          console.error("[GuestLogin] refreshToken 저장 실패:", tokenError);
-        }
-      }
-
-      if (data.user) {
-        setUser(data.user);
-      }
-      sessionRedirectDoneRef.current = true;
-      await completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
     } catch (error) {
       console.error("게스트 로그인 실패:", error);
       setErrors({ email: "", password: "", general: "게스트 로그인 중 오류가 발생했습니다." });
@@ -187,14 +211,12 @@ export default function LoginPage() {
           : null;
 
     if (provider && authCode) {
-      // 신규 사용자: 추가정보 입력 페이지로 이동 (계정 미생성 상태)
       if (needsOnboarding) {
         socialLoginSucceededRef.current = true;
-        setTimeout(() => setLocation(`/social-onboarding?code=${authCode}`, { replace: true }), 0);
+        setLocation(`/social-onboarding?code=${authCode}`, { replace: true });
         return;
       }
 
-      // 기존 사용자: 토큰 교환 후 로그인
       try {
         const tokenResponse = await fetch(
           getFullUrl(`/api/auth/${provider}/exchange-token`),
@@ -206,60 +228,30 @@ export default function LoginPage() {
         );
 
         if (!tokenResponse.ok) {
-          if (socialLoginSucceededRef.current) {
-            return;
-          }
           const errorData = await tokenResponse.json().catch(() => ({}));
           console.error("토큰 교환 실패:", errorData);
           throw new Error("토큰 교환 실패");
         }
 
         const { accessToken, refreshToken } = await tokenResponse.json();
+        const ok = await finalizeUserSessionLogin(
+          accessToken,
+          refreshToken,
+          setUser,
+          setLocation,
+        );
 
-        socialLoginSucceededRef.current = true;
-
-        clearGuestSessionArtifacts();
-        resetRefreshCooldown();
-        setAccessToken(accessToken);
-        await saveRefreshToken(refreshToken);
-
-        try {
-          const meResponse = await fetch(getFullUrl("/api/users/me"), {
-            method: "GET",
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-            },
-          });
-
-          if (meResponse.ok) {
-            const userData = await meResponse.json();
-            let userObj;
-            if (userData.success && userData.user) {
-              userObj = {
-                ...userData.user,
-                attendanceRecords: userData.attendanceRecords || [],
-              };
-            } else {
-              userObj = {
-                ...userData,
-                attendanceRecords: [],
-              };
-            }
-            setUser(userObj);
-
-            await completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
-            return;
-          }
-        } catch (meError) {
-          console.error(`[${provider}] /api/users/me 오류:`, meError);
-        }
-
-        await completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
-        return;
-      } catch (error) {
-        if (socialLoginSucceededRef.current) {
+        if (ok) {
+          socialLoginSucceededRef.current = true;
           return;
         }
+
+        socialLoginSucceededRef.current = false;
+        setErrors((prev) => ({
+          ...prev,
+          general: "로그인 정보를 불러오지 못했습니다. 다시 시도해 주세요.",
+        }));
+      } catch (error) {
         console.error(`${provider} 로그인 후 처리 실패:`, error);
         setErrors((prev) => ({
           ...prev,
@@ -268,10 +260,8 @@ export default function LoginPage() {
       }
     }
     } finally {
-      if (!socialLoginSucceededRef.current) {
-        socialLoginProcessingRef.current = false;
-        setIsLoading(false);
-      }
+      socialLoginProcessingRef.current = false;
+      setIsLoading(false);
     }
   };
 
@@ -436,50 +426,26 @@ export default function LoginPage() {
         }),
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get("content-type") ?? "";
+      const data = contentType.includes("application/json")
+        ? await response.json()
+        : { error: "로그인에 실패했습니다." };
 
       if (response.ok) {
-        clearGuestSessionArtifacts();
-        resetRefreshCooldown();
-        setAccessToken(data.accessToken);
-        await saveRefreshToken(data.refreshToken);
-
-        try {
-          const meResponse = await fetch(getFullUrl("/api/users/me"), {
-            method: "GET",
-            headers: {
-              'Authorization': `Bearer ${data.accessToken}`,
-            },
-          });
-
-          if (meResponse.ok) {
-            const meData = await meResponse.json();
-            if (meData.success && meData.user) {
-              setUser({
-                ...meData.user,
-                attendanceRecords: meData.attendanceRecords || [],
-              });
-            } else {
-              setUser({
-                ...data.user,
-                attendanceRecords: [],
-              });
-            }
-          } else {
-            setUser({
-              ...data.user,
-              attendanceRecords: [],
-            });
-          }
-        } catch {
-          setUser({
-            ...data.user,
-            attendanceRecords: [],
+        const ok = await finalizeUserSessionLogin(
+          data.accessToken,
+          data.refreshToken,
+          setUser,
+          setLocation,
+          data.user ?? null,
+        );
+        if (!ok) {
+          setErrors({
+            email: "",
+            password: "",
+            general: "로그인 후 사용자 정보를 불러오지 못했습니다.",
           });
         }
-
-        sessionRedirectDoneRef.current = true;
-        await completeLoginNavigation(setLocation, DEFAULT_POST_LOGIN_FALLBACK);
       } else {
         if (data.error === "suspended") {
           setShowSuspendedPopup(true);
@@ -517,6 +483,10 @@ export default function LoginPage() {
     }
   };
 
+  if (bootstrapPhase === "checking") {
+    return <LoginBootstrapLoading />;
+  }
+
   return (
     <>
       <LandscapeSplitShell
@@ -544,91 +514,99 @@ export default function LoginPage() {
         right={
           <form onSubmit={handleSubmit} className="user-login-panel">
             <div className="user-login-fields">
-            <div className="user-login-row">
-              <span className="user-login-label">아이디</span>
-              <input
-                id="email"
-                type="text"
-                data-testid="input-email"
-                placeholder="입력"
-                value={email}
-                onChange={handleEmailChange}
-                className={`user-login-box ${errors.email || errors.general ? "user-login-box--error" : ""}`}
-                autoComplete="username"
-              />
-            </div>
-            {errors.email ? (
-              <p className="user-login-error" data-testid="error-email">
-                {errors.email}
-              </p>
-            ) : null}
+              <div className="user-login-card">
+                <div className="user-login-field">
+                  <label htmlFor="email" className="user-login-field-label">
+                    아이디
+                  </label>
+                  <input
+                    id="email"
+                    type="text"
+                    data-testid="input-email"
+                    placeholder="아이디 입력"
+                    value={email}
+                    onChange={handleEmailChange}
+                    className={boxErrorClass(Boolean(errors.email || errors.general))}
+                    autoComplete="username"
+                  />
+                  {errors.email ? (
+                    <p className="user-login-error user-login-error--card" data-testid="error-email">
+                      {errors.email}
+                    </p>
+                  ) : null}
+                </div>
 
-            <div className="user-login-row">
-              <span className="user-login-label">비밀번호</span>
-              <div className="user-login-box-wrap">
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  data-testid="input-password"
-                  placeholder="입력"
-                  value={password}
-                  onChange={handlePasswordChange}
-                  className={`user-login-box ${errors.password || errors.general ? "user-login-box--error" : ""}`}
-                  style={{ paddingRight: 36 }}
-                  autoComplete="current-password"
-                />
+                <div className="user-login-field">
+                  <label htmlFor="password" className="user-login-field-label">
+                    비밀번호
+                  </label>
+                  <div className="user-login-box-wrap">
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      data-testid="input-password"
+                      placeholder="비밀번호 입력"
+                      value={password}
+                      onChange={handlePasswordChange}
+                      className={boxErrorClass(Boolean(errors.password || errors.general))}
+                      style={{ paddingRight: 36 }}
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      data-testid="button-toggle-password"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="user-login-box-toggle"
+                      aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {errors.password ? (
+                    <p className="user-login-error user-login-error--card" data-testid="error-password">
+                      {errors.password}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              {errors.general ? (
+                <p className="user-login-error user-login-error--below" data-testid="error-general">
+                  {errors.general}
+                </p>
+              ) : null}
+
+              <div className="user-login-actions">
                 <button
-                  type="button"
-                  data-testid="button-toggle-password"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="user-login-box-toggle"
-                  aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                  type="submit"
+                  disabled={isLoading}
+                  data-testid="button-login"
+                  className="user-login-submit"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {isLoading ? "로그인 중..." : "로그인"}
                 </button>
+                <p className="user-login-forgot">
+                  <Link href="/forgot-password" data-testid="link-forgot-password">
+                    비밀번호를 잊으셨나요?
+                  </Link>
+                </p>
               </div>
             </div>
-            {errors.password ? (
-              <p className="user-login-error" data-testid="error-password">
-                {errors.password}
-              </p>
+
+            {guestLoginAllowed ? (
+              <>
+                <div className="user-login-divider" aria-hidden />
+                <button
+                  type="button"
+                  onClick={handleGuestLogin}
+                  data-testid="button-guest-login"
+                  disabled={isGuestLoading}
+                  className="user-login-link"
+                >
+                  {isGuestLoading ? "로그인 중..." : "게스트로 로그인"}
+                </button>
+              </>
             ) : null}
-            {errors.general && !errors.email && !errors.password ? (
-              <p className="user-login-error" data-testid="error-general">
-                {errors.general}
-              </p>
-            ) : null}
-
-            <div className="user-login-actions">
-              <button
-                type="submit"
-                disabled={isLoading}
-                data-testid="button-login"
-                className="user-login-submit user-login-submit--compact"
-              >
-                {isLoading ? "로그인 중..." : "로그인"}
-              </button>
-              <p className="user-login-forgot">
-                <Link href="/forgot-password" data-testid="link-forgot-password">
-                  비밀번호를 잊으셨나요?
-                </Link>
-              </p>
-            </div>
-            </div>
-
-            <div className="user-login-submit-spacer" aria-hidden />
-
-            <div className="user-login-divider" aria-hidden />
-
-            <button
-              type="button"
-              onClick={handleGuestLogin}
-              data-testid="button-guest-login"
-              disabled={isGuestLoading}
-              className="user-login-link"
-            >
-              {isGuestLoading ? "로그인 중..." : "게스트로 로그인"}
-            </button>
 
             <div className="user-login-divider" aria-hidden />
 
