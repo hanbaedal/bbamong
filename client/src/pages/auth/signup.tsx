@@ -7,6 +7,7 @@ import SignupPanelModal from "@/components/user/SignupPanelModal";
 import { Term } from "@shared/schema";
 import { getFullUrl } from "@/lib/queryClient";
 import { stashSignupLoginPrefill } from "@/lib/loginSession";
+import { lockSignupPortrait } from "@/lib/gameOrientation";
 import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
 
 type SignupPanelModalType = "service" | "privacy" | "disclaimer";
@@ -63,6 +64,10 @@ export default function SignupPage() {
 
   const boxErrorClass = (hasError: boolean) =>
     hasError ? "user-login-box user-login-box--error" : "user-login-box";
+
+  useEffect(() => {
+    void lockSignupPortrait();
+  }, []);
 
   useEffect(() => {
     const fetchTerms = async () => {

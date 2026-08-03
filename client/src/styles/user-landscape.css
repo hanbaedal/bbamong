@@ -1219,6 +1219,15 @@
 }
 
 /* 회원가입 — 세로 단일 스크롤 (폼 → 약관·면책 → 가입 · 빠몽이 없음) */
+html.user-signup-portrait-active,
+html.user-signup-portrait-active body,
+html.user-signup-portrait-active #root {
+  height: 100%;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
 .user-signup-form {
   height: 100dvh;
   min-height: 100dvh;
@@ -1389,6 +1398,46 @@
 .user-signup-panel .user-login-field > .user-signup-success {
   grid-column: 1 / -1;
   padding-left: calc(clamp(64px, 16vw, 80px) + clamp(6px, 1.5vw, 8px));
+}
+
+/* 세로 회원가입 페이지 — 가로 grid 폼 규칙 덮어쓰기 */
+.user-signup-portrait-page .user-signup-panel .user-login-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: clamp(4px, 1vh, 6px);
+}
+
+.user-signup-portrait-page .user-signup-panel .user-login-field-label {
+  grid-column: unset;
+  grid-row: unset;
+  align-self: stretch;
+}
+
+.user-signup-portrait-page .user-signup-panel .user-login-field > .user-signup-inline-field,
+.user-signup-portrait-page .user-signup-panel .user-login-field > .user-login-box-wrap,
+.user-signup-portrait-page .user-signup-panel .user-login-field > .user-login-box,
+.user-signup-portrait-page .user-signup-panel .user-login-field > input,
+.user-signup-portrait-page .user-signup-panel .user-login-field > .user-signup-verify-row {
+  grid-column: unset;
+  grid-row: unset;
+  width: 100%;
+  min-width: 0;
+}
+
+.user-signup-portrait-page .user-signup-panel .user-login-field > .user-login-error,
+.user-signup-portrait-page .user-signup-panel .user-login-field > .user-signup-success {
+  padding-left: 0;
+}
+
+.user-signup-portrait-page .user-signup-panel .user-login-box {
+  height: clamp(36px, 5vh, 42px);
+  font-size: clamp(13px, 3.4vw, 15px);
+}
+
+.user-signup-portrait-page .user-signup-panel .user-signup-inline-btn {
+  min-height: clamp(36px, 5vh, 42px);
+  font-size: clamp(11px, 2.8vw, 13px);
 }
 
 .user-signup-panel .user-login-box {

@@ -2,10 +2,22 @@ import { Capacitor } from "@capacitor/core";
 import { ScreenOrientation } from "@capacitor/screen-orientation";
 import { isMallPath } from "./shopRoutes";
 
-async function lockOrientation(orientation: "landscape" | "portrait"): Promise<void> {
+type AppOrientation = "landscape" | "portrait";
+
+let lastLockedOrientation: AppOrientation | null = null;
+
+async function lockOrientation(orientation: AppOrientation): Promise<void> {
+  if (lastLockedOrientation === orientation) {
+    return;
+  }
+
   if (Capacitor.isNativePlatform()) {
     try {
+      if (lastLockedOrientation !== null && lastLockedOrientation !== orientation) {
+        await ScreenOrientation.unlock();
+      }
       await ScreenOrientation.lock({ orientation });
+      lastLockedOrientation = orientation;
       return;
     } catch (err) {
       console.warn(`[Orientation] ${orientation} lock failed:`, err);
@@ -18,10 +30,15 @@ async function lockOrientation(orientation: "landscape" | "portrait"): Promise<v
     };
     if (typeof screenOrientation?.lock === "function") {
       await screenOrientation.lock(orientation);
+      lastLockedOrientation = orientation;
     }
   } catch {
     /* 브라우저 정책상 거부될 수 있음 */
   }
+}
+
+export function setSignupPortraitDocumentClass(active: boolean): void {
+  document.documentElement.classList.toggle("user-signup-portrait-active", active);
 }
 
 /** 게임·로그인·회원가입 — 가로 고정 (Capacitor 네이티브 + Web API 폴백) */
