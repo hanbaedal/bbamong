@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
-import { Home, User, ShoppingBag, BookOpen } from "lucide-react";
+import { Home, User, Gift, BookOpen } from "lucide-react";
 
 export type GameMenuAction = "home" | "story" | "mall" | "info";
 
@@ -18,7 +18,7 @@ interface GameLeftMenuProps {
 const ITEMS: { id: GameMenuAction; label: string; Icon: typeof Home }[] = [
   { id: "home", label: "홈", Icon: Home },
   { id: "story", label: "내이야기", Icon: BookOpen },
-  { id: "mall", label: "기념품", Icon: ShoppingBag },
+  { id: "mall", label: "기념품", Icon: Gift },
   { id: "info", label: "내정보", Icon: User },
 ];
 
@@ -85,9 +85,9 @@ export default function GameLeftMenu({
             }`}
           >
             <Icon
-              className={`w-6 h-6 sm:w-7 sm:h-7 text-[#FFD700] drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] ${
-                active ? "scale-110" : ""
-              }`}
+              className={`w-6 h-6 sm:w-7 sm:h-7 drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] ${
+                id === "mall" ? "text-[#DC143C]" : "text-[#FFD700]"
+              } ${active ? "scale-110" : ""}`}
               strokeWidth={2}
             />
             <span

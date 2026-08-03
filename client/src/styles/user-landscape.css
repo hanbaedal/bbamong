@@ -775,6 +775,16 @@
   object-fit: contain;
 }
 
+.user-landscape-menu-icon--gift,
+.user-landscape-menu-icon--gift svg {
+  color: #dc143c;
+}
+
+.user-landscape-menu-icon--gift svg {
+  width: 100%;
+  height: 100%;
+}
+
 .user-landscape-menu-icon-img--color {
   width: 100%;
   height: 100%;

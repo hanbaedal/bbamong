@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, ShoppingBag } from "lucide-react";
+import { ChevronRight, Gift } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
@@ -115,7 +115,7 @@ export default function HomePage() {
       id: "mall",
       label: mallLabel,
       onClick: () => navigateToMall(),
-      icon: <ShoppingBag className="w-full h-full text-[#FF9500]" strokeWidth={2} aria-hidden />,
+      icon: <Gift className="w-full h-full" strokeWidth={2} aria-hidden />,
     });
   }
 
@@ -199,7 +199,11 @@ export default function HomePage() {
                 data-testid={`button-home-${item.id}`}
                 className="user-landscape-menu-item"
               >
-                <span className="user-landscape-menu-icon">{item.icon}</span>
+                <span
+                  className={`user-landscape-menu-icon${item.id === "mall" ? " user-landscape-menu-icon--gift" : ""}`}
+                >
+                  {item.icon}
+                </span>
                 <span>{item.label}</span>
                 <ChevronRight className="menu-chevron" aria-hidden />
               </button>
