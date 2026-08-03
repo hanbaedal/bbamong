@@ -1,5 +1,7 @@
 /** 예측 게임(/prediction) 진행 중 — 세션 만료 팝업·토큰 삭제 지연 */
 
+import { isUserAuthPublicPath } from "@/lib/loginSession";
+
 let gameSessionProtected = false;
 let pendingSessionExpired = false;
 let pendingDuplicateLogin = false;
@@ -40,6 +42,11 @@ function dispatchDuplicateLogin(): void {
 /** 게임 화면 이탈 시 보류된 세션 알림 처리 */
 export function flushDeferredSessionEvents(): void {
   if (gameSessionProtected) return;
+  if (isUserAuthPublicPath()) {
+    pendingDuplicateLogin = false;
+    pendingSessionExpired = false;
+    return;
+  }
   if (pendingDuplicateLogin) {
     pendingDuplicateLogin = false;
     dispatchDuplicateLogin();
@@ -53,6 +60,7 @@ export function flushDeferredSessionEvents(): void {
 
 export function notifyUserSessionExpiredSafe(): void {
   if (typeof window === "undefined") return;
+  if (isUserAuthPublicPath()) return;
   if (gameSessionProtected) {
     queueSessionExpiredWhileInGame();
     return;
@@ -62,6 +70,7 @@ export function notifyUserSessionExpiredSafe(): void {
 
 export function notifyUserDuplicateLoginSafe(): void {
   if (typeof window === "undefined") return;
+  if (isUserAuthPublicPath()) return;
   if (gameSessionProtected) {
     queueDuplicateLoginWhileInGame();
     return;

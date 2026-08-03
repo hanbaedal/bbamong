@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import InfoPopup from "./customUi/infoPopup";
-import { USER_LOGIN_PATH } from "@/lib/loginSession";
+import { USER_LOGIN_PATH, isUserAuthPublicPath } from "@/lib/loginSession";
 import { queryClient } from "@/lib/queryClient";
 import { clearTokens } from "@/lib/tokenManager";
 
@@ -20,6 +20,7 @@ export default function UserSessionExpiredPopup() {
     };
 
     const handleUserSessionExpired = () => {
+      if (isUserAuthPublicPath()) return;
       if (isProcessingRef.current) return;
       isProcessingRef.current = true;
       void clearUserSession();
@@ -27,6 +28,7 @@ export default function UserSessionExpiredPopup() {
     };
 
     const handleUserDuplicateLogin = () => {
+      if (isUserAuthPublicPath()) return;
       if (isProcessingRef.current) return;
       isProcessingRef.current = true;
       void clearUserSession();

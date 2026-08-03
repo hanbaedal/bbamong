@@ -84,14 +84,8 @@ async function refreshUserAccessToken(): Promise<boolean> {
 
       if (!refreshToken) {
         console.log("[Token] No refresh token found");
-        if (!isGameSessionProtected()) {
-          refreshFailedAt = Date.now();
-          await clearTokens();
-          notifyUserSessionExpiredSafe();
-        } else {
-          console.log("[Token] No refresh token during game — deferring session notice");
-          notifyUserSessionExpiredSafe();
-        }
+        refreshFailedAt = Date.now();
+        await clearTokens();
         return false;
       }
 

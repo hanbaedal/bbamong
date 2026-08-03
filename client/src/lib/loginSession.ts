@@ -6,6 +6,20 @@ export const INTRO_SEEN_STORAGE_KEY = "ppamong_intro_seen";
 
 export const USER_LOGIN_PATH = "/login?guest=0";
 
+export const USER_AUTH_PUBLIC_PATHS = [
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/social-onboarding",
+] as const;
+
+export function isUserAuthPublicPath(pathname?: string): boolean {
+  const base = (pathname ?? (typeof window !== "undefined" ? window.location.pathname : "")).split(
+    "?",
+  )[0];
+  return (USER_AUTH_PUBLIC_PATHS as readonly string[]).includes(base);
+}
+
 const SIGNUP_LOGIN_PREFILL_KEY = "ppamong_signup_login_prefill";
 
 export function stashSignupLoginPrefill(username: string, password: string): void {
