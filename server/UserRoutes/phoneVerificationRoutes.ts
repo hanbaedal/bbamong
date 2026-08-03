@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { getRedisClient } from "../redis";
 import { userStorage } from "../UserStorage/userStorage";
 import { AdminStorage } from "../storage/adminStorage";
-import { formatSolapiError, isPhoneVerificationRequired, sendSolapiSms } from "../utils/solapiSms";
+import { formatSolapiError, getPhoneVerificationDelivery, sendSolapiSms } from "../utils/solapiSms";
 
 const adminStorage = new AdminStorage();
 const CODE_EXPIRY_SECONDS = 180;
@@ -20,7 +20,11 @@ function getPhoneVerificationKey(phone: string): string {
 
 export async function phoneVerificationRoutes(app: Express): Promise<void> {
   app.get("/api/phone/verification-config", (_req: Request, res: Response) => {
-    res.json({ required: isPhoneVerificationRequired() });
+    const delivery = getPhoneVerificationDelivery();
+    res.json({
+      required: delivery !== "none",
+      delivery,
+    });
   });
 
   app.post("/api/phone/send-code", async (req: Request, res: Response) => {
@@ -58,6 +62,15 @@ export async function phoneVerificationRoutes(app: Express): Promise<void> {
 
       await redis.setex(redisKey, CODE_EXPIRY_SECONDS, code);
 
+      const respondInApp = (message: string) =>
+        res.json({
+          success: true,
+          message,
+          expiresIn: CODE_EXPIRY_SECONDS,
+          displayCode: code,
+          delivery: "in_app" as const,
+        });
+
       try {
         const smsResult = await sendSolapiSms({
           to: cleanPhone,
@@ -66,26 +79,25 @@ export async function phoneVerificationRoutes(app: Express): Promise<void> {
         });
 
         if (smsResult.devMode) {
-          console.log(`[개발모드] 회원가입 인증번호: ${code} (전화번호: ${cleanPhone})`);
+          console.log(`[인앱인증] 회원가입 인증번호: ${code} (전화번호: ${cleanPhone})`);
+          return respondInApp("인증번호가 발급되었습니다. 아래 번호를 입력해 주세요.");
         }
 
         return res.json({
           success: true,
           message: "인증번호가 전송되었습니다.",
           expiresIn: CODE_EXPIRY_SECONDS,
-          ...(smsResult.devMode && process.env.NODE_ENV !== "production"
-            ? { devCode: code }
-            : {}),
+          delivery: "sms" as const,
         });
       } catch (smsError) {
         console.error("SMS 전송 실패:", formatSolapiError(smsError), smsError);
-        await redis.del(redisKey);
 
         if (smsError instanceof Error && smsError.message === "SOLAPI_NOT_CONFIGURED") {
-          return res.status(503).json({
-            error: "문자 인증(SOLAPI)이 설정되지 않았습니다. 잠시 후 다시 시도하거나 관리자에게 문의해 주세요.",
-          });
+          console.log(`[인앱인증] 회원가입 인증번호: ${code} (전화번호: ${cleanPhone})`);
+          return respondInApp("인증번호가 발급되었습니다. 화면에 표시된 번호를 입력해 주세요.");
         }
+
+        await redis.del(redisKey);
 
         return res.status(500).json({ error: "SMS 전송에 실패했습니다. 잠시 후 다시 시도해주세요." });
       }

@@ -8,16 +8,22 @@ export function isSolapiConfigured(): boolean {
   return Boolean(process.env.SOLAPI_API_KEY?.trim() && process.env.SOLAPI_API_SECRET?.trim());
 }
 
-/** SOLAPI 설정 + PHONE_VERIFICATION_REQUIRED !== false 일 때만 SMS 인증 필수 */
-export function isPhoneVerificationRequired(): boolean {
+export type PhoneVerificationDelivery = "sms" | "in_app" | "none";
+
+/** none=생략, sms=문자, in_app=SOLAPI 없을 때 화면 표시 */
+export function getPhoneVerificationDelivery(): PhoneVerificationDelivery {
   const override = process.env.PHONE_VERIFICATION_REQUIRED?.trim().toLowerCase();
   if (override === "false" || override === "0" || override === "no") {
-    return false;
+    return "none";
   }
-  if (override === "true" || override === "1" || override === "yes") {
-    return isSolapiConfigured();
+  if (isSolapiConfigured()) {
+    return "sms";
   }
-  return isSolapiConfigured();
+  return "in_app";
+}
+
+export function isPhoneVerificationRequired(): boolean {
+  return getPhoneVerificationDelivery() !== "none";
 }
 
 export function getSolapiSenderPhone(): string {
