@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getFullUrl } from "@/lib/queryClient";
 import type { MallCategory } from "@/lib/mallTypes";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
+import MallImagePreconnect from "@/components/mall/MallImagePreconnect";
 import MallOrientationManager from "@/components/mall/MallOrientationManager";
 
 function MallShell({ children }: { children: React.ReactNode }) {
@@ -109,6 +110,7 @@ export default function MallApp() {
     <QueryClientProvider client={queryClient}>
       <UserAssetProvider>
         <UserProvider>
+          <MallImagePreconnect />
           <MallOrientationManager />
           <Router />
           <Toaster />

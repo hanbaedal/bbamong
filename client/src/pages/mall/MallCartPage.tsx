@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
 import MemberOnlyGate from "@/components/mall/MemberOnlyGate";
+import MallProductImage from "@/components/mall/MallProductImage";
 import { notifyMallCartChanged } from "@/components/mall/MallHeader";
 import {
   formatKrw,
@@ -51,7 +52,12 @@ export default function MallCartPage() {
               <li key={`${item.productId}:${item.color ?? ""}:${item.size ?? ""}`} className="py-4 flex gap-4">
                 <div className="w-20 h-24 bg-neutral-100 rounded-sm overflow-hidden shrink-0">
                   {item.imageUrl ? (
-                    <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
+                    <MallProductImage
+                      src={item.imageUrl}
+                      variant="list"
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   ) : null}
                 </div>
                 <div className="flex-1 min-w-0">

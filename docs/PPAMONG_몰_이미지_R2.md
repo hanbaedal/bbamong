@@ -50,6 +50,19 @@ git pull origin main
 
 ## 범위
 
-- **적용:** 쇼핑몰 상품 cover/detail **새 업로드**
-- **유지:** 기존 `/objects/...`, `/uploads/...` URL
-- **비대상:** 광고·영상 업로드, 기존 이미지 일괄 이전
+- **적용:** 쇼핑몰 상품 cover/detail **새 업로드** + cover 업로드 시 **thumbnailUrl(400px)** 자동 생성
+- **유지:** 기존 `/objects/...`, `/uploads/...` URL (일괄 이전은 아래 스크립트)
+- **비대상:** 광고·영상 업로드
+
+## 기존 이미지 R2 이전 + 썸네일 백필
+
+Replit Shell (MONGODB_URI + R2 Secrets 설정 후):
+
+```bash
+npm run mall:migrate-images-r2 -- --dry-run
+npm run mall:migrate-images-r2
+npm run mall:migrate-images-r2 -- --thumbnails-only
+```
+
+- `--dry-run`: 변경 없이 대상만 출력
+- `--thumbnails-only`: R2 cover는 유지하고 `thumbnailUrl`만 생성

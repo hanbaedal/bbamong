@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -7,7 +7,10 @@ import { ChevronRight, ShoppingBag } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
+import AuthPanelModal from "@/components/user/AuthPanelModal";
+import UserGuideContent from "@/components/user/UserGuideContent";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
+import { USER_GUIDE_OPEN_KEY } from "@/pages/home/user-guide";
 import { getFullUrl } from "@/lib/queryClient";
 import { navigateToMall } from "@/lib/appNavigation";
 import { USER_LOGIN_PATH } from "@/lib/loginSession";
@@ -34,6 +37,14 @@ export default function HomePage() {
   const { user, logout } = useUser();
   const { assets } = useUserAssets();
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
+  const [showUserGuideModal, setShowUserGuideModal] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem(USER_GUIDE_OPEN_KEY) === "1") {
+      sessionStorage.removeItem(USER_GUIDE_OPEN_KEY);
+      setShowUserGuideModal(true);
+    }
+  }, []);
 
   const { data: content } = useQuery<HomePageContent>({
     queryKey: ["/api/homepage/content"],
@@ -88,7 +99,7 @@ export default function HomePage() {
     {
       id: "user-guide",
       label: "사용 설명서",
-      onClick: () => setLocation("/home/guide"),
+      onClick: () => setShowUserGuideModal(true),
       icon: <img src={assets.homeMenuManualIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
     {
@@ -111,6 +122,7 @@ export default function HomePage() {
   return (
     <LandscapeSplitShell
       testId="home-page"
+      pageClassName="user-landscape-page--home"
       left={
         <div className="user-home-left">
           <div className="user-home-mascot-vcenter">
@@ -135,6 +147,25 @@ export default function HomePage() {
               {buttonText}
             </button>
           ) : null}
+
+          <AuthPanelModal
+            anchor="left"
+            open={showUserGuideModal}
+            title="사용 설명서"
+            onClose={() => setShowUserGuideModal(false)}
+            testId="user-guide-modal"
+          >
+            <UserGuideContent
+              onGoSimulation={() => {
+                setShowUserGuideModal(false);
+                setLocation("/home/simulation");
+              }}
+              onGoPrediction={() => {
+                setShowUserGuideModal(false);
+                setLocation("/prediction");
+              }}
+            />
+          </AuthPanelModal>
         </div>
       }
       right={

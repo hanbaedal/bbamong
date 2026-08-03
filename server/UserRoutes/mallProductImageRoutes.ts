@@ -117,8 +117,20 @@ export async function mallProductImageRoutes(app: Express): Promise<void> {
         compressed.extension,
       );
 
+      let thumbnailUrl: string | undefined;
+      if (kind === "cover") {
+        const thumbnail = await compressProductImage(input, "thumbnail");
+        const thumbPersist = await persistMallProductImage(
+          thumbnail.buffer,
+          thumbnail.contentType,
+          thumbnail.extension,
+        );
+        thumbnailUrl = thumbPersist.url;
+      }
+
       res.json({
         url,
+        thumbnailUrl,
         storage,
         kind,
         sizeBytes: compressed.buffer.length,

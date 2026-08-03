@@ -11,6 +11,8 @@ import { mallProductReviewStorage } from "../UserStorage/mallProductReviewStorag
 import { shopInquiryStorage } from "../UserStorage/shopInquiryStorage";
 import { mallWishlistStorage } from "../UserStorage/mallWishlistStorage";
 import { calculateMallRewardPoints, MALL_REWARD_RATE } from "@shared/mallRewards";
+import type { MallProductListItem } from "@shared/mallProduct";
+import { getR2PublicBaseUrl } from "../lib/r2MallImageStorage";
 
 const orderItemSchema = z.object({
   productId: z.number().int(),
@@ -51,11 +53,21 @@ const createMallInquirySchema = z.object({
 function enrichProductForList(
   p: Awaited<ReturnType<typeof goodsStorage.listAllProducts>>[number],
   reviewSummaries: Record<number, { reviewCount: number; averageRating: number }>,
-) {
+): MallProductListItem {
   const summary = reviewSummaries[p.id];
   const price = parsePriceAmount(p.priceLabel, p.priceAmount);
   return {
-    ...p,
+    id: p.id,
+    categoryId: p.categoryId,
+    name: p.name,
+    imageUrl: p.imageUrl,
+    thumbnailUrl: p.thumbnailUrl?.trim() || undefined,
+    priceLabel: p.priceLabel,
+    priceAmount: p.priceAmount,
+    originalPriceAmount: p.originalPriceAmount,
+    discountPercent: p.discountPercent,
+    brand: p.brand,
+    shippingLabel: p.shippingLabel,
     reviewCount: summary?.reviewCount ?? 0,
     averageRating: summary?.averageRating ?? 0,
     rewardPoints: calculateMallRewardPoints(price),
@@ -113,6 +125,19 @@ export async function mallRoutes(app: Express): Promise<void> {
       grantOn: "shipped",
       description: "배송(택배 인계) 완료 후 게임 포인트로 적립됩니다.",
     });
+  });
+
+  app.get("/api/mall/config", (_req, res) => {
+    const base = getR2PublicBaseUrl();
+    let imageCdnOrigin: string | null = null;
+    if (base) {
+      try {
+        imageCdnOrigin = new URL(base).origin;
+      } catch {
+        imageCdnOrigin = null;
+      }
+    }
+    res.json({ imageCdnOrigin });
   });
 
   app.get("/api/mall/wishlist/ids", userAuthMiddleware, async (req: AuthenticatedUserRequest, res) => {
@@ -260,7 +285,12 @@ export async function mallRoutes(app: Express): Promise<void> {
       }
       const limit = Math.min(12, Math.max(1, parseInt(String(req.query.limit || "8"), 10) || 8));
       const products = await goodsStorage.listRelatedProducts(productId, limit);
-      res.json({ products });
+      const reviewSummaries = await mallProductReviewStorage.getSummariesByProductIds(
+        products.map((p) => p.id),
+      );
+      res.json({
+        products: products.map((p) => enrichProductForList(p, reviewSummaries)),
+      });
     } catch (error) {
       console.error("List related products error:", error);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });

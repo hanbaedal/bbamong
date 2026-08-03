@@ -61,6 +61,7 @@ interface GoodsProduct {
   summary: string;
   detailContent: string;
   imageUrl: string;
+  thumbnailUrl?: string;
   priceLabel: string;
   priceAmount?: number;
   originalPriceAmount?: number;
@@ -103,6 +104,7 @@ function productToForm(product: Partial<GoodsProduct>): Partial<MallProductFormV
     reorderPoint: product.reorderPoint ?? 0,
     optimalStock: product.optimalStock ?? 0,
     imageUrl: product.imageUrl ?? "",
+    thumbnailUrl: product.thumbnailUrl ?? "",
     detailImages: product.detailImages ?? [],
     isActive: product.isActive ?? true,
   };
@@ -133,6 +135,7 @@ function formToProduct(form: Partial<MallProductFormValues>): Partial<GoodsProdu
     reorderPoint: form.reorderPoint ?? 0,
     optimalStock: form.optimalStock ?? 0,
     imageUrl: form.imageUrl ?? "",
+    thumbnailUrl: form.thumbnailUrl ?? "",
     detailImages: form.detailImages ?? [],
     isActive: form.isActive ?? true,
   };

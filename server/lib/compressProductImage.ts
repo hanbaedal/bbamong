@@ -9,7 +9,7 @@ export async function compressProductImage(
   kind: MallProductImageKind = "cover",
 ): Promise<{ buffer: Buffer; contentType: string; extension: string }> {
   const { maxBytes, maxWidth: initialWidth } = getMallProductImageLimits(kind);
-  let quality = kind === "detail" ? 85 : 82;
+  let quality = kind === "detail" ? 85 : kind === "thumbnail" ? 78 : 82;
   let width = initialWidth;
 
   let lastBuffer = await sharp(input)

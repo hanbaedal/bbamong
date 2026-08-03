@@ -11,7 +11,7 @@ import {
 interface MallProductImageUploadProps {
   label: string;
   value?: string;
-  onChange: (url: string) => void;
+  onChange: (url: string, meta?: { thumbnailUrl?: string }) => void;
   onClear?: () => void;
   compact?: boolean;
   /** cover=대표 20KB, detail=상품정보 80KB */
@@ -30,12 +30,18 @@ function blobToBase64(blob: Blob): Promise<string> {
 async function uploadViaServer(
   blob: Blob,
   kind: MallProductImageKind,
-): Promise<{ url: string; sizeBytes: number; maxBytes: number }> {
+): Promise<{ url: string; thumbnailUrl?: string; sizeBytes: number; maxBytes: number }> {
   const imageBase64 = await blobToBase64(blob);
   const res = await apiRequest("POST", "/api/admin/mall/product-images", { imageBase64, kind });
-  const data = (await res.json()) as { url: string; sizeBytes: number; maxBytes: number };
+  const data = (await res.json()) as {
+    url: string;
+    thumbnailUrl?: string;
+    sizeBytes: number;
+    maxBytes: number;
+  };
   return {
     url: data.url,
+    thumbnailUrl: data.thumbnailUrl,
     sizeBytes: data.sizeBytes ?? blob.size,
     maxBytes: data.maxBytes,
   };
@@ -44,7 +50,7 @@ async function uploadViaServer(
 async function uploadCompressedBlob(
   blob: Blob,
   kind: MallProductImageKind,
-): Promise<{ url: string; sizeBytes: number; maxBytes: number }> {
+): Promise<{ url: string; thumbnailUrl?: string; sizeBytes: number; maxBytes: number }> {
   const { maxBytes: fallbackMax } = getMallProductImageLimits(kind);
   const res = await apiRequest("POST", "/api/admin/mall/product-images/upload-url", { kind });
   const data = (await res.json()) as {
@@ -100,8 +106,8 @@ export default function MallProductImageUpload({
     setUploading(true);
     try {
       const blob = await compressMallProductImageFile(file, kind);
-      const { url, sizeBytes, maxBytes: limit } = await uploadCompressedBlob(blob, kind);
-      onChange(url);
+      const { url, thumbnailUrl, sizeBytes, maxBytes: limit } = await uploadCompressedBlob(blob, kind);
+      onChange(url, thumbnailUrl ? { thumbnailUrl } : undefined);
       setMeta(`${Math.round(sizeBytes / 1024)}KB / ${Math.round(limit / 1024)}KB`);
     } catch (err) {
       alert(err instanceof Error ? err.message : "이미지 업로드 실패");
@@ -162,8 +168,8 @@ export default function MallProductImageUpload({
 export async function uploadMallProductImageFile(
   file: File,
   kind: MallProductImageKind = "cover",
-): Promise<string> {
+): Promise<{ url: string; thumbnailUrl?: string }> {
   const blob = await compressMallProductImageFile(file, kind);
-  const { url } = await uploadCompressedBlob(blob, kind);
-  return url;
+  const { url, thumbnailUrl } = await uploadCompressedBlob(blob, kind);
+  return { url, thumbnailUrl };
 }

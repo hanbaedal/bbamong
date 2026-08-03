@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useUserAssets } from "@/contexts/UserAssetContext";
-import { navigateToGame } from "@/lib/appNavigation";
+import { navigateToGame, navigateToHome } from "@/lib/appNavigation";
 import ShopAuthButton from "@/components/public/ShopAuthButton";
 import StaffAuthLinks from "@/components/public/StaffAuthLinks";
 
@@ -50,7 +50,7 @@ export default function ShopSiteHeader({
           {leftAction}
           <button
             type="button"
-            onClick={() => navigateToGame()}
+            onClick={() => (variant === "member" ? navigateToHome() : navigateToGame())}
             data-testid="button-shop-logo"
             aria-label="게임으로 돌아가기"
             className="flex-shrink-0 p-0.5"

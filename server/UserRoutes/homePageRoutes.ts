@@ -43,6 +43,7 @@ const productSchema = z.object({
   summary: z.string().max(500).optional().default(""),
   detailContent: z.string().max(20000).optional().default(""),
   imageUrl: z.string().max(2000).optional().default(""),
+  thumbnailUrl: z.string().max(2000).optional().default(""),
   priceLabel: z.string().max(50).optional().default(""),
   priceAmount: z.number().int().min(0).optional().default(0),
   originalPriceAmount: z.number().int().min(0).optional().default(0),

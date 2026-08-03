@@ -46,6 +46,7 @@ export interface MallProductFormValues {
   reorderPoint: number;
   optimalStock: number;
   imageUrl: string;
+  thumbnailUrl: string;
   detailImages: string[];
   isActive: boolean;
 }
@@ -85,6 +86,7 @@ export function createEmptyMallProduct(categoryId?: number): Partial<MallProduct
     reorderPoint: 0,
     optimalStock: 0,
     imageUrl: "",
+    thumbnailUrl: "",
     detailImages: [],
     isActive: true,
   };
@@ -468,8 +470,13 @@ export default function MallProductForm({
           <MallProductImageUpload
             label="제품사진"
             value={value.imageUrl}
-            onChange={(url) => onChange({ imageUrl: url })}
-            onClear={() => onChange({ imageUrl: "" })}
+            onChange={(url, meta) =>
+              onChange({
+                imageUrl: url,
+                ...(meta?.thumbnailUrl ? { thumbnailUrl: meta.thumbnailUrl } : {}),
+              })
+            }
+            onClear={() => onChange({ imageUrl: "", thumbnailUrl: "" })}
             compact
           />
 
@@ -489,7 +496,7 @@ export default function MallProductForm({
                       if (!file) return;
                       setDetailUploading(true);
                       try {
-                        const url = await uploadMallProductImageFile(file, "detail");
+                        const { url } = await uploadMallProductImageFile(file, "detail");
                         const current = valueRef.current.detailImages ?? [];
                         onChange({ detailImages: [...current, url] });
                       } catch (err) {

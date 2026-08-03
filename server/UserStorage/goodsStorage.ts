@@ -37,6 +37,7 @@ export interface GoodsProduct {
   summary: string;
   detailContent: string;
   imageUrl: string;
+  thumbnailUrl?: string;
   priceLabel: string;
   priceAmount?: number;
   originalPriceAmount?: number;
@@ -253,6 +254,7 @@ export class GoodsStorage {
     name: string;
     description?: string;
     imageUrl?: string;
+    thumbnailUrl?: string;
     displayOrder?: number;
     isActive?: boolean;
   }): Promise<GoodsCategory> {
@@ -334,6 +336,7 @@ export class GoodsStorage {
     summary?: string;
     detailContent?: string;
     imageUrl?: string;
+    thumbnailUrl?: string;
     priceLabel?: string;
     priceAmount?: number;
     originalPriceAmount?: number;
@@ -364,6 +367,7 @@ export class GoodsStorage {
       summary: data.summary ?? "",
       detailContent: data.detailContent ?? "",
       imageUrl: data.imageUrl ?? "",
+      thumbnailUrl: data.thumbnailUrl ?? "",
       priceLabel: pricing.priceLabel,
       priceAmount: pricing.priceAmount,
       originalPriceAmount: pricing.originalPriceAmount,
@@ -396,6 +400,7 @@ export class GoodsStorage {
         | "summary"
         | "detailContent"
         | "imageUrl"
+        | "thumbnailUrl"
         | "priceLabel"
         | "priceAmount"
         | "originalPriceAmount"

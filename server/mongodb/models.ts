@@ -424,6 +424,7 @@ const goodsProductSchema = new Schema(
     summary: { type: String, default: "" },
     detailContent: { type: String, default: "" },
     imageUrl: { type: String, default: "" },
+    thumbnailUrl: { type: String, default: "" },
     priceLabel: { type: String, default: "" },
     priceAmount: { type: Number, default: 0 },
     originalPriceAmount: { type: Number, default: 0 },

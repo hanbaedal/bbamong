@@ -6,6 +6,7 @@ import { MALL_BASE_PATH } from "@shared/mallConfig";
 import { calculateMallRewardPoints, MALL_REWARD_RATE } from "@shared/mallRewards";
 import { resolveAvailableStock, isProcureFulfillment, MALL_DEFAULT_PROCURE_NOTICE } from "@shared/mallProduct";
 import MemberOnlyGate from "@/components/mall/MemberOnlyGate";
+import MallProductImage from "@/components/mall/MallProductImage";
 import MallProductDetailTabs from "@/components/mall/product/MallProductDetailTabs";
 import { notifyMallCartChanged } from "@/components/mall/MallHeader";
 import { resolvePrice } from "@/components/mall/ProductCard";
@@ -149,7 +150,13 @@ export default function MallProductPage() {
       <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
         <div className="aspect-square bg-neutral-100 rounded-sm overflow-hidden">
           {product.imageUrl ? (
-            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+            <MallProductImage
+              src={product.imageUrl}
+              variant="detail"
+              alt={product.name}
+              className="w-full h-full object-cover"
+              fetchPriority="high"
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-neutral-400">
               이미지 없음

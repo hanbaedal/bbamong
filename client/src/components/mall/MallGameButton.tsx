@@ -1,5 +1,5 @@
 import { Gamepad2 } from "lucide-react";
-import { navigateToGame } from "@/lib/appNavigation";
+import { navigateToHome } from "@/lib/appNavigation";
 
 interface MallGameButtonProps {
   variant?: "header" | "primary";
@@ -13,7 +13,12 @@ export default function MallGameButton({ variant = "header", className = "" }: M
       : "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-neutral-900 border border-neutral-200 rounded-md hover:bg-neutral-50";
 
   return (
-    <button type="button" onClick={() => navigateToGame()} className={`${base} ${className}`.trim()}>
+    <button
+      type="button"
+      onClick={() => navigateToHome()}
+      aria-label="게임으로 돌아가기"
+      className={`${base} ${className}`.trim()}
+    >
       <Gamepad2 className="w-4 h-4 shrink-0" />
       게임으로
     </button>

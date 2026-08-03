@@ -15,6 +15,17 @@ function normalizeExtension(extension: string): string {
   return extension.startsWith(".") ? extension : `.${extension}`;
 }
 
+export function getR2PublicBaseUrl(): string {
+  return normalizePublicBaseUrl(trimEnv("R2_PUBLIC_BASE_URL"));
+}
+
+/** URL이 현재 R2 공개 CDN에 호스팅되는지 */
+export function isR2PublicUrl(url: string): boolean {
+  const base = getR2PublicBaseUrl();
+  if (!base || !url) return false;
+  return url === base || url.startsWith(`${base}/`);
+}
+
 /** R2 Secrets 5개가 모두 있을 때만 true */
 export function isR2Configured(): boolean {
   return Boolean(
@@ -62,7 +73,7 @@ export async function uploadMallProductImageToR2(
   }
 
   const bucket = trimEnv("R2_BUCKET");
-  const publicBase = normalizePublicBaseUrl(trimEnv("R2_PUBLIC_BASE_URL"));
+  const publicBase = getR2PublicBaseUrl();
   const fileName = `${randomUUID()}${normalizeExtension(extension)}`;
   const key = `${UPLOAD_PREFIX}/${fileName}`;
 

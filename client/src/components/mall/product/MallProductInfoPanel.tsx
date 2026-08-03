@@ -1,3 +1,4 @@
+import MallProductImage from "@/components/mall/MallProductImage";
 import type { MallProduct } from "@/lib/mallTypes";
 
 interface MallProductInfoPanelProps {
@@ -19,9 +20,10 @@ export default function MallProductInfoPanel({ product }: MallProductInfoPanelPr
       {hasDetailImages ? (
         <div className="space-y-0">
           {product.detailImages!.map((url, index) => (
-            <img
+            <MallProductImage
               key={`${url}-${index}`}
               src={url}
+              variant="detail"
               alt={`${product.name} 상품정보 ${index + 1}`}
               className="w-full block"
               loading="lazy"

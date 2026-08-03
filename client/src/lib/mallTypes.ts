@@ -1,4 +1,4 @@
-import type { MallFulfillmentType } from "@shared/mallProduct";
+import type { MallFulfillmentType, MallProductListItem } from "@shared/mallProduct";
 
 export interface MallProduct {
   id: number;
@@ -7,6 +7,7 @@ export interface MallProduct {
   summary: string;
   detailContent: string;
   imageUrl: string;
+  thumbnailUrl?: string;
   priceLabel: string;
   priceAmount?: number;
   originalPriceAmount?: number;
@@ -25,6 +26,8 @@ export interface MallProduct {
   averageRating?: number;
   rewardPoints?: number;
 }
+
+export type { MallProductListItem };
 
 export interface MallProductVariant {
   color: string;

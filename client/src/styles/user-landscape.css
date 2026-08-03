@@ -637,6 +637,85 @@
   object-fit: contain;
 }
 
+/* 홈 — 사용 설명서 좌측 패널 모달 본문 */
+.user-guide-content {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 2vh, 14px);
+}
+
+.user-guide-content-intro {
+  margin: 0;
+  color: #aaaaaa;
+  font-size: clamp(11px, 2.6vw, 13px);
+  line-height: 1.5;
+}
+
+.user-guide-content-section {
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #1a1a1a;
+  padding: clamp(10px, 2.2vh, 14px);
+}
+
+.user-guide-content-section-title {
+  margin: 0 0 clamp(8px, 1.8vh, 10px);
+  color: #fff;
+  font-size: clamp(12px, 2.8vw, 14px);
+  font-weight: 700;
+}
+
+.user-guide-content-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.4vh, 8px);
+}
+
+.user-guide-content-item {
+  display: flex;
+  gap: clamp(6px, 1.5vw, 8px);
+  color: #d5d5d5;
+  font-size: clamp(11px, 2.5vw, 13px);
+  line-height: 1.5;
+}
+
+.user-guide-content-bullet {
+  flex-shrink: 0;
+  color: #cdff00;
+}
+
+.user-guide-content-actions {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.8vh, 10px);
+  padding-top: clamp(4px, 1vh, 6px);
+}
+
+.user-guide-content-btn {
+  width: 100%;
+  padding: clamp(10px, 2.2vh, 12px);
+  border-radius: 8px;
+  font-size: clamp(12px, 2.8vw, 14px);
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.user-guide-content-btn--primary {
+  background: #cdff00;
+  color: #000;
+  font-weight: 700;
+}
+
+.user-guide-content-btn--secondary {
+  background: transparent;
+  color: #fff;
+  border: 1px solid #373539;
+}
+
 /* 홈 · 로그인 — 오른쪽 메뉴/폼 */
 .user-landscape-menu {
   display: flex;
@@ -1125,6 +1204,10 @@
 }
 
 .user-landscape-page--login .user-landscape-left:has(.user-auth-panel-modal) {
+  overflow: hidden;
+}
+
+.user-landscape-page--home .user-landscape-left:has(.user-auth-panel-modal) {
   overflow: hidden;
 }
 

@@ -5,10 +5,11 @@ import { calculateMallRewardPoints } from "@shared/mallRewards";
 import { discountRate, formatKrw } from "@/lib/mallCart";
 import { useMallWishlist } from "@/hooks/useMallWishlist";
 import { useToast } from "@/hooks/use-toast";
-import type { MallProduct } from "@/lib/mallTypes";
+import MallProductImage from "@/components/mall/MallProductImage";
+import type { MallProduct, MallProductListItem } from "@/lib/mallTypes";
 import { cn } from "@/lib/utils";
 
-function resolvePrice(product: MallProduct): number {
+function resolvePrice(product: MallProduct | MallProductListItem): number {
   if (product.priceAmount && product.priceAmount > 0) return product.priceAmount;
   const digits = product.priceLabel.replace(/[^\d]/g, "");
   const parsed = parseInt(digits, 10);
@@ -20,7 +21,7 @@ function formatCompactCount(n: number): string {
 }
 
 interface ProductCardProps {
-  product: MallProduct;
+  product: MallProduct | MallProductListItem;
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
@@ -58,12 +59,13 @@ export default function ProductCard({ product }: ProductCardProps) {
         className="flex min-h-0 flex-1 flex-col"
       >
         <div className="relative mb-2.5 aspect-[4/5] overflow-hidden rounded-xl bg-white">
-          {product.imageUrl ? (
-            <img
+          {product.imageUrl || product.thumbnailUrl ? (
+            <MallProductImage
               src={product.imageUrl}
+              thumbnailSrc={product.thumbnailUrl}
+              variant="list"
               alt={product.name}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-              loading="lazy"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-sm text-neutral-400">
