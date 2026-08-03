@@ -9,8 +9,9 @@
 import { connectMongoDB, disconnectMongoDB } from "../server/UserStorage/db";
 import { GoodsProductModel } from "../server/mongodb/models";
 import { compressProductImage } from "../server/lib/compressProductImage";
-import { fetchMallImageBytes } from "../server/lib/mallImageFetch";
+import { fetchMallImageBytes, getR2BucketNameForLog } from "../server/lib/mallImageFetch";
 import {
+  getR2PublicBaseUrl,
   isR2Configured,
   isR2PublicUrl,
   uploadMallProductImageToR2,
@@ -52,6 +53,10 @@ async function main() {
     console.error("R2 Secrets 5개가 설정되어 있지 않습니다.");
     process.exit(1);
   }
+
+  console.log(`R2 bucket: ${getR2BucketNameForLog()}`);
+  console.log(`R2 public URL: ${getR2PublicBaseUrl() || "(empty)"}`);
+  console.log(`이미지 fetch BASE: ${(process.env.BASE_URL || "https://ppamong.com").replace(/\/+$/, "")}\n`);
 
   await connectMongoDB();
 

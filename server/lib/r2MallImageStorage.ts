@@ -15,6 +15,10 @@ function normalizeExtension(extension: string): string {
   return extension.startsWith(".") ? extension : `.${extension}`;
 }
 
+function getR2BucketName(): string {
+  return trimEnv("R2_BUCKET") || trimEnv("R2_BUCKET_NAME");
+}
+
 export function getR2PublicBaseUrl(): string {
   return normalizePublicBaseUrl(trimEnv("R2_PUBLIC_BASE_URL"));
 }
@@ -32,7 +36,7 @@ export function isR2Configured(): boolean {
     trimEnv("R2_ACCOUNT_ID") &&
       trimEnv("R2_ACCESS_KEY_ID") &&
       trimEnv("R2_SECRET_ACCESS_KEY") &&
-      trimEnv("R2_BUCKET") &&
+      getR2BucketName() &&
       trimEnv("R2_PUBLIC_BASE_URL"),
   );
 }
@@ -72,7 +76,10 @@ export async function uploadMallProductImageToR2(
     throw new Error("Cloudflare R2 is not configured");
   }
 
-  const bucket = trimEnv("R2_BUCKET");
+  const bucket = getR2BucketName();
+  if (!bucket) {
+    throw new Error("R2_BUCKET is not configured");
+  }
   const publicBase = getR2PublicBaseUrl();
   const fileName = `${randomUUID()}${normalizeExtension(extension)}`;
   const key = `${UPLOAD_PREFIX}/${fileName}`;
