@@ -184,6 +184,7 @@ export default function HomePageManagementPage() {
   const [listSaveError, setListSaveError] = useState("");
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [inquiryReplyDrafts, setInquiryReplyDrafts] = useState<Record<number, string>>({});
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
 
   const { data, isLoading } = useQuery<AdminHomepageData>({
     queryKey: ["/api/admin/homepage-settings"],
@@ -205,6 +206,21 @@ export default function HomePageManagementPage() {
       setRegisterForm(createEmptyMallProduct(catId));
     }
   }, [categories, registerForm, selectedCategoryId]);
+
+  useEffect(() => {
+    setSelectedProductIds([]);
+  }, [selectedCategoryId, activeTab]);
+
+  const removeProductsFromCache = (ids: number[]) => {
+    const idSet = new Set(ids);
+    queryClient.setQueryData<AdminHomepageData>(["/api/admin/homepage-settings"], (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        products: old.products.filter((product) => !idSet.has(product.id)),
+      };
+    });
+  };
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/admin/homepage-settings"] });
@@ -279,10 +295,43 @@ export default function HomePageManagementPage() {
   const deleteProductMutation = useMutation({
     mutationFn: async (id: number) =>
       apiRequest("DELETE", `/api/admin/homepage/goods/products/${id}`),
-    onSuccess: () => {
+    onSuccess: (_res, id) => {
+      removeProductsFromCache([id]);
+      setSelectedProductIds((prev) => prev.filter((selectedId) => selectedId !== id));
+      if (listEditForm?.id === id) {
+        setListEditForm(null);
+        setListSaveError("");
+      }
       invalidate();
-      setListEditForm(null);
       toast({ description: "상품이 삭제되었습니다." });
+    },
+    onError: (err: Error) => {
+      toast({ variant: "destructive", description: err.message || "삭제 실패" });
+    },
+  });
+
+  const bulkDeleteProductsMutation = useMutation({
+    mutationFn: async (ids: number[]) =>
+      apiRequest("POST", "/api/admin/homepage/goods/products/bulk-delete", { ids }),
+    onSuccess: async (res, ids) => {
+      let deleted = ids.length;
+      try {
+        const body = await res.json();
+        if (typeof body.deleted === "number") deleted = body.deleted;
+      } catch {
+        // ignore parse errors; cache update still uses requested ids
+      }
+      removeProductsFromCache(ids);
+      setSelectedProductIds([]);
+      if (listEditForm?.id && ids.includes(listEditForm.id)) {
+        setListEditForm(null);
+        setListSaveError("");
+      }
+      invalidate();
+      toast({ description: `${deleted}개 상품이 삭제되었습니다.` });
+    },
+    onError: (err: Error) => {
+      toast({ variant: "destructive", description: err.message || "삭제 실패" });
     },
   });
 
@@ -363,6 +412,33 @@ export default function HomePageManagementPage() {
     selectedCategoryId === null
       ? null
       : categories.find((c) => c.id === selectedCategoryId) ?? null;
+  const visibleProductIds = visibleProducts.map((p) => p.id);
+  const allVisibleSelected =
+    visibleProductIds.length > 0 && visibleProductIds.every((id) => selectedProductIds.includes(id));
+  const someVisibleSelected = visibleProductIds.some((id) => selectedProductIds.includes(id));
+  const isDeletingProducts = deleteProductMutation.isPending || bulkDeleteProductsMutation.isPending;
+
+  const toggleProductSelection = (id: number) => {
+    setSelectedProductIds((prev) =>
+      prev.includes(id) ? prev.filter((selectedId) => selectedId !== id) : [...prev, id],
+    );
+  };
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelectedProductIds((prev) => prev.filter((id) => !visibleProductIds.includes(id)));
+    } else {
+      setSelectedProductIds((prev) => [...new Set([...prev, ...visibleProductIds])]);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedProductIds.length === 0) return;
+    if (confirm(`선택한 ${selectedProductIds.length}개 상품을 삭제할까요?`)) {
+      bulkDeleteProductsMutation.mutate([...selectedProductIds]);
+    }
+  };
+
   const mallMenuNames = MALL_CATEGORY_TREE.map((c) => c.name).join(" · ");
 
   return (
@@ -536,7 +612,22 @@ export default function HomePageManagementPage() {
                 <p className="text-sm lg:text-base text-[#666]">
                   {selectedCategory ? `${selectedCategory.name}` : "전체"} ·{" "}
                   <span className="font-semibold text-[#201E22]">{visibleProducts.length}</span>개
+                  {selectedProductIds.length > 0 ? (
+                    <span className="ml-2 text-[#E11936]">· {selectedProductIds.length}개 선택</span>
+                  ) : null}
                 </p>
+                {selectedProductIds.length > 0 ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-[#E11936] border-[#E11936]/40"
+                    disabled={isDeletingProducts}
+                    onClick={handleBulkDelete}
+                  >
+                    선택 삭제 ({selectedProductIds.length})
+                  </Button>
+                ) : null}
               </div>
 
               {listEditForm ? (
@@ -561,6 +652,14 @@ export default function HomePageManagementPage() {
                 <table className={adminTableClass}>
                   <thead className="bg-[#FAFAFA]">
                     <tr>
+                      <th className="p-3 w-10 text-center">
+                        <Checkbox
+                          checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                          onCheckedChange={toggleSelectAllVisible}
+                          disabled={visibleProducts.length === 0 || isDeletingProducts}
+                          aria-label="현재 목록 전체 선택"
+                        />
+                      </th>
                       <th className="text-left p-3 w-14">사진</th>
                       <th className="text-left p-3">상품명</th>
                       <th className="text-left p-3">카테고리</th>
@@ -572,7 +671,7 @@ export default function HomePageManagementPage() {
                   <tbody>
                     {visibleProducts.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="p-8 text-center text-[#888]">
+                        <td colSpan={7} className="p-8 text-center text-[#888]">
                           등록된 상품이 없습니다.
                         </td>
                       </tr>
@@ -580,11 +679,20 @@ export default function HomePageManagementPage() {
                       visibleProducts.map((p) => {
                         const cat = categories.find((c) => c.id === p.categoryId);
                         const isEditing = listEditForm?.id === p.id;
+                        const isSelected = selectedProductIds.includes(p.id);
                         return (
                           <tr
                             key={p.id}
-                            className={`border-t border-[#F0F0F0] ${isEditing ? "bg-[#FFF9FA]" : ""}`}
+                            className={`border-t border-[#F0F0F0] ${isEditing ? "bg-[#FFF9FA]" : isSelected ? "bg-[#FFF5F6]" : ""}`}
                           >
+                            <td className="p-3 text-center">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleProductSelection(p.id)}
+                                disabled={isDeletingProducts}
+                                aria-label={`${p.name} 선택`}
+                              />
+                            </td>
                             <td className="p-2">
                               <div className="w-10 h-10 rounded bg-[#F0F0F0] overflow-hidden">
                                 {p.imageUrl ? (
@@ -623,6 +731,7 @@ export default function HomePageManagementPage() {
                                   size="sm"
                                   variant="outline"
                                   className="h-8 text-[#E11936]"
+                                  disabled={isDeletingProducts}
                                   onClick={() => {
                                     if (confirm(`"${p.name}" 상품을 삭제할까요?`)) {
                                       deleteProductMutation.mutate(p.id);

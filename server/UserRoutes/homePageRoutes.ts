@@ -220,6 +220,29 @@ export async function homePageRoutes(app: Express): Promise<void> {
     }
   });
 
+  app.post("/api/admin/homepage/goods/products/bulk-delete", adminAuthMiddleware, async (req, res) => {
+    try {
+      const rawIds = req.body?.ids;
+      if (!Array.isArray(rawIds)) {
+        return res.status(400).json({ error: "삭제할 상품 ID 목록이 필요합니다." });
+      }
+      const ids = rawIds
+        .map((value: unknown) => parseInt(String(value), 10))
+        .filter((id: number) => !isNaN(id));
+      if (ids.length === 0) {
+        return res.status(400).json({ error: "삭제할 상품을 선택하세요." });
+      }
+      const deleted = await goodsStorage.deleteProducts(ids);
+      if (deleted === 0) {
+        return res.status(404).json({ error: "삭제할 상품을 찾을 수 없습니다." });
+      }
+      res.json({ success: true, deleted });
+    } catch (error) {
+      console.error("Bulk delete goods products error:", error);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
   app.patch("/api/admin/homepage/goods/products/:id", adminAuthMiddleware, async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
@@ -241,7 +264,8 @@ export async function homePageRoutes(app: Express): Promise<void> {
     try {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: "잘못된 ID입니다." });
-      await goodsStorage.deleteProduct(id);
+      const deleted = await goodsStorage.deleteProduct(id);
+      if (!deleted) return res.status(404).json({ error: "상품을 찾을 수 없습니다." });
       res.json({ success: true });
     } catch (error) {
       console.error("Delete goods product error:", error);

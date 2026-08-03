@@ -605,8 +605,16 @@ export class GoodsStorage {
     return alerts;
   }
 
-  async deleteProduct(id: number): Promise<void> {
-    await GoodsProductModel.deleteOne({ id });
+  async deleteProduct(id: number): Promise<boolean> {
+    const result = await GoodsProductModel.deleteOne({ id });
+    return (result.deletedCount ?? 0) > 0;
+  }
+
+  async deleteProducts(ids: number[]): Promise<number> {
+    const uniqueIds = [...new Set(ids.filter((id) => Number.isFinite(id)))];
+    if (uniqueIds.length === 0) return 0;
+    const result = await GoodsProductModel.deleteMany({ id: { $in: uniqueIds } });
+    return result.deletedCount ?? 0;
   }
 }
 
