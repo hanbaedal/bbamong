@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, User, Lock } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import { adminQueryClient, getFullUrl } from "@/lib/adminQueryClient";
 import { useUser, mapSessionUserFromAdmin } from "@/contexts/UserContext";
@@ -114,16 +114,24 @@ export default function AdminLoginPage() {
     }
   };
 
+  const inputBaseClass =
+    "h-11 sm:h-12 text-sm text-[#201E22] placeholder:text-[#BFBFBF] bg-white rounded-md border focus-visible:ring-1 focus-visible:ring-offset-0";
+
+  const fieldErrorClass = (hasError: boolean) =>
+    hasError
+      ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20"
+      : "border-[#E9E9E9] focus-visible:border-[#373539] focus-visible:ring-[#373539]/10";
+
   return (
-    <div className="min-h-screen h-screen overflow-y-auto bg-white flex flex-col admin-autofill-dark">
-      <div className="flex-1 flex flex-col items-center px-5 py-8">
-        <div className="w-full max-w-[375px] my-auto">
+    <div className="min-h-screen h-screen overflow-y-auto bg-white flex flex-col admin-autofill-dark pb-[env(safe-area-inset-bottom)]">
+      <div className="flex-1 flex flex-col items-center px-4 py-6 sm:px-5 sm:py-8">
+        <div className="w-full max-w-[360px] my-auto">
           {/* 로고 */}
           <div
-            className="flex justify-center mb-12"
+            className="flex justify-center mb-6 sm:mb-8"
             data-testid="admin-logo-container"
           >
-            <div className="w-[140px] h-[220px] flex items-center justify-center">
+            <div className="w-[100px] h-[160px] sm:w-[120px] sm:h-[190px] flex items-center justify-center">
               <img
                 src={assets.adminLogo}
                 alt="관리자 로고"
@@ -134,21 +142,17 @@ export default function AdminLoginPage() {
           </div>
 
           {/* 제목 */}
-          <h1 className="text-start text-[#201E22] text-xl font-semibold mb-8">
+          <h1 className="text-start text-[#201E22] text-lg sm:text-xl font-semibold mb-4 sm:mb-6">
             관리자페이지 로그인
           </h1>
 
           {/* 로그인 폼 */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-[#414141] text-sm">
-                아이디
-              </Label>
-              <div className="relative flex items-center">
-                <User
-                  className="absolute left-2 w-5 h-5 text-[#BFBFBF]"
-                  data-testid="icon-email"
-                />
+          <form onSubmit={handleSubmit}>
+            <div className="rounded-xl border border-[#E9E9E9] bg-white p-4 sm:p-5 shadow-sm space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-[#414141] text-sm font-medium">
+                  아이디
+                </Label>
                 <Input
                   id="email"
                   type="text"
@@ -157,73 +161,59 @@ export default function AdminLoginPage() {
                   placeholder="아이디를 입력해주세요"
                   value={email}
                   onChange={handleEmailChange}
-                  className={`h-12 bg-transparent border-0 border-b text-black placeholder:text-[#BFBFBF] rounded-none pl-9 focus:outline-none focus:ring-0 focus-visible:ring-0 ${
-                    errors.email || errors.general
-                      ? "border-b-red-500 focus-visible:border-b-red-500"
-                      : "border-b-[E9E9E9] focus-visible:border-b-[#373539]"
-                  }`}
+                  className={`${inputBaseClass} ${fieldErrorClass(Boolean(errors.email || errors.general))}`}
                 />
+                {errors.email && (
+                  <p className="text-red-500 text-xs" data-testid="error-email">
+                    {errors.email}
+                  </p>
+                )}
               </div>
-              {errors.email && (
-                <p className="text-red-500 text-xs" data-testid="error-email">
-                  {errors.email}
-                </p>
-              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-[#414141] text-sm font-medium">
+                  비밀번호
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    data-testid="input-password"
+                    placeholder="비밀번호를 입력하세요"
+                    value={password}
+                    onChange={handlePasswordChange}
+                    className={`${inputBaseClass} pr-10 ${fieldErrorClass(Boolean(errors.password || errors.general))}`}
+                  />
+                  <button
+                    type="button"
+                    data-testid="button-toggle-password"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#414141] p-1 transition-colors"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
+                    ) : (
+                      <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+                    )}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-red-500 text-xs" data-testid="error-password">
+                    {errors.password}
+                  </p>
+                )}
+              </div>
             </div>
 
-            {/* 비밀번호 */}
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-[#414141] text-sm">
-                비밀번호
-              </Label>
-              <div className="relative flex items-center">
-                <Lock
-                  className="absolute left-2 w-5 h-5 text-[#BFBFBF]"
-                  data-testid="icon-password"
-                />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  data-testid="input-password"
-                  placeholder="비밀번호를 입력하세요"
-                  value={password}
-                  onChange={handlePasswordChange}
-                  className={`h-12 bg-transparent border-0 border-b text-black placeholder:text-[#BFBFBF] rounded-none pl-9 pr-12 focus:outline-none focus:ring-0 focus-visible:ring-0 ${
-                    errors.password || errors.general
-                      ? "border-b-red-500 focus-visible:border-b-red-500"
-                      : "border-b-[E9E9E9] focus-visible:border-b-[#373539]"
-                  }`}
-                />
-                <button
-                  type="button"
-                  data-testid="button-toggle-password"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#D5D5D5] transition-colors"
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-              {errors.password && (
-                <p
-                  className="text-red-500 text-xs"
-                  data-testid="error-password"
-                >
-                  {errors.password}
-                </p>
-              )}
-              {errors.general && (
-                <p className="text-red-500 text-xs" data-testid="error-general">
-                  {errors.general}
-                </p>
-              )}
-            </div>
+            {errors.general && (
+              <p className="text-red-500 text-xs mt-3" data-testid="error-general">
+                {errors.general}
+              </p>
+            )}
 
-            <p className="mt-6 text-start text-[#666666] text-sm">
+            <p className="mt-4 sm:mt-5 text-start text-[#666666] text-xs sm:text-sm">
               관리자 계정은 슈퍼바이저가 등록합니다.
             </p>
 
@@ -231,7 +221,7 @@ export default function AdminLoginPage() {
               type="submit"
               disabled={isLoading}
               data-testid="button-admin-login"
-              className="w-full h-12 bg-[#E11936] hover:bg-[#B71C1C] text-white font-semibold text-base rounded-md mt-8"
+              className="w-full h-11 sm:h-12 bg-[#E11936] hover:bg-[#B71C1C] text-white font-semibold text-sm sm:text-base rounded-md mt-5 sm:mt-6"
             >
               {isLoading ? "로그인 중..." : "로그인"}
             </Button>
