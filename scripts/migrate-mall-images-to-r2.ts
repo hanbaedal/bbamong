@@ -9,7 +9,7 @@
 import { connectMongoDB, disconnectMongoDB } from "../server/UserStorage/db";
 import { GoodsProductModel } from "../server/mongodb/models";
 import { compressProductImage } from "../server/lib/compressProductImage";
-import { fetchMallImageBytes, getR2BucketNameForLog } from "../server/lib/mallImageFetch";
+import { fetchMallImageBytesValidated, getR2BucketNameForLog } from "../server/lib/mallImageFetch";
 import {
   getR2PublicBaseUrl,
   isR2Configured,
@@ -34,14 +34,39 @@ async function uploadBuffer(buffer: Buffer, kind: "cover" | "detail" | "thumbnai
   return uploadMallProductImageToR2(compressed.buffer, compressed.contentType, compressed.extension);
 }
 
-async function migrateImageUrl(url: string, kind: "cover" | "detail"): Promise<string> {
-  const bytes = await fetchMallImageBytes(url);
-  return uploadBuffer(bytes, kind);
+async function migrateDetailUrl(url: string): Promise<string> {
+  const bytes = await fetchMallImageBytesValidated(url);
+  return uploadBuffer(bytes, "detail");
 }
 
-async function ensureThumbnailFromSource(sourceUrl: string): Promise<string> {
-  const bytes = await fetchMallImageBytes(sourceUrl);
+/** cover·thumbnail을 한 번 fetch한 바이트로 함께 생성 (R2 URL 재-fetch 방지) */
+async function migrateCoverWithThumbnail(sourceUrl: string): Promise<{ imageUrl: string; thumbnailUrl: string }> {
+  const bytes = await fetchMallImageBytesValidated(sourceUrl);
+  const imageUrl = await uploadBuffer(bytes, "cover");
+  const thumbnailUrl = await uploadBuffer(bytes, "thumbnail");
+  return { imageUrl, thumbnailUrl };
+}
+
+async function createThumbnailOnly(sourceUrl: string): Promise<string> {
+  const bytes = await fetchMallImageBytesValidated(sourceUrl);
   return uploadBuffer(bytes, "thumbnail");
+}
+
+async function warnIfPublicCdnUnreachable(): Promise<void> {
+  const base = getR2PublicBaseUrl();
+  if (!base) return;
+  try {
+    const res = await fetch(base, { method: "HEAD", redirect: "follow" });
+    if (!res.ok && res.status !== 403 && res.status !== 404) {
+      console.warn(`⚠ R2 public URL 응답 ${res.status}: ${base}`);
+    }
+  } catch {
+    console.warn(
+      `⚠ R2 public URL에 연결할 수 없습니다: ${base}\n` +
+        "  → Cloudflare R2 Public URL(pub-....r2.dev)을 R2_PUBLIC_BASE_URL로 쓰거나 cdn DNS를 연결하세요.\n" +
+        "  (R2 업로드는 되더라도 브라우저에서 이미지가 안 보일 수 있습니다.)\n",
+    );
+  }
 }
 
 async function main() {
@@ -56,7 +81,9 @@ async function main() {
 
   console.log(`R2 bucket: ${getR2BucketNameForLog()}`);
   console.log(`R2 public URL: ${getR2PublicBaseUrl() || "(empty)"}`);
-  console.log(`이미지 fetch BASE: ${(process.env.BASE_URL || "https://ppamong.com").replace(/\/+$/, "")}\n`);
+  console.log(`이미지 fetch BASE: ${(process.env.BASE_URL || "https://ppamong.com").replace(/\/+$/, "")}`);
+  await warnIfPublicCdnUnreachable();
+  console.log("");
 
   await connectMongoDB();
 
@@ -71,24 +98,48 @@ async function main() {
 
   for (const product of products) {
     const label = `#${product.id} ${product.name}`;
+    const originalImageUrl = product.imageUrl?.trim() ?? "";
+
     try {
-      let nextImageUrl = product.imageUrl?.trim() ?? "";
+      let nextImageUrl = originalImageUrl;
       let nextThumbnailUrl = product.thumbnailUrl?.trim() ?? "";
       const nextDetailImages = [...(product.detailImages ?? [])];
       let changed = false;
 
-      if (!thumbnailsOnly && nextImageUrl && !isR2PublicUrl(nextImageUrl)) {
+      const needsCover = !thumbnailsOnly && nextImageUrl && !isR2PublicUrl(nextImageUrl);
+      const needsThumb = !nextThumbnailUrl || !isR2PublicUrl(nextThumbnailUrl);
+      const thumbSourceExternal =
+        originalImageUrl && !isR2PublicUrl(originalImageUrl) ? originalImageUrl : "";
+
+      if (needsCover) {
         if (dryRun) {
-          console.log(`[dry-run] cover migrate: ${label}`);
+          console.log(`[dry-run] cover+thumbnail: ${label}`);
           coverMigrated += 1;
+          if (needsThumb) thumbCreated += 1;
           changed = true;
         } else {
-          nextImageUrl = await migrateImageUrl(nextImageUrl, "cover");
-          if (isR2PublicUrl(nextImageUrl)) {
-            coverMigrated += 1;
-            changed = true;
+          const migrated = await migrateCoverWithThumbnail(nextImageUrl);
+          nextImageUrl = migrated.imageUrl;
+          if (needsThumb) {
+            nextThumbnailUrl = migrated.thumbnailUrl;
+            thumbCreated += 1;
+            console.log(`cover+thumbnail → R2: ${label}`);
+          } else {
             console.log(`cover → R2: ${label}`);
           }
+          coverMigrated += 1;
+          changed = true;
+        }
+      } else if (needsThumb && thumbSourceExternal) {
+        if (dryRun) {
+          console.log(`[dry-run] thumbnail: ${label}`);
+          thumbCreated += 1;
+          changed = true;
+        } else {
+          nextThumbnailUrl = await createThumbnailOnly(thumbSourceExternal);
+          thumbCreated += 1;
+          changed = true;
+          console.log(`thumbnail 생성: ${label}`);
         }
       }
 
@@ -101,28 +152,11 @@ async function main() {
             detailMigrated += 1;
             changed = true;
           } else {
-            const migrated = await migrateImageUrl(url, "detail");
-            if (migrated) {
-              nextDetailImages[i] = migrated;
-              detailMigrated += 1;
-              changed = true;
-              console.log(`detail → R2: ${label} [${i + 1}]`);
-            }
+            nextDetailImages[i] = await migrateDetailUrl(url);
+            detailMigrated += 1;
+            changed = true;
+            console.log(`detail → R2: ${label} [${i + 1}]`);
           }
-        }
-      }
-
-      const thumbSource = nextImageUrl || product.imageUrl?.trim() || "";
-      if (thumbSource && (!nextThumbnailUrl || !isR2PublicUrl(nextThumbnailUrl))) {
-        if (dryRun) {
-          console.log(`[dry-run] thumbnail: ${label}`);
-          thumbCreated += 1;
-          changed = true;
-        } else {
-          nextThumbnailUrl = await ensureThumbnailFromSource(thumbSource);
-          thumbCreated += 1;
-          changed = true;
-          console.log(`thumbnail 생성: ${label}`);
         }
       }
 

@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import sharp from "sharp";
 
 function siteBaseUrl(): string {
   return (process.env.BASE_URL || "https://ppamong.com").replace(/\/+$/, "");
@@ -39,6 +40,20 @@ export async function fetchMallImageBytes(imageUrl: string): Promise<Buffer> {
   }
 
   return fetchFromSite(trimmed);
+}
+
+/** sharp로 디코딩 가능한 이미지인지 확인 */
+export async function fetchMallImageBytesValidated(imageUrl: string): Promise<Buffer> {
+  const buffer = await fetchMallImageBytes(imageUrl);
+  if (buffer.length < 32) {
+    throw new Error(`image too small (${buffer.length} bytes)`);
+  }
+  try {
+    await sharp(buffer).metadata();
+  } catch {
+    throw new Error(`unsupported or corrupt image format`);
+  }
+  return buffer;
 }
 
 export function getR2BucketNameForLog(): string {
