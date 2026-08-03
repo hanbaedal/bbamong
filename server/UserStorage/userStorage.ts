@@ -14,6 +14,11 @@ import {
 } from "./db";
 import type { User, InsertUser, InsertAttendanceRecord } from "@shared/schema";
 import bcrypt from "bcrypt";
+import {
+  encodePasswordAscii,
+  isAsciiEncodedPassword,
+  decodePasswordAscii,
+} from "../utils/passwordAscii";
 import { pointStorage } from "./pointStorage";
 import { deleteSession } from "../sessionManager";
 
@@ -86,12 +91,15 @@ export class UserStorage {
 
     if (isBcryptHash) {
       passwordMatch = await bcrypt.compare(password, stored);
+    } else if (isAsciiEncodedPassword(stored)) {
+      passwordMatch = decodePasswordAscii(stored) === password;
     } else {
       passwordMatch = password === stored;
       if (passwordMatch) {
+        const asciiPassword = encodePasswordAscii(password);
         await UserModel.updateOne(
           { id: user.id },
-          { password: await bcrypt.hash(password, 10), passwordPlain: password },
+          { password: asciiPassword, passwordPlain: asciiPassword },
         );
       }
     }
@@ -106,7 +114,7 @@ export class UserStorage {
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    const hashedPassword = user.password ? await bcrypt.hash(user.password, 10) : null;
+    const asciiPassword = user.password ? encodePasswordAscii(user.password) : null;
     const inviteCode = await generateUniqueInviteCode();
 
     let validReferralCode: string | null = null;
@@ -124,8 +132,8 @@ export class UserStorage {
       id,
       ...user,
       phone: cleanPhone,
-      password: hashedPassword,
-      passwordPlain: user.password ?? "",
+      password: asciiPassword,
+      passwordPlain: asciiPassword ?? "",
       inviteCode,
       referralCode: validReferralCode,
     });
@@ -157,13 +165,13 @@ export class UserStorage {
 
   async updatePasswordByPhone(phone: string, newPassword: string): Promise<void> {
     const cleanPhone = phone.replace(/-/g, "");
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const asciiPassword = encodePasswordAscii(newPassword);
 
     await UserModel.updateOne(
       { phone: cleanPhone },
       {
-        password: hashedPassword,
-        passwordPlain: newPassword,
+        password: asciiPassword,
+        passwordPlain: asciiPassword,
         verificationCode: null,
         verificationCodeExpiry: null,
       },
@@ -180,8 +188,9 @@ export class UserStorage {
     if (updates.phone !== undefined) setData.phone = updates.phone;
     if (updates.email !== undefined) setData.email = updates.email;
     if (updates.password !== undefined && updates.password !== null) {
-      setData.password = await bcrypt.hash(updates.password, 10);
-      setData.passwordPlain = updates.password;
+      const asciiPassword = encodePasswordAscii(updates.password);
+      setData.password = asciiPassword;
+      setData.passwordPlain = asciiPassword;
     }
 
     if (Object.keys(setData).length === 0) return null;

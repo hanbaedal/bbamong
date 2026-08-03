@@ -981,6 +981,54 @@
   overflow-y: auto;
 }
 
+/* 로그인 — 라벨 · 입력 1줄 */
+.user-landscape-page--login .user-login-panel .user-login-card {
+  gap: clamp(5px, 1vh, 7px);
+  padding: clamp(8px, 1.6vh, 10px);
+}
+
+.user-landscape-page--login .user-login-panel .user-login-field {
+  display: grid;
+  grid-template-columns: clamp(64px, 16vw, 80px) minmax(0, 1fr);
+  column-gap: clamp(6px, 1.5vw, 8px);
+  row-gap: clamp(2px, 0.5vh, 4px);
+  align-items: center;
+}
+
+.user-landscape-page--login .user-login-panel .user-login-field-label {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  margin: 0;
+}
+
+.user-landscape-page--login .user-login-panel .user-login-field > .user-login-box-wrap,
+.user-landscape-page--login .user-login-panel .user-login-field > .user-login-box,
+.user-landscape-page--login .user-login-panel .user-login-field > input {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  min-width: 0;
+}
+
+.user-landscape-page--login .user-login-panel .user-login-field > .user-login-error {
+  grid-column: 1 / -1;
+  padding-left: calc(clamp(64px, 16vw, 80px) + clamp(6px, 1.5vw, 8px));
+}
+
+.user-landscape-page--login .user-login-panel .user-login-box {
+  height: clamp(28px, 6.5vh, 32px);
+  font-size: clamp(11px, 2.5vw, 13px);
+}
+
+.user-login-hint {
+  margin: 0 0 clamp(4px, 1vh, 6px);
+  color: #ccf501;
+  font-size: clamp(10px, 2.4vw, 12px);
+  line-height: 1.4;
+  text-align: center;
+}
+
 @media (orientation: portrait), (max-aspect-ratio: 1/1) {
   .user-landscape-page--login .user-landscape-split {
     grid-template-columns: 1fr;

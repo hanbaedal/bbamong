@@ -6,6 +6,32 @@ export const INTRO_SEEN_STORAGE_KEY = "ppamong_intro_seen";
 
 export const USER_LOGIN_PATH = "/login?guest=0";
 
+const SIGNUP_LOGIN_PREFILL_KEY = "ppamong_signup_login_prefill";
+
+export function stashSignupLoginPrefill(username: string, password: string): void {
+  try {
+    sessionStorage.setItem(
+      SIGNUP_LOGIN_PREFILL_KEY,
+      JSON.stringify({ username, password }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+export function consumeSignupLoginPrefill(): { username: string; password: string } | null {
+  try {
+    const raw = sessionStorage.getItem(SIGNUP_LOGIN_PREFILL_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(SIGNUP_LOGIN_PREFILL_KEY);
+    const parsed = JSON.parse(raw) as { username?: string; password?: string };
+    if (!parsed.username || !parsed.password) return null;
+    return { username: parsed.username, password: parsed.password };
+  } catch {
+    return null;
+  }
+}
+
 export function markPostLogout(): void {
   try {
     sessionStorage.setItem(POST_LOGOUT_SESSION_KEY, "1");

@@ -8,6 +8,7 @@ import Popup from "@/components/customUi/infoPopup";
 import SignupPanelModal from "@/components/user/SignupPanelModal";
 import { Term } from "@shared/schema";
 import { getFullUrl } from "@/lib/queryClient";
+import { stashSignupLoginPrefill } from "@/lib/loginSession";
 import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
 
 type SignupPanelModalType = "service" | "privacy" | "disclaimer";
@@ -839,7 +840,10 @@ export default function SignupPage() {
         <Popup
           message="회원가입이 완료되었습니다."
           buttonText="확인"
-          onConfirm={() => setLocation("/login")}
+          onConfirm={() => {
+            stashSignupLoginPrefill(username, password);
+            setLocation("/login?guest=0");
+          }}
         />
       ) : null}
     </>

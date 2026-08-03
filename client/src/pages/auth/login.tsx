@@ -8,7 +8,7 @@ import { useUserAssets } from "@/contexts/UserAssetContext";
 import { getFullUrl } from "@/lib/queryClient";
 import { isGuestLoginAllowed } from "@/lib/shopRoutes";
 import { finalizeUserSessionLogin, tryRestoreUserSession } from "@/lib/userLoginAuth";
-import { peekSkipLoginBootstrap, shouldSkipLoginBootstrap } from "@/lib/loginSession";
+import { peekSkipLoginBootstrap, shouldSkipLoginBootstrap, consumeSignupLoginPrefill } from "@/lib/loginSession";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
@@ -63,6 +63,7 @@ export default function LoginPage() {
 
   const socialLoginSucceededRef = useRef(false);
   const [isGuestLoading, setIsGuestLoading] = useState(false);
+  const [awaitingLoginAfterSignup, setAwaitingLoginAfterSignup] = useState(false);
 
   const boxErrorClass = (hasError: boolean) =>
     hasError ? "user-login-box user-login-box--error" : "user-login-box";
@@ -93,6 +94,14 @@ export default function LoginPage() {
       cancelled = true;
     };
   }, [setLocation, setUser]);
+
+  useEffect(() => {
+    const prefill = consumeSignupLoginPrefill();
+    if (!prefill) return;
+    setEmail(prefill.username);
+    setPassword(prefill.password);
+    setAwaitingLoginAfterSignup(true);
+  }, []);
 
   const handleGuestLogin = async () => {
     if (isGuestLoading || isLoading) return;
@@ -414,6 +423,7 @@ export default function LoginPage() {
     if (!validate()) return;
 
     setIsLoading(true);
+    setAwaitingLoginAfterSignup(false);
     setErrors({ email: "", password: "", general: "" });
 
     try {
@@ -570,6 +580,12 @@ export default function LoginPage() {
                   ) : null}
                 </div>
               </div>
+
+              {awaitingLoginAfterSignup ? (
+                <p className="user-login-hint" data-testid="text-signup-login-hint">
+                  회원가입이 완료되었습니다. 로그인해 주세요.
+                </p>
+              ) : null}
 
               {errors.general ? (
                 <p className="user-login-error user-login-error--below" data-testid="error-general">
