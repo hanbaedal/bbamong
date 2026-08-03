@@ -1069,7 +1069,7 @@
 .user-signup-left-top,
 .user-signup-left-bottom {
   width: 100%;
-  max-width: min(340px, 100%);
+  max-width: min(272px, 80%);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -1092,11 +1092,88 @@
 .user-signup-panel {
   display: flex;
   flex-direction: column;
-  gap: clamp(8px, 1.8vh, 12px);
+  gap: clamp(6px, 1.4vh, 10px);
   width: 100%;
   max-width: min(360px, 100%);
   margin: 0 auto;
   padding: clamp(4px, 1vh, 8px) 0 clamp(12px, 2.5vh, 20px);
+}
+
+/* 우측 폼 — 라벨 · 입력 1줄 */
+.user-signup-panel .user-login-card {
+  gap: clamp(5px, 1vh, 7px);
+  padding: clamp(8px, 1.6vh, 10px);
+}
+
+.user-signup-panel .user-login-field {
+  display: grid;
+  grid-template-columns: clamp(64px, 16vw, 80px) minmax(0, 1fr);
+  column-gap: clamp(6px, 1.5vw, 8px);
+  row-gap: clamp(2px, 0.5vh, 4px);
+  align-items: center;
+}
+
+.user-signup-panel .user-login-field-label {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  margin: 0;
+}
+
+.user-signup-panel .user-login-field > .user-signup-inline-field,
+.user-signup-panel .user-login-field > .user-login-box-wrap,
+.user-signup-panel .user-login-field > .user-login-box,
+.user-signup-panel .user-login-field > input {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  min-width: 0;
+}
+
+.user-signup-panel .user-login-field > .user-signup-verify-row {
+  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
+}
+
+.user-signup-panel .user-login-field > .user-login-error,
+.user-signup-panel .user-login-field > .user-signup-success {
+  grid-column: 1 / -1;
+  padding-left: calc(clamp(64px, 16vw, 80px) + clamp(6px, 1.5vw, 8px));
+}
+
+.user-signup-panel .user-login-box {
+  height: clamp(28px, 6.5vh, 32px);
+  font-size: clamp(11px, 2.5vw, 13px);
+}
+
+.user-signup-panel .user-signup-inline-btn {
+  min-height: clamp(28px, 6.5vh, 32px);
+  padding: 0 clamp(6px, 1.5vw, 8px);
+  font-size: clamp(9px, 2vw, 11px);
+}
+
+.user-signup-submit {
+  width: 100%;
+  height: clamp(34px, 8.5vh, 40px);
+  margin-top: clamp(2px, 0.6vh, 4px);
+  border-radius: 6px;
+  border: 1px solid #373539;
+  background: #201e22;
+  color: #fff;
+  font-size: clamp(12px, 2.8vw, 14px);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.user-signup-submit:hover:not(:disabled) {
+  background: #4a4a4a;
+  border-color: #4a4a4a;
+}
+
+.user-signup-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .user-signup-inline-field {

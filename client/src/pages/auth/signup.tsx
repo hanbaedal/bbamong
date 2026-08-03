@@ -474,7 +474,7 @@ export default function SignupPage() {
                   type="submit"
                   data-testid="button-signup"
                   disabled={isLoading}
-                  className="user-login-submit"
+                  className="user-signup-submit"
                 >
                   {isLoading ? "가입 중..." : "회원가입"}
                 </button>
@@ -492,6 +492,33 @@ export default function SignupPage() {
               <div className="user-signup-panel">
               <div className="user-login-card">
                 <div className="user-login-field">
+                  <label htmlFor="name" className="user-login-field-label">
+                    이름
+                  </label>
+                  <input
+                    id="name"
+                    type="text"
+                    data-testid="input-name"
+                    placeholder="이름 (최대 15자)"
+                    value={name}
+                    maxLength={15}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (touched.name) {
+                        setErrors((prev) => ({ ...prev, name: "" }));
+                      }
+                    }}
+                    className={boxErrorClass(Boolean(errors.name))}
+                    autoComplete="name"
+                  />
+                  {errors.name ? (
+                    <p className="user-login-error user-login-error--card" data-testid="error-name">
+                      {errors.name}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="user-login-field">
                   <label htmlFor="username" className="user-login-field-label">
                     아이디
                   </label>
@@ -500,7 +527,7 @@ export default function SignupPage() {
                       id="username"
                       type="text"
                       data-testid="input-username"
-                      placeholder="아이디 입력"
+                      placeholder="아이디"
                       value={username}
                       onChange={(e) => {
                         setUsername(e.target.value);
@@ -526,33 +553,6 @@ export default function SignupPage() {
                   ) : errors.username ? (
                     <p className="user-login-error user-login-error--card" data-testid="error-username">
                       {errors.username}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="user-login-field">
-                  <label htmlFor="name" className="user-login-field-label">
-                    이름
-                  </label>
-                  <input
-                    id="name"
-                    type="text"
-                    data-testid="input-name"
-                    placeholder="이름 입력 (최대 15자)"
-                    value={name}
-                    maxLength={15}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      if (touched.name) {
-                        setErrors((prev) => ({ ...prev, name: "" }));
-                      }
-                    }}
-                    className={boxErrorClass(Boolean(errors.name))}
-                    autoComplete="name"
-                  />
-                  {errors.name ? (
-                    <p className="user-login-error user-login-error--card" data-testid="error-name">
-                      {errors.name}
                     </p>
                   ) : null}
                 </div>
@@ -740,7 +740,7 @@ export default function SignupPage() {
                       id="email"
                       type="email"
                       data-testid="input-email"
-                      placeholder="이메일 입력"
+                      placeholder="이메일"
                       value={email}
                       onChange={(e) => {
                         setEmail(e.target.value);
@@ -772,13 +772,13 @@ export default function SignupPage() {
 
                 <div className="user-login-field">
                   <label htmlFor="referralCode" className="user-login-field-label">
-                    추천인 코드 <span style={{ color: "#717680" }}>(선택)</span>
+                    추천인
                   </label>
                   <input
                     id="referralCode"
                     type="text"
                     data-testid="input-referral-code"
-                    placeholder="추천인 코드 입력"
+                    placeholder="추천인 코드 (선택)"
                     value={referralCode}
                     onChange={(e) => setReferralCode(e.target.value)}
                     className={boxErrorClass(Boolean(errors.referralCode))}
