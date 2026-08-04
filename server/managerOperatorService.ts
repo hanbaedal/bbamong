@@ -741,12 +741,6 @@ export async function listOperatorAccounts(): Promise<{
   todayMatches: OrderedTodayMatch[];
 }> {
   await ensureOperatorsReady();
-  try {
-    const { refreshTodayMatchStatusesForOperatorList } = await import("./apiSports/syncService");
-    await refreshTodayMatchStatusesForOperatorList();
-  } catch (error) {
-    console.error("[Operators] today match status refresh failed:", error);
-  }
   await syncAllOperatorAccountStatuses();
 
   const todayMatches = await getTodayMatchesByRegistrationOrder();

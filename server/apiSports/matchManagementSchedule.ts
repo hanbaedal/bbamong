@@ -1,7 +1,7 @@
 import { MatchModel } from "../UserStorage/db";
 import { getKstDateString, getKstDayRange } from "../utils/dateUtils";
 import { msUntilNextKstHour, scheduleDailyKst } from "../utils/kstSchedule";
-import { syncOperatorMatchAssignments } from "../managerOperatorService";
+import { isApiSyncEnabledForRegistrationOrder, syncOperatorMatchAssignments } from "../managerOperatorService";
 import {
   backfillSeasonMatchesBeforeToday,
   refreshMatchFromApiAtEnd,
@@ -161,6 +161,12 @@ export async function rescheduleTodayMatchTimers(): Promise<void> {
 
   for (const match of matches) {
     if (!match.startTime || !match.endTime) continue;
+
+    const order = match.registrationOrder ?? 0;
+    const apiSyncEnabled = order >= 1 && order <= MAX_DAILY_MATCHES
+      ? await isApiSyncEnabledForRegistrationOrder(order)
+      : false;
+    if (!apiSyncEnabled) continue;
 
     const startMs = new Date(match.startTime).getTime();
     const endMs = new Date(match.endTime).getTime();
