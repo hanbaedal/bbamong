@@ -9,6 +9,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import SimpleInfoPopup from "@/components/customUi/simpleInfoPopup";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
+import { navigateBackOrEmbed } from "@/lib/gameEmbed";
 
 interface VideoReward {
   id: number;
@@ -134,7 +135,7 @@ export default function PointPage() {
         leftAction={
           <button
             data-testid="button-back"
-            onClick={() => setLocation("/home")}
+            onClick={() => navigateBackOrEmbed("/home", setLocation)}
             className="p-1 focus:outline-none"
           >
             <ChevronLeft className="w-6 h-6 text-white" />

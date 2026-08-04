@@ -51,7 +51,7 @@ export default function InquiryDetailPage() {
       <PageHeader
         leftAction={
           <button
-            onClick={() => setLocation("/settings")}
+            onClick={() => setLocation("/customer-center")}
             data-testid="button-back"
             className="p-1 focus:outline-none focus-visible:outline-none"
           >

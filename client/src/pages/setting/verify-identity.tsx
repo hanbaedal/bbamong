@@ -7,6 +7,7 @@ import BottomNavigation from "@/components/BottomNavigation";
 import PageHeader from "@/components/PageHeader";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
+import { navigateBackOrEmbed } from "@/lib/gameEmbed";
 import { apiRequest } from "@/lib/queryClient";
 
 export default function VerifyIdentityPage() {
@@ -54,7 +55,7 @@ export default function VerifyIdentityPage() {
     <div className="h-app-screen bg-[#111111]">
       <PageHeader
         leftAction={
-          <button onClick={() => setLocation("/settings")} data-testid="button-back" className="p-1">
+          <button onClick={() => navigateBackOrEmbed("/settings", setLocation)} data-testid="button-back" className="p-1">
             <ChevronLeft className="w-6 h-6 text-white" />
           </button>
         }

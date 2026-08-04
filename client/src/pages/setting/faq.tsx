@@ -3,6 +3,7 @@ import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { navigateBackOrEmbed } from "@/lib/gameEmbed";
 import { apiRequest } from "@/lib/queryClient";
 
 type Term = {
@@ -27,7 +28,7 @@ export default function FaqPage() {
   });
 
   const handleClose = () => {
-    setLocation("/settings");
+    navigateBackOrEmbed("/settings", setLocation);
   };
 
   return (

@@ -60,7 +60,7 @@ export default function NoticeDetailPage() {
       <PageHeader
         leftAction={
           <button
-            onClick={() => setLocation("/settings")}
+            onClick={() => setLocation("/notice")}
             data-testid="button-back"
             className="p-1 focus:outline-none focus-visible:outline-none"
           >

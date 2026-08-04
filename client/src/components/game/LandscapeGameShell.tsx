@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
 import GameFieldViewport from "./GameFieldViewport";
-import GameLeftMenu, { type GameMenuAction, type SubmenuAnchor } from "./GameLeftMenu";
+import GameLeftMenu, { type GameMenuAction } from "./GameLeftMenu";
 import GameTopScorePanel from "./GameTopScorePanel";
 import GamePregameCountdown from "./GamePregameCountdown";
 import GameFieldLabels from "./GameFieldLabels";
@@ -14,6 +16,11 @@ import GameResultBanner from "./GameResultBanner";
 import GameEventOverlay from "./GameEventOverlay";
 import GameAdOverlay from "./GameAdOverlay";
 import ConfirmPopup from "@/components/customUi/confirmPopup";
+import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
+import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
+import { useUser } from "@/contexts/UserContext";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { clearTokens } from "@/lib/tokenManager";
 import type { AdSessionState } from "@/hooks/useAdMob";
 import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
 import type { GameDayPhase } from "@/lib/gameDayPhase";
@@ -122,6 +129,32 @@ export default function LandscapeGameShell({
   onSideBetWinnerClick,
   onSideBetScoreClick,
 }: LandscapeGameShellProps) {
+  const [, setLocation] = useLocation();
+  const { setUser, isGuest } = useUser();
+  const { showGuestPopup, setShowGuestPopup, checkGuest } = useGuestRestriction(isGuest);
+  const [showDeletePopup, setShowDeletePopup] = useState(false);
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async () => apiRequest("DELETE", "/api/users/me"),
+    onSuccess: async () => {
+      await clearTokens();
+      queryClient.clear();
+      setUser(null);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      setLocation("/login");
+    },
+    onError: (error: Error) => {
+      console.error("회원 탈퇴 실패:", error);
+    },
+  });
+
+  const handleMenuAction = (action: "withdraw") => {
+    if (action === "withdraw") {
+      if (checkGuest()) return;
+      setShowDeletePopup(true);
+    }
+  };
+
   const storyLinks = [
     { label: "승리현황", href: "/victory-history", testId: "link-victory-history" },
     { label: "공지사항", href: "/notice", testId: "link-notice" },
@@ -130,20 +163,20 @@ export default function LandscapeGameShell({
   ];
 
   const infoLinks = [
-    { label: "회원정보", href: "/profile", testId: "link-profile" },
+    { label: "회원정보", href: "/verify-identity", testId: "link-profile" },
     { label: "친구 초대", href: "/invitation", testId: "link-invite" },
     { label: "출석 체크", href: "/attendance", testId: "link-attendance" },
     { label: "추가 참여", href: "/point", testId: "link-point" },
+    { label: "Q&A", href: "/faq", testId: "link-faq" },
     { label: "서비스 이용약관", href: "/terms", testId: "link-terms" },
     { label: "고객센터", href: "/customer-center", testId: "link-customer-center" },
+    { label: "탈퇴하기", action: "withdraw", testId: "link-withdraw", danger: true },
   ];
 
   const confirmPayout =
     selectedPrediction != null
       ? calculateFixedOddsPayout(selectedBetAmount, selectedPrediction)
       : 0;
-
-  const [submenuAnchor, setSubmenuAnchor] = useState<SubmenuAnchor | null>(null);
 
   const submenuPanel =
     activePanel === "story" || activePanel === "info" ? activePanel : null;
@@ -237,11 +270,7 @@ export default function LandscapeGameShell({
         onScoreClick={onSideBetScoreClick}
       />
 
-      <GameLeftMenu
-        activePanel={activePanel}
-        onSelect={onMenuSelect}
-        onSubmenuAnchor={setSubmenuAnchor}
-      />
+      <GameLeftMenu activePanel={activePanel} onSelect={onMenuSelect} />
 
       {((showAdOverlay && !isNativePlatform) ||
         (isNativePlatform &&
@@ -257,12 +286,12 @@ export default function LandscapeGameShell({
 
       <GameMenuPanel
         panel={submenuPanel}
-        anchor={submenuAnchor}
         onClose={onClosePanel}
         storyLinks={storyLinks}
         infoLinks={infoLinks}
         todayStats={todayStats}
         statsLoading={statsLoading}
+        onMenuAction={handleMenuAction}
       />
 
       {showBetModal && selectedPrediction && (
@@ -287,6 +316,21 @@ export default function LandscapeGameShell({
           footerValue={`${confirmPayout}P`}
           onCancel={onConfirmCancel}
           onConfirm={onConfirmSubmit}
+        />
+      )}
+
+      <GuestRestrictionPopup show={showGuestPopup} onClose={() => setShowGuestPopup(false)} />
+
+      {showDeletePopup && (
+        <SimpleConfirmPopup
+          message="계정을 영구적으로 탈퇴하시겠어요?"
+          leftButtonText="취소하기"
+          rightButtonText="탈퇴하기"
+          onLeftClick={() => setShowDeletePopup(false)}
+          onRightClick={() => {
+            deleteAccountMutation.mutate();
+            setShowDeletePopup(false);
+          }}
         />
       )}
     </div>

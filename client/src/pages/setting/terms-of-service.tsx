@@ -3,6 +3,7 @@ import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { navigateBackOrEmbed } from "@/lib/gameEmbed";
 import { apiRequest } from "@/lib/queryClient";
 
 type Term = {
@@ -31,7 +32,7 @@ export default function TermsOfServicePage() {
       <PageHeader
         leftAction={
           <button
-            onClick={() => setLocation("/settings")}
+            onClick={() => navigateBackOrEmbed("/settings", setLocation)}
             data-testid="button-back"
             className="p-1"
           >

@@ -10,6 +10,7 @@ import { Capacitor } from "@capacitor/core";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/contexts/UserContext";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
+import { navigateBackOrEmbed } from "@/lib/gameEmbed";
 
 interface InviteInfo {
   inviteCode: string;
@@ -93,7 +94,7 @@ export default function InvitePage() {
         leftAction={
           <button
             data-testid="button-back"
-            onClick={() => setLocation("/home")}
+            onClick={() => navigateBackOrEmbed("/home", setLocation)}
             className="p-1 focus:outline-none"
           >
             <ChevronLeft className="w-6 h-6 text-white" />
