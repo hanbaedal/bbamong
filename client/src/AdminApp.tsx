@@ -53,6 +53,15 @@ import { UserProvider } from "./contexts/UserContext";
 import { useEffect } from "react";
 import adminFavicon from "@assets/admin/admin-mascot-favicon.png";
 
+function adminKstTodayKey(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 function Router() {
   return (
     <Switch>
@@ -98,6 +107,11 @@ function Router() {
       <Route path="/admin/match-assignment">{() => <Redirect to="/admin/operators/list" />}</Route>
       <Route path="/admin/monitoring" component={MonitoringPage} />
       <Route path="/admin/match-management" component={MatchManagementPage} />
+      <Route path="/admin/match-monitoring">
+        {() => (
+          <Redirect to={`/admin/match-monitoring/${adminKstTodayKey()}?matchIndex=0`} />
+        )}
+      </Route>
       <Route
         path="/admin/match-monitoring/:dateKey"
         component={RealtimeGameMonitoringPage}

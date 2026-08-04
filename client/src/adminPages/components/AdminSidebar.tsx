@@ -72,7 +72,14 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
     onNavigate?.();
   };
 
-  const isActive = (path?: string) => path === location;
+  const isActive = (path?: string) => {
+    if (!path) return false;
+    if (location === path) return true;
+    if (path === "/admin/match-monitoring" && location.startsWith("/admin/match-monitoring/")) {
+      return true;
+    }
+    return false;
+  };
   const isParentActive = (item: AdminMenuItem) =>
     isActive(item.path) || !!item.children?.some((child) => isActive(child.path));
 

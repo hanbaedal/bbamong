@@ -183,6 +183,12 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
           iconKey: "adMatchIcon",
         },
         {
+          id: "match-monitoring",
+          label: "실시간 게임 모니터링",
+          path: "/admin/match-monitoring",
+          iconKey: "adListIcon",
+        },
+        {
           id: "members",
           label: "회원 관리",
           iconKey: "adMemberIcon",
