@@ -23,6 +23,8 @@ import {
   matchManagementStatusBadgeClass,
   resolveMatchManagementStatusDisplay,
 } from "@shared/matchManagementStatus";
+import { getDisplayStadiumName } from "@shared/stadiumDisplay";
+import { resolveMatchTeamNames } from "@shared/matchTeamDisplay";
 
 interface Stadium {
   id: number;
@@ -50,27 +52,28 @@ interface MatchRow {
   } | null;
 }
 
-function toDateKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function getKstTodayKey(): string {
+function kstDateKeyFromDate(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).format(d);
 }
 
-function matchDateKey(match: MatchRow): string {
+function kstDateKeyFromIso(iso: string): string {
+  return kstDateKeyFromDate(new Date(iso));
+}
+
+/** 달력·목록 — KST 실제 개시 시각(startTime) 기준 (matchDate 오표기 보정) */
+function matchKstDateKey(match: MatchRow): string {
+  if (match.startTime) return kstDateKeyFromIso(match.startTime);
   if (match.matchDate) return match.matchDate;
-  const utc = new Date(match.startTime);
-  const kst = new Date(utc.getTime() + 9 * 60 * 60 * 1000);
-  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, "0")}-${String(kst.getUTCDate()).padStart(2, "0")}`;
+  return "";
+}
+
+function getKstTodayKey(): string {
+  return kstDateKeyFromDate(new Date());
 }
 
 function formatTimeKst(iso: string): string {
@@ -110,6 +113,7 @@ export default function MatchManagement() {
     updated: number;
     linked: number;
     deduped?: number;
+    cleared?: number;
     source?: "cache" | "api";
   } | null>(null);
   const { data: stadiums } = useQuery<Stadium[]>({
@@ -123,7 +127,7 @@ export default function MatchManagement() {
   const datesWithMatches = useMemo(() => {
     const set = new Set<string>();
     for (const m of matchesData ?? []) {
-      set.add(matchDateKey(m));
+      set.add(matchKstDateKey(m));
     }
     return set;
   }, [matchesData]);
@@ -131,7 +135,7 @@ export default function MatchManagement() {
   const matchCountByDate = useMemo(() => {
     const map = new Map<string, number>();
     for (const m of matchesData ?? []) {
-      const key = matchDateKey(m);
+      const key = matchKstDateKey(m);
       map.set(key, (map.get(key) ?? 0) + 1);
     }
     return map;
@@ -153,12 +157,12 @@ export default function MatchManagement() {
     return eachDayOfInterval({ start: gridStart, end: gridEnd });
   }, [calendarMonth]);
 
-  const selectedDateKey = selectedDay ? toDateKey(selectedDay) : null;
+  const selectedDateKey = selectedDay ? kstDateKeyFromDate(selectedDay) : null;
 
   const dayMatches = useMemo(() => {
     if (!selectedDateKey || !matchesData) return [];
     return matchesData
-      .filter((m) => matchDateKey(m) === selectedDateKey)
+      .filter((m) => matchKstDateKey(m) === selectedDateKey)
       .sort((a, b) => {
         const an = parseInt(a.name.replace(/\D/g, ""), 10) || 0;
         const bn = parseInt(b.name.replace(/\D/g, ""), 10) || 0;
@@ -181,13 +185,18 @@ export default function MatchManagement() {
       const updated = body.updated ?? 0;
       const linked = body.linked ?? 0;
       const deduped = body.deduped ?? 0;
+      const cleared = body.cleared ?? 0;
       const source = body.source as "cache" | "api" | undefined;
-      setLastSyncMeta({ date: dateKey, created, updated, linked, deduped, source });
+      setLastSyncMeta({ date: dateKey, created, updated, linked, deduped, cleared, source });
       await queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/admin/stadiums"] });
 
       if (linked === 0) {
-        if (!options?.silentEmpty) {
+        if (cleared > 0) {
+          toast({
+            description: `${dateKey} API 경기 없음 · DB orphan ${cleared}건 정리`,
+          });
+        } else if (!options?.silentEmpty) {
           toast({
             variant: "destructive",
             description: `${dateKey} API 경기가 없습니다. (키·시즌·리그 확인)`,
@@ -223,7 +232,7 @@ export default function MatchManagement() {
     setSelectedDay(day);
     setDayModalOpen(true);
     if (options?.sync === false) return;
-    const dateKey = toDateKey(day);
+    const dateKey = kstDateKeyFromDate(day);
     await syncDate(dateKey, { silentEmpty: true, forceApi: options?.forceApi ?? false });
   };
 
@@ -294,7 +303,7 @@ export default function MatchManagement() {
                 </div>
               ))}
               {calendarDays.map((day, idx) => {
-                const key = toDateKey(day);
+                const key = kstDateKeyFromDate(day);
                 const inMonth = isSameMonth(day, calendarMonth);
                 const count = matchCountByDate.get(key) ?? 0;
                 const has = datesWithMatches.has(key);
@@ -419,9 +428,18 @@ export default function MatchManagement() {
                   </thead>
                   <tbody>
                     {dayMatches.map((match, index) => {
-                      const away = match.apiSportsAwayTeam || "원정팀";
-                      const home = match.apiSportsHomeTeam || "홈팀";
-                      const stadium = stadiumNameById.get(match.stadiumId) || "-";
+                      const teams = resolveMatchTeamNames({
+                        apiSportsAwayTeam: match.apiSportsAwayTeam,
+                        apiSportsHomeTeam: match.apiSportsHomeTeam,
+                        liveScoreboard: match.liveScoreboard,
+                      });
+                      const away = teams.awayTeamName || "원정팀";
+                      const home = teams.homeTeamName || "홈팀";
+                      const stadium =
+                        getDisplayStadiumName(
+                          stadiumNameById.get(match.stadiumId),
+                          match.apiSportsHomeTeam,
+                        ) || "-";
                       const awayScore = match.liveScoreboard?.awayScore;
                       const homeScore = match.liveScoreboard?.homeScore;
                       const scoreText =

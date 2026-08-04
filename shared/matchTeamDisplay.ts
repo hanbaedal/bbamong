@@ -1,3 +1,6 @@
+import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import { formatKboTeamShortName } from "./kboHomeStadium";
+
 export interface MatchTeamNameInput {
   apiSportsAwayTeam?: string | null;
   apiSportsHomeTeam?: string | null;
@@ -15,11 +18,14 @@ export function resolveMatchTeamNames(input: MatchTeamNameInput): {
   awayTeamName: string;
   homeTeamName: string;
 } {
-  const awayTeamName =
+  const awayRaw =
     input.apiSportsAwayTeam?.trim() || input.liveScoreboard?.awayTeamName?.trim() || "";
-  const homeTeamName =
+  const homeRaw =
     input.apiSportsHomeTeam?.trim() || input.liveScoreboard?.homeTeamName?.trim() || "";
-  return { awayTeamName, homeTeamName };
+  return {
+    awayTeamName: formatKboTeamShortName(awayRaw),
+    homeTeamName: formatKboTeamShortName(homeRaw),
+  };
 }
 
 /** 사용자·운영자 공통 팀명 1줄 — `원정 : 홈` */

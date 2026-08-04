@@ -101,7 +101,7 @@ export default function TodayMatchesSideBetModal({
               <ul className="space-y-1">
                 {matches.map((match) => {
                   const title = formatMatchTitle(match.name);
-                  const stadium = getDisplayStadiumName(match.stadiumName);
+                  const stadium = getDisplayStadiumName(match.stadiumName, match.homeTeamName);
                   const teamLine = formatGameMatchTeamLine(match);
                   const bets = todayBets?.betsByMatch[match.id] ?? [];
                   const winnerBet = bets.find((b) => b.type === "winner");

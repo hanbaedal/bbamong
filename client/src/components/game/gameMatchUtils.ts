@@ -209,7 +209,7 @@ export function collectStadiumOptions(matches: GameMatchItem[]): StadiumOption[]
   const map = new Map<number, StadiumOption>();
   for (const match of matches) {
     if (match.stadiumId == null) continue;
-    const displayName = getDisplayStadiumName(match.stadiumName);
+    const displayName = getDisplayStadiumName(match.stadiumName, match.homeTeamName);
     if (!displayName) continue;
     if (!map.has(match.stadiumId)) {
       map.set(match.stadiumId, { id: match.stadiumId, name: displayName });

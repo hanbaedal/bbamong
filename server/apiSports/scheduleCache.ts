@@ -3,9 +3,13 @@ import { getKstDateString } from "../utils/dateUtils";
 import { fetchGamesByDate, type ApiSportsGameResponse } from "./client";
 import { KBO_LEAGUE_ID } from "./constants";
 import { isGameFinished, isGameLiveStatus, isGamePostponedOrCancelled } from "./scoreboardParser";
+import { resolveVenueNameFromApiSportsGame } from "@shared/kboHomeStadium";
 
 function venueNameFromGame(game: ApiSportsGameResponse): string {
-  return game.venue?.name?.trim() || "API자동";
+  return resolveVenueNameFromApiSportsGame({
+    apiVenueName: game.venue?.name,
+    homeTeamName: game.teams.home.name,
+  });
 }
 
 function docToGameResponse(doc: Record<string, unknown>): ApiSportsGameResponse {

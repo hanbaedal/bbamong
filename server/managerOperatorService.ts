@@ -20,6 +20,7 @@ import {
   isGamePostponedOrCancelled,
   isConfirmedPostponedMatch,
 } from "../shared/apiSportsStatus";
+import { resolveMatchTeamNames } from "../shared/matchTeamDisplay";
 
 export const OPERATOR_USERNAMES = ["op1", "op2", "op3", "op4", "op5"] as const;
 const OPERATOR_COUNT = 5;
@@ -304,15 +305,12 @@ export interface OrderedTodayMatch {
 
 function teamNamesFromMatchRow(row: Record<string, unknown>): { away: string; home: string } {
   const board = row.liveScoreboard as { awayTeamName?: string; homeTeamName?: string } | null | undefined;
-  const away =
-    (row.apiSportsAwayTeam as string | undefined)?.trim() ||
-    board?.awayTeamName?.trim() ||
-    "";
-  const home =
-    (row.apiSportsHomeTeam as string | undefined)?.trim() ||
-    board?.homeTeamName?.trim() ||
-    "";
-  return { away, home };
+  const names = resolveMatchTeamNames({
+    apiSportsAwayTeam: row.apiSportsAwayTeam as string | undefined,
+    apiSportsHomeTeam: row.apiSportsHomeTeam as string | undefined,
+    liveScoreboard: board,
+  });
+  return { away: names.awayTeamName, home: names.homeTeamName };
 }
 
 export function findTodayMatchByRegistrationOrder(

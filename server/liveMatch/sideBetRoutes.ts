@@ -11,6 +11,7 @@ import { getMatchInfo } from "./predictionStorage";
 import { isValidSideBetAmount, DEFAULT_SIDE_BET_AMOUNT } from "@shared/predictionOdds";
 import { MatchModel, MatchSideBetModel } from "../UserStorage/db";
 import { matchStorage } from "../UserStorage/matchStorage";
+import { resolveMatchTeamNames } from "@shared/matchTeamDisplay";
 
 const router = Router();
 
@@ -103,11 +104,16 @@ router.get("/matches/:matchId/side-bets/me", userAuthMiddleware, async (req: any
       .lean();
     if (!match) return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
 
+    const teamNames = resolveMatchTeamNames({
+      apiSportsAwayTeam: match.apiSportsAwayTeam,
+      apiSportsHomeTeam: match.apiSportsHomeTeam,
+      liveScoreboard: match.liveScoreboard as { awayTeamName?: string; homeTeamName?: string } | null,
+    });
     const bets = await getUserSideBetsForMatch(userId, req.params.matchId);
     res.json({
       sideBetsLocked: Boolean(match.sideBetsLocked),
-      homeTeamName: match.apiSportsHomeTeam ?? null,
-      awayTeamName: match.apiSportsAwayTeam ?? null,
+      homeTeamName: teamNames.homeTeamName || null,
+      awayTeamName: teamNames.awayTeamName || null,
       matchStatus: match.matchStatus,
       bets,
     });
@@ -127,11 +133,15 @@ router.get(
         .lean();
       if (!match) return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
 
+      const teamNames = resolveMatchTeamNames({
+        apiSportsAwayTeam: match.apiSportsAwayTeam,
+        apiSportsHomeTeam: match.apiSportsHomeTeam,
+      });
       const summary = await getSideBetSummaryForMatch(req.params.matchId);
       res.json({
         sideBetsLocked: Boolean(match.sideBetsLocked),
-        homeTeamName: match.apiSportsHomeTeam ?? null,
-        awayTeamName: match.apiSportsAwayTeam ?? null,
+        homeTeamName: teamNames.homeTeamName || null,
+        awayTeamName: teamNames.awayTeamName || null,
         summary,
       });
     } catch (error) {

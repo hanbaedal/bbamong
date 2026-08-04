@@ -19,14 +19,18 @@ import { isConfirmedPostponedMatch } from "@shared/apiSportsStatus";
 import { isStaleFinishedScoreboard, isStalePostponedScoreboard, isMisclassifiedTerminalStatus } from "@shared/matchManagementStatus";
 import { refreshMatchLineupIfDue } from "./lineupService";
 import { refreshMatchHeadToHeadIfDue } from "./h2hService";
+import {
+  API_PLACEHOLDER_STADIUM_NAME,
+  formatKboTeamShortName,
+  resolveVenueNameFromApiSportsGame,
+} from "@shared/kboHomeStadium";
 
 const MAX_DAILY_MATCHES = 5;
-const API_DEFAULT_STADIUM_NAME = "API자동";
 
 function apiSportsTeamsUpdate(game: ApiSportsGameResponse, scoreboard: LiveScoreboard) {
   return {
-    apiSportsHomeTeam: scoreboard.homeTeamName,
-    apiSportsAwayTeam: scoreboard.awayTeamName,
+    apiSportsHomeTeam: formatKboTeamShortName(scoreboard.homeTeamName),
+    apiSportsAwayTeam: formatKboTeamShortName(scoreboard.awayTeamName),
     ...apiSportsTeamIdsFromGame(game),
   };
 }
@@ -122,7 +126,7 @@ export function resolveMatchStatusFromScoreboard(
 }
 
 async function ensureStadiumByName(name: string): Promise<number> {
-  const trimmed = name.trim() || API_DEFAULT_STADIUM_NAME;
+  const trimmed = name.trim() || API_PLACEHOLDER_STADIUM_NAME;
   const existing = await StadiumModel.findOne({ name: trimmed }).lean();
   if (existing) return existing.id;
 
@@ -207,10 +211,37 @@ async function dedupeDailyMatchesForDate(
   return removed;
 }
 
+/** API에 해당일 경기 없음(forceApi) — 예측 없는 1~5경기 슬롯 orphan 제거 */
+async function clearOrphanMatchesForDate(targetDate: string): Promise<number> {
+  const matches = await findMatchesForDate(targetDate);
+  let removed = 0;
+
+  for (const m of matches) {
+    const order =
+      (m as { registrationOrder?: number | null }).registrationOrder ??
+      extractMatchOrder(m.name) ??
+      0;
+    if (order < 1 || order > MAX_DAILY_MATCHES) continue;
+
+    const predCount = await PredictionModel.countDocuments({ matchId: m.id });
+    if (predCount > 0) continue;
+
+    await MatchModel.deleteOne({ id: m.id });
+    removed += 1;
+  }
+
+  if (removed > 0) {
+    console.log(`[ApiSportsSync] ${targetDate} API 경기 없음 — orphan ${removed}건 제거`);
+  }
+
+  return removed;
+}
+
 function venueNameFromGame(game: ApiSportsGameResponse): string {
-  const name = game.venue?.name?.trim();
-  if (name) return name;
-  return API_DEFAULT_STADIUM_NAME;
+  return resolveVenueNameFromApiSportsGame({
+    apiVenueName: game.venue?.name,
+    homeTeamName: game.teams.home.name,
+  });
 }
 
 export function mapTodayGames(games: ApiSportsGameResponse[]): ApiSportsTodayGame[] {
@@ -246,6 +277,7 @@ export async function syncTodayGamesFromApiSports(
   updated: number;
   linked: number;
   deduped: number;
+  cleared?: number;
   games: ApiSportsTodayGame[];
   source: "cache" | "api";
 }> {
@@ -262,7 +294,9 @@ export async function syncTodayGamesFromApiSports(
   const mapped = mapTodayGames(sortedApi);
 
   if (sortedApi.length === 0) {
-    return { created: 0, updated: 0, linked: 0, deduped: 0, games: [], source };
+    const cleared =
+      options?.forceApi === true ? await clearOrphanMatchesForDate(targetDate) : 0;
+    return { created: 0, updated: 0, linked: 0, deduped: 0, cleared, games: [], source };
   }
 
   const activeApiIds = new Set(sortedApi.map((g) => g.id));

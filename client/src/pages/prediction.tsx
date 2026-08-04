@@ -416,7 +416,7 @@ export default function PredictionPage() {
             disabled: true,
           };
         }
-        const stadium = getDisplayStadiumName(match.stadiumName);
+        const stadium = getDisplayStadiumName(match.stadiumName, match.homeTeamName);
         const teams = formatGameMatchTeamLine(match);
         const disabledReason = getGameMatchSelectDisabledReason(match);
         const statusPart = disabledReason ?? formatMatchStatusLabel(match, nowMs);
@@ -482,7 +482,7 @@ export default function PredictionPage() {
   };
 
   const matchTitle = displayMatch ? formatMatchTitle(displayMatch.name) : "경기 선택";
-  const stadiumName = getDisplayStadiumName(displayMatch?.stadiumName) ?? "";
+  const stadiumName = getDisplayStadiumName(displayMatch?.stadiumName, displayMatch?.homeTeamName) ?? "";
   const matchHeaderLines = displayMatch
     ? resolveGameMatchHeaderLines(displayMatch, liveScoreboard)
     : { teamNamesLine: null, headToHeadLine: null };
