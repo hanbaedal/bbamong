@@ -41,7 +41,7 @@ export default function SideBetAmountSelector({
 
   return (
     <div className={compact ? "mb-2" : "mb-3"}>
-      <p className={`text-[#888] ${compact ? "mb-1.5 text-[10px]" : "mb-2 text-xs"}`}>
+      <p className={`text-center text-[#888] ${compact ? "mb-1.5 text-[10px]" : "mb-2 text-xs"}`}>
         배팅 P · {odds}배 · 적중 {payout}P
       </p>
       <SpinnerField
