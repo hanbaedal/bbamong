@@ -26,6 +26,31 @@ export function formatSideBetStatus(status: string): string {
   }
 }
 
+/** 우승/점수 선택 요약 (pending은 상태 문구 생략) */
+export function formatSideBetPickSummary(
+  bet: SideBetRecord,
+  homeName: string,
+  awayName: string,
+): string {
+  const home = homeName.trim() || "홈팀";
+  const away = awayName.trim() || "원정팀";
+  const base =
+    bet.type === "winner"
+      ? bet.winnerPick === "home"
+        ? home
+        : bet.winnerPick === "away"
+          ? away
+          : "—"
+      : `${away}(${bet.awayScorePick ?? 0}) : ${home}(${bet.homeScorePick ?? 0})`;
+
+  if (bet.status === "pending") return base;
+  const status = formatSideBetStatus(bet.status);
+  if (bet.status === "won" && (bet.wonAmount ?? 0) > 0) {
+    return `${base} · ${status} (+${bet.wonAmount}P)`;
+  }
+  return `${base} · ${status}`;
+}
+
 /** 경기 시작 시각 경과 또는 ongoing — 사이드벳 입력·자동 모달 차단 */
 export function isMatchStartedForSideBets(
   match: Pick<GameMatchItem, "matchStatus" | "startTime">,

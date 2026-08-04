@@ -515,7 +515,7 @@ export default function PredictionPage() {
       : null;
     const scoreLabel =
       scoreBet?.homeScorePick != null && scoreBet?.awayScorePick != null
-        ? `원정(${scoreBet.awayScorePick}) : 홈팀(${scoreBet.homeScorePick})`
+        ? `${awayName}(${scoreBet.awayScorePick}) : ${homeName}(${scoreBet.homeScorePick})`
         : null;
     return {
       winnerLabel,

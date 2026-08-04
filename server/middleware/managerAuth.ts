@@ -2,10 +2,15 @@ import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { verifyAccessToken, verifyRefreshToken, generateAccessToken, generateRefreshToken, type TokenPayload } from "../utils/jwt";
 import { AdminUserModel } from "../UserStorage/db";
-import { createSession, refreshSession, hasActiveSession } from "../sessionManager";
+import { refreshSession, hasActiveSession } from "../sessionManager";
 
 export interface AuthenticatedManagerRequest extends Request {
   manager?: TokenPayload;
+}
+
+function clearManagerAuthCookies(res: Response): void {
+  res.clearCookie("managerAccessToken", { path: "/" });
+  res.clearCookie("managerRefreshToken", { path: "/" });
 }
 
 async function tryRefreshManagerToken(req: Request, res: Response): Promise<TokenPayload | null> {
@@ -14,6 +19,12 @@ async function tryRefreshManagerToken(req: Request, res: Response): Promise<Toke
 
   try {
     const decoded = verifyRefreshToken(refreshToken);
+
+    const sessionExists = await hasActiveSession("manager", decoded.adminId);
+    if (!sessionExists) {
+      clearManagerAuthCookies(res);
+      return null;
+    }
 
     const newAccessToken = generateAccessToken({
       adminId: decoded.adminId,
@@ -43,10 +54,7 @@ async function tryRefreshManagerToken(req: Request, res: Response): Promise<Toke
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30일
     });
 
-    await createSession("manager", decoded.adminId, {
-      email: decoded.email,
-      userType: decoded.userType,
-    });
+    await refreshSession("manager", decoded.adminId).catch(() => {});
 
     return decoded;
   } catch {
@@ -65,8 +73,7 @@ async function validateManagerStatus(decoded: TokenPayload, res: Response): Prom
   }
 
   if (manager.approvalStatus !== "승인") {
-    res.clearCookie("managerAccessToken");
-    res.clearCookie("managerRefreshToken");
+    clearManagerAuthCookies(res);
     res.status(403).json({ message: "승인되지 않은 계정입니다." });
     return false;
   }
@@ -109,13 +116,15 @@ export async function managerAuthMiddleware(
 
     const sessionExists = await hasActiveSession("manager", decoded.adminId);
     if (!sessionExists) {
-      await createSession("manager", decoded.adminId, {
-        email: decoded.email,
-        userType: decoded.userType,
+      clearManagerAuthCookies(res);
+      res.status(401).json({
+        message: "세션이 만료되었거나 로그아웃되었습니다. 다시 로그인해 주세요.",
+        sessionExpired: true,
       });
-    } else {
-      refreshSession("manager", decoded.adminId).catch(() => {});
+      return;
     }
+
+    refreshSession("manager", decoded.adminId).catch(() => {});
 
     req.manager = decoded;
     next();

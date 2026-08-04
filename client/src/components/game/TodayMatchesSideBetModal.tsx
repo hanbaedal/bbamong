@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { formatMatchTitle, formatGameMatchTeamLine, type GameMatchItem } from "@/components/game/gameMatchUtils";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import {
-  formatSideBetStatus,
+  formatSideBetPickSummary,
   isSideBetActionEnabled,
   sideBetDisabledReason,
   type SideBetRecord,
@@ -27,20 +27,6 @@ interface TodayMatchesSideBetModalProps {
   loading?: boolean;
   initialAction?: SideBetActionTarget | null;
   onClose: () => void;
-}
-
-function betResultLabel(bet: SideBetRecord): string {
-  const base =
-    bet.type === "winner"
-      ? bet.winnerPick === "home"
-        ? "홈"
-        : "원정"
-      : `${bet.awayScorePick}:${bet.homeScorePick}`;
-  const status = formatSideBetStatus(bet.status);
-  if (bet.status === "won" && (bet.wonAmount ?? 0) > 0) {
-    return `${base} · ${status} (+${bet.wonAmount}P)`;
-  }
-  return `${base} · ${status}`;
 }
 
 /** 경기 목록 + 우승팀·점수 동시 입력 (모달 크기 ≈ 기존 70%) */
@@ -168,13 +154,23 @@ export default function TodayMatchesSideBetModal({
                         {(winnerBet || scoreBet) && (
                           <div className="mt-1 space-y-0.5">
                             {winnerBet && (
-                              <p className="text-[10px] text-[#CDFF00]">
-                                우승: {betResultLabel(winnerBet)}
+                              <p className="truncate text-[10px] text-[#CDFF00]">
+                                우승:{" "}
+                                {formatSideBetPickSummary(
+                                  winnerBet,
+                                  match.homeTeamName ?? "홈팀",
+                                  match.awayTeamName ?? "원정팀",
+                                )}
                               </p>
                             )}
                             {scoreBet && (
-                              <p className="text-[10px] text-[#CDFF00]">
-                                점수: {betResultLabel(scoreBet)}
+                              <p className="truncate text-[10px] text-[#CDFF00]">
+                                점수:{" "}
+                                {formatSideBetPickSummary(
+                                  scoreBet,
+                                  match.homeTeamName ?? "홈팀",
+                                  match.awayTeamName ?? "원정팀",
+                                )}
                               </p>
                             )}
                           </div>

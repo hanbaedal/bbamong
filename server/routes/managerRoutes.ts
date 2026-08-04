@@ -7,13 +7,21 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAc
 import { broadcastManager } from "../liveMatch/broadcastManager";
 import { startRound, stopRound, cancelStartRound, cancelStopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
-import { hasActiveSession, createSession, deleteSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
+import { hasActiveSession, createSession, deleteSession, refreshSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
 import { ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken, assertOperatorLoginAllowed, isOperatorCredentialsActive, OPERATOR_USERNAMES } from "../managerOperatorService";
 import { resolveClientLoginGeo } from "../utils/clientGeo";
 
 const adminStorage = new AdminStorage();
 const MANAGER_APP_SCHEME = "ppamongmanager";
 const MANAGER_APP_PACKAGE = "com.ppamong.manager";
+
+/** 이미 다른 곳에서 로그인 중 — 새 로그인 거부 */
+export class ManagerSessionActiveError extends Error {
+  constructor(message = "다른 기기에서 이미 로그인 중입니다. 해당 기기에서 로그아웃한 뒤 다시 시도하세요.") {
+    super(message);
+    this.name = "ManagerSessionActiveError";
+  }
+}
 
 function getManagerAccessToken(req: Request): string | null {
   const authHeader = req.headers.authorization;
@@ -23,6 +31,11 @@ function getManagerAccessToken(req: Request): string | null {
   return req.cookies?.managerAccessToken || null;
 }
 
+function clearManagerAuthCookies(res: Response): void {
+  res.clearCookie("managerAccessToken", { path: "/" });
+  res.clearCookie("managerRefreshToken", { path: "/" });
+}
+
 async function establishManagerSession(
   req: Request,
   res: Response,
@@ -30,10 +43,24 @@ async function establishManagerSession(
 ): Promise<{ accessToken: string; refreshToken: string }> {
   const hasSession = await hasActiveSession("manager", manager.id);
   if (hasSession) {
-    console.log(`[Manager Login] 기존 세션 존재 - force-replace로 기존 세션 삭제: ${manager.id}`);
-    await deleteSession("manager", manager.id);
-    const { wsManager } = await import("../liveMatch/wsManager");
-    wsManager.forceDisconnectBySubjectId("manager", manager.id);
+    const sameClient =
+      isRequestAlreadyThisManager(req, manager.id) ||
+      (await (async () => {
+        const refreshTok = req.cookies?.managerRefreshToken || req.body?.refreshToken;
+        if (!refreshTok || typeof refreshTok !== "string") return false;
+        try {
+          const decoded = verifyRefreshToken(refreshTok);
+          return decoded.adminId === manager.id && decoded.userType === "매니저";
+        } catch {
+          return false;
+        }
+      })());
+
+    if (!sameClient) {
+      console.log(`[Manager Login] 기존 세션 존재 — 로그인 거부: ${manager.id}`);
+      throw new ManagerSessionActiveError();
+    }
+    console.log(`[Manager Login] 동일 클라이언트 재로그인 허용: ${manager.id}`);
   }
 
   const tokenPayload = {
@@ -84,6 +111,17 @@ async function establishManagerSession(
   });
 
   return { accessToken, refreshToken };
+}
+
+function isRequestAlreadyThisManager(req: Request, managerId: string): boolean {
+  const access = getManagerAccessToken(req);
+  if (!access) return false;
+  try {
+    const decoded = verifyAccessToken(access);
+    return decoded.adminId === managerId && decoded.userType === "매니저";
+  } catch {
+    return false;
+  }
 }
 
 function generateManagerLoginLinkBridgeHtml(token: string, origin: string): string {
@@ -234,6 +272,12 @@ export async function managerRoutes(app: Express): Promise<void> {
           approvalStatus: resolved.approvalStatus,
         }));
       } catch (sessionError) {
+        if (sessionError instanceof ManagerSessionActiveError) {
+          return res.status(409).json({
+            error: sessionError.message,
+            sessionActive: true,
+          });
+        }
         console.error("Manager login-with-link session error:", sessionError);
         return res.status(500).json({
           error: "로그인 세션을 만들지 못했습니다. 잠시 후 같은 링크로 다시 시도해 주세요.",
@@ -338,6 +382,12 @@ export async function managerRoutes(app: Express): Promise<void> {
         refreshToken,
       });
     } catch (error) {
+      if (error instanceof ManagerSessionActiveError) {
+        return res.status(409).json({
+          error: error.message,
+          sessionActive: true,
+        });
+      }
       console.error("Manager login error:", error);
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
@@ -396,13 +446,14 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       const sessionExists = await hasActiveSession("manager", decoded.adminId);
       if (!sessionExists) {
-        console.log("[매니저 리프레시] Redis 세션 재생성:", decoded.adminId);
+        clearManagerAuthCookies(res);
+        return res.status(401).json({
+          error: "세션이 만료되었거나 다른 곳에서 종료되었습니다. 다시 로그인해 주세요.",
+          sessionExpired: true,
+        });
       }
 
-      await createSession("manager", decoded.adminId, {
-        email: decoded.email,
-        userType: decoded.userType,
-      });
+      await refreshSession("manager", decoded.adminId).catch(() => {});
 
       // 새 토큰 생성
       const tokenPayload = {
