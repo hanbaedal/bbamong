@@ -198,6 +198,17 @@ const noticeSchema = new Schema(
 );
 export const NoticeModel = mongoose.model("Notice", noticeSchema);
 
+const noticeReadSchema = new Schema(
+  {
+    userId: { type: String, required: true },
+    noticeId: { type: Number, required: true },
+    dismissedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+noticeReadSchema.index({ userId: 1, noticeId: 1 }, { unique: true });
+export const NoticeReadModel = mongoose.model("NoticeRead", noticeReadSchema);
+
 const termSchema = new Schema(
   {
     id: { type: Number, required: true, unique: true },

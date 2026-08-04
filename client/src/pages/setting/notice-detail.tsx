@@ -1,9 +1,11 @@
+import { useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { ChevronLeft } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { apiRequest } from "@/lib/queryClient";
 
 type Notice = {
   id: number;
@@ -29,8 +31,18 @@ const getTagStyle = (tag: string) => {
 
 export default function NoticeDetailPage() {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const params = useParams();
   const noticeId = params.id;
+
+  useEffect(() => {
+    if (!noticeId) return;
+    void apiRequest("POST", `/api/users/notices/${noticeId}/dismiss`)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/users/notices/banner"] });
+      })
+      .catch(() => {});
+  }, [noticeId, queryClient]);
 
   const { data: notice, isLoading } = useQuery<Notice>({
     queryKey: ["/api/notices", noticeId],

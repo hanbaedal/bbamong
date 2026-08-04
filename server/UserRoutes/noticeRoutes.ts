@@ -1,10 +1,50 @@
 import type { Express } from "express";
 import { noticeStorage as storage } from "../UserStorage/noticeStorage";
+import { noticeReadStorage } from "../UserStorage/noticeReadStorage";
 import { insertNoticeSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
+import { userAuthMiddleware, type AuthenticatedUserRequest } from "../middleware/userAuth";
 
 export async function noticeRoutes(app: Express): Promise<void> {
+  // 게임 배너용 — 미확인 공지 1건
+  app.get("/api/users/notices/banner", userAuthMiddleware, async (req: AuthenticatedUserRequest, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "인증이 필요합니다." });
+      }
+      const notice = await noticeReadStorage.getLatestUnreadNotice(userId);
+      return res.json({ notice: notice ?? null });
+    } catch (error) {
+      console.error("Get notice banner error:", error);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  // 공지 배너/모달 닫기 (더 이상 표시 안 함)
+  app.post("/api/users/notices/:id/dismiss", userAuthMiddleware, async (req: AuthenticatedUserRequest, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "인증이 필요합니다." });
+      }
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "잘못된 ID 형식입니다." });
+      }
+      const notice = await storage.getNotice(id);
+      if (!notice) {
+        return res.status(404).json({ error: "공지사항을 찾을 수 없습니다." });
+      }
+      await noticeReadStorage.dismissNotice(userId, id);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Dismiss notice error:", error);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
   // 모든 공지사항 조회
   app.get("/api/notices", async (req, res) => {
     try {

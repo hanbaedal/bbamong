@@ -15,6 +15,7 @@ import GameBetModal from "./GameBetModal";
 import GameResultBanner from "./GameResultBanner";
 import GameEventOverlay from "./GameEventOverlay";
 import GameAdOverlay from "./GameAdOverlay";
+import GameNoticeBanner from "./GameNoticeBanner";
 import ConfirmPopup from "@/components/customUi/confirmPopup";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
@@ -187,6 +188,7 @@ export default function LandscapeGameShell({
       data-testid="landscape-game-shell"
     >
       <GameFieldViewport>
+        <GameNoticeBanner />
         {matchesLoading ? (
           <div className="absolute inset-0 flex items-center justify-center z-10">
             <p className="text-white text-sm drop-shadow-lg">경기 정보를 불러오는 중...</p>
