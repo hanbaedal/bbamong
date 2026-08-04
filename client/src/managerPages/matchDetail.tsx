@@ -900,6 +900,10 @@ export default function MatchDetailPage() {
   const canPitcherChange =
     (matchStarted && !showThreeOutsHint && wsConnected && !isNextBatterLoading) ||
     isAdPlaying;
+  /** 다음 타자·공수 교대 — 경기중(ongoing)에만 (광고 종료는 예외) */
+  const canAdvancePlay =
+    (matchStarted && wsConnected && !isNextBatterLoading && !blockAdvanceActions) ||
+    isAdPlaying;
 
   return (
     <div className="manager-match-shell bg-white w-full" data-testid="manager-match-detail">
@@ -1062,11 +1066,7 @@ export default function MatchDetailPage() {
             <button
               type="button"
               onClick={() => (isAdPlaying ? handleStopAd() : handleNextBatter())}
-              disabled={
-                isNextBatterLoading ||
-                (!wsConnected && !isAdPlaying) ||
-                (blockAdvanceActions && !isAdPlaying)
-              }
+              disabled={!canAdvancePlay}
               data-testid="button-next-batter"
               className="manager-match-bottom-btn bg-[#4285F4]"
             >
@@ -1084,11 +1084,7 @@ export default function MatchDetailPage() {
             <button
               type="button"
               onClick={() => (isAdPlaying ? handleStopAd() : handleSwitchHalf())}
-              disabled={
-                isNextBatterLoading ||
-                (!wsConnected && !isAdPlaying) ||
-                (blockAdvanceActions && !isAdPlaying)
-              }
+              disabled={!canAdvancePlay}
               data-testid="button-switch-half"
               className={`manager-match-bottom-btn ${
                 isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"

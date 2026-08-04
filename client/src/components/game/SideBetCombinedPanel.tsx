@@ -37,6 +37,9 @@ export interface SideBetCombinedPanelProps {
   focusSection?: "winner" | "score";
 }
 
+const CLOSE_BTN_SIZE = "h-8 w-full rounded-lg text-xs font-medium";
+const FEEDBACK_MS = 2200;
+
 /** 우승팀(좌) · 점수(우) 한 화면 */
 export default function SideBetCombinedPanel({
   matchId,
@@ -45,6 +48,8 @@ export default function SideBetCombinedPanel({
 }: SideBetCombinedPanelProps) {
   const scoreSectionRef = useRef<HTMLElement | null>(null);
   const winnerSectionRef = useRef<HTMLElement | null>(null);
+  const winnerFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scoreFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -55,6 +60,8 @@ export default function SideBetCombinedPanel({
   const [awayScore, setAwayScore] = useState<number | null>(null);
   const [submittingWinner, setSubmittingWinner] = useState(false);
   const [submittingScore, setSubmittingScore] = useState(false);
+  const [winnerFeedback, setWinnerFeedback] = useState<string | null>(null);
+  const [scoreFeedback, setScoreFeedback] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<SideBetsMeResponse>({
     queryKey: ["/api/live-match/matches", matchId, "side-bets/me"],
@@ -76,13 +83,42 @@ export default function SideBetCombinedPanel({
     locked || isLoading || submittingWinner || (Boolean(winnerBet) && !winnerEdit);
   const scoreDisabled = locked || isLoading || submittingScore || (Boolean(scoreBet) && !scoreEdit);
 
+  const showWinnerFeedback = (message: string) => {
+    if (winnerFeedbackTimerRef.current) clearTimeout(winnerFeedbackTimerRef.current);
+    setWinnerFeedback(message);
+    winnerFeedbackTimerRef.current = setTimeout(() => {
+      setWinnerFeedback(null);
+      winnerFeedbackTimerRef.current = null;
+    }, FEEDBACK_MS);
+  };
+
+  const showScoreFeedback = (message: string) => {
+    if (scoreFeedbackTimerRef.current) clearTimeout(scoreFeedbackTimerRef.current);
+    setScoreFeedback(message);
+    scoreFeedbackTimerRef.current = setTimeout(() => {
+      setScoreFeedback(null);
+      scoreFeedbackTimerRef.current = null;
+    }, FEEDBACK_MS);
+  };
+
   useEffect(() => {
     setWinnerPick(null);
     setHomeScore(null);
     setAwayScore(null);
     setWinnerAmount(DEFAULT_SIDE_BET_AMOUNT);
     setScoreAmount(DEFAULT_SIDE_BET_AMOUNT);
+    setWinnerFeedback(null);
+    setScoreFeedback(null);
+    if (winnerFeedbackTimerRef.current) clearTimeout(winnerFeedbackTimerRef.current);
+    if (scoreFeedbackTimerRef.current) clearTimeout(scoreFeedbackTimerRef.current);
   }, [matchId]);
+
+  useEffect(() => {
+    return () => {
+      if (winnerFeedbackTimerRef.current) clearTimeout(winnerFeedbackTimerRef.current);
+      if (scoreFeedbackTimerRef.current) clearTimeout(scoreFeedbackTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (winnerBet?.winnerPick) setWinnerPick(winnerBet.winnerPick);
@@ -114,15 +150,14 @@ export default function SideBetCombinedPanel({
     }
     setSubmittingWinner(true);
     try {
+      const wasEdit = winnerEdit;
       await apiRequest("POST", "/api/live-match/side-bets", {
         matchId,
         type: "winner",
         amount: winnerAmount,
         winnerPick: pick,
       });
-      toast({
-        description: winnerEdit ? "우승팀 예측이 수정되었습니다." : "승리팀 배팅이 접수되었습니다.",
-      });
+      showWinnerFeedback(wasEdit ? "수정되었습니다" : "배팅되었습니다");
       invalidate();
     } catch (err: unknown) {
       toast({
@@ -141,6 +176,7 @@ export default function SideBetCombinedPanel({
     }
     setSubmittingScore(true);
     try {
+      const wasEdit = scoreEdit;
       await apiRequest("POST", "/api/live-match/side-bets", {
         matchId,
         type: "score",
@@ -148,9 +184,7 @@ export default function SideBetCombinedPanel({
         homeScorePick: homeScore,
         awayScorePick: awayScore,
       });
-      toast({
-        description: scoreEdit ? "점수 예측이 수정되었습니다." : "최종 스코어 배팅이 접수되었습니다.",
-      });
+      showScoreFeedback(wasEdit ? "수정되었습니다" : "배팅되었습니다");
       invalidate();
     } catch (err: unknown) {
       toast({
@@ -161,6 +195,13 @@ export default function SideBetCombinedPanel({
       setSubmittingScore(false);
     }
   };
+
+  const actionBtnClass = (isEdit: boolean) =>
+    `${CLOSE_BTN_SIZE} mt-auto disabled:opacity-50 ${
+      isEdit
+        ? "bg-[#474747] text-white"
+        : "bg-[#CDFF00] font-bold text-black"
+    }`;
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="side-bet-combined-panel">
@@ -176,7 +217,7 @@ export default function SideBetCombinedPanel({
 
       <div className="grid min-h-0 flex-1 grid-cols-1 divide-y divide-[#333] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
         {/* 좌 — 우승팀 */}
-        <section ref={winnerSectionRef} className="flex min-h-0 min-w-0 flex-col px-2 py-2 sm:px-2">
+        <section ref={winnerSectionRef} className="relative flex min-h-0 min-w-0 flex-col px-2 py-2 sm:px-2">
           <h4 className="mb-1.5 text-center text-xs font-bold text-white">우승팀 맞추기</h4>
           {winnerBet && (
             <p className="mb-1.5 text-center text-[10px] text-[#CDFF00]">
@@ -226,12 +267,20 @@ export default function SideBetCombinedPanel({
               적중 {calculateSideBetPayout(winnerAmount, "winner")}P
             </p>
           )}
+          {winnerFeedback && (
+            <p
+              className="mt-1.5 rounded-md bg-[#CDFF00]/15 px-2 py-1 text-center text-[11px] font-semibold text-[#CDFF00]"
+              data-testid="side-bet-winner-feedback"
+            >
+              {winnerFeedback}
+            </p>
+          )}
           {!locked && (!winnerBet || winnerEdit) && (
             <button
               type="button"
               disabled={winnerDisabled || !winnerPick}
               onClick={() => void submitWinner()}
-              className="mt-auto h-9 max-sm:h-11 w-full rounded-md bg-[#CDFF00] text-[11px] max-sm:text-sm font-bold text-black disabled:opacity-50"
+              className={actionBtnClass(winnerEdit)}
               data-testid="button-side-bet-winner"
             >
               {submittingWinner ? "처리 중..." : winnerEdit ? "수정" : "배팅"}
@@ -240,7 +289,7 @@ export default function SideBetCombinedPanel({
         </section>
 
         {/* 우 — 점수 */}
-        <section ref={scoreSectionRef} className="flex min-h-0 min-w-0 flex-col px-2 py-2">
+        <section ref={scoreSectionRef} className="relative flex min-h-0 min-w-0 flex-col px-2 py-2">
           <h4 className="mb-1.5 text-center text-xs font-bold text-white">점수 맞추기</h4>
           {scoreBet && (
             <p className="mb-1.5 text-center text-[10px] text-[#CDFF00]">
@@ -282,12 +331,20 @@ export default function SideBetCombinedPanel({
               적중 {calculateSideBetPayout(scoreAmount, "score")}P
             </p>
           )}
+          {scoreFeedback && (
+            <p
+              className="mt-1.5 rounded-md bg-[#CDFF00]/15 px-2 py-1 text-center text-[11px] font-semibold text-[#CDFF00]"
+              data-testid="side-bet-score-feedback"
+            >
+              {scoreFeedback}
+            </p>
+          )}
           {!locked && (!scoreBet || scoreEdit) && (
             <button
               type="button"
               disabled={scoreDisabled || homeScore == null || awayScore == null}
               onClick={() => void submitScore()}
-              className="mt-auto h-9 max-sm:h-11 w-full rounded-md bg-[#CDFF00] text-[11px] max-sm:text-sm font-bold text-black disabled:opacity-50"
+              className={actionBtnClass(scoreEdit)}
               data-testid="button-side-bet-score"
             >
               {submittingScore ? "처리 중..." : scoreEdit ? "수정" : "배팅"}
