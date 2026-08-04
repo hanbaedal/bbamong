@@ -7,7 +7,6 @@ import splashIcon from "@assets/manager/manager-mascot.png";
 import {
   operatorLoginDuringMessage,
   operatorLoginSuccessMessage,
-  speakKorean,
 } from "@/lib/operatorLoginMessages";
 
 function extractLoginTokenFromUrl(rawUrl: string): string | null {
@@ -99,7 +98,6 @@ export default function ManagerLoginPage() {
           );
           setLinkLoginPhase("success");
           setLinkLoginMessage(successMessage);
-          void speakKorean(successMessage);
           await finishLoginSuccess(data);
           return;
         }
