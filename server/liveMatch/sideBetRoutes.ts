@@ -38,7 +38,7 @@ router.post("/side-bets", userAuthMiddleware, async (req: any, res: Response) =>
     const body = sideBetBodySchema.parse(req.body);
     const amount = body.amount ?? DEFAULT_SIDE_BET_AMOUNT;
     if (!isValidSideBetAmount(amount)) {
-      return res.status(400).json({ error: "사이드 배팅은 100·200·500·1000P만 가능합니다." });
+      return res.status(400).json({ error: "사이드 배팅은 100·200·300·500·700·1000P만 가능합니다." });
     }
 
     const match = await getMatchInfo(body.matchId);

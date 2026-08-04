@@ -47,7 +47,7 @@ const SECTIONS: { title: string; items: string[] }[] = [
       "버튼이 활성(클릭 가능)인 경기만 배팅할 수 있습니다 — 관리자 「API 폴링 ON/OFF」와 같은 기준입니다.",
       "예: 테스트 중 op1만 ON이면 1경기만 버튼 활성, 나머지 2~5경기는 비활성(회색)입니다.",
       "팀 표시는 「홈팀」「원정팀」만 사용합니다 (구단명은 표시하지 않음).",
-      `배팅 금액: ${SIDE_BET_AMOUNT_OPTIONS.join(", ")}P (100P 단위만)`,
+      `배팅 금액: ${SIDE_BET_AMOUNT_OPTIONS.join(", ")}P`,
       `승리팀 맞추기: ${WINNER_ODDS}배 (100P → ${100 * WINNER_ODDS}P)`,
       `최종 스코어 정확히: ${EXACT_SCORE_ODDS}배 (100P → ${100 * EXACT_SCORE_ODDS}P)`,
       "1회 시작 시 자동 마감 — 이후 신규·변경 불가 (마감된 경기는 버튼 비활성)",

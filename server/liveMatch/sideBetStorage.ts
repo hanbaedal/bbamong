@@ -92,7 +92,7 @@ export async function upsertSideBet(params: {
   const { userId, matchId, type, amount } = params;
 
   if (!isValidSideBetAmount(amount)) {
-    throw new Error("사이드 배팅은 100·200·500·1000P만 가능합니다.");
+    throw new Error("사이드 배팅은 100·200·300·500·700·1000P만 가능합니다.");
   }
 
   if (type === "winner") {

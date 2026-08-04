@@ -35,7 +35,7 @@ export type WinnerSide = "home" | "away";
 export const WINNER_ODDS = 2;
 export const EXACT_SCORE_ODDS = 20;
 
-export const SIDE_BET_AMOUNT_OPTIONS = [100, 200, 500, 1000] as const;
+export const SIDE_BET_AMOUNT_OPTIONS = [100, 200, 300, 500, 700, 1000] as const;
 export type SideBetAmountOption = (typeof SIDE_BET_AMOUNT_OPTIONS)[number];
 export const DEFAULT_SIDE_BET_AMOUNT: SideBetAmountOption = 100;
 
