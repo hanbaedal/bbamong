@@ -103,6 +103,7 @@ export default function SideBetCombinedPanel({
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/live-match/matches", matchId, "side-bets/me"] });
     queryClient.invalidateQueries({ queryKey: ["/api/live-match/side-bets/me/today"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/users/me"] });
   };
 
   const submitWinner = async () => {
@@ -116,7 +117,7 @@ export default function SideBetCombinedPanel({
       await apiRequest("POST", "/api/live-match/side-bets", {
         matchId,
         type: "winner",
-        amount: winnerBet?.amount ?? winnerAmount,
+        amount: winnerAmount,
         winnerPick: pick,
       });
       toast({
@@ -143,7 +144,7 @@ export default function SideBetCombinedPanel({
       await apiRequest("POST", "/api/live-match/side-bets", {
         matchId,
         type: "score",
-        amount: scoreBet?.amount ?? scoreAmount,
+        amount: scoreAmount,
         homeScorePick: homeScore,
         awayScorePick: awayScore,
       });
@@ -183,7 +184,7 @@ export default function SideBetCombinedPanel({
               {winnerBet.winnerPick === "home" ? homeName : awayName} · {winnerBet.amount}P
             </p>
           )}
-          {!winnerBet && (
+          {(!winnerBet || winnerEdit) && (
             <SideBetAmountSelector
               value={winnerAmount}
               onChange={setWinnerAmount}
@@ -220,7 +221,7 @@ export default function SideBetCombinedPanel({
               <span className="line-clamp-2 leading-tight">{homeName}</span>
             </button>
           </div>
-          {!locked && !winnerBet && winnerPick && (
+          {!locked && (!winnerBet || winnerEdit) && winnerPick && (
             <p className="mt-1.5 text-center text-[10px] text-[#888]">
               적중 {calculateSideBetPayout(winnerAmount, "winner")}P
             </p>
@@ -247,7 +248,7 @@ export default function SideBetCombinedPanel({
               원정 {scoreBet.awayScorePick} : 홈 {scoreBet.homeScorePick} · {scoreBet.amount}P
             </p>
           )}
-          {!scoreBet && (
+          {(!scoreBet || scoreEdit) && (
             <SideBetAmountSelector
               value={scoreAmount}
               onChange={setScoreAmount}
@@ -256,12 +257,14 @@ export default function SideBetCombinedPanel({
               compact
             />
           )}
-          <div className="grid grid-cols-2 gap-2 max-sm:gap-3">
+          <div className="grid grid-cols-2 gap-1.5">
             <ScorePicker
               label="원정"
               value={awayScore}
               onChange={setAwayScore}
               disabled={scoreDisabled}
+              compact
+              layout="horizontal"
               testId="side-bet-away-score-picker"
             />
             <ScorePicker
@@ -269,10 +272,12 @@ export default function SideBetCombinedPanel({
               value={homeScore}
               onChange={setHomeScore}
               disabled={scoreDisabled}
+              compact
+              layout="horizontal"
               testId="side-bet-home-score-picker"
             />
           </div>
-          {!locked && !scoreBet && homeScore != null && awayScore != null && (
+          {!locked && (!scoreBet || scoreEdit) && homeScore != null && awayScore != null && (
             <p className="mt-1.5 text-center text-[10px] text-[#888]">
               적중 {calculateSideBetPayout(scoreAmount, "score")}P
             </p>

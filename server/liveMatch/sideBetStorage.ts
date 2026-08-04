@@ -142,16 +142,80 @@ export async function upsertSideBet(params: {
     if (existing.status !== "pending") {
       throw new Error("이미 정산된 배팅은 변경할 수 없습니다.");
     }
-    const updated = await MatchSideBetModel.findOneAndUpdate(
-      { id: existing.id },
-      {
-        winnerPick: type === "winner" ? params.winnerPick : null,
-        homeScorePick: type === "score" ? params.homeScorePick : null,
-        awayScorePick: type === "score" ? params.awayScorePick : null,
-      },
-      { new: true },
-    ).lean();
-    return updated;
+
+    const prevAmount = existing.amount;
+    const delta = amount - prevAmount;
+    const pickUpdate = {
+      winnerPick: type === "winner" ? params.winnerPick : null,
+      homeScorePick: type === "score" ? params.homeScorePick : null,
+      awayScorePick: type === "score" ? params.awayScorePick : null,
+      amount,
+    };
+
+    if (delta === 0) {
+      const updated = await MatchSideBetModel.findOneAndUpdate(
+        { id: existing.id },
+        pickUpdate,
+        { new: true },
+      ).lean();
+      return updated;
+    }
+
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+
+      if (delta > 0) {
+        const updatedUser = await UserModel.findOneAndUpdate(
+          { id: userId, points: { $gte: delta } },
+          { $inc: { points: -delta } },
+          { new: true, session },
+        ).lean();
+        if (!updatedUser) {
+          const user = await UserModel.findOne({ id: userId }).session(session).lean();
+          if (!user) throw new Error("사용자를 찾을 수 없습니다.");
+          throw new Error("참여기회가 부족합니다.");
+        }
+        const label = type === "winner" ? "승리팀" : "최종 스코어";
+        await createPointTransaction(session, {
+          userId,
+          transactionType: "spent",
+          amount: -delta,
+          balance: updatedUser.points,
+          description: `${label} 맞추기 배팅 금액 변경 (+${delta}포인트)`,
+        });
+      } else {
+        const refund = -delta;
+        const updatedUser = await UserModel.findOneAndUpdate(
+          { id: userId },
+          { $inc: { points: refund } },
+          { new: true, session },
+        ).lean();
+        if (!updatedUser) throw new Error("사용자를 찾을 수 없습니다.");
+        const label = type === "winner" ? "승리팀" : "최종 스코어";
+        await createPointTransaction(session, {
+          userId,
+          transactionType: "refund",
+          amount: refund,
+          balance: updatedUser.points,
+          description: `${label} 맞추기 배팅 금액 변경 환불 (${refund}포인트)`,
+        });
+      }
+
+      const updated = await MatchSideBetModel.findOneAndUpdate(
+        { id: existing.id },
+        pickUpdate,
+        { new: true, session },
+      ).lean();
+
+      await session.commitTransaction();
+      return updated;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
 
   const session = await mongoose.startSession();

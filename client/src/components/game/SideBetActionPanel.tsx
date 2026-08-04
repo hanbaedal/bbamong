@@ -94,6 +94,7 @@ export default function SideBetActionPanel({
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/live-match/matches", matchId, "side-bets/me"] });
     queryClient.invalidateQueries({ queryKey: ["/api/live-match/side-bets/me/today"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/users/me"] });
   };
 
   const submitWinner = async () => {
@@ -107,7 +108,7 @@ export default function SideBetActionPanel({
       await apiRequest("POST", "/api/live-match/side-bets", {
         matchId,
         type: "winner",
-        amount: existingBet?.amount ?? amount,
+        amount,
         winnerPick: pick,
       });
       toast({ description: isEdit ? "우승팀 예측이 수정되었습니다." : "승리팀 배팅이 접수되었습니다." });
@@ -134,7 +135,7 @@ export default function SideBetActionPanel({
       await apiRequest("POST", "/api/live-match/side-bets", {
         matchId,
         type: "score",
-        amount: existingBet?.amount ?? amount,
+        amount,
         homeScorePick: homeScore,
         awayScorePick: awayScore,
       });
@@ -179,7 +180,7 @@ export default function SideBetActionPanel({
 
         {betType === "winner" ? (
           <>
-            {!existingBet && (
+            {!existingBet || isEdit ? (
               <SideBetAmountSelector
                 value={amount}
                 onChange={setAmount}
@@ -187,7 +188,7 @@ export default function SideBetActionPanel({
                 disabled={formDisabled}
                 compact
               />
-            )}
+            ) : null}
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -216,7 +217,7 @@ export default function SideBetActionPanel({
                 {homeName}
               </button>
             </div>
-            {!locked && !existingBet && winnerPick && (
+            {!locked && (!existingBet || isEdit) && winnerPick && (
               <p className="text-center text-[11px] text-[#888]">
                 적중 시 {calculateSideBetPayout(amount, "winner")}P
               </p>
@@ -224,7 +225,7 @@ export default function SideBetActionPanel({
           </>
         ) : (
           <>
-            {!existingBet && (
+            {!existingBet || isEdit ? (
               <SideBetAmountSelector
                 value={amount}
                 onChange={setAmount}
@@ -232,7 +233,7 @@ export default function SideBetActionPanel({
                 disabled={formDisabled}
                 compact
               />
-            )}
+            ) : null}
             <div className="flex items-end gap-2">
               <ScorePicker
                 label={`원정 · ${awayName}`}
@@ -250,7 +251,7 @@ export default function SideBetActionPanel({
                 testId="side-bet-home-score-picker"
               />
             </div>
-            {!locked && !existingBet && homeScore != null && awayScore != null && (
+            {!locked && (!existingBet || isEdit) && homeScore != null && awayScore != null && (
               <p className="text-center text-[11px] text-[#888]">
                 적중 시 {calculateSideBetPayout(amount, "score")}P
               </p>

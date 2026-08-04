@@ -11,9 +11,11 @@ interface ScorePickerProps {
   disabled?: boolean;
   testId?: string;
   compact?: boolean;
+  /** vertical: ▲▼ / horizontal: − 숫자 + */
+  layout?: "vertical" | "horizontal";
 }
 
-/** ▲▼ 화살표로 점수 증감 */
+/** 점수 증감 선택 */
 export default function ScorePicker({
   label,
   value,
@@ -21,6 +23,7 @@ export default function ScorePicker({
   disabled = false,
   testId,
   compact = false,
+  layout = "vertical",
 }: ScorePickerProps) {
   const canIncrease =
     !disabled && (value == null || value < SIDE_BET_MAX_SCORE);
@@ -50,6 +53,7 @@ export default function ScorePicker({
       disabled={disabled}
       testId={testId}
       compact={compact}
+      layout={layout}
     />
   );
 }
