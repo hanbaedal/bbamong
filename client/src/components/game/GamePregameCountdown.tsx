@@ -16,20 +16,20 @@ export default function GamePregameCountdown({ countdown }: GamePregameCountdown
     >
       <p
         className="text-white/90 font-semibold tracking-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)]"
-        style={{ fontSize: "clamp(14px, 3.2vw, 22px)" }}
+        style={{ fontSize: "clamp(8px, 1.9vw, 13px)" }}
       >
         경기 시작까지
       </p>
       <p
         className="mt-1 sm:mt-2 font-black tabular-nums text-[#CDFF00] leading-none tracking-tight drop-shadow-[0_4px_16px_rgba(0,0,0,0.85)]"
-        style={{ fontSize: "clamp(56px, 16vw, 140px)" }}
+        style={{ fontSize: "clamp(34px, 9.6vw, 84px)" }}
         data-testid="game-pregame-countdown-remaining"
       >
         {countdown.remainingLabel}
       </p>
       <p
         className="mt-2 sm:mt-3 text-white/80 font-medium drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)]"
-        style={{ fontSize: "clamp(12px, 2.6vw, 18px)" }}
+        style={{ fontSize: "clamp(7px, 1.6vw, 11px)" }}
         data-testid="game-pregame-countdown-start"
       >
         {countdown.startTimeLabel} 개막

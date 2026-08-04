@@ -164,10 +164,9 @@ export default function MemberListPage() {
 
   const filteredUsers = users.filter((user) => {
     if (activeTab === "all") {
-      return user.isSuspended === 0;
-    } else {
-      return user.isSuspended === 1;
+      return user.isSuspended !== 1;
     }
+    return user.isSuspended === 1;
   });
 
   const openPopup = (userId: string, userName: string, action: PopupAction) => {

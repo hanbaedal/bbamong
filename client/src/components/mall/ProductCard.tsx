@@ -7,6 +7,7 @@ import { useMallWishlist } from "@/hooks/useMallWishlist";
 import { useToast } from "@/hooks/use-toast";
 import MallProductImage from "@/components/mall/MallProductImage";
 import type { MallProduct, MallProductListItem } from "@/lib/mallTypes";
+import { saveMallReturnPath } from "@/lib/mallQueries";
 import { cn } from "@/lib/utils";
 
 function resolvePrice(product: MallProduct | MallProductListItem): number {
@@ -57,6 +58,7 @@ export default function ProductCard({ product }: ProductCardProps) {
       <Link
         href={`${MALL_BASE_PATH}/product/${product.id}`}
         className="flex min-h-0 flex-1 flex-col"
+        onClick={saveMallReturnPath}
       >
         <div className="relative mb-2.5 aspect-[4/5] overflow-hidden rounded-xl bg-white">
           {product.imageUrl || product.thumbnailUrl ? (

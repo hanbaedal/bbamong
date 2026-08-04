@@ -24,12 +24,13 @@ export interface IAdminUserStorage {
 }
 
 export class AdminUserStorage implements IAdminUserStorage {
-  private baseFilter = { isSuspended: 0, provider: { $ne: "guest" } };
+  /** 게스트 제외 · 미삭제 회원 (isSuspended 누락/0 모두 포함) */
+  private baseFilter = { isSuspended: { $ne: 1 }, provider: { $ne: "guest" } };
   private suspendedFilter = { isSuspended: 1, provider: { $ne: "guest" } };
 
   async getRegularUsersPaginated(limit: number, offset: number): Promise<User[]> {
     const docs = await UserModel.find(this.baseFilter)
-      .sort({ lastLogin: -1 })
+      .sort({ createdAt: -1, lastLogin: -1 })
       .skip(offset)
       .limit(limit)
       .lean();
@@ -38,7 +39,7 @@ export class AdminUserStorage implements IAdminUserStorage {
 
   async getSuspendedUsersPaginated(limit: number, offset: number): Promise<User[]> {
     const docs = await UserModel.find(this.suspendedFilter)
-      .sort({ lastLogin: -1 })
+      .sort({ suspendedAt: -1, createdAt: -1 })
       .skip(offset)
       .limit(limit)
       .lean();

@@ -80,9 +80,11 @@ function AppStateManager({ children }: { children: React.ReactNode }) {
 
       backHandle = await App.addListener('backButton', () => {
         const path = window.location.pathname;
+        // 경기 운영 화면 — 실수 종료 방지: 시스템 BACK 무시 (게임 /prediction 과 동일)
         if (path.startsWith('/manager/match/')) {
-          window.location.replace('/manager/home');
-        } else if (path === '/manager/guide' || path === '/manager/simulation' || path === '/manager/test') {
+          return;
+        }
+        if (path === '/manager/guide' || path === '/manager/simulation' || path === '/manager/test') {
           window.location.replace('/manager/home');
         } else if (path === '/manager/signup' || path === '/manager/pending-approval') {
           window.location.replace('/manager/login');

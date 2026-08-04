@@ -136,6 +136,8 @@ export class UserStorage {
       passwordPlain: asciiPassword ?? "",
       inviteCode,
       referralCode: validReferralCode,
+      isSuspended: 0,
+      provider: user.provider ?? "local",
     });
     const newUser = doc.toObject() as User;
 
@@ -355,6 +357,7 @@ export class UserStorage {
       password: userData.hashedPassword || null,
       inviteCode,
       referralCode: validReferralCode,
+      isSuspended: 0,
     });
     const newUser = doc.toObject() as User;
 

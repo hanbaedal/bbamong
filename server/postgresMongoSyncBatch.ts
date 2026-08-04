@@ -4,6 +4,7 @@ import { scheduleDailyKst } from "./utils/kstSchedule";
 
 let cancelSchedule: (() => void) | null = null;
 
+/** @deprecated 서버 기동 시 자동 예약하지 않음. 관리자 「받기」 API만 사용. */
 export function startPostgresMongoSyncBatch(): void {
   if (!isPostgresConfigured()) {
     console.log("[PgMongoSync] PostgreSQL 미설정 — PostgreSQL→MongoDB 자동 동기화 비활성");

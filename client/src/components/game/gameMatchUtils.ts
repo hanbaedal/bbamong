@@ -169,17 +169,35 @@ export function formatMatchStatusLabel(
   }
 }
 
-/** 경기전·경기중만 선택 가능 (종료·연기·지연 등 비활성) */
-export function isMatchSelectableForGame(match: GameMatchItem): boolean {
+/** 경기 선택 불가 사유 (모달 sublabel). 선택 가능하면 null */
+export function getGameMatchSelectDisabledReason(match: GameMatchItem): string | null {
+  if (!match.sideBetEnabled) return "연동 대기";
+
   const short = normalizeApiStatusShort(match.liveScoreboard?.statusShort);
-  if (short === "SUSP" || short === "SUSPENDED") return false;
+  if (short === "SUSP" || short === "SUSPENDED") return "지연";
 
   const phase = resolveOperatorMatchPhase({
     matchStatus: match.matchStatus,
     statusShort: match.liveScoreboard?.statusShort,
     statusLong: match.liveScoreboard?.statusLong,
   });
-  return phase === "경기전" || phase === "경기중";
+
+  switch (phase) {
+    case "경기종료":
+      return "종료";
+    case "연기됨":
+      return "연기";
+    case "경기전":
+    case "경기중":
+      return null;
+    default:
+      return "시작 전";
+  }
+}
+
+/** API 폴링 ON + 경기전·경기중만 선택 가능 */
+export function isMatchSelectableForGame(match: GameMatchItem, _nowMs = Date.now()): boolean {
+  return getGameMatchSelectDisabledReason(match) === null;
 }
 
 export interface StadiumOption {

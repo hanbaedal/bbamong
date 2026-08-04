@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface MallCategoryNavProps {
   categories: MallCategory[];
+  categoriesLoading?: boolean;
   /** null = 전체 */
   activeCategoryId: number | null;
   variant?: "mall" | "admin";
@@ -32,6 +33,26 @@ const adminItemClass = (active: boolean) =>
       ? "border-[#E11936] bg-[#FFF9FA] text-[#E11936] font-semibold"
       : "border-[#E0E0E0] text-[#666] hover:border-[#E11936]/40",
   );
+
+function CategoryNavSkeleton({ layout }: { layout: "desktop" | "mobile" }) {
+  const count = layout === "desktop" ? 5 : 4;
+  if (layout === "desktop") {
+    return (
+      <nav className="hidden lg:flex items-center gap-2 flex-1 min-w-0" aria-hidden>
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} className="h-8 w-16 animate-pulse rounded-md bg-neutral-100" />
+        ))}
+      </nav>
+    );
+  }
+  return (
+    <div className="lg:hidden pb-2 flex gap-2 overflow-x-auto" aria-hidden>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="h-7 w-14 shrink-0 animate-pulse rounded-full bg-neutral-100" />
+      ))}
+    </div>
+  );
+}
 
 function isParentActive(parent: MallCategory, activeCategoryId: number | null): boolean {
   if (activeCategoryId == null) return false;
@@ -171,6 +192,7 @@ function AdminCategoryButtons({
 
 export default function MallCategoryNav({
   categories,
+  categoriesLoading,
   activeCategoryId,
   variant = "mall",
   layout = "both",
@@ -188,14 +210,22 @@ export default function MallCategoryNav({
     );
   }
 
+  const showSkeleton = categoriesLoading && categories.length === 0;
+
   return (
     <>
-      {(layout === "desktop" || layout === "both") && (
-        <MallMegaMenuDesktop categories={categories} activeCategoryId={activeCategoryId} />
-      )}
-      {(layout === "mobile" || layout === "both") && (
-        <MallCategoryMobile categories={categories} activeCategoryId={activeCategoryId} />
-      )}
+      {(layout === "desktop" || layout === "both") &&
+        (showSkeleton ? (
+          <CategoryNavSkeleton layout="desktop" />
+        ) : (
+          <MallMegaMenuDesktop categories={categories} activeCategoryId={activeCategoryId} />
+        ))}
+      {(layout === "mobile" || layout === "both") &&
+        (showSkeleton ? (
+          <CategoryNavSkeleton layout="mobile" />
+        ) : (
+          <MallCategoryMobile categories={categories} activeCategoryId={activeCategoryId} />
+        ))}
     </>
   );
 }

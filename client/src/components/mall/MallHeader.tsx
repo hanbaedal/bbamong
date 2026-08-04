@@ -11,10 +11,11 @@ import type { MallCategory } from "@/lib/mallTypes";
 
 interface MallHeaderProps {
   categories: MallCategory[];
+  categoriesLoading?: boolean;
   mallTitle?: string;
 }
 
-export default function MallHeader({ categories, mallTitle }: MallHeaderProps) {
+export default function MallHeader({ categories, categoriesLoading, mallTitle }: MallHeaderProps) {
   const [location, setLocation] = useLocation();
   const [cartCount, setCartCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -54,6 +55,7 @@ export default function MallHeader({ categories, mallTitle }: MallHeaderProps) {
 
           <MallCategoryNav
             categories={categories}
+            categoriesLoading={categoriesLoading}
             activeCategoryId={activeCategoryId}
             variant="mall"
             layout="desktop"
@@ -105,6 +107,7 @@ export default function MallHeader({ categories, mallTitle }: MallHeaderProps) {
 
         <MallCategoryNav
           categories={categories}
+          categoriesLoading={categoriesLoading}
           activeCategoryId={activeCategoryId}
           variant="mall"
           layout="mobile"

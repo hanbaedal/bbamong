@@ -257,8 +257,8 @@ export default function DbBackupPage() {
 
         <p className="text-sm text-[#666] mb-4 leading-relaxed">
           다른 프로그램과 공유하는 <strong>PostgreSQL</strong>은 <strong>읽기만</strong> 합니다 (선택 기능).
-          PPAMONG은 빠던9와 별도 서비스이며, 자동 가져오기는 기본 꺼짐(
-          <code>PG_MONGO_SYNC_ENABLED=true</code> 시에만 백그라운드 동기화).
+          PPAMONG은 빠던9와 별도 서비스이며, PostgreSQL → MongoDB 가져오기는{" "}
+          <strong>관리자가 「받기」를 눌렀을 때만</strong> 실행됩니다 (서버 자동 예약 없음).
           「받기」를 누르면 해당 테이블 데이터를 PPAMONG 운영 DB인 <strong>MongoDB</strong>에
           저장합니다. 모드는 Secret <code>PG_MONGO_SYNC_MODE</code>로 결정됩니다 (
           <code>replace</code>=기존 삭제 후 재저장, <code>merge</code>=upsert). PostgreSQL에는 쓰지 않습니다.
@@ -299,15 +299,15 @@ export default function DbBackupPage() {
           <div className="mb-4 p-4 rounded-lg border border-[#E9E9E9] bg-[#FFF9FA]">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-[#201E22]">전체 테이블 자동 가져오기</p>
+                <p className="text-sm font-semibold text-[#201E22]">전체 테이블 수동 가져오기</p>
                 <p className="text-xs text-[#666] mt-1">
                   모드:{" "}
                   <code className="bg-white px-1">
                     {data.syncMode === "replace" ? "replace (전체 교체)" : "merge (upsert)"}
                   </code>
-                  {data.syncScheduleKst
-                    ? ` · 백그라운드: 매일 KST ${data.syncScheduleKst} PostgreSQL → MongoDB`
-                    : " · 백그라운드 자동 동기화 꺼짐"}
+                  {" · "}
+                  <code className="bg-white px-1">PG_MONGO_SYNC_MODE</code> (Secret)
+                  {" · 백그라운드 자동 동기화 없음"}
                 </p>
                 {data.lastSync && (() => {
                   const summary = summarizeLastSync(data.lastSync);

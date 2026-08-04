@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import SideBetAmountSelector from "@/components/SideBetAmountSelector";
@@ -33,10 +33,18 @@ interface SideBetsMeResponse {
 export interface SideBetCombinedPanelProps {
   matchId: string;
   matchTitle: string;
+  /** 하단 바 등에서 점수/우승팀 수정으로 열었을 때 해당 영역 강조 */
+  focusSection?: "winner" | "score";
 }
 
 /** 우승팀(좌) · 점수(우) 한 화면 */
-export default function SideBetCombinedPanel({ matchId, matchTitle }: SideBetCombinedPanelProps) {
+export default function SideBetCombinedPanel({
+  matchId,
+  matchTitle,
+  focusSection,
+}: SideBetCombinedPanelProps) {
+  const scoreSectionRef = useRef<HTMLElement | null>(null);
+  const winnerSectionRef = useRef<HTMLElement | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -85,6 +93,12 @@ export default function SideBetCombinedPanel({ matchId, matchTitle }: SideBetCom
     if (winnerBet?.amount) setWinnerAmount(winnerBet.amount as SideBetAmountOption);
     if (scoreBet?.amount) setScoreAmount(scoreBet.amount as SideBetAmountOption);
   }, [winnerBet, scoreBet]);
+
+  useEffect(() => {
+    if (!focusSection) return;
+    const target = focusSection === "score" ? scoreSectionRef.current : winnerSectionRef.current;
+    target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [focusSection, matchId]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/live-match/matches", matchId, "side-bets/me"] });
@@ -159,9 +173,9 @@ export default function SideBetCombinedPanel({ matchId, matchTitle }: SideBetCom
         )}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-[#333]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 divide-y divide-[#333] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
         {/* 좌 — 우승팀 */}
-        <section className="flex min-h-0 min-w-0 flex-col px-2 py-2">
+        <section ref={winnerSectionRef} className="flex min-h-0 min-w-0 flex-col px-2 py-2 sm:px-2">
           <h4 className="mb-1.5 text-center text-xs font-bold text-white">우승팀 맞추기</h4>
           {winnerBet && (
             <p className="mb-1.5 text-center text-[10px] text-[#CDFF00]">
@@ -216,7 +230,7 @@ export default function SideBetCombinedPanel({ matchId, matchTitle }: SideBetCom
               type="button"
               disabled={winnerDisabled || !winnerPick}
               onClick={() => void submitWinner()}
-              className="mt-auto h-8 w-full rounded-md bg-[#CDFF00] text-[11px] font-bold text-black disabled:opacity-50"
+              className="mt-auto h-9 max-sm:h-11 w-full rounded-md bg-[#CDFF00] text-[11px] max-sm:text-sm font-bold text-black disabled:opacity-50"
               data-testid="button-side-bet-winner"
             >
               {submittingWinner ? "처리 중..." : winnerEdit ? "수정" : "배팅"}
@@ -225,7 +239,7 @@ export default function SideBetCombinedPanel({ matchId, matchTitle }: SideBetCom
         </section>
 
         {/* 우 — 점수 */}
-        <section className="flex min-h-0 min-w-0 flex-col px-2 py-2">
+        <section ref={scoreSectionRef} className="flex min-h-0 min-w-0 flex-col px-2 py-2">
           <h4 className="mb-1.5 text-center text-xs font-bold text-white">점수 맞추기</h4>
           {scoreBet && (
             <p className="mb-1.5 text-center text-[10px] text-[#CDFF00]">
@@ -242,23 +256,20 @@ export default function SideBetCombinedPanel({ matchId, matchTitle }: SideBetCom
               compact
             />
           )}
-          <div className="flex items-end gap-1">
+          <div className="grid grid-cols-2 gap-2 max-sm:gap-3">
             <ScorePicker
-              label={`원정`}
+              label="원정"
               value={awayScore}
               onChange={setAwayScore}
               disabled={scoreDisabled}
               testId="side-bet-away-score-picker"
-              compact
             />
-            <span className="shrink-0 pb-5 text-xs text-[#888]">:</span>
             <ScorePicker
-              label={`홈`}
+              label="홈"
               value={homeScore}
               onChange={setHomeScore}
               disabled={scoreDisabled}
               testId="side-bet-home-score-picker"
-              compact
             />
           </div>
           {!locked && !scoreBet && homeScore != null && awayScore != null && (
@@ -271,7 +282,7 @@ export default function SideBetCombinedPanel({ matchId, matchTitle }: SideBetCom
               type="button"
               disabled={scoreDisabled || homeScore == null || awayScore == null}
               onClick={() => void submitScore()}
-              className="mt-auto h-8 w-full rounded-md bg-[#CDFF00] text-[11px] font-bold text-black disabled:opacity-50"
+              className="mt-auto h-9 max-sm:h-11 w-full rounded-md bg-[#CDFF00] text-[11px] max-sm:text-sm font-bold text-black disabled:opacity-50"
               data-testid="button-side-bet-score"
             >
               {submittingScore ? "처리 중..." : scoreEdit ? "수정" : "배팅"}

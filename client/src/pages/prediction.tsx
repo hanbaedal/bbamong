@@ -18,6 +18,7 @@ import {
   formatGameMatchTeamLine,
   resolveGameMatchHeaderLines,
   formatMatchStatusLabel,
+  getGameMatchSelectDisabledReason,
   isMatchSelectableForGame,
   sortMatchesByOrder,
   type GameMatchItem,
@@ -174,7 +175,7 @@ export default function PredictionPage() {
   const selectedMatch = useMemo(() => {
     if (!selectedMatchId) return null;
     const found = orderedMatches.find((m) => m.id === selectedMatchId);
-    if (!found || !isMatchSelectableForGame(found)) return null;
+    if (!found || !isMatchSelectableForGame(found, nowMs)) return null;
     return found;
   }, [orderedMatches, selectedMatchId, nowMs]);
 
@@ -280,9 +281,10 @@ export default function PredictionPage() {
 
   useEffect(() => {
     if (!sideBetModalOpen || !displayMatch) return;
-    if (shouldAutoOpenSideBetModal(displayMatch, hasSideBetPrediction, nowMs)) return;
+    if (isSideBetActionEnabled(displayMatch, nowMs)) return;
     setSideBetModalOpen(false);
-  }, [sideBetModalOpen, displayMatch, hasSideBetPrediction, nowMs]);
+    setSideBetAction(null);
+  }, [sideBetModalOpen, displayMatch, nowMs]);
 
   useEffect(() => {
     if (matchesLoading) return;
@@ -302,7 +304,7 @@ export default function PredictionPage() {
   useEffect(() => {
     if (!selectedMatchId || !selectedMatch) return;
     const found = orderedMatches.find((m) => m.id === selectedMatchId);
-    if (found && isMatchSelectableForGame(found)) return;
+    if (found && isMatchSelectableForGame(found, nowMs)) return;
     setSelectedMatchId(null);
     matchPickPromptedRef.current = false;
     setMatchModalOpen(true);
@@ -416,9 +418,10 @@ export default function PredictionPage() {
         }
         const stadium = getDisplayStadiumName(match.stadiumName);
         const teams = formatGameMatchTeamLine(match);
-        const status = formatMatchStatusLabel(match, nowMs);
-        const parts = [stadium, teams, status].filter(Boolean);
-        const selectable = isMatchSelectableForGame(match);
+        const disabledReason = getGameMatchSelectDisabledReason(match);
+        const statusPart = disabledReason ?? formatMatchStatusLabel(match, nowMs);
+        const parts = [stadium, teams, statusPart].filter(Boolean);
+        const selectable = isMatchSelectableForGame(match, nowMs);
         return {
           id: match.id,
           label,
@@ -459,7 +462,7 @@ export default function PredictionPage() {
   const handleMatchSelect = (matchId: string) => {
     if (matchId.startsWith("slot-")) return;
     const match = orderedMatches.find((m) => m.id === matchId);
-    if (!match || !isMatchSelectableForGame(match)) return;
+    if (!match || !isMatchSelectableForGame(match, nowMs)) return;
     setSelectedMatchId(matchId);
     setMatchModalOpen(false);
     sideBetAutoForMatchRef.current = null;
@@ -469,7 +472,7 @@ export default function PredictionPage() {
     const stadiumId = Number.parseInt(stadiumIdStr, 10);
     const nextMatch =
       orderedMatches.find(
-        (m) => m.stadiumId === stadiumId && isMatchSelectableForGame(m),
+        (m) => m.stadiumId === stadiumId && isMatchSelectableForGame(m, nowMs),
       ) ?? null;
     if (nextMatch) {
       setSelectedMatchId(nextMatch.id);

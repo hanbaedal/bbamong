@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { Switch, Route, Redirect } from "wouter";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, getFullUrl } from "@/lib/queryClient";
+import { fetchMallCategories, MALL_CATEGORIES_QUERY_KEY } from "@/lib/mallQueries";
 import { UserProvider } from "@/contexts/UserContext";
 import { UserAssetProvider } from "@/contexts/UserAssetContext";
 import { MALL_BASE_PATH, isMallHost } from "@shared/mallConfig";
@@ -14,21 +15,14 @@ import MallCartPage from "@/pages/mall/MallCartPage";
 import MallCheckoutPage from "@/pages/mall/MallCheckoutPage";
 import MallWishlistPage from "@/pages/mall/MallWishlistPage";
 import NotFound from "@/pages/not-found";
-import { useQuery } from "@tanstack/react-query";
-import { getFullUrl } from "@/lib/queryClient";
-import type { MallCategory } from "@/lib/mallTypes";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
 import MallImagePreconnect from "@/components/mall/MallImagePreconnect";
 import MallOrientationManager from "@/components/mall/MallOrientationManager";
 
 function MallShell({ children }: { children: React.ReactNode }) {
-  const { data } = useQuery({
-    queryKey: ["/api/mall/categories", "header"],
-    queryFn: async () => {
-      const res = await fetch(getFullUrl("/api/mall/categories"));
-      if (!res.ok) throw new Error("failed");
-      return res.json() as Promise<{ categories: MallCategory[] }>;
-    },
+  const { data, isLoading: categoriesLoading } = useQuery({
+    queryKey: MALL_CATEGORIES_QUERY_KEY,
+    queryFn: fetchMallCategories,
     staleTime: 120_000,
   });
 
@@ -46,6 +40,7 @@ function MallShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-white text-neutral-900">
       <MallHeader
         categories={data?.categories ?? []}
+        categoriesLoading={categoriesLoading}
         mallTitle={settingsData?.goodsSectionTitle}
       />
       <main>{children}</main>
@@ -84,6 +79,14 @@ export function isMallSitePath(path: string): boolean {
 }
 
 export default function MallApp() {
+  useEffect(() => {
+    void queryClient.prefetchQuery({
+      queryKey: MALL_CATEGORIES_QUERY_KEY,
+      queryFn: fetchMallCategories,
+      staleTime: 120_000,
+    });
+  }, []);
+
   useEffect(() => {
     const iconLink =
       document.querySelector<HTMLLinkElement>("link[rel='icon']") ??

@@ -16,6 +16,7 @@ import { getFullUrl } from "@/lib/queryClient";
 import { useMallWishlist } from "@/hooks/useMallWishlist";
 import { useToast } from "@/hooks/use-toast";
 import type { MallProduct, MallProductDetailTab } from "@/lib/mallTypes";
+import { readMallReturnPath } from "@/lib/mallQueries";
 import { cn } from "@/lib/utils";
 
 export default function MallProductPage() {
@@ -117,9 +118,10 @@ export default function MallProductPage() {
     setTimeout(() => setAdded(false), 2000);
   };
 
-  const backPath = product?.categoryId
+  const defaultBackPath = product?.categoryId
     ? `${MALL_BASE_PATH}/category/${product.categoryId}`
     : MALL_BASE_PATH;
+  const backPath = readMallReturnPath(defaultBackPath);
 
   if (isLoading) {
     return <p className="p-8 text-center text-neutral-500">불러오는 중...</p>;

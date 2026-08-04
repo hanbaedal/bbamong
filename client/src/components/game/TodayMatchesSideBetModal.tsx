@@ -18,7 +18,6 @@ interface TodaySideBetsResponse {
 export interface SideBetActionTarget {
   matchId: string;
   matchTitle: string;
-  /** @deprecated 한 화면 통합 — 호환용 */
   betType?: "winner" | "score";
 }
 
@@ -72,12 +71,13 @@ export default function TodayMatchesSideBetModal({
       return;
     }
     if (!initialAction) return;
-    const key = initialAction.matchId;
+    const key = `${initialAction.matchId}:${initialAction.betType ?? "all"}`;
     if (appliedInitialKeyRef.current === key) return;
     appliedInitialKeyRef.current = key;
     setSelectedMatch({
       matchId: initialAction.matchId,
       matchTitle: initialAction.matchTitle,
+      betType: initialAction.betType,
     });
   }, [open, initialAction]);
 
@@ -85,16 +85,20 @@ export default function TodayMatchesSideBetModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-2"
       onClick={onClose}
       data-testid="today-matches-side-bet-modal"
     >
       <div
-        className="flex h-[min(88dvh,392px)] w-[min(92vw,630px)] overflow-hidden rounded-xl border border-[#444] bg-[#1E1E1E] shadow-2xl"
+        className="flex h-[min(92dvh,560px)] w-[min(96vw,630px)] flex-col overflow-hidden rounded-xl border border-[#444] bg-[#1E1E1E] shadow-2xl sm:h-[min(88dvh,392px)] sm:w-[min(92vw,630px)] sm:flex-row"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 왼쪽 — 경기 목록 */}
-        <section className="flex w-[38%] min-w-0 flex-col border-r border-[#333]">
+        {/* 왼쪽 — 경기 목록 (모바일: 경기 선택 전 전체 / 선택 후 숨김) */}
+        <section
+          className={`min-w-0 flex-col border-[#333] ${
+            selectedMatch ? "hidden sm:flex sm:w-[38%] sm:border-r" : "flex w-full sm:w-[38%] sm:border-r"
+          }`}
+        >
           <div className="shrink-0 border-b border-[#333] px-2.5 py-2">
             <h3 className="text-center text-sm font-bold text-white">오늘의 경기</h3>
             <p className="mt-0.5 text-center text-[10px] leading-relaxed text-[#888]">
@@ -195,17 +199,32 @@ export default function TodayMatchesSideBetModal({
           </div>
         </section>
 
-        {/* 오른쪽 — 우승팀 + 점수 */}
-        <section className="flex w-[62%] min-w-0 flex-col bg-[#181818]">
+        {/* 오른쪽 — 우승팀 + 점수 (모바일: 경기 선택 시 전체 너비) */}
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#181818] sm:w-[62%]">
           {selectedMatch ? (
-            <SideBetCombinedPanel
-              key={selectedMatch.matchId}
-              matchId={selectedMatch.matchId}
-              matchTitle={selectedMatch.matchTitle}
-            />
+            <>
+              <div className="shrink-0 border-b border-[#333] px-3 py-2 sm:hidden">
+                <button
+                  type="button"
+                  onClick={() => setSelectedMatch(null)}
+                  className="text-xs font-medium text-[#CDFF00]"
+                  data-testid="side-bet-back-to-matches"
+                >
+                  ← 경기 목록
+                </button>
+              </div>
+              <div className="min-h-0 flex-1">
+                <SideBetCombinedPanel
+                  key={selectedMatch.matchId}
+                  matchId={selectedMatch.matchId}
+                  matchTitle={selectedMatch.matchTitle}
+                  focusSection={selectedMatch.betType}
+                />
+              </div>
+            </>
           ) : (
             <div
-              className="flex flex-1 flex-col items-center justify-center gap-1.5 px-4 text-center"
+              className="hidden flex-1 flex-col items-center justify-center gap-1.5 px-4 text-center sm:flex"
               data-testid="side-bet-panel-placeholder"
             >
               <p className="text-xs font-semibold text-white/90">예측 입력</p>

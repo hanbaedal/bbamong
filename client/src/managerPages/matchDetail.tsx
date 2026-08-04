@@ -6,7 +6,9 @@ import { getManagerAccessToken } from "@/lib/managerTokenManager";
 import { useManagerAssets } from "@/contexts/ManagerAssetContext";
 import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
+import { App } from "@capacitor/app";
 import ManagerOperatorScorePanel from "@/components/ManagerOperatorScorePanel";
+import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
@@ -83,6 +85,27 @@ export default function MatchDetailPage() {
   const matchEndedLogoutRef = useRef(false);
   const HEARTBEAT_INTERVAL = 25000; // 25초마다 ping
   const PONG_TIMEOUT = 10000; // 10초 내 pong 없으면 재연결
+
+  /** Android — 경기 운영 중 시스템 내비·뒤로가기 숨김 (예측게임과 동일) */
+  useEffect(() => {
+    void setGameImmersiveMode(true);
+
+    let resumeHandle: { remove: () => void } | null = null;
+    if (Capacitor.isNativePlatform()) {
+      void App.addListener("appStateChange", ({ isActive }) => {
+        if (isActive && window.location.pathname.startsWith("/manager/match/")) {
+          void setGameImmersiveMode(true);
+        }
+      }).then((handle) => {
+        resumeHandle = handle;
+      });
+    }
+
+    return () => {
+      resumeHandle?.remove();
+      void setGameImmersiveMode(false);
+    };
+  }, [id]);
 
   useEffect(() => {
     if (!startToggleAt && !stopToggleAt) return;

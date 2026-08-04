@@ -21,10 +21,7 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
         primarySource: "mongodb",
         postgresConfigured: isPostgresConfigured(),
         syncMode: getPgMongoSyncMode(),
-        syncScheduleKst:
-          isPostgresConfigured() && process.env.PG_MONGO_SYNC_ENABLED === "true"
-            ? `${String(parseInt(process.env.PG_MONGO_SYNC_HOUR_KST || "1", 10) || 1).padStart(2, "0")}:${String(parseInt(process.env.PG_MONGO_SYNC_MINUTE_KST || "0", 10) || 0).padStart(2, "0")}`
-            : null,
+        syncScheduleKst: null,
         syncIntervalMinutes: null,
         lastSync: getLastPostgresMongoSyncResult(),
         syncRunning: isPostgresMongoSyncRunning(),

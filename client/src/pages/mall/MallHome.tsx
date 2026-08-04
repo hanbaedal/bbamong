@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import ProductCard from "@/components/mall/ProductCard";
 import { getFullUrl } from "@/lib/queryClient";
+import { fetchMallCategories, MALL_CATEGORIES_QUERY_KEY } from "@/lib/mallQueries";
 import {
   findMallCategoryById,
   findMallCategoryParent,
@@ -27,13 +28,9 @@ export default function MallHome({ categoryId }: MallHomeProps) {
   const minPrice = params.get("minPrice") || "";
   const maxPrice = params.get("maxPrice") || "";
 
-  const { data: categoriesData } = useQuery({
-    queryKey: ["/api/mall/categories"],
-    queryFn: async () => {
-      const res = await fetch(getFullUrl("/api/mall/categories"));
-      if (!res.ok) throw new Error("failed");
-      return res.json() as Promise<{ categories: MallCategory[] }>;
-    },
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
+    queryKey: MALL_CATEGORIES_QUERY_KEY,
+    queryFn: fetchMallCategories,
     staleTime: 60_000,
   });
 
@@ -103,7 +100,14 @@ export default function MallHome({ categoryId }: MallHomeProps) {
                     전체
                   </Link>
                 </li>
-                {categoryTree.map((parent) => (
+                {categoriesLoading && categoryTree.length === 0 ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <li key={i}>
+                      <div className="h-4 w-20 animate-pulse rounded bg-neutral-100" />
+                    </li>
+                  ))
+                ) : (
+                  categoryTree.map((parent) => (
                   <li key={parent.id}>
                     <Link
                       href={`${MALL_BASE_PATH}/category/${parent.id}`}
@@ -135,7 +139,8 @@ export default function MallHome({ categoryId }: MallHomeProps) {
                       </ul>
                     )}
                   </li>
-                ))}
+                  ))
+                )}
               </ul>
             </div>
 
@@ -201,6 +206,20 @@ export default function MallHome({ categoryId }: MallHomeProps) {
               <p className="mt-1 text-xs text-neutral-500 sm:text-sm">야구용품을 카테고리·검색으로 찾아보세요</p>
             ) : null}
           </div>
+
+          {!categoryId && categoryTree.length > 0 && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {categoryTree.map((parent) => (
+                <Link
+                  key={parent.id}
+                  href={`${MALL_BASE_PATH}/category/${parent.id}`}
+                  className="rounded-full border border-neutral-200 px-3 py-1 text-xs text-neutral-600 hover:border-neutral-400"
+                >
+                  {parent.name}
+                </Link>
+              ))}
+            </div>
+          )}
 
           {subcategories.length > 0 && (
             <div className="mb-4 flex flex-wrap gap-2">
