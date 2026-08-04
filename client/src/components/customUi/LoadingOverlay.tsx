@@ -3,6 +3,7 @@ import { useUserAssets } from "@/contexts/UserAssetContext";
 import { useQuery } from "@tanstack/react-query";
 import LineScoreTable from "@/components/LineScoreTable";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 
 interface WaitingScreen {
   id: number;
@@ -200,6 +201,10 @@ export default function LoadingOverlay({
     if (useWaitingGameLayout && gamePhaseDisplay) {
       const awayScore = liveScoreboard?.awayScore ?? 0;
       const homeScore = liveScoreboard?.homeScore ?? 0;
+      const { awayLabel, homeLabel } = getScoreboardDisplayTeamLabels(liveScoreboard, {
+        awayFallback: "원정팀",
+        homeFallback: "홈팀",
+      });
       const isResultWait = pendingWaitingMode === "result";
       const statusMessage =
         waitingMessage ??
@@ -222,7 +227,7 @@ export default function LoadingOverlay({
               {gamePhaseDisplay.inningText}
             </p>
             <p className="mt-2 text-base sm:text-lg text-black" data-testid="text-game-score">
-              원정팀 {awayScore} - {homeScore} 홈팀
+              {awayLabel} {awayScore} - {homeScore} {homeLabel}
             </p>
 
             {isResultWait ? (

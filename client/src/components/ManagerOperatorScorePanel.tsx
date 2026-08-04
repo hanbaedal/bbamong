@@ -2,6 +2,7 @@ import LineScoreTable from "@/components/LineScoreTable";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import { parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
 import { resolveScoreboardInningPhase } from "@shared/matchPhaseDisplay";
+import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 
 interface ManagerOperatorScorePanelProps {
   scoreboard: LiveScoreboard | null;
@@ -45,8 +46,10 @@ export default function ManagerOperatorScorePanel({
     );
   }
 
-  const awayLabel = scoreboard.awayTeamName || "원정팀";
-  const homeLabel = scoreboard.homeTeamName || "홈팀";
+  const { awayLabel, homeLabel } = getScoreboardDisplayTeamLabels(scoreboard, {
+    awayFallback: "원정팀",
+    homeFallback: "홈팀",
+  });
   const battingHalf = resolveBattingHalf(scoreboard, gameInning, inningHalf);
   const showAttackBadge = matchStatus === "ongoing" && battingHalf != null;
   const awayBatting = showAttackBadge && battingHalf === "top";

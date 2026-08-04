@@ -1,5 +1,6 @@
 import type { InningRunsMap, LiveScoreboard } from "@shared/apiSportsTypes";
 import type { InningHalf } from "@shared/gamePhaseTypes";
+import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 
 const INNING_COLUMNS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
@@ -51,6 +52,7 @@ export default function LineScoreTable({
   const homeHits = scoreboard?.homeHits ?? 0;
   const awayErrors = scoreboard?.awayErrors ?? 0;
   const homeErrors = scoreboard?.homeErrors ?? 0;
+  const { awayLabel, homeLabel } = getScoreboardDisplayTeamLabels(scoreboard);
 
   const transparent = variant === "transparent";
   const awayBatting = battingHalf === "top";
@@ -105,7 +107,7 @@ export default function LineScoreTable({
         </thead>
         <tbody>
           <tr>
-            <td className={`${awayTdBase} px-2 py-1.5 font-semibold`}>원정</td>
+            <td className={`${awayTdBase} px-2 py-1.5 font-semibold truncate max-w-[4.5rem]`}>{awayLabel}</td>
             {inningColumns.map((key) => (
               <td key={`away-${key}`} className={`${awayTdBase} px-1 py-1.5 text-center`}>
                 {cellRuns(awayInnings?.[key])}
@@ -118,7 +120,7 @@ export default function LineScoreTable({
             <td className={`${awayTdBase} px-1 py-1.5 text-center`}>{awayErrors}</td>
           </tr>
           <tr>
-            <td className={`${homeTdBase} px-2 py-1.5 font-semibold`}>홈</td>
+            <td className={`${homeTdBase} px-2 py-1.5 font-semibold truncate max-w-[4.5rem]`}>{homeLabel}</td>
             {inningColumns.map((key) => (
               <td key={`home-${key}`} className={`${homeTdBase} px-1 py-1.5 text-center`}>
                 {cellRuns(homeInnings?.[key])}

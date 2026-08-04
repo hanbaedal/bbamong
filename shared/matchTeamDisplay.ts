@@ -28,6 +28,17 @@ export function resolveMatchTeamNames(input: MatchTeamNameInput): {
   };
 }
 
+/** 스코어보드 상단·이닝표 팀 열 — KBO 약칭 (NC, 두산 …) */
+export function getScoreboardDisplayTeamLabels(
+  scoreboard?: Pick<LiveScoreboard, "awayTeamName" | "homeTeamName"> | null,
+  options?: { awayFallback?: string; homeFallback?: string },
+): { awayLabel: string; homeLabel: string } {
+  return {
+    awayLabel: formatKboTeamShortName(scoreboard?.awayTeamName, options?.awayFallback ?? "원정"),
+    homeLabel: formatKboTeamShortName(scoreboard?.homeTeamName, options?.homeFallback ?? "홈"),
+  };
+}
+
 /** 사용자·운영자 공통 팀명 1줄 — `원정 : 홈` */
 export function formatMatchTeamLine(
   awayTeamName: string,

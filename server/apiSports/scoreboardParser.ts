@@ -13,6 +13,7 @@ import {
   inferCurrentInningFromRuns,
   inferInningHalfFromRuns,
 } from "@shared/matchPhaseDisplay";
+import { formatKboTeamShortName } from "@shared/kboHomeStadium";
 import type { ApiSportsGameResponse } from "./client";
 
 export {
@@ -111,8 +112,8 @@ export function parseLiveScoreboard(game: ApiSportsGameResponse): LiveScoreboard
         : parsed.label;
 
   return {
-    homeTeamName: game.teams.home.name,
-    awayTeamName: game.teams.away.name,
+    homeTeamName: formatKboTeamShortName(game.teams.home.name),
+    awayTeamName: formatKboTeamShortName(game.teams.away.name),
     homeScore: homeTotal,
     awayScore: awayTotal,
     homeHits: game.scores?.home?.hits ?? 0,

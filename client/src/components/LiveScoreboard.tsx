@@ -1,5 +1,6 @@
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import LineScoreTable, { collectInningColumns } from "@/components/LineScoreTable";
+import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 
 interface LiveScoreboardProps {
   scoreboard: LiveScoreboard | null;
@@ -28,8 +29,12 @@ export default function LiveScoreboardBar({
     );
   }
 
-  const awayLabel = showTeamNames ? scoreboard.awayTeamName : "원정팀";
-  const homeLabel = showTeamNames ? scoreboard.homeTeamName : "홈팀";
+  const { awayLabel, homeLabel } = getScoreboardDisplayTeamLabels(scoreboard, {
+    awayFallback: "원정팀",
+    homeFallback: "홈팀",
+  });
+  const awayDisplay = showTeamNames ? awayLabel : "원정팀";
+  const homeDisplay = showTeamNames ? homeLabel : "홈팀";
   const inningColumns = collectInningColumns(scoreboard.awayInnings, scoreboard.homeInnings);
   const showInningGrid = !compact && !dense && inningColumns.length > 0;
 
@@ -37,14 +42,14 @@ export default function LiveScoreboardBar({
     return (
       <div className="rounded-md border border-[#373539] bg-[#141414] px-2 py-1.5">
         <div className="flex items-center justify-between gap-2 text-white leading-tight">
-          <span className="truncate text-[10px] max-w-[28%] text-right">{awayLabel}</span>
+          <span className="truncate text-[10px] max-w-[28%] text-right">{awayDisplay}</span>
           <div className="text-center shrink-0">
             <div className="text-[#CDFF00] text-[10px] font-semibold">{scoreboard.inningLabel}</div>
             <div className="font-bold text-sm whitespace-nowrap">
               {scoreboard.awayScore} : {scoreboard.homeScore}
             </div>
           </div>
-          <span className="truncate text-[10px] max-w-[28%]">{homeLabel}</span>
+          <span className="truncate text-[10px] max-w-[28%]">{homeDisplay}</span>
         </div>
       </div>
     );
@@ -63,11 +68,11 @@ export default function LiveScoreboardBar({
         )}
       </div>
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-white text-sm">
-        <div className="truncate text-right">{awayLabel}</div>
+        <div className="truncate text-right">{awayDisplay}</div>
         <div className="font-bold text-base whitespace-nowrap">
           {scoreboard.awayScore} : {scoreboard.homeScore}
         </div>
-        <div className="truncate">{homeLabel}</div>
+        <div className="truncate">{homeDisplay}</div>
       </div>
 
       {showInningGrid && (
