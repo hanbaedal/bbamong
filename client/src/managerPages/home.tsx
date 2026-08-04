@@ -9,6 +9,7 @@ import { clearManagerTokens } from "@/lib/managerTokenManager";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
+import ManagerGuideModal from "./ManagerGuideModal";
 
 interface ManagerInfo {
   id: string;
@@ -40,6 +41,7 @@ export default function ManagerHomePage() {
   const [, setLocation] = useLocation();
   const [manager, setManager] = useState<ManagerInfo | null>(null);
   const [isLoadingManager, setIsLoadingManager] = useState(true);
+  const [guideOpen, setGuideOpen] = useState(false);
   const { toast } = useToast();
   const matchEndedLogoutRef = useRef(false);
 
@@ -280,7 +282,7 @@ export default function ManagerHomePage() {
         <div className="grid grid-cols-2 gap-2 mb-4">
           <button
             type="button"
-            onClick={() => setLocation("/manager/guide")}
+            onClick={() => setGuideOpen(true)}
             data-testid="button-open-guide"
             className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-left hover:bg-gray-50"
           >
@@ -340,6 +342,15 @@ export default function ManagerHomePage() {
           )}
         </div>
       </div>
+
+      <ManagerGuideModal
+        open={guideOpen}
+        onClose={() => setGuideOpen(false)}
+        onOpenSimulation={() => {
+          setGuideOpen(false);
+          setLocation("/manager/simulation");
+        }}
+      />
     </div>
   );
 }
