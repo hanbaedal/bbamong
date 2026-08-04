@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
-import { lockGameLandscape, syncOrientationForPath } from "@/lib/gameOrientation";
+import { ensureGameLandscape, syncOrientationForPath } from "@/lib/gameOrientation";
 import { isMallPath } from "@/lib/shopRoutes";
 
 /**
@@ -16,30 +16,19 @@ export default function GameOrientationManager() {
     void syncOrientationForPath(location);
   }, [location]);
 
-  /** 앱 복귀·화면 재표시 시 가로 재잠금 (일부 기기에서 풀림 방지) */
+  /** 앱 복귀 시에만, 가로가 풀렸을 때 재잠금 (이미 가로면 skip) */
   useEffect(() => {
     if (isMallPath(location.split("?")[0] || location)) return;
-
-    const relock = () => {
-      void lockGameLandscape();
-    };
-
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") relock();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
+    if (!Capacitor.isNativePlatform()) return;
 
     let appHandle: { remove: () => Promise<void> } | undefined;
-    if (Capacitor.isNativePlatform()) {
-      void App.addListener("appStateChange", ({ isActive }) => {
-        if (isActive) relock();
-      }).then((handle) => {
-        appHandle = handle;
-      });
-    }
+    void App.addListener("appStateChange", ({ isActive }) => {
+      if (isActive) void ensureGameLandscape();
+    }).then((handle) => {
+      appHandle = handle;
+    });
 
     return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
       void appHandle?.remove();
     };
   }, [location]);
