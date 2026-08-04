@@ -101,7 +101,7 @@ function GameNoticeModal({
   );
 }
 
-export default function GameNoticeBanner() {
+export default function GameNoticeBanner({ suppressed = false }: { suppressed?: boolean }) {
   const queryClient = useQueryClient();
   const { user } = useUser();
   const [modalOpen, setModalOpen] = useState(false);
@@ -124,7 +124,7 @@ export default function GameNoticeBanner() {
   });
 
   const notice = data?.notice ?? null;
-  if (isLoading || !notice) return null;
+  if (isLoading || !notice || suppressed) return null;
 
   const label = getBannerLabel(notice.tag);
   const { pill, badge } = getBannerStyles(notice.tag);

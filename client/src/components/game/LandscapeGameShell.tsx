@@ -188,7 +188,7 @@ export default function LandscapeGameShell({
       data-testid="landscape-game-shell"
     >
       <GameFieldViewport>
-        <GameNoticeBanner />
+        <GameNoticeBanner suppressed={Boolean(submenuPanel)} />
         {matchesLoading ? (
           <div className="absolute inset-0 flex items-center justify-center z-10">
             <p className="text-white text-sm drop-shadow-lg">경기 정보를 불러오는 중...</p>
