@@ -224,8 +224,7 @@ export default function MatchManagement() {
     setDayModalOpen(true);
     if (options?.sync === false) return;
     const dateKey = toDateKey(day);
-    const forceApi = options?.forceApi ?? dateKey < getKstTodayKey();
-    await syncDate(dateKey, { silentEmpty: true, forceApi });
+    await syncDate(dateKey, { silentEmpty: true, forceApi: options?.forceApi ?? false });
   };
 
   return (
@@ -306,7 +305,7 @@ export default function MatchManagement() {
                   <button
                     key={key + String(idx)}
                     type="button"
-                    onClick={() => void openDay(day)}
+                    onClick={() => void openDay(day, { sync: false })}
                     className={`min-h-0 h-full p-1 lg:p-1.5 text-left border-b border-[#E9E9E9] transition-colors ${
                       col < 6 ? "border-r border-[#E9E9E9]" : ""
                     } ${
@@ -372,7 +371,7 @@ export default function MatchManagement() {
                       : "일정 불러오는 중..."
                     : lastSyncMeta?.date === selectedDateKey
                       ? `${lastSyncMeta.source === "api" ? "API 반영" : "DB 캐시 반영"} · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}${(lastSyncMeta.deduped ?? 0) > 0 ? ` · 중복 제거 ${lastSyncMeta.deduped}` : ""}`
-                      : "매일 09:00 오늘 경기 자동 저장 · 과거일은 API 자동 조회 · 시작=상태 · 종료=스코어"}
+                      : "DB 저장 일정 표시 · API 갱신은 「API에서 갱신」 · 오늘은 09:00 자동 sync"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
