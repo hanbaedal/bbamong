@@ -15,7 +15,8 @@ import {
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
-import { isConfirmedPostponedMatch } from "@shared/apiSportsStatus";
+import { isConfirmedPostponedMatch, isGameNotStarted } from "@shared/apiSportsStatus";
+import { LIVE_SCORE_NS_GATE_POLL_MS, LIVE_SCORE_SYNC_START_BEFORE_MS } from "./constants";
 import { isStaleFinishedScoreboard, isStalePostponedScoreboard, isMisclassifiedTerminalStatus } from "@shared/matchManagementStatus";
 import { refreshMatchLineupIfDue } from "./lineupService";
 import { refreshMatchHeadToHeadIfDue } from "./h2hService";
@@ -797,6 +798,33 @@ export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
   }
 }
 
+function isWithinLiveSyncWindow(startTime?: Date | null, nowMs = Date.now()): boolean {
+  if (!startTime) return false;
+  const startMs = new Date(startTime).getTime();
+  if (!Number.isFinite(startMs)) return false;
+  return nowMs >= startMs - LIVE_SCORE_SYNC_START_BEFORE_MS;
+}
+
+/** NS/TBD·scheduled — 2.5초마다 API 호출하지 않고 게이트 간격(기본 60초)마다만 */
+function shouldFetchLiveScoreFromApi(
+  match: {
+    matchStatus?: string | null;
+    startTime?: Date | null;
+    liveScoreboard?: { statusShort?: string | null; syncedAt?: string | null } | null;
+  },
+  nowMs = Date.now(),
+): boolean {
+  if (!isWithinLiveSyncWindow(match.startTime, nowMs)) return false;
+  if (match.matchStatus === "ongoing") return true;
+  if (!isGameNotStarted(match.liveScoreboard?.statusShort)) return true;
+  if (match.matchStatus !== "scheduled") return true;
+
+  const syncedAt = match.liveScoreboard?.syncedAt;
+  if (!syncedAt) return true;
+
+  return nowMs - new Date(syncedAt).getTime() >= LIVE_SCORE_NS_GATE_POLL_MS;
+}
+
 /**
  * live sync — api-sports → Match DB 스코어보드
  * 해당 registrationOrder 슬롯 운영자 API 폴링 ON일 때만 호출
@@ -820,6 +848,10 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
     return true;
   }
 
+  if (!shouldFetchLiveScoreFromApi(match)) {
+    return false;
+  }
+
   try {
     const game = await fetchGameById(match.apiSportsGameId);
     if (!game) return false;
@@ -827,6 +859,7 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
     const scoreboard = parseLiveScoreboard(game);
     const previousStatus = match.matchStatus ?? "scheduled";
     const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, scoreboard, match.startTime);
+    const apiNotStarted = isGameNotStarted(scoreboard.statusShort);
 
     await MatchModel.updateOne(
       { id: matchId },
@@ -844,6 +877,10 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
     );
 
     await syncOperatorAccountForMatch(matchId);
+
+    if (apiNotStarted && nextStatus === "scheduled") {
+      return false;
+    }
 
     void refreshMatchLineupIfDue(
       matchId,

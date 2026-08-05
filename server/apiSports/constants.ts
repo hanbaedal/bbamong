@@ -24,6 +24,11 @@ export const LIVE_SCORE_MAX_REGISTRATION_ORDER = Math.max(
   1,
   parseInt(process.env.LIVE_SCORE_MAX_REGISTRATION_ORDER || "1", 10) || 1,
 );
+/** API NS/TBD(시작 전)일 때 live sync API 재호출 최소 간격 — 2.5초 폭주 방지 */
+export const LIVE_SCORE_NS_GATE_POLL_MS = Math.max(
+  15_000,
+  parseInt(process.env.LIVE_SCORE_NS_GATE_POLL_MS || "60000", 10) || 60_000,
+);
 /** 마지막 api-sports 성공 후 이 시간 이내면 healthy (3단계 스케줄 — 24h) */
 export const HEALTH_STALE_MS = 24 * 60 * 60 * 1000;
 export const KBO_LEAGUE_ID = Number(process.env.API_SPORTS_KBO_LEAGUE_ID || "5");

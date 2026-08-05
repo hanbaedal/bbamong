@@ -2,6 +2,7 @@ import { MatchModel } from "../UserStorage/db";
 import { getKstDateString } from "../utils/dateUtils";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
 import {
+  LIVE_SCORE_MAX_REGISTRATION_ORDER,
   LIVE_SCORE_SYNC_INTERVAL_MS,
   LIVE_SCORE_SYNC_START_BEFORE_MS,
 } from "./constants";
@@ -122,6 +123,8 @@ export async function scheduleLiveScoreSync(): Promise<void> {
     .sort({ registrationOrder: 1 })
     .lean();
 
+  let liveSlotsUsed = 0;
+
   for (const candidate of candidates) {
     const order = candidate.registrationOrder ?? 0;
     const enabled = await isApiSyncEnabledForRegistrationOrder(order);
@@ -131,6 +134,13 @@ export async function scheduleLiveScoreSync(): Promise<void> {
       );
       continue;
     }
+    if (liveSlotsUsed >= LIVE_SCORE_MAX_REGISTRATION_ORDER) {
+      console.log(
+        `[LiveScoreSync] skip order=${order} (${candidate.name}) — live sync 슬롯 상한 ${LIVE_SCORE_MAX_REGISTRATION_ORDER}`,
+      );
+      continue;
+    }
+    liveSlotsUsed += 1;
     scheduleLiveScoreWindow(candidate);
   }
 }
