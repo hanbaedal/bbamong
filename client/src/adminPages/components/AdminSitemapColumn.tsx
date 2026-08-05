@@ -122,7 +122,6 @@ export default function AdminSitemapColumn({
   onNavigate,
 }: AdminSitemapColumnProps) {
   const theme = SITEMAP_COLUMN_THEMES[columnId] ?? SITEMAP_COLUMN_THEMES.basic;
-  const useDenseGrid = columnId === "ops-support" && items.length > 2;
 
   return (
     <section
@@ -139,32 +138,17 @@ export default function AdminSitemapColumn({
         </span>
       </div>
 
-      {useDenseGrid ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-1.5">
-          {items.map((item) => (
-            <ul key={item.id} className="space-y-0 min-w-0">
-              <SitemapTreeItem
-                item={item}
-                currentPath={currentPath}
-                onNavigate={onNavigate}
-                accentBorder={theme.accentBorder}
-              />
-            </ul>
-          ))}
-        </div>
-      ) : (
-        <ul className="space-y-0.5">
-          {items.map((item) => (
-            <SitemapTreeItem
-              key={item.id}
-              item={item}
-              currentPath={currentPath}
-              onNavigate={onNavigate}
-              accentBorder={theme.accentBorder}
-            />
-          ))}
-        </ul>
-      )}
+      <ul className="space-y-0.5">
+        {items.map((item) => (
+          <SitemapTreeItem
+            key={item.id}
+            item={item}
+            currentPath={currentPath}
+            onNavigate={onNavigate}
+            accentBorder={theme.accentBorder}
+          />
+        ))}
+      </ul>
     </section>
   );
 }
