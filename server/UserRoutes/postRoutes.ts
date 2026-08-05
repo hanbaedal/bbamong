@@ -1,7 +1,9 @@
 import type { Express } from "express";
-import { postStorage as storage } from "../UserStorage/postStorage"
+import { postStorage as storage } from "../UserStorage/postStorage";
 import { insertPostSchema, insertCommentSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
+import { adminAuthMiddleware } from "../middleware/adminAuth";
+import { parseMemberPlatform } from "../utils/memberPlatform";
 
 export async function postRoutes(app: Express): Promise<void> {
   app.get("/api/posts", async (req, res) => {
@@ -209,6 +211,59 @@ export async function postRoutes(app: Express): Promise<void> {
       return res.json({ success: true, message: result.message });
     } catch (error) {
       console.error("Delete comment error:", error);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.get("/api/admin/posts", adminAuthMiddleware, async (req, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 8;
+      const search = (req.query.search as string) || "";
+      const platform = parseMemberPlatform(req.query.platform);
+
+      const result = await storage.getAdminPosts(platform, page, limit, search);
+      return res.json(result);
+    } catch (error) {
+      console.error("Get admin posts error:", error);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.get("/api/admin/posts/:id", adminAuthMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "잘못된 ID 형식입니다." });
+      }
+
+      const post = await storage.getAdminPostDetail(id);
+      if (!post) {
+        return res.status(404).json({ error: "게시물을 찾을 수 없습니다." });
+      }
+
+      return res.json(post);
+    } catch (error) {
+      console.error("Get admin post detail error:", error);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.delete("/api/admin/posts/:id", adminAuthMiddleware, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "잘못된 ID 형식입니다." });
+      }
+
+      const deleted = await storage.adminDeletePost(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "게시물을 찾을 수 없습니다." });
+      }
+
+      return res.json({ success: true, message: "게시물이 삭제되었습니다." });
+    } catch (error) {
+      console.error("Admin delete post error:", error);
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   });

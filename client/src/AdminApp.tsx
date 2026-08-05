@@ -36,6 +36,7 @@ import WaitingScreenManagementPage from "@/adminPages/revenue/WaitingScreenManag
 import AdvertisementManagementPage from "@/adminPages/revenue/AdvertisementManagement";
 
 import customerSupport from "@/adminPages/CustomerSupport";
+import BoardManagementPage from "@/adminPages/BoardManagement";
 
 // Other Admin Pages
 import NoticesPage from "@/adminPages/Notices";
@@ -138,6 +139,7 @@ function Router() {
       <Route path="/admin/ops/manager-login-status" component={ManagerLoginStatusPage} />
 
       <Route path="/admin/support" component={customerSupport} />
+      <Route path="/admin/board" component={BoardManagementPage} />
 
       {/* 404 */}
       <Route component={NotFound} />

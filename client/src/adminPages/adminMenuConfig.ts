@@ -279,6 +279,12 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
               iconKey: "adCustomerIcon",
             },
             {
+              id: "board-management",
+              label: "게시판 관리",
+              path: "/admin/board",
+              iconKey: "adListIcon",
+            },
+            {
               id: "terms-management",
               label: "약관 관리",
               path: "/admin/terms",

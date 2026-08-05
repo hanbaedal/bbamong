@@ -1,5 +1,31 @@
 import { PostModel, CommentModel, UserModel, getNextSequence } from "./db";
 import type { Post, InsertPost, Comment, InsertComment } from "@shared/schema";
+import {
+  memberPlatformFilter,
+  type MemberPlatform,
+} from "../utils/memberPlatform";
+
+export interface AdminPostListItem extends Post {
+  authorName: string;
+  authorUsername: string;
+  commentCount: number;
+}
+
+export interface AdminPostListResponse {
+  posts: AdminPostListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  platform: MemberPlatform;
+  counts: { ppamong: number; badminton9: number };
+}
+
+export interface AdminPostDetail extends Post {
+  authorName: string;
+  authorUsername: string;
+  comments: Array<Comment & { authorName: string }>;
+}
 
 export class PostStorage {
   async getPosts(
@@ -163,6 +189,100 @@ export class PostStorage {
 
     await PostModel.deleteOne({ id });
     return { success: true, message: "게시물이 삭제되었습니다." };
+  }
+
+  private async getAuthorIdsForPlatform(platform: MemberPlatform): Promise<string[]> {
+    const authors = await UserModel.find(memberPlatformFilter(platform)).select("id").lean();
+    return authors.map((a) => a.id);
+  }
+
+  private async countPostsByPlatform(): Promise<{ ppamong: number; badminton9: number }> {
+    const [ppamongIds, badminton9Ids] = await Promise.all([
+      this.getAuthorIdsForPlatform("ppamong"),
+      this.getAuthorIdsForPlatform("badminton9"),
+    ]);
+    const [ppamong, badminton9] = await Promise.all([
+      ppamongIds.length
+        ? PostModel.countDocuments({ authorId: { $in: ppamongIds } })
+        : Promise.resolve(0),
+      badminton9Ids.length
+        ? PostModel.countDocuments({ authorId: { $in: badminton9Ids } })
+        : Promise.resolve(0),
+    ]);
+    return { ppamong, badminton9 };
+  }
+
+  async getAdminPosts(
+    platform: MemberPlatform = "ppamong",
+    page = 1,
+    limit = 8,
+    search?: string,
+  ): Promise<AdminPostListResponse> {
+    const authorIds = await this.getAuthorIdsForPlatform(platform);
+    const offset = (page - 1) * limit;
+
+    const postFilter: Record<string, unknown> = {
+      authorId: { $in: authorIds.length ? authorIds : ["__none__"] },
+    };
+    if (search?.trim()) {
+      postFilter.title = { $regex: search.trim(), $options: "i" };
+    }
+
+    const [total, posts, counts] = await Promise.all([
+      PostModel.countDocuments(postFilter),
+      PostModel.find(postFilter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+      this.countPostsByPlatform(),
+    ]);
+
+    const postsWithMeta = await Promise.all(
+      posts.map(async (row) => {
+        const [author, commentCount] = await Promise.all([
+          UserModel.findOne({ id: row.authorId }).select("name username").lean(),
+          CommentModel.countDocuments({ postId: row.id }),
+        ]);
+        return {
+          ...(row as Post),
+          authorName: author?.name || "Unknown",
+          authorUsername: author?.username || "Unknown",
+          commentCount,
+        };
+      }),
+    );
+
+    return {
+      posts: postsWithMeta,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+      platform,
+      counts,
+    };
+  }
+
+  async getAdminPostDetail(id: number): Promise<AdminPostDetail | undefined> {
+    const post = await PostModel.findOne({ id }).lean();
+    if (!post) return undefined;
+
+    const [author, comments] = await Promise.all([
+      UserModel.findOne({ id: post.authorId }).select("name username").lean(),
+      this.getCommentsByPostId(id),
+    ]);
+
+    return {
+      ...(post as Post),
+      authorName: author?.name || "Unknown",
+      authorUsername: author?.username || "Unknown",
+      comments,
+    };
+  }
+
+  async adminDeletePost(id: number): Promise<boolean> {
+    const existing = await PostModel.findOne({ id }).lean();
+    if (!existing) return false;
+    await CommentModel.deleteMany({ postId: id });
+    await PostModel.deleteOne({ id });
+    return true;
   }
 }
 
