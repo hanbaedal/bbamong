@@ -2,7 +2,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { queryClient, apiRequest, adminFetch } from "@/lib/adminQueryClient";
 import AdminLayout from "../adminLayout";
-import { adminPageContentClass, adminTableClass, adminTableWrapClass } from "../components/adminPageStyles";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -34,17 +33,33 @@ interface OperatorAccount {
   operatorSlot: number;
 }
 
-interface TodayMatch {
-  id: string;
-  name: string;
-  startTime: string;
-  stadiumName: string;
-  registrationOrder: number;
-}
-
 interface OperatorsResponse {
   operators: OperatorAccount[];
-  todayMatches: TodayMatch[];
+  todayMatches: unknown[];
+}
+
+const OPERATOR_ROW_TINT: Record<number, string> = {
+  1: "bg-[#FFF5F8] hover:bg-[#FFECF2]",
+  2: "bg-[#F0F7FF] hover:bg-[#E3F0FF]",
+  3: "bg-[#F1F8F4] hover:bg-[#E5F3EA]",
+  4: "bg-[#FFF8F0] hover:bg-[#FFF0E3]",
+  5: "bg-[#F5F3FF] hover:bg-[#EBE7FF]",
+};
+
+function operatorRowTint(slot: number): string {
+  return OPERATOR_ROW_TINT[slot] ?? "bg-white hover:bg-[#FAFAFA]";
+}
+
+function accountStatusBadgeClass(status: string): string {
+  return status === "활성화"
+    ? "bg-[#E8F5E9] text-[#2E7D32] border border-[#C8E6C9]"
+    : "bg-[#F5F5F5] text-[#9E9E9E] border border-[#EEEEEE]";
+}
+
+function linkStatusBadgeClass(active: boolean): string {
+  return active
+    ? "bg-[#E8F5E9] text-[#388E3C] border border-[#C8E6C9]"
+    : "bg-[#F5F5F5] text-[#BDBDBD] border border-[#EEEEEE]";
 }
 
 function buildLoginLinkUrl(token: string): string {
@@ -184,182 +199,148 @@ export default function ManagerListPage() {
   };
 
   const renderActionButtons = (op: OperatorAccount, index: number) => (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex flex-wrap gap-1">
+    <div className="flex flex-nowrap items-center gap-1">
+      <button
+        type="button"
+        onClick={() => rotateMutation.mutate(op.id)}
+        disabled={rotateMutation.isPending}
+        className="px-2 py-0.5 text-[11px] font-medium text-white bg-[#E57373] rounded hover:bg-[#EF5350] disabled:opacity-50 whitespace-nowrap shadow-sm"
+      >
+        생성
+      </button>
+      <button
+        type="button"
+        onClick={() => void copyCredentials(op)}
+        disabled={!op.loginLinkToken}
+        className="px-2 py-0.5 text-[11px] font-medium text-[#1565C0] bg-[#E3F2FD] border border-[#BBDEFB] rounded hover:bg-[#BBDEFB]/40 disabled:opacity-40 whitespace-nowrap"
+      >
+        복사
+      </button>
+      {showQrButton && (
         <button
           type="button"
-          onClick={() => rotateMutation.mutate(op.id)}
-          disabled={rotateMutation.isPending}
-          className="px-2 py-0.5 text-[11px] font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530] disabled:opacity-50 whitespace-nowrap"
-        >
-          생성
-        </button>
-        <button
-          type="button"
-          onClick={() => void copyCredentials(op)}
+          onClick={() => openQrModal(op)}
           disabled={!op.loginLinkToken}
-          className="px-2 py-0.5 text-[11px] font-medium text-[#4285F4] border border-[#4285F4]/40 rounded hover:bg-[#F0F7FF] disabled:opacity-40 whitespace-nowrap"
+          className="px-2 py-0.5 text-[11px] font-medium text-[#5D4037] bg-[#FFF3E0] border border-[#FFE0B2] rounded hover:bg-[#FFE0B2]/60 disabled:opacity-40 whitespace-nowrap"
+          data-testid={`operator-qr-${index}`}
         >
-          복사
+          QR
         </button>
-        {showQrButton && (
-          <button
-            type="button"
-            onClick={() => openQrModal(op)}
-            disabled={!op.loginLinkToken}
-            className="px-2 py-0.5 text-[11px] font-medium text-[#201E22] bg-[#E9E9E9] rounded hover:bg-[#D8D8D8] disabled:opacity-40 whitespace-nowrap"
-            data-testid={`operator-qr-${index}`}
-          >
-            QR
-          </button>
-        )}
-      </div>
+      )}
       <label
-        className="inline-flex items-center gap-1.5 text-[10px] text-[#666] cursor-pointer whitespace-nowrap"
+        className="inline-flex items-center gap-1 ml-0.5 text-[10px] text-[#666] cursor-pointer whitespace-nowrap shrink-0"
         data-testid={`operator-api-sync-${index}`}
       >
         <Switch
           checked={op.apiSyncEnabled}
           disabled={apiSyncMutation.isPending}
           onCheckedChange={(enabled) => apiSyncMutation.mutate({ id: op.id, enabled })}
-          className="scale-75 origin-left data-[state=checked]:bg-[#34A853]"
+          className="scale-[0.72] data-[state=checked]:bg-[#81C784]"
         />
-        API {op.apiSyncEnabled ? "ON" : "OFF"}
+        <span className="tabular-nums">API {op.apiSyncEnabled ? "ON" : "OFF"}</span>
       </label>
     </div>
   );
 
   return (
     <AdminLayout>
-      <div className="flex flex-col h-full min-h-0">
-        <div className="flex justify-end mb-3 shrink-0">
-          <Button variant="outline" size="sm" className="h-9" onClick={() => refetch()}>
+      <div className="flex flex-col h-full min-h-0 -mx-3 sm:-mx-4 md:-mx-5 lg:-mx-6 xl:-mx-8">
+        <div className="flex justify-end mb-2 shrink-0 px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8">
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => refetch()}>
             새로고침
           </Button>
         </div>
-        <div className={adminPageContentClass}>
-        {isLoading ? (
-          <div className={`${adminTableWrapClass} bg-white`}>
-            <div className="p-8 text-center text-sm text-[#888]">불러오는 중...</div>
-          </div>
-        ) : operators.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-[#E0E0E0] bg-[#FAFAFA] p-12 text-center">
-            <p className="text-sm text-[#888]">운영자 계정이 없습니다. 운영자 등록 메뉴에서 계정을 생성하세요.</p>
-          </div>
-        ) : (
-          <>
-            <div className={`hidden md:block ${adminTableWrapClass}`}>
-              <table className={`${adminTableClass} min-w-[820px] table-fixed`}>
-                <colgroup>
-                  <col className="w-[72px]" />
-                  <col className="w-[22%]" />
-                  <col className="w-[88px]" />
-                  <col className="w-[72px]" />
-                  <col className="w-[72px]" />
-                  <col className="w-[140px]" />
-                  <col />
-                </colgroup>
+
+        <div className="flex-1 overflow-auto min-h-0 w-full">
+          {isLoading ? (
+            <div className="border-y border-[#E8E4F3] bg-[#FAFAFA] py-10 text-center text-sm text-[#888]">
+              불러오는 중...
+            </div>
+          ) : operators.length === 0 ? (
+            <div className="mx-3 sm:mx-4 rounded-lg border border-dashed border-[#E0E0E0] bg-[#FAFAFA] p-12 text-center">
+              <p className="text-sm text-[#888]">
+                운영자 계정이 없습니다. 운영자 등록 메뉴에서 계정을 생성하세요.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto border-y border-[#E8E4F3] w-full">
+              <table className="w-full text-xs sm:text-sm min-w-[960px] border-collapse">
                 <thead>
-                  <tr className="bg-[#FAFAFA] border-b border-[#E9E9E9] text-left text-xs text-[#888]">
-                    <th className="px-3 py-2.5 font-medium">아이디</th>
-                    <th className="px-3 py-2.5 font-medium">담당 경기</th>
-                    <th className="px-3 py-2.5 font-medium">비밀번호</th>
-                    <th className="px-3 py-2.5 font-medium text-center">링크</th>
-                    <th className="px-3 py-2.5 font-medium text-center">상태</th>
-                    <th className="px-3 py-2.5 font-medium">최근 로그인</th>
-                    <th className="px-3 py-2.5 font-medium">관리</th>
+                  <tr className="bg-[#F3F0FF] border-b border-[#E8E4F3] text-left text-[11px] sm:text-xs text-[#6B5B95]">
+                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap">운영자</th>
+                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap min-w-[160px]">담당경기</th>
+                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap min-w-[130px]">경기시간</th>
+                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-center">경기</th>
+                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-center">링크</th>
+                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-center">계정</th>
+                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap min-w-[120px]">최근로그인</th>
+                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap">비밀번호</th>
+                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap min-w-[220px]">관리</th>
                   </tr>
                 </thead>
                 <tbody>
                   {operators.map((op, index) => (
                     <tr
                       key={op.id}
-                      className="border-b border-[#F0F0F0] bg-white hover:bg-[#FFFBFB] transition-colors align-top"
+                      className={`border-b border-[#EDE9F6]/80 transition-colors align-middle ${operatorRowTint(op.operatorSlot)}`}
                       data-testid={`manager-row-${index}`}
                     >
-                      <td className="px-3 py-2.5 font-semibold text-[#201E22]">{op.username}</td>
-                      <td className="px-3 py-2.5">
-                        <p className="font-medium text-[#201E22] leading-snug truncate" title={op.assignedMatchNumber ?? undefined}>
+                      <td className="px-2.5 py-2 font-bold text-[#201E22] whitespace-nowrap">
+                        {op.username}
+                      </td>
+                      <td className="px-2.5 py-2 text-[#201E22] whitespace-nowrap">
+                        <span className="font-medium" title={op.assignedMatchNumber ?? undefined}>
                           {op.assignedMatchNumber ?? "—"}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                          {op.assignedMatchStatusLabel && (
-                            <span
-                              className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${operatorMatchPhaseBadgeClass(op.assignedMatchStatusLabel)}`}
-                            >
-                              {op.assignedMatchStatusLabel}
-                            </span>
-                          )}
-                          {op.assignedMatchDetail && (
-                            <span className="text-[10px] text-[#888] truncate" title={op.assignedMatchDetail}>
-                              {op.assignedMatchDetail}
-                            </span>
-                          )}
-                        </div>
+                        </span>
                       </td>
-                      <td
-                        className="px-3 py-2.5 font-mono text-sm text-[#E11936] font-bold tracking-wide select-all"
-                        data-testid={`operator-password-${index}`}
-                      >
-                        {op.dailyPasswordPlain || "—"}
+                      <td className="px-2.5 py-2 text-[#666] tabular-nums whitespace-nowrap">
+                        {op.assignedMatchDetail && op.assignedMatchDetail !== "(오늘 경기 없음)"
+                          ? op.assignedMatchDetail
+                          : "—"}
                       </td>
-                      <td className="px-3 py-2.5 text-center text-xs">
-                        {op.loginLinkActive ? (
-                          <span className="text-[#34A853] font-medium">발급</span>
+                      <td className="px-2.5 py-2 text-center whitespace-nowrap">
+                        {op.assignedMatchStatusLabel ? (
+                          <span
+                            className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${operatorMatchPhaseBadgeClass(op.assignedMatchStatusLabel)}`}
+                          >
+                            {op.assignedMatchStatusLabel}
+                          </span>
                         ) : (
-                          <span className="text-[#BFBFBF]">없음</span>
+                          <span className="text-[#BDBDBD]">—</span>
                         )}
                       </td>
-                      <td className={`px-3 py-2.5 text-center text-xs ${operatorAccountStatusClass(op.status)}`}>
-                        {op.status}
+                      <td className="px-2.5 py-2 text-center whitespace-nowrap">
+                        <span
+                          className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${linkStatusBadgeClass(op.loginLinkActive)}`}
+                        >
+                          {op.loginLinkActive ? "발급" : "없음"}
+                        </span>
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-[#666] tabular-nums whitespace-nowrap">
+                      <td className="px-2.5 py-2 text-center whitespace-nowrap">
+                        <span
+                          className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${accountStatusBadgeClass(op.status)} ${operatorAccountStatusClass(op.status)}`}
+                        >
+                          {op.status}
+                        </span>
+                      </td>
+                      <td className="px-2.5 py-2 text-[#666] tabular-nums whitespace-nowrap text-[11px]">
                         {op.lastLogin ? new Date(op.lastLogin).toLocaleString("ko-KR") : "—"}
                       </td>
-                      <td className="px-3 py-2.5">{renderActionButtons(op, index)}</td>
+                      <td className="px-2.5 py-2 whitespace-nowrap">
+                        <span
+                          className="inline-block font-mono text-xs font-bold text-[#C62828] bg-[#FFF5F6] border border-[#FFCDD2] rounded px-1.5 py-0.5 tracking-wide select-all"
+                          data-testid={`operator-password-${index}`}
+                        >
+                          {op.dailyPasswordPlain || "—"}
+                        </span>
+                      </td>
+                      <td className="px-2.5 py-2">{renderActionButtons(op, index)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
-            <div className="md:hidden space-y-3">
-              {operators.map((op, index) => (
-                <article
-                  key={op.id}
-                  className="rounded-lg border border-[#E9E9E9] bg-white p-4"
-                  data-testid={`manager-card-${index}`}
-                >
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div>
-                      <p className="font-semibold text-[#201E22]">{op.username}</p>
-                      <p className={`text-xs mt-0.5 ${operatorAccountStatusClass(op.status)}`}>{op.status}</p>
-                    </div>
-                    <span className="font-mono text-sm text-[#E11936] font-bold">{op.dailyPasswordPlain || "—"}</span>
-                  </div>
-                  <dl className="grid grid-cols-[72px_1fr] gap-y-1 text-xs text-[#666] mb-3">
-                    <dt>담당 경기</dt>
-                    <dd className="text-[#201E22]">
-                      {op.assignedMatchNumber ?? "—"}
-                      {op.assignedMatchStatusLabel && (
-                        <span
-                          className={`ml-1.5 inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${operatorMatchPhaseBadgeClass(op.assignedMatchStatusLabel)}`}
-                        >
-                          {op.assignedMatchStatusLabel}
-                        </span>
-                      )}
-                    </dd>
-                    <dt>로그인 링크</dt>
-                    <dd>{op.loginLinkActive ? "발급됨" : "없음"}</dd>
-                    <dt>최근 로그인</dt>
-                    <dd>{op.lastLogin ? new Date(op.lastLogin).toLocaleString("ko-KR") : "—"}</dd>
-                  </dl>
-                  {renderActionButtons(op, index)}
-                </article>
-              ))}
-            </div>
-          </>
-        )}
+          )}
         </div>
       </div>
 
