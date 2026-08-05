@@ -8,6 +8,7 @@ import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
 import AuthPanelModal from "@/components/user/AuthPanelModal";
+import HomeEmbedPanelModal from "@/components/user/HomeEmbedPanelModal";
 import UserGuideContent from "@/components/user/UserGuideContent";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import { USER_GUIDE_OPEN_KEY } from "@/pages/home/user-guide";
@@ -30,6 +31,11 @@ interface HomePageContent {
   settings: HomePageSettings;
 }
 
+type HomeEmbedPanel = {
+  id: string;
+  title: string;
+  href: string;
+};
 
 export default function HomePage() {
   const [, setLocation] = useLocation();
@@ -37,6 +43,7 @@ export default function HomePage() {
   const { assets } = useUserAssets();
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
   const [showUserGuideModal, setShowUserGuideModal] = useState(false);
+  const [embedPanel, setEmbedPanel] = useState<HomeEmbedPanel | null>(null);
 
   useEffect(() => {
     if (sessionStorage.getItem(USER_GUIDE_OPEN_KEY) === "1") {
@@ -69,6 +76,11 @@ export default function HomePage() {
 
   const goToGame = () => setLocation("/prediction");
 
+  const openEmbed = (panel: HomeEmbedPanel) => {
+    setShowUserGuideModal(false);
+    setEmbedPanel(panel);
+  };
+
   const handleLogout = async () => {
     clearGuestSessionArtifacts();
     const result = await logout();
@@ -88,7 +100,12 @@ export default function HomePage() {
     menuItems.push({
       id: "game-guide",
       label: gameGuideTitle,
-      onClick: () => setLocation("/home/game-guide"),
+      onClick: () =>
+        openEmbed({
+          id: "game-guide",
+          title: gameGuideTitle,
+          href: "/home/game-guide",
+        }),
       icon: <img src={assets.userMascotGuideIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     });
   }
@@ -98,6 +115,7 @@ export default function HomePage() {
       id: "user-guide",
       label: "사용설명서",
       onClick: () => {
+        setEmbedPanel(null);
         setShowUserGuideModal(true);
       },
       icon: <img src={assets.homeMenuManualIcon} alt="" className="user-landscape-menu-icon-img--color" />,
@@ -105,19 +123,34 @@ export default function HomePage() {
     {
       id: "notice",
       label: "공지사항",
-      onClick: () => setLocation("/notice"),
+      onClick: () =>
+        openEmbed({
+          id: "notice",
+          title: "공지사항",
+          href: "/notice",
+        }),
       icon: <img src={assets.homeMenuNoticeIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
     {
       id: "inquiry",
       label: "문의하기",
-      onClick: () => setLocation("/customer-center"),
+      onClick: () =>
+        openEmbed({
+          id: "inquiry",
+          title: "문의하기",
+          href: "/customer-center",
+        }),
       icon: <img src={assets.homeMenuInquiryIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
     {
       id: "board",
       label: "게시판",
-      onClick: () => setLocation("/board"),
+      onClick: () =>
+        openEmbed({
+          id: "board",
+          title: "게시판",
+          href: "/board",
+        }),
       icon: <img src={assets.homeMenuBoardIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
   );
@@ -178,6 +211,14 @@ export default function HomePage() {
               }}
             />
           </AuthPanelModal>
+
+          <HomeEmbedPanelModal
+            open={embedPanel !== null}
+            title={embedPanel?.title ?? ""}
+            href={embedPanel?.href ?? null}
+            onClose={() => setEmbedPanel(null)}
+            testId={embedPanel ? `home-embed-${embedPanel.id}` : "home-embed-modal"}
+          />
         </div>
       }
       right={

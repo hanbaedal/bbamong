@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, X } from "lucide-react";
-import { useLocation } from "wouter";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { GameMenuAction } from "./GameLeftMenu";
+import EmbedPanelRoutes from "@/components/user/EmbedPanelRoutes";
 
 export interface MenuLink {
   label: string;
@@ -23,14 +23,16 @@ interface GameMenuPanelProps {
 }
 
 const PANEL_ANCHOR =
-  "fixed left-[58px] top-2 bottom-2 z-[101] w-[200px] pointer-events-none sm:left-[62px] sm:top-2.5 sm:bottom-2.5";
+  "fixed left-[58px] top-2 bottom-2 z-[101] flex gap-1.5 pointer-events-none sm:left-[62px] sm:top-2.5 sm:bottom-2.5";
 
 function MenuLinkButton({
   link,
   onSelect,
+  active,
 }: {
   link: MenuLink;
   onSelect: () => void;
+  active?: boolean;
 }) {
   return (
     <button
@@ -38,9 +40,11 @@ function MenuLinkButton({
       data-testid={link.testId}
       onClick={onSelect}
       className={`flex w-full items-center justify-between gap-1.5 rounded-md border px-2 py-1.5 text-xs transition-colors ${
-        link.danger
-          ? "border-transparent text-[#E11937] hover:border-[#E11937]/30 hover:bg-[#E11937]/10"
-          : "border-transparent text-white hover:border-white/10 hover:bg-white/10"
+        active
+          ? "border-[#CDFF00]/40 bg-[#CDFF00]/10 text-white"
+          : link.danger
+            ? "border-transparent text-[#E11937] hover:border-[#E11937]/30 hover:bg-[#E11937]/10"
+            : "border-transparent text-white hover:border-white/10 hover:bg-white/10"
       }`}
     >
       <span className="min-w-0 text-left leading-snug">{link.label}</span>
@@ -49,7 +53,7 @@ function MenuLinkButton({
   );
 }
 
-/** prediction 서브메뉴 — 세로 모드와 동일하게 전체 페이지 이동 (iframe 미사용) */
+/** prediction 서브메뉴 — 오른쪽 인라인 패널 (iframe 없음, 게임 화면 유지) */
 export default function GameMenuPanel({
   panel,
   onClose,
@@ -59,16 +63,16 @@ export default function GameMenuPanel({
   statsLoading,
   onMenuAction,
 }: GameMenuPanelProps) {
-  const [, setLocation] = useLocation();
+  const [selectedLink, setSelectedLink] = useState<MenuLink | null>(null);
+  const selectedLinkRef = useRef<MenuLink | null>(null);
 
   useEffect(() => {
-    if (!panel) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [panel, onClose]);
+    selectedLinkRef.current = selectedLink;
+  }, [selectedLink]);
+
+  useEffect(() => {
+    setSelectedLink(null);
+  }, [panel]);
 
   if (!panel) return null;
 
@@ -76,14 +80,26 @@ export default function GameMenuPanel({
   const title = panel === "story" ? "내 이야기" : "내 정보";
   const isStoryPanel = panel === "story";
 
+  const handleCloseAll = () => {
+    setSelectedLink(null);
+    onClose();
+  };
+
+  const handleBack = () => {
+    if (selectedLink) {
+      setSelectedLink(null);
+      return;
+    }
+    handleCloseAll();
+  };
+
   const handleSelectLink = (link: MenuLink) => {
     if (link.action === "withdraw") {
       onMenuAction?.("withdraw");
       return;
     }
     if (link.href) {
-      onClose();
-      setLocation(link.href);
+      setSelectedLink(link);
     }
   };
 
@@ -91,14 +107,17 @@ export default function GameMenuPanel({
     <>
       <div
         className="fixed inset-0 z-[100] bg-black/50"
-        onClick={onClose}
+        onClick={handleCloseAll}
         data-testid="game-menu-panel-backdrop"
         aria-hidden
       />
 
-      <div className={PANEL_ANCHOR} data-testid="game-menu-panel-group">
+      <div
+        className={`${PANEL_ANCHOR} ${selectedLink ? "right-2 sm:right-2.5" : "w-[200px]"}`}
+        data-testid="game-menu-panel-group"
+      >
         <div
-          className="pointer-events-auto flex h-full w-[200px] flex-col overflow-hidden rounded-lg border border-[#333] bg-[#1A1A1A] shadow-2xl"
+          className="pointer-events-auto flex w-[200px] shrink-0 flex-col overflow-hidden rounded-lg border border-[#333] bg-[#1A1A1A] shadow-2xl"
           data-testid="game-menu-panel"
           onClick={(e) => e.stopPropagation()}
         >
@@ -106,7 +125,7 @@ export default function GameMenuPanel({
             <h2 className="text-xs font-semibold text-white">{title}</h2>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseAll}
               className="p-0.5 text-white/70 hover:text-white"
               aria-label="닫기"
             >
@@ -134,12 +153,53 @@ export default function GameMenuPanel({
             <ul className="flex flex-col gap-0.5">
               {links.map((link) => (
                 <li key={link.href ?? link.testId ?? link.label}>
-                  <MenuLinkButton link={link} onSelect={() => handleSelectLink(link)} />
+                  <MenuLinkButton
+                    link={link}
+                    active={selectedLink?.href === link.href && selectedLink?.label === link.label}
+                    onSelect={() => handleSelectLink(link)}
+                  />
                 </li>
               ))}
             </ul>
           </div>
         </div>
+
+        {selectedLink?.href ? (
+          <div
+            className="pointer-events-auto flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#333] bg-[#111111] shadow-2xl"
+            data-testid="game-menu-detail-panel"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-1 border-b border-[#333] px-2.5 py-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="p-0.5 text-white/70 hover:text-white sm:hidden"
+                aria-label="뒤로"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <h3 className="min-w-0 flex-1 truncate text-xs font-semibold text-white">
+                {selectedLink.label}
+              </h3>
+              <button
+                type="button"
+                onClick={handleCloseAll}
+                className="p-0.5 text-white/70 hover:text-white"
+                aria-label="닫기"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <EmbedPanelRoutes
+              key={selectedLink.href}
+              initialPath={selectedLink.href}
+              onClose={() => setSelectedLink(null)}
+              className="min-h-0 flex-1"
+              testId="game-menu-embed-routes"
+            />
+          </div>
+        ) : null}
       </div>
     </>
   );

@@ -1789,14 +1789,16 @@
   padding: clamp(12px, 2.5vh, 16px) clamp(12px, 2.5vw, 16px) clamp(16px, 3vh, 20px);
 }
 
-.user-auth-panel-modal-body:has(.user-home-embed-frame) {
+.user-auth-panel-modal-body:has(.user-home-embed-frame),
+.user-auth-panel-modal-body:has(.user-home-embed-panel) {
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-.user-home-embed-frame {
+.user-home-embed-frame,
+.user-home-embed-panel {
   flex: 1;
   min-height: 0;
   width: 100%;

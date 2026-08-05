@@ -5,7 +5,7 @@ import { getFullUrl, getOrRefreshAccessToken, queryClient } from "@/lib/queryCli
 import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clearTokens, hydrateAccessToken } from "@/lib/tokenManager";
 import { isNativePlatform } from "@/lib/logoutPlugin";
 import { markPostLogout, USER_LOGIN_PATH } from "@/lib/loginSession";
-import { isGameEmbedMode, requestEmbedAccessToken } from "@/lib/gameEmbed";
+import { isGameEmbedMode, isIframeEmbedMode, requestEmbedAccessToken } from "@/lib/gameEmbed";
 
 export interface AttendanceRecord {
   id: number;
@@ -132,7 +132,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (isUserApp) {
       await hydrateAccessToken();
 
-      if (isGameEmbedMode() && window.parent !== window) {
+      if (isIframeEmbedMode() && window.parent !== window) {
         const parentToken = await requestEmbedAccessToken();
         if (parentToken) {
           setAccessToken(parentToken);

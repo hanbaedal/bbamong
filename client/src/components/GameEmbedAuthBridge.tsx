@@ -1,15 +1,11 @@
 import { useEffect } from "react";
 import { getOrRefreshAccessToken } from "@/lib/queryClient";
-import {
-  isGameEmbedAuthRequestMessage,
-  isGameEmbedMode,
-  respondToEmbedAuthRequest,
-} from "@/lib/gameEmbed";
+import { isIframeEmbedMode, isGameEmbedAuthRequestMessage, respondToEmbedAuthRequest } from "@/lib/gameEmbed";
 
 /** embed iframe의 토큰 요청 — 부모(게임·홈) 창에서 항상 응답 */
 export default function GameEmbedAuthBridge() {
   useEffect(() => {
-    if (isGameEmbedMode()) return;
+    if (isIframeEmbedMode()) return;
 
     const onMessage = (event: MessageEvent) => {
       if (!isGameEmbedAuthRequestMessage(event.data)) return;

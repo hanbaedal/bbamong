@@ -565,29 +565,29 @@ body {
 }
 
 /* 게임 메뉴 iframe 임베드 — 가로 모드 컴팩트 레이아웃 */
-html.game-embed [data-testid="bottom-navigation"],
-html.game-embed .pb-bottom-nav,
-html.game-embed .pb-bottom-nav-with-bar {
+:is(html.game-embed, .panel-embed) [data-testid="bottom-navigation"],
+:is(html.game-embed, .panel-embed) .pb-bottom-nav,
+:is(html.game-embed, .panel-embed) .pb-bottom-nav-with-bar {
   display: none !important;
 }
 
-html.game-embed [data-testid="button-header-logo"],
-html.game-embed [data-testid="button-settings"],
-html.game-embed [data-testid="button-header-mall"] {
+:is(html.game-embed, .panel-embed) [data-testid="button-header-logo"],
+:is(html.game-embed, .panel-embed) [data-testid="button-settings"],
+:is(html.game-embed, .panel-embed) [data-testid="button-header-mall"] {
   display: none !important;
 }
 
-html.game-embed [data-testid="page-header"]:not(:has([data-testid="button-back"])) {
+:is(html.game-embed, .panel-embed) [data-testid="page-header"]:not(:has([data-testid="button-back"])) {
   display: none !important;
 }
 
-html.game-embed [data-testid="page-header"]:has([data-testid="button-back"]) > div {
+:is(html.game-embed, .panel-embed) [data-testid="page-header"]:has([data-testid="button-back"]) > div {
   height: 36px !important;
   padding-left: 10px !important;
   padding-right: 10px !important;
 }
 
-html.game-embed [data-testid="text-page-title"] {
+:is(html.game-embed, .panel-embed) [data-testid="text-page-title"] {
   display: none !important;
 }
 
@@ -599,136 +599,136 @@ html.game-embed #root {
   overflow: auto;
 }
 
-html.game-embed .h-app-screen {
-  min-height: 100%;
-  height: auto;
+:is(html.game-embed, .panel-embed) .h-app-screen {
+  min-height: 0;
+  height: 100%;
 }
 
-html.game-embed .overflow-y-scroll-touch {
+:is(html.game-embed, .panel-embed) .overflow-y-scroll-touch {
   padding-top: 4px !important;
   padding-bottom: 12px !important;
 }
 
-html.game-embed .px-5 {
+:is(html.game-embed, .panel-embed) .px-5 {
   padding-left: 12px !important;
   padding-right: 12px !important;
 }
 
-html.game-embed .text-\[20px\] {
+:is(html.game-embed, .panel-embed) .text-\[20px\] {
   font-size: 14px !important;
   line-height: 1.35 !important;
 }
 
-html.game-embed .text-\[28px\] {
+:is(html.game-embed, .panel-embed) .text-\[28px\] {
   font-size: 18px !important;
   line-height: 1.3 !important;
 }
 
-html.game-embed .text-lg {
+:is(html.game-embed, .panel-embed) .text-lg {
   font-size: 13px !important;
   line-height: 1.35 !important;
 }
 
-html.game-embed .text-base {
+:is(html.game-embed, .panel-embed) .text-base {
   font-size: 12px !important;
   line-height: 1.35 !important;
 }
 
-html.game-embed .text-sm {
+:is(html.game-embed, .panel-embed) .text-sm {
   font-size: 11px !important;
   line-height: 1.35 !important;
 }
 
-html.game-embed .text-xs {
+:is(html.game-embed, .panel-embed) .text-xs {
   font-size: 10px !important;
   line-height: 1.3 !important;
 }
 
-html.game-embed .text-\[15px\] {
+:is(html.game-embed, .panel-embed) .text-\[15px\] {
   font-size: 11px !important;
 }
 
-html.game-embed .text-\[16px\] {
+:is(html.game-embed, .panel-embed) .text-\[16px\] {
   font-size: 12px !important;
 }
 
-html.game-embed .text-\[12px\] {
+:is(html.game-embed, .panel-embed) .text-\[12px\] {
   font-size: 10px !important;
 }
 
-html.game-embed .h-12 {
+:is(html.game-embed, .panel-embed) .h-12 {
   height: 36px !important;
   min-height: 36px !important;
 }
 
-html.game-embed .h-\[86px\] {
+:is(html.game-embed, .panel-embed) .h-\[86px\] {
   height: 56px !important;
 }
 
-html.game-embed .h-\[71px\] {
+:is(html.game-embed, .panel-embed) .h-\[71px\] {
   height: 48px !important;
   min-height: 48px !important;
 }
 
-html.game-embed .h-\[96px\] {
+:is(html.game-embed, .panel-embed) .h-\[96px\] {
   height: 60px !important;
   min-height: 60px !important;
 }
 
-html.game-embed .h-\[80px\] {
+:is(html.game-embed, .panel-embed) .h-\[80px\] {
   height: 52px !important;
 }
 
-html.game-embed .mt-\[40px\] {
+:is(html.game-embed, .panel-embed) .mt-\[40px\] {
   margin-top: 12px !important;
 }
 
-html.game-embed .mt-\[10px\] {
+:is(html.game-embed, .panel-embed) .mt-\[10px\] {
   margin-top: 6px !important;
 }
 
-html.game-embed .mt-6 {
+:is(html.game-embed, .panel-embed) .mt-6 {
   margin-top: 10px !important;
 }
 
-html.game-embed .mb-12 {
+:is(html.game-embed, .panel-embed) .mb-12 {
   margin-bottom: 16px !important;
 }
 
-html.game-embed .mb-8 {
+:is(html.game-embed, .panel-embed) .mb-8 {
   margin-bottom: 10px !important;
 }
 
-html.game-embed .gap-\[14px\] {
+:is(html.game-embed, .panel-embed) .gap-\[14px\] {
   gap: 8px !important;
 }
 
-html.game-embed .gap-3 {
+:is(html.game-embed, .panel-embed) .gap-3 {
   gap: 8px !important;
 }
 
-html.game-embed .gap-3\.5 {
+:is(html.game-embed, .panel-embed) .gap-3\.5 {
   gap: 8px !important;
 }
 
-html.game-embed .py-\[13px\] {
+:is(html.game-embed, .panel-embed) .py-\[13px\] {
   padding-top: 8px !important;
   padding-bottom: 8px !important;
 }
 
-html.game-embed .py-3 {
+:is(html.game-embed, .panel-embed) .py-3 {
   padding-top: 8px !important;
   padding-bottom: 8px !important;
 }
 
-html.game-embed .p-4 {
+:is(html.game-embed, .panel-embed) .p-4 {
   padding: 10px !important;
 }
 
-html.game-embed .pt-4 {
+:is(html.game-embed, .panel-embed) .pt-4 {
   padding-top: 6px !important;
 }
 
-html.game-embed .pb-3 {
+:is(html.game-embed, .panel-embed) .pb-3 {
   padding-bottom: 4px !important;
 }

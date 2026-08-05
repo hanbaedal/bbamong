@@ -1,31 +1,17 @@
 import { useEffect } from "react";
-import {
-  isGameEmbedMode,
-  listenForEmbedAccessToken,
-  requestEmbedAccessToken,
-} from "@/lib/gameEmbed";
+import { isIframeEmbedMode } from "@/lib/gameEmbed";
 import { lockGameLandscape } from "@/lib/gameOrientation";
-import { setAccessToken } from "@/lib/tokenManager";
 
-/** ?embed=1 페이지 — 헤더·하단 네비 숨김 + 가로 유지 + 부모 토큰 수신 */
+/** ?embed=1 iframe URL — 헤더·하단 네비 숨김 + 가로 유지 (인라인 패널은 panel-embed CSS 사용) */
 export default function GameEmbedBootstrap() {
   useEffect(() => {
-    if (!isGameEmbedMode()) return;
+    if (!isIframeEmbedMode()) return;
 
     document.documentElement.classList.add("game-embed");
     void lockGameLandscape();
 
-    const stopListen = listenForEmbedAccessToken((token) => {
-      setAccessToken(token);
-    });
-
-    void requestEmbedAccessToken().then((token) => {
-      if (token) setAccessToken(token);
-    });
-
     return () => {
       document.documentElement.classList.remove("game-embed");
-      stopListen();
     };
   }, []);
 
