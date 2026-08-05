@@ -5,6 +5,7 @@ import GameFieldViewport from "./GameFieldViewport";
 import GameLeftMenu, { type GameMenuAction } from "./GameLeftMenu";
 import GameTopScorePanel from "./GameTopScorePanel";
 import GamePregameCountdown from "./GamePregameCountdown";
+import GameDayStatusOverlay from "./GameDayStatusOverlay";
 import GameFieldLabels from "./GameFieldLabels";
 import GameMenuPanel from "./GameMenuPanel";
 import GameCharacterLayer from "./GameCharacterLayer";
@@ -24,7 +25,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { clearTokens } from "@/lib/tokenManager";
 import type { AdSessionState } from "@/hooks/useAdMob";
 import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
-import type { GameDayPhase } from "@/lib/gameDayPhase";
+import type { GameDayPhase, GameTerminalKind } from "@/lib/gameDayPhase";
 import type { PregameCountdownDisplay } from "./GamePregameCountdown";
 import type { SideBetBottomSummary } from "./GameBottomStatusBar";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
@@ -75,6 +76,8 @@ interface LandscapeGameShellProps {
   stadiumSelectEnabled?: boolean;
   inningHalf?: "top" | "bottom";
   gameDayPhase?: GameDayPhase;
+  gameTerminalKind?: GameTerminalKind | null;
+  onGameTerminalComplete?: () => void;
   pregameCountdown?: PregameCountdownDisplay | null;
   sideBetSummary?: SideBetBottomSummary | null;
   onSideBetWinnerClick?: () => void;
@@ -125,6 +128,8 @@ export default function LandscapeGameShell({
   stadiumSelectEnabled,
   inningHalf,
   gameDayPhase = "live",
+  gameTerminalKind = null,
+  onGameTerminalComplete,
   pregameCountdown = null,
   sideBetSummary = null,
   onSideBetWinnerClick,
@@ -218,6 +223,10 @@ export default function LandscapeGameShell({
               <GamePregameCountdown countdown={pregameCountdown} />
             ) : null}
 
+            {gameTerminalKind && onGameTerminalComplete ? (
+              <GameDayStatusOverlay kind={gameTerminalKind} onComplete={onGameTerminalComplete} />
+            ) : null}
+
             <GameFieldLabels
               visible={labelsVisible}
               interactive={labelsInteractive}
@@ -232,6 +241,7 @@ export default function LandscapeGameShell({
             <GameCharacterLayer
               phase={screenPhase}
               gameDayPhase={gameDayPhase}
+              gameTerminalKind={gameTerminalKind}
               selectedPrediction={selectedPrediction}
               onRunComplete={onRunComplete}
             />

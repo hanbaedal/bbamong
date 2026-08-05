@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import LandscapeGameShell from "@/components/game/LandscapeGameShell";
-import GameDayEndScreen from "@/components/game/GameDayEndScreen";
 import GameSelectModal from "@/components/game/GameSelectModal";
 import TodayMatchesSideBetModal from "@/components/game/TodayMatchesSideBetModal";
 import SideBetResultOverlay, {
@@ -27,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNowMs } from "@/hooks/useNowMs";
 import { useUser } from "@/contexts/UserContext";
 import { apiRequest } from "@/lib/queryClient";
-import { resolveGameDayPhase } from "@/lib/gameDayPhase";
+import { resolveGameDayPhase, resolveGameTerminalKind } from "@/lib/gameDayPhase";
 import {
   formatCountdownMs,
   formatStartTimeKst,
@@ -82,7 +81,6 @@ export default function PredictionPage() {
   const [stadiumModalOpen, setStadiumModalOpen] = useState(false);
   const [sideBetModalOpen, setSideBetModalOpen] = useState(false);
   const [sideBetAction, setSideBetAction] = useState<SideBetActionTarget | null>(null);
-  const [dayEndVisible, setDayEndVisible] = useState(false);
   const [sideBetResult, setSideBetResult] = useState<{
     lines: SideBetResultLine[];
     matchTitle: string;
@@ -91,7 +89,7 @@ export default function PredictionPage() {
   const matchPickPromptedRef = useRef(false);
   const sideBetStatusPrevRef = useRef<Map<number, string>>(new Map());
 
-  const handleDayEndComplete = useCallback(() => {
+  const handleGameTerminalComplete = useCallback(() => {
     navigateToHome();
   }, []);
 
@@ -164,6 +162,11 @@ export default function PredictionPage() {
 
   const gameDayPhase = useMemo(
     () => resolveGameDayPhase(orderedMatches, matchesLoading, nowMs),
+    [orderedMatches, matchesLoading, nowMs],
+  );
+
+  const gameTerminalKind = useMemo(
+    () => resolveGameTerminalKind(orderedMatches, matchesLoading, nowMs),
     [orderedMatches, matchesLoading, nowMs],
   );
 
@@ -287,11 +290,11 @@ export default function PredictionPage() {
   }, [sideBetModalOpen, displayMatch, nowMs]);
 
   useEffect(() => {
-    if (matchesLoading) return;
-    if (gameDayPhase === "all_ended") {
-      setDayEndVisible(true);
-    }
-  }, [matchesLoading, gameDayPhase]);
+    if (!gameTerminalKind) return;
+    setMatchModalOpen(false);
+    setStadiumModalOpen(false);
+    setSelectedMatchId(null);
+  }, [gameTerminalKind]);
 
   useEffect(() => {
     if (!selectedMatchId) return;
@@ -313,9 +316,10 @@ export default function PredictionPage() {
   useEffect(() => {
     if (matchesLoading || matchPickPromptedRef.current) return;
     if (selectedMatchId) return;
+    if (gameTerminalKind) return;
     matchPickPromptedRef.current = true;
     setMatchModalOpen(true);
-  }, [matchesLoading, selectedMatchId]);
+  }, [matchesLoading, selectedMatchId, gameTerminalKind]);
 
   useEffect(() => {
     setLiveScoreboard(null);
@@ -331,13 +335,13 @@ export default function PredictionPage() {
     if (matchesData.some((m) => m.id === selectedMatchId)) return;
     if (matchEndedHandledRef.current) return;
     matchEndedHandledRef.current = true;
-    if (resolveGameDayPhase(matchesData, false) === "all_ended") {
-      setDayEndVisible(true);
+    if (resolveGameTerminalKind(matchesData, false, nowMs)) {
+      setSelectedMatchId(null);
       return;
     }
     toast({ description: "경기가 종료되었습니다." });
     setSelectedMatchId(null);
-  }, [selectedMatchId, matchesData, matchesLoading, toast]);
+  }, [selectedMatchId, matchesData, matchesLoading, toast, nowMs]);
 
   const flow = useLandscapePredictionFlow(flowMatch, {
     onScoreboardUpdate: setLiveScoreboard,
@@ -582,13 +586,13 @@ export default function PredictionPage() {
         stadiumSelectEnabled={canSelectStadium}
         inningHalf={inningHalfForUi}
         gameDayPhase={shellDayPhase}
+        gameTerminalKind={gameTerminalKind}
+        onGameTerminalComplete={handleGameTerminalComplete}
         pregameCountdown={pregameCountdown}
         sideBetSummary={sideBetSummary}
         onSideBetWinnerClick={() => openSideBetSheet("winner")}
         onSideBetScoreClick={() => openSideBetSheet("score")}
       />
-
-      {dayEndVisible ? <GameDayEndScreen onComplete={handleDayEndComplete} /> : null}
 
       <GameSelectModal
         open={matchModalOpen}
