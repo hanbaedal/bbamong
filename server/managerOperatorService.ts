@@ -878,10 +878,15 @@ export async function setOperatorApiSyncEnabled(operatorId: string, enabled: boo
   await AdminUserModel.updateOne({ id: operatorId }, { apiSyncEnabled: enabled });
 
   const { scheduleLiveScoreSync, stopLiveScoreSync } = await import("./apiSports/liveScoreSync");
+  const { scheduleHourlyPregameSync, stopHourlyPregameSync } = await import(
+    "./apiSports/matchManagementSchedule"
+  );
   if (!(await isAnyOperatorApiSyncEnabled())) {
     stopLiveScoreSync();
+    stopHourlyPregameSync();
     console.log("[LiveScoreSync] stopped — all operator API polling OFF");
     return;
   }
   await scheduleLiveScoreSync();
+  await scheduleHourlyPregameSync();
 }

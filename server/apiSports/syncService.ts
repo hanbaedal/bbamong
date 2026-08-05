@@ -15,7 +15,7 @@ import {
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
-import { isConfirmedPostponedMatch, isGameNotStarted } from "@shared/apiSportsStatus";
+import { isConfirmedPostponedMatch, isGameLiveStatus, isGameNotStarted } from "@shared/apiSportsStatus";
 import { LIVE_SCORE_NS_GATE_POLL_MS, LIVE_SCORE_SYNC_START_BEFORE_MS } from "./constants";
 import { isStaleFinishedScoreboard, isStalePostponedScoreboard, isMisclassifiedTerminalStatus } from "@shared/matchManagementStatus";
 import { refreshMatchLineupIfDue } from "./lineupService";
@@ -805,7 +805,7 @@ function isWithinLiveSyncWindow(startTime?: Date | null, nowMs = Date.now()): bo
   return nowMs >= startMs - LIVE_SCORE_SYNC_START_BEFORE_MS;
 }
 
-/** NS/TBD·scheduled — 2.5초마다 API 호출하지 않고 게이트 간격(기본 60초)마다만 */
+/** live sync 창(시작 1분 전~) 안에서만 — 진행 중 2.5초, NS·scheduled는 60초 간격 시작 감지 */
 function shouldFetchLiveScoreFromApi(
   match: {
     matchStatus?: string | null;
@@ -815,14 +815,20 @@ function shouldFetchLiveScoreFromApi(
   nowMs = Date.now(),
 ): boolean {
   if (!isWithinLiveSyncWindow(match.startTime, nowMs)) return false;
+
   if (match.matchStatus === "ongoing") return true;
-  if (!isGameNotStarted(match.liveScoreboard?.statusShort)) return true;
-  if (match.matchStatus !== "scheduled") return true;
+  if (isGameLiveStatus(match.liveScoreboard?.statusShort)) return true;
 
-  const syncedAt = match.liveScoreboard?.syncedAt;
-  if (!syncedAt) return true;
+  if (
+    match.matchStatus === "scheduled" &&
+    isGameNotStarted(match.liveScoreboard?.statusShort)
+  ) {
+    const syncedAt = match.liveScoreboard?.syncedAt;
+    if (!syncedAt) return true;
+    return nowMs - new Date(syncedAt).getTime() >= LIVE_SCORE_NS_GATE_POLL_MS;
+  }
 
-  return nowMs - new Date(syncedAt).getTime() >= LIVE_SCORE_NS_GATE_POLL_MS;
+  return true;
 }
 
 /**

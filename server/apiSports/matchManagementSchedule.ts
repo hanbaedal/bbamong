@@ -1,7 +1,11 @@
 import { MatchModel } from "../UserStorage/db";
 import { getKstDateString, getKstDayRange } from "../utils/dateUtils";
 import { msUntilNextKstHour, scheduleDailyKst } from "../utils/kstSchedule";
-import { isApiSyncEnabledForRegistrationOrder, syncOperatorMatchAssignments } from "../managerOperatorService";
+import {
+  isAnyOperatorApiSyncEnabled,
+  isApiSyncEnabledForRegistrationOrder,
+  syncOperatorMatchAssignments,
+} from "../managerOperatorService";
 import {
   backfillSeasonMatchesBeforeToday,
   refreshMatchFromApiAtEnd,
@@ -75,6 +79,11 @@ async function findEarliestTodayStartMs(): Promise<number | null> {
 export async function scheduleHourlyPregameSync(): Promise<void> {
   clearHourlyPregameTimer();
 
+  if (!(await isAnyOperatorApiSyncEnabled())) {
+    console.log("[MatchMgmtSchedule] hourly pregame idle — all operator API OFF");
+    return;
+  }
+
   const cutoff = await findEarliestTodayStartMs();
   const now = Date.now();
   if (cutoff != null && now >= cutoff) {
@@ -108,6 +117,12 @@ export async function runHourlyPregameMatchSync(): Promise<void> {
   if (hourlyPregameRunning) return;
   hourlyPregameRunning = true;
   try {
+    if (!(await isAnyOperatorApiSyncEnabled())) {
+      clearHourlyPregameTimer();
+      console.log("[MatchMgmtSchedule] hourly pregame skipped — all operator API OFF");
+      return;
+    }
+
     const cutoff = await findEarliestTodayStartMs();
     if (cutoff != null && Date.now() >= cutoff) {
       clearHourlyPregameTimer();
@@ -253,4 +268,9 @@ export function stopMatchManagementSchedule(): void {
   clearHourlyPregameTimer();
   clearAllMatchTimers();
   stopLiveScoreSync();
+}
+
+/** 운영자 API OFF 시 시간당 프리게임 sync 타이머만 중단 */
+export function stopHourlyPregameSync(): void {
+  clearHourlyPregameTimer();
 }
