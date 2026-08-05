@@ -9,6 +9,7 @@ import Popup from "@/components/customUi/infoPopup";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { ChevronLeft } from "lucide-react";
+import { navigateEmbed } from "@/lib/gameEmbed";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
 
 export default function CreatePostPage() {
@@ -65,7 +66,7 @@ export default function CreatePostPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
-      setLocation("/board?created=true");
+      navigateEmbed("/board?created=true", setLocation);
     },
   });
 
@@ -73,7 +74,7 @@ export default function CreatePostPage() {
     if (title.trim() || content.trim()) {
       setShowBackConfirm(true);
     } else {
-      setLocation("/board");
+      navigateEmbed("/board", setLocation);
     }
   };
 
@@ -172,7 +173,7 @@ export default function CreatePostPage() {
           message={`뒤로가시겠어요?\n작성중인 글은 저장되지 않습니다.`}
           leftButtonText="뒤로가기"
           rightButtonText="이어서 글쓰기"
-          onLeftClick={() => setLocation("/board")}
+          onLeftClick={() => navigateEmbed("/board", setLocation)}
           onRightClick={() => setShowBackConfirm(false)}
         />
       )}

@@ -4,7 +4,8 @@ import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useUserAssets } from "@/contexts/UserAssetContext"
+import { navigateEmbed } from "@/lib/gameEmbed";
+import { useUserAssets } from "@/contexts/UserAssetContext";
 
 type InquiryDetail = {
   id: number;
@@ -51,7 +52,7 @@ export default function InquiryDetailPage() {
       <PageHeader
         leftAction={
           <button
-            onClick={() => setLocation("/customer-center")}
+            onClick={() => navigateEmbed("/customer-center", setLocation)}
             data-testid="button-back"
             className="p-1 focus:outline-none focus-visible:outline-none"
           >

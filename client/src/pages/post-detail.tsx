@@ -9,6 +9,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { Capacitor } from "@capacitor/core";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
+import { navigateEmbed } from "@/lib/gameEmbed";
 
 interface PostDetail {
   id: number;
@@ -158,7 +159,7 @@ export default function PostDetailPage() {
       <PageHeader
         leftAction={
           <button
-            onClick={() => setLocation("/board")}
+            onClick={() => navigateEmbed("/board", setLocation)}
             data-testid="button-back"
             className="p-1 focus:outline-none"
           >

@@ -22,7 +22,7 @@ export default function PageHeader({
   onTitleClick,
   leftAction,
   rightAction,
-  showSettings = true,
+  showSettings = false,
   showMallButton = true,
   borderBottom = false,
 }: PageHeaderProps) {

@@ -8,6 +8,7 @@ import { useUser } from "@/contexts/UserContext";
 import { format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
+import { navigateEmbed } from "@/lib/gameEmbed";
 
 type Inquiry = {
   id: number;
@@ -64,7 +65,7 @@ export default function CustomerCenterPage() {
 
       {/* 컨텐츠 */}
       <div className="flex-1 flex flex-col pt-[10px] overflow-y-scroll-touch pb-bottom-nav">
-        <h1 data-testid="text-page-title" className="text-white text-[20px] font-bold text-center pt-4 pb-3">고객센터</h1>
+        <h1 data-testid="text-page-title" className="text-white text-[20px] font-bold text-center pt-4 pb-3">문의하기</h1>
 
         {/* 탭 */}
         <div className="flex px-5">
@@ -121,7 +122,7 @@ export default function CustomerCenterPage() {
             {inquiries.map((inquiry) => (
               <button
                 key={inquiry.id}
-                onClick={() => setLocation(`/inquiry/${inquiry.id}`)}
+                onClick={() => navigateEmbed(`/inquiry/${inquiry.id}`, setLocation)}
                 className="relative w-full bg-[#1C1F20] rounded-[10px] p-5 overflow-hidden text-left hover-elevate active-elevate-2"
                 data-testid={`inquiry-${inquiry.id}`}
               >
@@ -195,7 +196,7 @@ export default function CustomerCenterPage() {
         {activeTab === "inquiry" && (
           <div className="pb-14 w-auto flex justify-end">
             <button
-              onClick={() => { if (!checkGuest()) setLocation("/inquiry/create"); }}
+              onClick={() => { if (!checkGuest()) navigateEmbed("/inquiry/create", setLocation); }}
               className="w-auto bg-[#CDFF00] text-black text-base font-semibold rounded-[48px] hover:bg-[#B8E600] transition-colors flex items-center justify-center gap-2 py-[10px] pr-[20px] pl-4"
               data-testid="button-inquiry"
             >

@@ -7,7 +7,7 @@ import BottomNavigation from "@/components/BottomNavigation";
 import PageHeader from "@/components/PageHeader";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
-import { navigateBackOrEmbed } from "@/lib/gameEmbed";
+import { navigateBackOrEmbed, navigateEmbed } from "@/lib/gameEmbed";
 import { apiRequest } from "@/lib/queryClient";
 
 export default function VerifyIdentityPage() {
@@ -40,7 +40,7 @@ export default function VerifyIdentityPage() {
 
       if (data.verified) {
         sessionStorage.setItem("profileVerified", Date.now().toString());
-        setLocation("/profile");
+        navigateEmbed("/profile", setLocation);
       } else {
         setError(data.error || "아이디 또는 비밀번호가 일치하지 않습니다.");
       }
@@ -55,7 +55,7 @@ export default function VerifyIdentityPage() {
     <div className="h-app-screen bg-[#111111]">
       <PageHeader
         leftAction={
-          <button onClick={() => navigateBackOrEmbed("/settings", setLocation)} data-testid="button-back" className="p-1">
+          <button onClick={() => navigateBackOrEmbed("/home", setLocation)} data-testid="button-back" className="p-1">
             <ChevronLeft className="w-6 h-6 text-white" />
           </button>
         }

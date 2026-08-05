@@ -6,6 +6,8 @@ import { useUser } from "@/contexts/UserContext";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { ChevronLeft } from "lucide-react";
+import { navigateEmbed } from "@/lib/gameEmbed";
 
 type TabType = "all" | "earned" | "spent";
 
@@ -124,7 +126,18 @@ export default function PointHistoryPage() {
   return (
     <div className="h-app-screen bg-[#111111]">
       {/* 헤더 */}
-      <PageHeader />
+      <PageHeader
+        leftAction={
+          <button
+            type="button"
+            onClick={() => navigateEmbed("/point", setLocation)}
+            data-testid="button-back"
+            className="p-1"
+          >
+            <ChevronLeft className="w-6 h-6 text-white" />
+          </button>
+        }
+      />
 
       {/* 컨텐츠 영역 */}
       <div className="flex-1 flex flex-col gap-6 pt-[10px] overflow-y-scroll-touch pb-bottom-nav">

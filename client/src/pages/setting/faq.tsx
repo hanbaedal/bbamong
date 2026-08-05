@@ -28,7 +28,7 @@ export default function FaqPage() {
   });
 
   const handleClose = () => {
-    navigateBackOrEmbed("/settings", setLocation);
+    navigateBackOrEmbed("/home", setLocation);
   };
 
   return (

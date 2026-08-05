@@ -163,19 +163,17 @@ export default function LandscapeGameShell({
 
   const storyLinks = [
     { label: "승리현황", href: "/victory-history", testId: "link-victory-history" },
-    { label: "공지사항", href: "/notice", testId: "link-notice" },
+    { label: "친구 초대", href: "/invitation", testId: "link-invite" },
+    { label: "출석 체크", href: "/attendance", testId: "link-attendance" },
     { label: "나의 콘텐츠", href: "/ebook", testId: "link-ebook" },
     { label: "사회공헌 참여현황", href: "/donation-history", testId: "link-donation" },
   ];
 
   const infoLinks = [
     { label: "회원정보", href: "/verify-identity", testId: "link-profile" },
-    { label: "친구 초대", href: "/invitation", testId: "link-invite" },
-    { label: "출석 체크", href: "/attendance", testId: "link-attendance" },
     { label: "추가 참여", href: "/point", testId: "link-point" },
     { label: "Q&A", href: "/faq", testId: "link-faq" },
     { label: "서비스 이용약관", href: "/terms", testId: "link-terms" },
-    { label: "고객센터", href: "/customer-center", testId: "link-customer-center" },
     { label: "탈퇴하기", action: "withdraw", testId: "link-withdraw", danger: true },
   ];
 

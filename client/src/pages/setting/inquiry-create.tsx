@@ -7,6 +7,7 @@ import { useUser } from "@/contexts/UserContext";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { navigateEmbed } from "@/lib/gameEmbed";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
 
 const CATEGORIES = [
@@ -84,7 +85,7 @@ export default function InquiryCreatePage() {
         title: "성공",
         description: "문의가 등록되었습니다.",
       });
-      setLocation("/customer-center");
+      navigateEmbed("/customer-center", setLocation);
     },
     onError: (error: any) => {
       toast({
@@ -119,7 +120,7 @@ export default function InquiryCreatePage() {
       <PageHeader
         leftAction={
           <button
-            onClick={() => setLocation("/customer-center")}
+            onClick={() => navigateEmbed("/customer-center", setLocation)}
             data-testid="button-back"
             className="p-1 focus:outline-none focus-visible:outline-none"
           >

@@ -9,7 +9,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import SimpleInfoPopup from "@/components/customUi/simpleInfoPopup";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
-import { navigateBackOrEmbed } from "@/lib/gameEmbed";
+import { navigateBackOrEmbed, navigateEmbed } from "@/lib/gameEmbed";
 
 interface VideoReward {
   id: number;
@@ -150,7 +150,7 @@ export default function PointPage() {
           <p className="text-[#6B6B6B] text-sm mb-2">내 보유 참여기회</p>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setLocation("/point/history")}
+              onClick={() => navigateEmbed("/point/history", setLocation)}
               data-testid="button-view-points"
               className="text-white text-4xl font-bold hover:text-[#CDFF00] transition-colors flex items-center gap-2"
             >

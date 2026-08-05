@@ -1,8 +1,9 @@
-import { useLocation, useRoute } from "wouter";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { getFullUrl } from "@/lib/queryClient";
+import { navigateBackOrEmbed, requestHomeEmbedNavigate } from "@/lib/gameEmbed";
 
 interface HomePageSettings {
   gameGuideTitle: string;
@@ -29,7 +30,12 @@ export default function GameGuidePage() {
         title={settings?.gameGuideTitle ?? "야구 예측 게임"}
         showSettings={false}
         leftAction={
-          <button type="button" onClick={() => setLocation("/home")} className="p-1">
+          <button
+            type="button"
+            onClick={() => navigateBackOrEmbed("/home", setLocation)}
+            data-testid="button-back"
+            className="p-1"
+          >
             <ChevronLeft className="w-6 h-6 text-white" />
           </button>
         }
@@ -57,7 +63,7 @@ export default function GameGuidePage() {
             </div>
             <button
               type="button"
-              onClick={() => setLocation("/prediction")}
+              onClick={() => requestHomeEmbedNavigate("/prediction", setLocation)}
               className="mt-8 w-full py-3 bg-[#CDFF00] text-black font-bold rounded-lg"
             >
               지금 경기 참여하기

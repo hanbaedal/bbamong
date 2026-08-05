@@ -32,7 +32,7 @@ export default function TermsOfServicePage() {
       <PageHeader
         leftAction={
           <button
-            onClick={() => navigateBackOrEmbed("/settings", setLocation)}
+            onClick={() => navigateBackOrEmbed("/home", setLocation)}
             data-testid="button-back"
             className="p-1"
           >

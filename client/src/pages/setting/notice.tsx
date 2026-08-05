@@ -3,6 +3,7 @@ import PageHeader from "@/components/PageHeader";
 import BottomNavigation from "@/components/BottomNavigation";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { navigateEmbed } from "@/lib/gameEmbed";
 
 type Notice = {
   id: number;
@@ -58,7 +59,7 @@ export default function NoticePage() {
             {notices.map((notice) => (
               <button
                 key={notice.id}
-                onClick={() => setLocation(`/notice/${notice.id}`)}
+                onClick={() => navigateEmbed(`/notice/${notice.id}`, setLocation)}
                 className="relative w-full h-[96px] bg-[#1C1F20] rounded-[10px] p-4 text-left hover:shadow-md transition-shadow overflow-hidden focus:outline-none focus-visible:outline-none"
                 data-testid={`notice-${notice.id}`}
               >

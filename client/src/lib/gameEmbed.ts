@@ -38,7 +38,45 @@ export function requestGameEmbedBack(): void {
   postToGameParent(GAME_EMBED_MESSAGE.BACK);
 }
 
-/** embed이면 부모에 닫기/뒤로 요청, 아니면 fallback 경로로 이동 */
+/** embed 모드면 ?embed=1 쿼리 유지 */
+export function withEmbedQuery(path: string): string {
+  if (!isGameEmbedMode()) return path;
+  const qIndex = path.indexOf("?");
+  const base = qIndex === -1 ? path : path.slice(0, qIndex);
+  const params = new URLSearchParams(qIndex === -1 ? "" : path.slice(qIndex + 1));
+  params.set("embed", "1");
+  return `${base}?${params.toString()}`;
+}
+
+/** embed 모드에서도 iframe 내부 라우팅 유지 */
+export function navigateEmbed(path: string, setLocation: (path: string) => void): void {
+  setLocation(withEmbedQuery(path));
+}
+
+export const HOME_EMBED_NAVIGATE = "home-embed-navigate" as const;
+
+/** embed iframe → 부모 화면으로 경로 이동 요청 (홈 모달 닫기 + navigate) */
+export function requestHomeEmbedNavigate(
+  path: string,
+  setLocation?: (path: string) => void,
+): void {
+  if (isGameEmbedMode() && window.parent !== window) {
+    window.parent.postMessage({ type: HOME_EMBED_NAVIGATE, path }, "*");
+    requestGameEmbedClose();
+    return;
+  }
+  setLocation?.(path);
+}
+
+export function isHomeEmbedNavigateMessage(
+  data: unknown,
+): data is { type: typeof HOME_EMBED_NAVIGATE; path: string } {
+  if (!data || typeof data !== "object") return false;
+  const msg = data as { type?: string; path?: string };
+  return msg.type === HOME_EMBED_NAVIGATE && typeof msg.path === "string";
+}
+
+/** embed 모드면 부모에 닫기/뒤로 요청, 아니면 fallback 경로로 이동 */
 export function navigateBackOrEmbed(
   fallbackPath: string,
   setLocation: (path: string) => void,

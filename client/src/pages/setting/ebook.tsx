@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@/contexts/UserContext";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { navigateEmbed } from "@/lib/gameEmbed";
 import type { Ebook, EbookPurchase, User } from "@shared/schema";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 
@@ -121,7 +122,7 @@ export default function EbookPage() {
   const handleConfirmOpen = () => {
     setShowConfirm(false);
     setSelectedEbook(null);
-    setLocation("/customer-center");
+    navigateEmbed("/customer-center", setLocation);
   };
   // 구매한 전자책 ID 목록
   const purchasedEbookIds = purchases.map((p) => p.ebookId);

@@ -6,6 +6,7 @@ import BottomNavigation from "@/components/BottomNavigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
+import { navigateEmbed } from "@/lib/gameEmbed";
 
 type Notice = {
   id: number;
@@ -72,7 +73,7 @@ export default function NoticeDetailPage() {
       <PageHeader
         leftAction={
           <button
-            onClick={() => setLocation("/notice")}
+            onClick={() => navigateEmbed("/notice", setLocation)}
             data-testid="button-back"
             className="p-1 focus:outline-none focus-visible:outline-none"
           >

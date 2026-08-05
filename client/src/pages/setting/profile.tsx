@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import debounce from "lodash.debounce";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
+import { navigateEmbed } from "@/lib/gameEmbed";
 
 type NicknameStatus = "idle" | "checking" | "available" | "unavailable";
 type UsernameStatus = "idle" | "checking" | "available" | "unavailable";
@@ -26,13 +27,13 @@ export default function ProfilePage() {
   useEffect(() => {
     const verified = sessionStorage.getItem("profileVerified");
     if (!verified) {
-      setLocation("/verify-identity");
+      navigateEmbed("/verify-identity", setLocation);
       return;
     }
     const elapsed = Date.now() - parseInt(verified, 10);
     if (elapsed > 10 * 60 * 1000) {
       sessionStorage.removeItem("profileVerified");
-      setLocation("/verify-identity");
+      navigateEmbed("/verify-identity", setLocation);
     }
   }, [setLocation]);
   const { assets } = useUserAssets();

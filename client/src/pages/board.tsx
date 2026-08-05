@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/contexts/UserContext";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
+import { navigateBackOrEmbed, navigateEmbed } from "@/lib/gameEmbed";
 
 interface PostWithAuthor {
   id: number;
@@ -49,7 +50,7 @@ export default function BoardPage() {
         description: "게시글을 등록했습니다",
       });
       // URL에서 쿼리 파라미터 제거
-      window.history.replaceState({}, "", "/board");
+      window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
     }
   }, [toast]);
 
@@ -136,7 +137,7 @@ export default function BoardPage() {
         leftAction={
           <button
             data-testid="button-back"
-            onClick={() => setLocation("/home")}
+            onClick={() => navigateBackOrEmbed("/home", setLocation)}
             className="p-1 focus:outline-none"
           >
             <ChevronLeft className="w-6 h-6 text-white" />
@@ -146,7 +147,7 @@ export default function BoardPage() {
 
       {/* 게시글 리스트 */}
       <div className="overflow-y-scroll-touch scrollbar-hide flex flex-col flex-1 pt-[10px] pb-bottom-nav">
-        <h1 data-testid="text-page-title" className="text-white text-[20px] font-bold text-center pt-4 pb-3">게시</h1>
+        <h1 data-testid="text-page-title" className="text-white text-[20px] font-bold text-center pt-4 pb-3">게시판</h1>
         <div className="px-5 pb-3 flex-shrink-0">
 
           {/* 드롭다운 & 검색창 */}
@@ -243,7 +244,7 @@ export default function BoardPage() {
               <button
                 key={post.id}
                 data-testid={`post-${post.id}`}
-                onClick={() => setLocation(`/board/${post.id}`)}
+                onClick={() => navigateEmbed(`/board/${post.id}`, setLocation)}
                 className="w-full border-b border-[#373539] px-5 py-4 text-left hover:bg-[#1A1A1A]/50 transition-colors flex justify-between gap-3"
               >
                 <div className="flex-1 min-w-0">
@@ -305,7 +306,7 @@ export default function BoardPage() {
       {/* 글쓰기 버튼 (FAB) */}
       <button
         data-testid="button-create-post"
-        onClick={() => { if (!checkGuest()) setLocation("/board/create"); }}
+        onClick={() => { if (!checkGuest()) navigateEmbed("/board/create", setLocation); }}
         className="fixed right-5 bottom-[120px] w-[100px] h-[42px] bg-[#CDFF00] rounded-[48px] flex items-center justify-center py-[10px] shadow-lg hover:bg-[#CDFF00]/90 transition-colors gap-1"
       >
         <img

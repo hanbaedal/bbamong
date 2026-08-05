@@ -791,6 +791,98 @@
   object-fit: contain;
 }
 
+/* 홈 — 메뉴 6개 · 컴팩트 (폰트 대비 ~91% 비례 축소) */
+.user-landscape-page--home .user-home-right {
+  justify-content: center;
+  gap: clamp(3px, 0.85vh, 6px);
+  min-height: 0;
+  max-height: 100%;
+  max-width: min(280px, 88%);
+  overflow: hidden;
+}
+
+.user-landscape-page--home .user-home-greeting-row {
+  flex-shrink: 0;
+  max-width: min(260px, 100%);
+  margin: 0 auto clamp(1px, 0.35vh, 3px);
+  gap: clamp(4px, 1vw, 8px);
+}
+
+.user-landscape-page--home .user-home-greeting-top {
+  font-size: clamp(11px, 2.55vw, 15px);
+  line-height: 1.3;
+}
+
+.user-landscape-page--home .user-landscape-menu {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-width: min(260px, 100%);
+  max-height: min(54dvh, calc(100dvh - 60px));
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  gap: clamp(4px, 0.85vh, 6px);
+}
+
+.user-landscape-page--home .user-landscape-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.user-landscape-page--home .user-landscape-menu-item {
+  /* 기본 메뉴 대비 폰트 비율(10/11·2.2/2.6·12/13)로 높이·세로 패딩 동일 적용 */
+  min-height: clamp(29px, 7.6vh, 39px);
+  padding: clamp(5px, 1.2vh, 8px) clamp(6px, 1.4vw, 8px);
+  border-radius: 6px;
+  font-size: clamp(10px, 2.2vw, 12px);
+  font-weight: 600;
+  gap: clamp(5px, 1.3vw, 9px);
+  line-height: 1.22;
+}
+
+.user-landscape-page--home .user-landscape-menu-item svg,
+.user-landscape-page--home .user-landscape-menu-item .menu-chevron {
+  width: clamp(13px, 3vw, 17px);
+  height: clamp(13px, 3vw, 17px);
+}
+
+.user-landscape-page--home .user-landscape-menu-icon {
+  width: clamp(22px, 5.1vw, 28px);
+  height: clamp(22px, 5.1vw, 28px);
+}
+
+@media (max-height: 420px) {
+  .user-landscape-page--home .user-home-right {
+    max-width: min(252px, 86%);
+  }
+
+  .user-landscape-page--home .user-home-greeting-row,
+  .user-landscape-page--home .user-landscape-menu {
+    max-width: min(240px, 100%);
+  }
+
+  .user-landscape-page--home .user-landscape-menu {
+    max-height: min(50dvh, calc(100dvh - 52px));
+    gap: clamp(3px, 0.75vh, 5px);
+  }
+
+  .user-landscape-page--home .user-landscape-menu-item {
+    min-height: clamp(26px, 6.8vh, 35px);
+    padding: clamp(4px, 1.1vh, 7px) clamp(5px, 1.25vw, 7px);
+    font-size: clamp(9px, 2.05vw, 11px);
+    gap: clamp(4px, 1.15vw, 8px);
+  }
+
+  .user-landscape-page--home .user-landscape-menu-icon {
+    width: clamp(20px, 4.6vw, 25px);
+    height: clamp(20px, 4.6vw, 25px);
+  }
+
+  .user-landscape-page--home .user-home-greeting-top {
+    font-size: clamp(10px, 2.3vw, 13px);
+  }
+}
+
 /* 로그인 — 왼쪽 (마스코트 + 면책) */
 .user-login-left {
   display: flex;
@@ -1695,6 +1787,21 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: clamp(12px, 2.5vh, 16px) clamp(12px, 2.5vw, 16px) clamp(16px, 3vh, 20px);
+}
+
+.user-auth-panel-modal-body:has(.user-home-embed-frame) {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-home-embed-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  background: #111111;
 }
 
 .user-auth-panel-modal-text {

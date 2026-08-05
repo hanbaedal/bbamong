@@ -10,6 +10,9 @@ import predictionActiveLogo from "@assets/user/예측하기.svg";
 import predictionLogo from "@assets/user/예측하기비활.svg";
 import homeMenuSimulationIcon from "@assets/user/home-menu-simulation.svg";
 import homeMenuManualIcon from "@assets/user/home-menu-manual.svg";
+import homeMenuNoticeIcon from "@assets/user/home-menu-notice.svg";
+import homeMenuInquiryIcon from "@assets/user/home-menu-inquiry.svg";
+import homeMenuBoardIcon from "@assets/user/home-menu-board.svg";
 
 // Login page
 import kakaoIcon from "@assets/user/카카오.svg";
@@ -108,6 +111,9 @@ export const USER_ASSETS = {
   videoImg,
   homeMenuSimulationIcon,
   homeMenuManualIcon,
+  homeMenuNoticeIcon,
+  homeMenuInquiryIcon,
+  homeMenuBoardIcon,
   stadiumIcon,
 
   // Icons

@@ -27,7 +27,6 @@ import CreatePostPage from "@/pages/create-post";
 import PostDetailPage from "@/pages/post-detail";
 import PointPage from "@/pages/point";
 import PointHistoryPage from "@/pages/point-history";
-import SettingsPage from "@/pages/setting/settings";
 import ProfilePage from "@/pages/setting/profile";
 import VerifyIdentityPage from "@/pages/setting/verify-identity";
 import CustomerCenterPage from "@/pages/setting/customer-center";
@@ -115,7 +114,7 @@ function Router() {
       <Route path="/board/:id">{() => <ProtectedRoute component={PostDetailPage} />}</Route>
       <Route path="/point">{() => <ProtectedRoute component={PointPage} />}</Route>
       <Route path="/point/history">{() => <ProtectedRoute component={PointHistoryPage} />}</Route>
-      <Route path="/settings">{() => <ProtectedRoute component={SettingsPage} />}</Route>
+      <Route path="/settings">{() => <Redirect to="/home" />}</Route>
       <Route path="/verify-identity">{() => <ProtectedRoute component={VerifyIdentityPage} />}</Route>
       <Route path="/profile">{() => <ProtectedRoute component={ProfilePage} />}</Route>
       <Route path="/customer-center">{() => <ProtectedRoute component={CustomerCenterPage} />}</Route>
