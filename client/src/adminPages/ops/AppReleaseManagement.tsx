@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { Download, RefreshCw, Smartphone, Upload } from "lucide-react";
 import AdminLayout from "../adminLayout";
+import AdminPageShell from "../components/AdminPageShell";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import { useUser } from "@/contexts/UserContext";
 import { adminFetch, getFullUrl } from "@/lib/adminQueryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 type AppReleaseKind = "user" | "manager";
 
@@ -43,11 +46,34 @@ function formatBytes(bytes: number): string {
 
 function formatDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleString("ko-KR");
+    return new Date(iso).toLocaleString("ko-KR", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   } catch {
     return iso;
   }
 }
+
+const APP_KIND_META: Record<
+  AppReleaseKind,
+  { badge: string; accent: string; border: string; iconBg: string }
+> = {
+  user: {
+    badge: "회원 앱",
+    accent: "text-[#1565C0]",
+    border: "border-[#BBDEFB]",
+    iconBg: "bg-[#E3F2FD]",
+  },
+  manager: {
+    badge: "운영자 앱",
+    accent: "text-[#E11936]",
+    border: "border-[#FFCDD2]",
+    iconBg: "bg-[#FFF5F6]",
+  },
+};
 
 function ReleaseCard({
   kind,
@@ -69,38 +95,67 @@ function ReleaseCard({
   uploading: boolean;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const meta = APP_KIND_META[kind];
 
   return (
-    <div className="bg-white border border-[#E9E9E9] rounded-lg p-6">
-      <h3 className="text-base font-semibold text-[#201E22] mb-4">{title}</h3>
+    <article
+      className={cn(
+        "flex flex-col h-full rounded-xl border bg-white p-4 lg:p-5 shadow-sm",
+        meta.border,
+      )}
+    >
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", meta.iconBg)}>
+            <Smartphone className={cn("h-5 w-5", meta.accent)} />
+          </div>
+          <div className="min-w-0">
+            <span className={cn("text-[10px] font-semibold uppercase tracking-wide", meta.accent)}>
+              {meta.badge}
+            </span>
+            <h3 className="text-sm font-semibold text-[#201E22] leading-snug truncate">{title}</h3>
+          </div>
+        </div>
+        <span
+          className={cn(
+            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
+            release ? "bg-[#E8F5E9] text-[#2E7D32]" : "bg-[#F5F5F5] text-[#888]",
+          )}
+        >
+          {release ? "등록됨" : "미등록"}
+        </span>
+      </div>
 
       {release ? (
-        <div className="mb-4 p-3 rounded-lg bg-[#FAFAFA] border border-[#E9E9E9] text-sm space-y-1">
-          <p>
-            <span className="text-[#888]">버전:</span> {release.versionLabel}
-          </p>
-          <p>
-            <span className="text-[#888]">파일:</span> {release.fileName} ({formatBytes(release.sizeBytes)})
-          </p>
-          <p>
-            <span className="text-[#888]">등록:</span> {formatDate(release.uploadedAt)}
+        <dl className="mb-4 grid grid-cols-[56px_1fr] gap-x-2 gap-y-1.5 rounded-lg bg-[#FAFAFA] border border-[#F0F0F0] p-3 text-xs">
+          <dt className="text-[#888]">버전</dt>
+          <dd className="text-[#201E22] font-medium">{release.versionLabel || "—"}</dd>
+          <dt className="text-[#888]">파일</dt>
+          <dd className="text-[#201E22] truncate" title={release.fileName}>
+            {release.fileName}
+          </dd>
+          <dt className="text-[#888]">크기</dt>
+          <dd className="text-[#201E22] tabular-nums">{formatBytes(release.sizeBytes)}</dd>
+          <dt className="text-[#888]">등록</dt>
+          <dd className="text-[#201E22] tabular-nums">
+            {formatDate(release.uploadedAt)}
             {release.uploadedBy ? ` · ${release.uploadedBy}` : ""}
-          </p>
-        </div>
+          </dd>
+        </dl>
       ) : (
-        <div className="mb-4 p-3 rounded-lg bg-[#FFF8E1] border border-[#FFE082] text-sm text-[#F57C00]">
-          등록된 파일이 없습니다. APK/AAB를 업로드하세요.
+        <div className="mb-4 rounded-lg border border-dashed border-[#E0E0E0] bg-[#FAFAFA] px-3 py-6 text-center text-xs text-[#888]">
+          등록된 APK/AAB가 없습니다
         </div>
       )}
 
-      <div className="space-y-3">
+      <div className="mt-auto space-y-3">
         <div>
-          <label className="block text-xs font-medium text-[#666] mb-1">버전 표시 (선택)</label>
+          <label className="block text-[11px] font-medium text-[#666] mb-1">버전 표시 (선택)</label>
           <Input
             value={versionLabel}
             onChange={(e) => onVersionChange(e.target.value)}
-            placeholder="예: 1.0.0"
-            className="max-w-xs"
+            placeholder="1.0.0"
+            className="h-8 text-xs"
           />
         </div>
 
@@ -120,21 +175,114 @@ function ReleaseCard({
           <Button
             type="button"
             variant="outline"
+            size="sm"
             disabled={uploading}
+            className="h-8 text-xs gap-1.5 flex-1 sm:flex-none"
             onClick={() => fileInputRef.current?.click()}
           >
-            {uploading ? "업로드 중..." : release ? "새 파일로 교체" : "파일 등록"}
+            <Upload className="h-3.5 w-3.5" />
+            {uploading ? "업로드 중..." : release ? "교체" : "등록"}
           </Button>
           <Button
             type="button"
+            size="sm"
             disabled={!release || uploading}
+            className="h-8 text-xs gap-1.5 flex-1 sm:flex-none"
             onClick={() => onDownload(kind)}
           >
+            <Download className="h-3.5 w-3.5" />
             다운로드
           </Button>
         </div>
       </div>
-    </div>
+    </article>
+  );
+}
+
+function GithubImportCard({
+  githubStatus,
+  githubRunId,
+  onRunIdChange,
+  onUseLatestRunId,
+  onImport,
+  importing,
+}: {
+  githubStatus: GithubImportStatus | undefined;
+  githubRunId: string;
+  onRunIdChange: (value: string, touched: boolean) => void;
+  onUseLatestRunId: () => void;
+  onImport: () => void;
+  importing: boolean;
+}) {
+  const tokenOk = githubStatus?.tokenConfigured && !githubStatus.message;
+
+  return (
+    <section className="rounded-xl border border-[#E9E9E9] bg-white p-4 lg:p-5 shadow-sm">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F3E5F5]">
+            <RefreshCw className="h-5 w-5 text-[#7B1FA2]" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-[#201E22]">GitHub Actions에서 가져오기</h2>
+            {githubStatus && (
+              <p className="text-[11px] text-[#888] mt-0.5">
+                {githubStatus.repo} · {githubStatus.workflowName}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {githubStatus && (
+          <span
+            className={cn(
+              "inline-flex self-start lg:self-center rounded-full px-2.5 py-1 text-[11px] font-medium",
+              tokenOk ? "bg-[#E8F5E9] text-[#2E7D32]" : "bg-[#FFF3E0] text-[#E65100]",
+            )}
+          >
+            GitHub 토큰 {githubStatus.tokenConfigured ? "설정됨" : "미설정"}
+            {githubStatus.latestRunId ? ` · Run ${githubStatus.latestRunId}` : ""}
+          </span>
+        )}
+      </div>
+
+      {githubStatus?.message ? (
+        <p className="mb-3 text-xs text-[#E65100] rounded-lg bg-[#FFF8E1] border border-[#FFE082] px-3 py-2">
+          {githubStatus.message}
+        </p>
+      ) : null}
+
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3">
+        <div className="flex-1 min-w-[200px] max-w-sm">
+          <label className="block text-[11px] font-medium text-[#666] mb-1">
+            Actions Run ID (비우면 최신 성공 빌드)
+          </label>
+          <Input
+            value={githubRunId}
+            onChange={(e) => onRunIdChange(e.target.value, true)}
+            placeholder={githubStatus?.latestRunId ?? "자동 선택"}
+            className="h-8 text-xs"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            disabled={importing || githubStatus?.tokenConfigured === false}
+            onClick={onImport}
+          >
+            {importing ? "가져오는 중..." : "APK 가져오기"}
+          </Button>
+          {githubStatus?.latestRunId ? (
+            <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={onUseLatestRunId}>
+              최신 Run ID
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -150,8 +298,7 @@ export default function AppReleaseManagementPage() {
   const [githubRunId, setGithubRunId] = useState("");
   const [githubRunIdTouched, setGithubRunIdTouched] = useState(false);
 
-  const isAdmin =
-    user?.userType === "슈퍼어드민" || user?.userType === "일반어드민";
+  const isAdmin = user?.userType === "슈퍼어드민" || user?.userType === "일반어드민";
 
   useEffect(() => {
     if (isUserLoaded && !isAdmin) {
@@ -271,8 +418,7 @@ export default function AppReleaseManagementPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download =
-        appKind === "user" ? "PPAMONG-user.apk" : "PPAMONG-manager.apk";
+      a.download = appKind === "user" ? "PPAMONG-user.apk" : "PPAMONG-manager.apk";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -291,83 +437,37 @@ export default function AppReleaseManagementPage() {
 
   return (
     <AdminLayout>
-      <div className="flex flex-col h-screen">
-        <div className="flex-shrink-0">
-          <div className="flex items-center gap-2 mb-6" data-testid="breadcrumb">
-            <span className="text-sm text-[#BFBFBF]">업무 관리</span>
-            <span className="text-sm text-[#BFBFBF]">&gt;</span>
-            <span className="text-sm text-[#201E22]">앱 파일 등록/다운로드</span>
-          </div>
-
-          <h1 className="text-2xl font-semibold text-[#201E22] mb-6 flex items-center gap-2">
-            <img src={assets.adTermIcon} className="w-8 h-8" alt="" />
-            앱 파일 등록/다운로드
-          </h1>
-        </div>
-
-        <div className="flex-1 overflow-y-auto pb-8 space-y-6">
-          <div className="bg-white border border-[#E9E9E9] rounded-lg p-6">
-            <h3 className="text-base font-semibold text-[#201E22] mb-4">GitHub Actions에서 가져오기</h3>
-
-            {githubStatus && (
-              <div
-                className={`mb-4 p-3 rounded-lg border text-sm ${
-                  githubStatus.tokenConfigured && !githubStatus.message
-                    ? "bg-[#F1F8E9] border-[#C5E1A5] text-[#33691E]"
-                    : "bg-[#FFF3E0] border-[#FFE0B2] text-[#E65100]"
-                }`}
-              >
-                <p>
-                  GitHub 토큰: {githubStatus.tokenConfigured ? "설정됨" : "미설정"}
-                  {githubStatus.latestRunId ? ` · 최신 성공 Run ID: ${githubStatus.latestRunId}` : ""}
-                </p>
-                {githubStatus.message ? <p className="mt-1">{githubStatus.message}</p> : null}
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <label className="block text-xs font-medium text-[#666] mb-1">
-                  Actions Run ID (비우면 최신 성공 빌드)
-                </label>
-                <Input
-                  value={githubRunId}
-                  onChange={(e) => {
-                    setGithubRunIdTouched(true);
-                    setGithubRunId(e.target.value);
-                  }}
-                  placeholder={githubStatus?.latestRunId ?? "최신 성공 빌드 자동 선택"}
-                  className="w-56"
-                />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={importGithubMutation.isPending || githubStatus?.tokenConfigured === false}
-                onClick={() => importGithubMutation.mutate(githubRunId)}
-              >
-                {importGithubMutation.isPending ? "가져오는 중..." : "GitHub에서 APK 가져오기"}
-              </Button>
-              {githubStatus?.latestRunId ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="text-xs"
-                  onClick={() => {
-                    setGithubRunIdTouched(false);
-                    setGithubRunId(githubStatus.latestRunId ?? "");
-                  }}
-                >
-                  최신 Run ID 사용
-                </Button>
-              ) : null}
-            </div>
-          </div>
+      <AdminPageShell
+        title="앱 파일 등록/다운로드"
+        icon={<img src={assets.adTermIcon} className="w-7 h-7 lg:w-8 lg:h-8" alt="" />}
+      >
+        <div className="space-y-4 max-w-5xl">
+          <GithubImportCard
+            githubStatus={githubStatus}
+            githubRunId={githubRunId}
+            onRunIdChange={(value, touched) => {
+              if (touched) setGithubRunIdTouched(true);
+              setGithubRunId(value);
+            }}
+            onUseLatestRunId={() => {
+              setGithubRunIdTouched(false);
+              setGithubRunId(githubStatus?.latestRunId ?? "");
+            }}
+            onImport={() => importGithubMutation.mutate(githubRunId)}
+            importing={importGithubMutation.isPending}
+          />
 
           {isLoading ? (
-            <p className="text-sm text-[#888]">불러오는 중...</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {[0, 1].map((i) => (
+                <div
+                  key={i}
+                  className="h-64 rounded-xl border border-[#E9E9E9] bg-[#FAFAFA] animate-pulse"
+                />
+              ))}
+            </div>
           ) : (
-            <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
               <ReleaseCard
                 kind="user"
                 title="사용자 앱 (PPAMONG)"
@@ -388,10 +488,10 @@ export default function AppReleaseManagementPage() {
                 onDownload={handleDownload}
                 uploading={uploadingKind === "manager"}
               />
-            </>
+            </div>
           )}
         </div>
-      </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }
