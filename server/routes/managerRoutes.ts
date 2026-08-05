@@ -184,14 +184,27 @@ function generateManagerLoginLinkBridgeHtml(token: string, origin: string): stri
     (function () {
       var deeplink = ${JSON.stringify(deeplink)};
       var intentUrl = ${JSON.stringify(intentUrl)};
+      var webFallback = ${JSON.stringify(webFallbackUrl)};
+      var ua = navigator.userAgent || "";
+      var isKakaoInApp = /KAKAOTALK/i.test(ua);
 
-      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      // 카카오톡 인앱 브라우저는 커스텀 스킴이 막히므로 웹 로그인으로 바로 이동
+      if (isKakaoInApp) {
+        window.location.replace(webFallback);
+        return;
+      }
 
+      var isIOS = /iPhone|iPad|iPod/i.test(ua);
       if (isIOS) {
         window.location.href = deeplink;
       } else {
         window.location.href = intentUrl;
       }
+
+      // 앱 미설치·인앱 차단 시 웹 로그인 폴백
+      setTimeout(function () {
+        window.location.replace(webFallback);
+      }, 2200);
     })();
   </script>
 </body>
