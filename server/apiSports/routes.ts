@@ -14,7 +14,7 @@ import {
   setMatchControlMode,
   syncTodayGamesFromApiSports,
 } from "./syncService";
-import { syncOperatorMatchAssignments } from "../managerOperatorService";
+import { syncOperatorMatchAssignments, isMatchApiSportsPollingEnabled } from "../managerOperatorService";
 import { rescheduleTodayMatchTimers } from "./matchManagementSchedule";
 import { buildCurrentBatterPreviewFromMatch, refreshMatchLineupIfDue } from "./lineupService";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
@@ -130,21 +130,26 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
       const matchId = req.params.id;
       let match = await MatchModel.findOne({ id: matchId })
         .select(
-          "id liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
+          "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
         )
         .lean();
       if (!match) return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
+
+      const apiPollingEnabled = await isMatchApiSportsPollingEnabled(
+        (match as { registrationOrder?: number | null }).registrationOrder,
+      );
 
       const lineupMissing =
         !match.matchLineup?.syncedAt ||
         ((match.matchLineup as MatchLineupSnapshot).home.length === 0 &&
           (match.matchLineup as MatchLineupSnapshot).away.length === 0);
 
-      if (lineupMissing && match.apiSportsGameId) {
+      if (apiPollingEnabled && lineupMissing && match.apiSportsGameId) {
         await refreshMatchLineupIfDue(
           matchId,
           {
             id: matchId,
+            registrationOrder: (match as { registrationOrder?: number | null }).registrationOrder,
             apiSportsGameId: match.apiSportsGameId,
             startTime: match.startTime,
             gameInning: match.gameInning,

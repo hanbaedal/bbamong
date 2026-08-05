@@ -82,6 +82,20 @@ export async function isApiSyncEnabledForRegistrationOrder(order: number): Promi
   return map.get(order) ?? false;
 }
 
+/** Match registrationOrder 기준 — api-sports live/lineup 호출 허용 여부 */
+export async function isMatchApiSportsPollingEnabled(
+  registrationOrder?: number | null,
+): Promise<boolean> {
+  const order = registrationOrder ?? 0;
+  if (order < 1 || order > OPERATOR_COUNT) return false;
+  return isApiSyncEnabledForRegistrationOrder(order);
+}
+
+export async function isAnyOperatorApiSyncEnabled(): Promise<boolean> {
+  const orders = await getApiSyncEnabledRegistrationOrders();
+  return orders.length > 0;
+}
+
 export async function getApiSyncEnabledRegistrationOrders(): Promise<number[]> {
   const docs = await AdminUserModel.find({
     username: { $in: [...OPERATOR_USERNAMES] },
@@ -863,7 +877,11 @@ export async function setOperatorApiSyncEnabled(operatorId: string, enabled: boo
   }
   await AdminUserModel.updateOne({ id: operatorId }, { apiSyncEnabled: enabled });
 
-  // 배정은 opN→제N경기 고정 — API ON/OFF는 라이브 폴링 대상만 변경
-  const { scheduleLiveScoreSync } = await import("./apiSports/liveScoreSync");
+  const { scheduleLiveScoreSync, stopLiveScoreSync } = await import("./apiSports/liveScoreSync");
+  if (!(await isAnyOperatorApiSyncEnabled())) {
+    stopLiveScoreSync();
+    console.log("[LiveScoreSync] stopped — all operator API polling OFF");
+    return;
+  }
   await scheduleLiveScoreSync();
 }

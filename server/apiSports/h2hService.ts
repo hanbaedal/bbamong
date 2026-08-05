@@ -1,5 +1,6 @@
 import type { MatchHeadToHeadSnapshot } from "@shared/apiSportsTypes";
 import { MatchModel } from "../UserStorage/db";
+import { isMatchApiSportsPollingEnabled } from "../managerOperatorService";
 import { apiSportsTeamIdsFromGame, fetchGameById, fetchHeadToHeadGames } from "./client";
 import { KBO_LEAGUE_ID, resolveApiSportsSeason } from "./constants";
 import { computeHeadToHeadRecord } from "./h2hParser";
@@ -12,6 +13,7 @@ const H2H_REFRESH_MS = Math.max(
 
 type MatchH2hRow = {
   id: string;
+  registrationOrder?: number | null;
   startTime?: Date;
   apiSportsGameId?: number | null;
   apiSportsAwayTeamId?: number | null;
@@ -34,13 +36,18 @@ export async function refreshMatchHeadToHeadIfDue(
   const match =
     prefetched ??
     ((await MatchModel.findOne({ id: matchId })
-      .select("id startTime apiSportsGameId apiSportsAwayTeamId apiSportsHomeTeamId matchHeadToHead")
+      .select(
+        "id registrationOrder startTime apiSportsGameId apiSportsAwayTeamId apiSportsHomeTeamId matchHeadToHead",
+      )
       .lean()) as MatchH2hRow | null);
 
-  let awayTeamId = match?.apiSportsAwayTeamId ?? null;
-  let homeTeamId = match?.apiSportsHomeTeamId ?? null;
+  if (!match) return null;
+  if (!(await isMatchApiSportsPollingEnabled(match.registrationOrder))) return match.matchHeadToHead ?? null;
 
-  if ((!awayTeamId || !homeTeamId) && match?.apiSportsGameId) {
+  let awayTeamId = match.apiSportsAwayTeamId ?? null;
+  let homeTeamId = match.apiSportsHomeTeamId ?? null;
+
+  if ((!awayTeamId || !homeTeamId) && match.apiSportsGameId) {
     const game = await fetchGameById(match.apiSportsGameId);
     if (game) {
       awayTeamId = game.teams.away.id;

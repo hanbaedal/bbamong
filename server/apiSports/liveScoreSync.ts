@@ -1,6 +1,6 @@
 import { MatchModel } from "../UserStorage/db";
 import { getKstDateString } from "../utils/dateUtils";
-import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
+import { isApiSyncEnabledForRegistrationOrder, isAnyOperatorApiSyncEnabled } from "../managerOperatorService";
 import {
   LIVE_SCORE_MAX_REGISTRATION_ORDER,
   LIVE_SCORE_SYNC_INTERVAL_MS,
@@ -26,7 +26,10 @@ function getOrCreateTimers(matchId: string): MatchLiveTimers {
 }
 
 export function isLiveScoreSyncActive(): boolean {
-  return liveTimersByMatch.size > 0;
+  for (const timers of liveTimersByMatch.values()) {
+    if (timers.interval) return true;
+  }
+  return false;
 }
 
 function stopLiveScoreSyncForMatch(matchId: string): void {
@@ -58,11 +61,20 @@ function beginLiveScoreInterval(matchId: string, registrationOrder?: number): vo
   const timers = getOrCreateTimers(matchId);
   if (timers.interval) return;
 
-  void runLiveScoreTick(matchId);
-  timers.interval = setInterval(() => void runLiveScoreTick(matchId), LIVE_SCORE_SYNC_INTERVAL_MS);
-  console.log(
-    `[LiveScoreSync] started ${matchId} every ${LIVE_SCORE_SYNC_INTERVAL_MS}ms (order=${registrationOrder ?? "?"}, operator API ON)`,
-  );
+  void (async () => {
+    const order = registrationOrder ?? 0;
+    if (order >= 1 && order <= 5 && !(await isApiSyncEnabledForRegistrationOrder(order))) {
+      console.log(`[LiveScoreSync] abort start ${matchId} — order=${order} API OFF`);
+      stopLiveScoreSyncForMatch(matchId);
+      return;
+    }
+
+    void runLiveScoreTick(matchId);
+    timers.interval = setInterval(() => void runLiveScoreTick(matchId), LIVE_SCORE_SYNC_INTERVAL_MS);
+    console.log(
+      `[LiveScoreSync] started ${matchId} every ${LIVE_SCORE_SYNC_INTERVAL_MS}ms (order=${registrationOrder ?? "?"}, operator API ON)`,
+    );
+  })();
 }
 
 function scheduleLiveScoreWindow(
@@ -107,6 +119,10 @@ export async function scheduleLiveScoreSync(): Promise<void> {
   stopLiveScoreSync();
 
   if (!process.env.API_SPORTS_KEY?.trim()) return;
+  if (!(await isAnyOperatorApiSyncEnabled())) {
+    console.log("[LiveScoreSync] idle — all operator API polling OFF");
+    return;
+  }
 
   const kstToday = getKstDateString();
   const today = new Date();

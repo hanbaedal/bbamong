@@ -2,6 +2,7 @@ import type { CurrentBatterPreview, MatchLineupSnapshot, MatchPlayerStatsEntry }
 import { resolveCurrentBatterPreview } from "@shared/batterDisplay";
 import { parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
 import { MatchModel } from "../UserStorage/db";
+import { isMatchApiSportsPollingEnabled } from "../managerOperatorService";
 import {
   fetchGameLineups,
   fetchGameStatistics,
@@ -19,6 +20,7 @@ import {
 type MatchLineupRow = {
   id: string;
   apiSportsGameId?: number | null;
+  registrationOrder?: number | null;
   startTime?: Date;
   gameInning?: number | null;
   inningHalf?: string | null;
@@ -154,11 +156,12 @@ export async function refreshMatchLineupIfDue(
     prefetched ??
     ((await MatchModel.findOne({ id: matchId })
       .select(
-        "id apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
+        "id apiSportsGameId registrationOrder startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
       )
       .lean()) as MatchLineupRow | null);
 
   if (!match?.apiSportsGameId) return;
+  if (!(await isMatchApiSportsPollingEnabled(match.registrationOrder))) return;
 
   const lineupStale = lineupIsStale(match.matchLineup);
   const statsStale = playerStatsNeedRefresh(match.matchLineup, match.matchPlayerStats);
