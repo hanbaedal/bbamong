@@ -323,6 +323,57 @@ export interface AdminSitemapColumn {
   items: AdminMenuItem[];
 }
 
+/** 사이트맵 열별 파스텔 카드 테마 */
+export const SITEMAP_COLUMN_THEMES: Record<
+  string,
+  { bg: string; border: string; headerText: string; accentBorder: string; badge: string }
+> = {
+  basic: {
+    bg: "bg-[#F5F3FF]",
+    border: "border-[#E8E4F3]",
+    headerText: "text-[#6B5B95]",
+    accentBorder: "border-[#D1C4E9]",
+    badge: "bg-[#EDE7F6] text-[#6B5B95]",
+  },
+  "mall-shop": {
+    bg: "bg-[#FFF8F0]",
+    border: "border-[#FFE0B2]",
+    headerText: "text-[#8D6E63]",
+    accentBorder: "border-[#FFCC80]",
+    badge: "bg-[#FFF3E0] text-[#8D6E63]",
+  },
+  "mall-sales": {
+    bg: "bg-[#F0F7FF]",
+    border: "border-[#BBDEFB]",
+    headerText: "text-[#1565C0]",
+    accentBorder: "border-[#90CAF9]",
+    badge: "bg-[#E3F2FD] text-[#1565C0]",
+  },
+  "match-members": {
+    bg: "bg-[#F1F8F4]",
+    border: "border-[#C8E6C9]",
+    headerText: "text-[#2E7D32]",
+    accentBorder: "border-[#A5D6A7]",
+    badge: "bg-[#E8F5E9] text-[#2E7D32]",
+  },
+  "ops-support": {
+    bg: "bg-[#FFF5F8]",
+    border: "border-[#FFCDD2]",
+    headerText: "text-[#C62828]",
+    accentBorder: "border-[#EF9A9A]",
+    badge: "bg-[#FFEBEE] text-[#C62828]",
+  },
+};
+
+export function countSitemapLinks(items: AdminMenuItem[]): number {
+  let count = 0;
+  for (const item of items) {
+    if (item.path) count += 1;
+    if (item.children?.length) count += countSitemapLinks(item.children);
+  }
+  return count;
+}
+
 /** 사이트맵 5열 — 모니터링·사이트맵 페이지 제외 */
 export function buildAdminSitemapColumns(isSuperAdmin: boolean): AdminSitemapColumn[] {
   const sections = buildAdminMenuSections(isSuperAdmin);

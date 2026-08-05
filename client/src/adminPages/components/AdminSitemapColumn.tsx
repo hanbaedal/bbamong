@@ -1,9 +1,12 @@
 import { cn } from "@/lib/utils";
 import type { AdminMenuItem } from "../adminMenuConfig";
+import { SITEMAP_COLUMN_THEMES } from "../adminMenuConfig";
 
 interface AdminSitemapColumnProps {
+  columnId: string;
   label: string;
   items: AdminMenuItem[];
+  linkCount: number;
   currentPath: string;
   onNavigate: (path: string) => void;
 }
@@ -26,10 +29,10 @@ function SitemapLink({
       type="button"
       onClick={() => onNavigate(path)}
       className={cn(
-        "text-left text-sm leading-snug rounded px-2 py-1 -mx-2 transition-colors w-full",
+        "text-left text-[11px] leading-tight rounded px-1.5 py-0.5 transition-colors w-full",
         active
-          ? "text-[#E11936] font-semibold bg-[#FFF0F2]"
-          : "text-[#4D4B4E] hover:text-[#E11936] hover:bg-[#FFF9FA]",
+          ? "text-[#E11936] font-semibold bg-white/80"
+          : "text-[#4D4B4E] hover:text-[#E11936] hover:bg-white/60",
         className,
       )}
     >
@@ -42,11 +45,13 @@ function SitemapTreeItem({
   item,
   currentPath,
   onNavigate,
+  accentBorder,
   depth = 0,
 }: {
   item: AdminMenuItem;
   currentPath: string;
   onNavigate: (path: string) => void;
+  accentBorder: string;
   depth?: number;
 }) {
   const hasChildren = !!item.children?.length;
@@ -65,20 +70,20 @@ function SitemapTreeItem({
   }
 
   return (
-    <li className={depth > 0 ? "mt-2" : ""}>
+    <li className={depth > 0 ? "mt-0.5" : ""}>
       {item.path ? (
         <SitemapLink
           label={item.label}
           path={item.path}
           active={currentPath === item.path}
           onNavigate={onNavigate}
-          className="font-medium"
+          className="font-semibold"
         />
       ) : (
         <p
           className={cn(
-            "text-xs font-semibold text-[#9CA3AF] px-2 -mx-2 mb-1",
-            depth > 0 && "mt-1",
+            "text-[10px] font-semibold uppercase tracking-wide opacity-80 px-1.5 py-0.5",
+            depth > 0 && "mt-0.5",
           )}
         >
           {item.label}
@@ -87,8 +92,9 @@ function SitemapTreeItem({
       {hasChildren && (
         <ul
           className={cn(
-            "space-y-0.5",
-            depth === 0 ? "mt-1 ml-2 pl-2 border-l border-[#E8D4D8]" : "ml-2 pl-2 border-l border-[#EEE4E6]",
+            "space-y-0",
+            depth === 0 ? "mt-0.5 ml-1 pl-1.5 border-l-2" : "ml-1 pl-1.5 border-l",
+            accentBorder,
           )}
         >
           {item.children!.map((child) => (
@@ -97,6 +103,7 @@ function SitemapTreeItem({
               item={child}
               currentPath={currentPath}
               onNavigate={onNavigate}
+              accentBorder={accentBorder}
               depth={depth + 1}
             />
           ))}
@@ -107,26 +114,57 @@ function SitemapTreeItem({
 }
 
 export default function AdminSitemapColumn({
+  columnId,
   label,
   items,
+  linkCount,
   currentPath,
   onNavigate,
 }: AdminSitemapColumnProps) {
+  const theme = SITEMAP_COLUMN_THEMES[columnId] ?? SITEMAP_COLUMN_THEMES.basic;
+  const useDenseGrid = columnId === "ops-support" && items.length > 2;
+
   return (
-    <section className="min-w-0 flex flex-col">
-      <h2 className="text-sm font-bold text-[#201E22] pb-2 mb-2 border-b border-[#E5E7EB]">
-        {label}
-      </h2>
-      <ul className="space-y-1">
-        {items.map((item) => (
-          <SitemapTreeItem
-            key={item.id}
-            item={item}
-            currentPath={currentPath}
-            onNavigate={onNavigate}
-          />
-        ))}
-      </ul>
+    <section
+      className={cn(
+        "min-w-0 flex flex-col rounded-lg border p-2.5 lg:p-3 h-full",
+        theme.bg,
+        theme.border,
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-black/5">
+        <h2 className={cn("text-xs font-bold", theme.headerText)}>{label}</h2>
+        <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded tabular-nums", theme.badge)}>
+          {linkCount}개
+        </span>
+      </div>
+
+      {useDenseGrid ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-1.5">
+          {items.map((item) => (
+            <ul key={item.id} className="space-y-0 min-w-0">
+              <SitemapTreeItem
+                item={item}
+                currentPath={currentPath}
+                onNavigate={onNavigate}
+                accentBorder={theme.accentBorder}
+              />
+            </ul>
+          ))}
+        </div>
+      ) : (
+        <ul className="space-y-0.5">
+          {items.map((item) => (
+            <SitemapTreeItem
+              key={item.id}
+              item={item}
+              currentPath={currentPath}
+              onNavigate={onNavigate}
+              accentBorder={theme.accentBorder}
+            />
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

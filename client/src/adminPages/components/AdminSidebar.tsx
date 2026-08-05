@@ -89,19 +89,19 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
         <div key={item.id} className="rounded transition-all duration-200">
           <button
             onClick={() => toggleExpanded(item.id)}
-            className="w-full flex items-center justify-between px-2 md:px-3 py-1.5 md:py-2 rounded hover:bg-[#FDF2F3] transition"
+            className="w-full flex items-center justify-between px-2 py-1 rounded hover:bg-[#FDF2F3] transition"
             data-testid={`menu-${item.id}`}
           >
-            <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
               {item.iconKey && (
                 <img
                   src={getIconSrc(item.iconKey, isParentActive(item))}
                   alt=""
-                  className="w-4 h-4 md:w-[18px] md:h-[18px] object-contain flex-shrink-0"
+                  className="w-3.5 h-3.5 object-contain flex-shrink-0"
                 />
               )}
               <span
-                className={`text-xs md:text-sm font-semibold truncate ${
+                className={`text-[11px] font-semibold truncate leading-tight ${
                   isParentActive(item) ? "text-[#E11936]" : "text-[#4D4B4E]"
                 }`}
               >
@@ -110,12 +110,12 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
             </div>
 
             <svg
-              width="16"
-              height="16"
+              width="14"
+              height="14"
               viewBox="0 0 20 20"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              className={`transform transition-transform flex-shrink-0 ml-1 ${
+              className={`transform transition-transform flex-shrink-0 ml-0.5 ${
                 expandedItems.includes(item.id) ? "rotate-90" : ""
               }`}
             >
@@ -135,19 +135,19 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
               expandedItems.includes(item.id) ? "max-h-80" : "max-h-0",
             )}
           >
-            <div className="mt-0.5 mb-1 border-l border-[#E8D4D8] ml-4 md:ml-5">
+            <div className="mt-0 mb-0.5 border-l border-[#E8D4D8] ml-3.5">
               {item.children.map((child) => (
                 <button
                   key={child.id}
                   onClick={() => handleMenuClick(child.path)}
-                  className={`w-full flex items-center pl-3 md:pl-3.5 pr-2 py-1 md:py-1.5 rounded-r transition text-left ${
+                  className={`w-full flex items-center pl-2.5 pr-1.5 py-0.5 rounded-r transition text-left ${
                     isActive(child.path)
                       ? "bg-[rgba(225,25,54,0.12)] text-[#E11936] font-semibold"
                       : "hover:bg-[#FDF2F3] text-[#5C5A5E]"
                   }`}
                   data-testid={`menu-${child.id}`}
                 >
-                  <span className="text-[11px] md:text-xs leading-tight">{child.label}</span>
+                  <span className="text-[10px] leading-tight">{child.label}</span>
                 </button>
               ))}
             </div>
@@ -160,14 +160,14 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
       <button
         key={item.id}
         onClick={() => item.path && handleTopLevelClick(item.path)}
-        className={`w-full flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded transition ${
+        className={`w-full flex items-center gap-1.5 px-2 py-1 rounded transition ${
           isActive(item.path)
             ? "bg-[rgba(225,25,54,0.12)] text-[#E11936]"
             : "hover:bg-[#FDF2F3] text-[#4D4B4E]"
         }`}
         data-testid={`menu-${item.id}`}
       >
-        <div className="w-4 h-4 md:w-5 md:h-5 flex items-center justify-center flex-shrink-0">
+        <div className="w-3.5 h-3.5 flex items-center justify-center flex-shrink-0">
           {item.iconKey && (
             <img
               src={getIconSrc(item.iconKey, !!isActive(item.path))}
@@ -176,7 +176,7 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
             />
           )}
         </div>
-        <span className="text-xs md:text-sm font-semibold text-left">{item.label}</span>
+        <span className="text-[11px] font-semibold text-left leading-tight">{item.label}</span>
       </button>
     );
   };
@@ -189,22 +189,22 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
       )}
       data-testid="admin-sidebar"
     >
-      <div className="p-2 md:p-3 flex flex-col gap-0.5">
+      <div className="p-1.5 md:p-2 flex flex-col gap-0">
         {menuSections.map((section, sectionIndex) => (
           <div key={section.id}>
             {sectionIndex > 0 && (
               <div
-                className="my-2 h-px bg-[#E5E7EB] w-full"
+                className="my-1 h-px bg-[#E5E7EB] w-full"
                 role="separator"
                 aria-hidden="true"
               />
             )}
             {section.title && (
-              <p className="px-2 md:px-3 pb-1 text-[10px] md:text-[11px] font-semibold tracking-wide text-[#9CA3AF]">
+              <p className="px-2 pb-0.5 text-[10px] font-semibold tracking-wide text-[#9CA3AF] leading-none">
                 {section.title}
               </p>
             )}
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-0">
               {section.items.map((item) => renderMenuItem(item))}
             </div>
           </div>
