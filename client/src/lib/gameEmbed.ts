@@ -10,6 +10,7 @@ import {
 import {
   mapBackForLandscapeSplit,
   mapPathForLandscapeSplit,
+  resolveLegacyPathToSplit,
 } from "@/lib/landscapeSplitRoutes";
 
 export function isIframeEmbedMode(): boolean {
@@ -182,6 +183,12 @@ export function navigateEmbed(path: string, setLocation: (path: string) => void)
       setLocation(splitPath);
       return;
     }
+  }
+
+  const legacySplit = resolveLegacyPathToSplit(path);
+  if (legacySplit) {
+    setLocation(legacySplit);
+    return;
   }
 
   if (isInlinePanelEmbedMode()) {

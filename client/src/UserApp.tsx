@@ -23,25 +23,6 @@ import UserGuidePage from "@/pages/home/user-guide";
 import UserSimulationPage from "@/pages/home/user-simulation";
 import HomePage from "@/pages/home";
 import PredictionPage from "@/pages/prediction";
-import AttendancePage from "@/pages/attendance";
-import BoardPage from "@/pages/board";
-import CreatePostPage from "@/pages/create-post";
-import PostDetailPage from "@/pages/post-detail";
-import PointPage from "@/pages/point";
-import PointHistoryPage from "@/pages/point-history";
-import ProfilePage from "@/pages/setting/profile";
-import VerifyIdentityPage from "@/pages/setting/verify-identity";
-import CustomerCenterPage from "@/pages/setting/customer-center";
-import InquiryCreatePage from "@/pages/setting/inquiry-create";
-import InquiryDetailPage from "@/pages/setting/inquiry-detail";
-import NoticePage from "@/pages/setting/notice";
-import NoticeDetailPage from "@/pages/setting/notice-detail";
-import TermsOfServicePage from "@/pages/setting/terms-of-service";
-import FaqPage from "@/pages/setting/faq";
-import DonationHistoryPage from "@/pages/setting/donation-history";
-import EbookPage from "@/pages/setting/ebook";
-import VictoryHistoryPage from "@/pages/setting/victory-history";
-import InvitePage from "@/pages/setting/invite";
 import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
 import HomeNoticeSplitPage from "@/pages/landscape/HomeNoticeSplitPage";
@@ -104,15 +85,8 @@ function Router() {
       <Route path="/">
         {() => <Redirect to={Capacitor.isNativePlatform() ? "/login" : "/admin/"} />}
       </Route>
-      <Route path="/home">{() => <ProtectedRoute component={HomePage} />}</Route>
-      <Route path="/home/shop">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
-      <Route path="/home/goods/item/:productId" component={RedirectLegacyProduct} />
-      <Route path="/home/goods/:categoryId" component={RedirectLegacyCategory} />
 
-      <Route path="/home/game-guide">{() => <ProtectedRoute component={GameGuidePage} />}</Route>
-      <Route path="/home/guide">{() => <ProtectedRoute component={UserGuidePage} />}</Route>
-      <Route path="/home/simulation">{() => <ProtectedRoute component={UserSimulationPage} />}</Route>
-
+      {/* 가로 split — 구체 경로를 /home 보다 먼저 등록 */}
       <Route path="/home/board/new">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
       <Route path="/home/board/:id">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
       <Route path="/home/board">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
@@ -124,34 +98,44 @@ function Router() {
       <Route path="/home/notice/:id">{() => <ProtectedRoute component={HomeNoticeSplitPage} />}</Route>
       <Route path="/home/notice">{() => <ProtectedRoute component={HomeNoticeSplitPage} />}</Route>
 
+      <Route path="/home/shop">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
+      <Route path="/home/goods/item/:productId" component={RedirectLegacyProduct} />
+      <Route path="/home/goods/:categoryId" component={RedirectLegacyCategory} />
+      <Route path="/home/game-guide">{() => <ProtectedRoute component={GameGuidePage} />}</Route>
+      <Route path="/home/guide">{() => <ProtectedRoute component={UserGuidePage} />}</Route>
+      <Route path="/home/simulation">{() => <ProtectedRoute component={UserSimulationPage} />}</Route>
+      <Route path="/home">{() => <ProtectedRoute component={HomePage} />}</Route>
+
       <Route path="/game/story/:section">{() => <ProtectedRoute component={GameStorySplitPage} />}</Route>
       <Route path="/game/story">{() => <Redirect to="/game/story/victory" />}</Route>
       <Route path="/game/info/:section">{() => <ProtectedRoute component={GameInfoSplitPage} />}</Route>
       <Route path="/game/info">{() => <Redirect to="/game/info/profile" />}</Route>
 
+      {/* 레거시 URL → split (북마크·옛 링크) */}
+      <Route path="/notice/:id">{(params) => <Redirect to={`/home/notice/${params.id}`} />}</Route>
+      <Route path="/notice">{() => <Redirect to="/home/notice" />}</Route>
+      <Route path="/inquiry/create">{() => <Redirect to="/home/inquiry/new" />}</Route>
+      <Route path="/inquiry/:id">{(params) => <Redirect to={`/home/inquiry/${params.id}`} />}</Route>
+      <Route path="/customer-center">{() => <Redirect to="/home/inquiry" />}</Route>
+      <Route path="/board/create">{() => <Redirect to="/home/board/new" />}</Route>
+      <Route path="/board/:id">{(params) => <Redirect to={`/home/board/${params.id}`} />}</Route>
+      <Route path="/board">{() => <Redirect to="/home/board" />}</Route>
+      <Route path="/victory-history">{() => <Redirect to="/game/story/victory" />}</Route>
+      <Route path="/invitation">{() => <Redirect to="/game/story/invite" />}</Route>
+      <Route path="/attendance">{() => <Redirect to="/game/story/attendance" />}</Route>
+      <Route path="/ebook">{() => <Redirect to="/game/story/ebook" />}</Route>
+      <Route path="/donation-history">{() => <Redirect to="/game/story/donation" />}</Route>
+      <Route path="/verify-identity">{() => <Redirect to="/game/info/profile" />}</Route>
+      <Route path="/profile">{() => <Redirect to="/game/info/profile-edit" />}</Route>
+      <Route path="/point">{() => <Redirect to="/game/info/point" />}</Route>
+      <Route path="/faq">{() => <Redirect to="/game/info/faq" />}</Route>
+      <Route path="/terms">{() => <Redirect to="/game/info/terms" />}</Route>
+
       <Route path="/mall">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
 
       <Route path="/prediction">{() => <ProtectedRoute component={PredictionPage} />}</Route>
-      <Route path="/attendance">{() => <ProtectedRoute component={AttendancePage} />}</Route>
-      <Route path="/board">{() => <ProtectedRoute component={BoardPage} />}</Route>
-      <Route path="/board/create">{() => <ProtectedRoute component={CreatePostPage} />}</Route>
-      <Route path="/board/:id">{() => <ProtectedRoute component={PostDetailPage} />}</Route>
-      <Route path="/point">{() => <ProtectedRoute component={PointPage} />}</Route>
-      <Route path="/point/history">{() => <ProtectedRoute component={PointHistoryPage} />}</Route>
+      <Route path="/point/history">{() => <Redirect to="/game/info/point" />}</Route>
       <Route path="/settings">{() => <Redirect to="/home" />}</Route>
-      <Route path="/verify-identity">{() => <ProtectedRoute component={VerifyIdentityPage} />}</Route>
-      <Route path="/profile">{() => <ProtectedRoute component={ProfilePage} />}</Route>
-      <Route path="/customer-center">{() => <ProtectedRoute component={CustomerCenterPage} />}</Route>
-      <Route path="/inquiry/create">{() => <ProtectedRoute component={InquiryCreatePage} />}</Route>
-      <Route path="/inquiry/:id">{() => <ProtectedRoute component={InquiryDetailPage} />}</Route>
-      <Route path="/notice">{() => <ProtectedRoute component={NoticePage} />}</Route>
-      <Route path="/notice/:id">{() => <ProtectedRoute component={NoticeDetailPage} />}</Route>
-      <Route path="/terms">{() => <ProtectedRoute component={TermsOfServicePage} />}</Route>
-      <Route path="/faq">{() => <ProtectedRoute component={FaqPage} />}</Route>
-      <Route path="/donation-history">{() => <ProtectedRoute component={DonationHistoryPage} />}</Route>
-      <Route path="/ebook">{() => <ProtectedRoute component={EbookPage} />}</Route>
-      <Route path="/victory-history">{() => <ProtectedRoute component={VictoryHistoryPage} />}</Route>
-      <Route path="/invitation">{() => <ProtectedRoute component={InvitePage} />}</Route>
       <Route path="/mypage">{() => <ProtectedRoute component={NotFound} />}</Route>
       <Route component={NotFound} />
     </Switch>

@@ -44,6 +44,7 @@ import { keepAliveUserSession } from "@/lib/queryClient";
 import { flushDeferredSessionEvents, setGameSessionProtected } from "@/lib/sessionGuard";
 import { lockGameLandscape } from "@/lib/gameOrientation";
 import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
+import { navigateUserApp } from "@/lib/landscapeSplitRoutes";
 import { GAME_PATH } from "@/lib/appNavigation";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
@@ -452,11 +453,11 @@ export default function PredictionPage() {
       return;
     }
     if (action === "story") {
-      setLocation("/game/story/victory");
+      navigateUserApp("/game/story/victory", setLocation);
       return;
     }
     if (action === "info") {
-      setLocation("/game/info/profile");
+      navigateUserApp("/game/info/profile", setLocation);
       return;
     }
   };

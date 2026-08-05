@@ -32,6 +32,42 @@ function withQuery(base: string, query: string): string {
   return query ? `${base}${query}` : base;
 }
 
+/** 레거시(/notice, /board …) 또는 split URL → 가로 split 경로 (전역) */
+export function resolveLegacyPathToSplit(targetPath: string): string | null {
+  const [targetBase, targetQuery] = splitPathQuery(targetPath);
+
+  if (isLandscapeSplitPath(targetBase)) {
+    return withQuery(targetBase, targetQuery);
+  }
+
+  let m = targetBase.match(/^\/notice\/(\d+)$/);
+  if (m) return withQuery(`${HOME_NOTICE_BASE}/${m[1]}`, targetQuery);
+  if (targetBase === "/notice") return withQuery(HOME_NOTICE_BASE, targetQuery);
+
+  if (targetBase === "/inquiry/create") return withQuery(`${HOME_INQUIRY_BASE}/new`, targetQuery);
+  m = targetBase.match(/^\/inquiry\/(\d+)$/);
+  if (m) return withQuery(`${HOME_INQUIRY_BASE}/${m[1]}`, targetQuery);
+  if (targetBase === "/customer-center") return withQuery(HOME_INQUIRY_BASE, targetQuery);
+
+  if (targetBase === "/board/create") return withQuery(`${HOME_BOARD_BASE}/new`, targetQuery);
+  m = targetBase.match(/^\/board\/(\d+)$/);
+  if (m) return withQuery(`${HOME_BOARD_BASE}/${m[1]}`, targetQuery);
+  if (targetBase === "/board") return withQuery(HOME_BOARD_BASE, targetQuery);
+
+  const story = LEGACY_TO_STORY[targetBase];
+  if (story) return withQuery(`${GAME_STORY_BASE}/${story}`, targetQuery);
+
+  const info = LEGACY_TO_INFO[targetBase];
+  if (info) return withQuery(`${GAME_INFO_BASE}/${info}`, targetQuery);
+
+  return null;
+}
+
+/** 홈·게임 — split URL로 이동 (레거시 경로 자동 변환) */
+export function navigateUserApp(path: string, setLocation: (to: string) => void): void {
+  setLocation(resolveLegacyPathToSplit(path) ?? path);
+}
+
 export function isLandscapeSplitPath(pathname: string): boolean {
   return (
     pathname.startsWith(HOME_NOTICE_BASE) ||

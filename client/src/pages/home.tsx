@@ -11,6 +11,7 @@ import AuthPanelModal from "@/components/user/AuthPanelModal";
 import HomeEmbedPanelModal from "@/components/user/HomeEmbedPanelModal";
 import UserGuideContent from "@/components/user/UserGuideContent";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
+import { navigateUserApp } from "@/lib/landscapeSplitRoutes";
 import { USER_GUIDE_OPEN_KEY } from "@/pages/home/user-guide";
 import { getFullUrl } from "@/lib/queryClient";
 import { navigateToMall } from "@/lib/appNavigation";
@@ -74,7 +75,7 @@ export default function HomePage() {
   const gameGuideEnabled = settings?.gameGuideEnabled ?? true;
   const gameGuideTitle = settings?.gameGuideTitle ?? "야구 예측 게임이란?";
 
-  const goToGame = () => setLocation("/prediction");
+  const goToGame = () => navigateUserApp("/prediction", setLocation);
 
   const openEmbed = (panel: HomeEmbedPanel) => {
     setShowUserGuideModal(false);
@@ -123,19 +124,19 @@ export default function HomePage() {
     {
       id: "notice",
       label: "공지사항",
-      onClick: () => setLocation("/home/notice"),
+      onClick: () => navigateUserApp("/home/notice", setLocation),
       icon: <img src={assets.homeMenuNoticeIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
     {
       id: "inquiry",
       label: "문의하기",
-      onClick: () => setLocation("/home/inquiry"),
+      onClick: () => navigateUserApp("/home/inquiry", setLocation),
       icon: <img src={assets.homeMenuInquiryIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
     {
       id: "board",
       label: "게시판",
-      onClick: () => setLocation("/home/board"),
+      onClick: () => navigateUserApp("/home/board", setLocation),
       icon: <img src={assets.homeMenuBoardIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
   );
