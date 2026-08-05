@@ -9,15 +9,19 @@ import AdminLayout from "../adminLayout";
 import { useToast } from "@/hooks/use-toast";
 import AdminPagination from "../components/AdminPagination";
 import { useResponsivePageSize } from "@/hooks/useResponsivePageSize";
+import { RevenuePlatformTabs, type RevenuePlatform } from "./revenuePlatformUi";
 
 interface PaginatedResponse {
   data: WaitingScreen[];
   total: number;
+  platform: RevenuePlatform;
+  counts: { ppamong: number; badminton9: number };
 }
 
 export default function WaitingScreenManagement() {
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
+  const [platform, setPlatform] = useState<RevenuePlatform>("ppamong");
   const [showRegisterPopup, setShowRegisterPopup] = useState(false);
   const [videoName, setVideoName] = useState("");
   const [displayDuration, setDisplayDuration] = useState(4);
@@ -25,15 +29,15 @@ export default function WaitingScreenManagement() {
   const { toast } = useToast();
   
   const itemsPerPage = useResponsivePageSize(50);
-  useEffect(() => { setCurrentPage(1); }, [itemsPerPage]);
+  useEffect(() => { setCurrentPage(1); }, [itemsPerPage, platform]);
   const { assets } = useAdminAssets();
 
   const { data, isLoading } = useQuery<PaginatedResponse>({
-    queryKey: ["/api/admin/waiting-screens", currentPage, itemsPerPage],
+    queryKey: ["/api/admin/waiting-screens", currentPage, itemsPerPage, platform],
     queryFn: async () => {
       const res = await apiRequest(
         "GET",
-        `/api/admin/waiting-screens?page=${currentPage}&limit=${itemsPerPage}`
+        `/api/admin/waiting-screens?page=${currentPage}&limit=${itemsPerPage}&platform=${platform}`,
       );
       return res.json();
     },
@@ -41,6 +45,7 @@ export default function WaitingScreenManagement() {
 
   const waitingScreens = data?.data || [];
   const totalPages = data?.total ? Math.ceil(data.total / itemsPerPage) : 1;
+  const counts = data?.counts ?? { ppamong: 0, badminton9: 0 };
 
   const handleGetUploadParameters = async () => {
     const res = await apiRequest("POST", "/api/objects/upload");
@@ -146,19 +151,32 @@ export default function WaitingScreenManagement() {
         대기 화면 관리
       </h1>
 
+      <RevenuePlatformTabs
+        platform={platform}
+        counts={counts}
+        onChange={setPlatform}
+        ppamongSublabel="빠몽 등록 대기 화면"
+        badminton9Sublabel="PG 동기화 레거시"
+        countLabel="건"
+      />
+
       <div className="bg-white rounded">
         {/* 상단 헤더 */}
         <div className="flex items-center justify-between py-4 border-b border-[#E9E9E9]">
           <div className="text-sm text-[#414141] pb-3 px-11 text-base font-medium border-b-2 border-[#E11936] text-[#E11936]">
-            목록 
+            {platform === "ppamong" ? "빠몽 대기 화면" : "빠던9 레거시"}
           </div>
-          <button
-            onClick={() => setShowRegisterPopup(true)}
-            className="px-4 py-2 bg-[#E11936] text-white text-sm font-medium rounded hover:bg-[#C71530]"
-            data-testid="button-register"
-          >
-            + 대기화면 추가
-          </button>
+          {platform === "ppamong" ? (
+            <button
+              onClick={() => setShowRegisterPopup(true)}
+              className="px-4 py-2 bg-[#E11936] text-white text-sm font-medium rounded hover:bg-[#C71530]"
+              data-testid="button-register"
+            >
+              + 대기화면 추가
+            </button>
+          ) : (
+            <span className="text-xs text-[#888] pr-4">레거시 — 조회만</span>
+          )}
         </div>
 
         {/* 테이블 헤더 */}

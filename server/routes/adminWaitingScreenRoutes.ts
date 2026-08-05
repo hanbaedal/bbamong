@@ -9,9 +9,9 @@ const adminWaitingScreenStorage = new AdminWaitingScreenStorage();
 
 export async function adminWaitingScreenRoutes(app: Express): Promise<void> {
   // 유저용: 모든 대기화면 가져오기 (인증 불필요)
-  app.get("/api/waiting-screens", async (req, res) => {
+  app.get("/api/waiting-screens", async (_req, res) => {
     try {
-      const result = await adminWaitingScreenStorage.getAllWaitingScreens(1, 1000);
+      const result = await adminWaitingScreenStorage.getAllWaitingScreens(1, 1000, "ppamong");
       res.json(result.data);
     } catch (error) {
       console.error("대기화면 목록 조회 실패:", error);
@@ -23,8 +23,10 @@ export async function adminWaitingScreenRoutes(app: Express): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 8;
+      const platform =
+        (req.query.platform as string) === "badminton9" ? "badminton9" : "ppamong";
 
-      const result = await adminWaitingScreenStorage.getAllWaitingScreens(page, limit);
+      const result = await adminWaitingScreenStorage.getAllWaitingScreens(page, limit, platform);
 
       res.json(result);
     } catch (error) {

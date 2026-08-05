@@ -13,14 +13,18 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { RevenuePlatformTabs, type RevenuePlatform } from "./revenue/revenuePlatformUi";
 
 interface AdMobReportData {
   configured: boolean;
+  platform?: RevenuePlatform;
   totalViews: number;
   totalImpressions: number;
   totalRevenue: number;
   dailyRevenueData: { date: string; revenue: number }[];
   currencyCode: string;
+  counts?: { ppamong: number; badminton9: number };
+  appBreakdown?: { appId: string; displayName: string; platformKind: RevenuePlatform; revenue: number }[];
   error?: string;
 }
 
@@ -252,11 +256,12 @@ export default function VideosPage() {
   const { assets } = useAdminAssets();
   const queryClient = useQueryClient();
   const [saveMessage, setSaveMessage] = useState("");
+  const [platform, setPlatform] = useState<RevenuePlatform>("ppamong");
 
   const { data: admobData, isLoading, error } = useQuery<AdMobReportData>({
-    queryKey: ["/api/admin/admob/revenue-report"],
+    queryKey: ["/api/admin/admob/revenue-report", platform],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/admin/admob/revenue-report");
+      const res = await apiRequest("GET", `/api/admin/admob/revenue-report?platform=${platform}`);
       return res.json();
     },
     refetchInterval: 5 * 60 * 1000,
@@ -332,6 +337,8 @@ export default function VideosPage() {
   const totalViews = admobData?.totalViews ?? 0;
   const totalRevenue = admobData?.totalRevenue ?? 0;
   const dailyRevenueData = admobData?.dailyRevenueData ?? [];
+  const revenueCounts = admobData?.counts ?? { ppamong: 0, badminton9: 0 };
+  const appBreakdown = admobData?.appBreakdown ?? [];
   const readiness = appConfig?.readiness;
   const adUnits = adUnitsData?.adUnits ?? [];
   const apps = adUnitsData?.apps ?? [];
@@ -356,6 +363,25 @@ export default function VideosPage() {
             <img src={assets.adListIcon} className="w-8 h-8" alt="icon" />
             동영상 광고 수익 현황
           </h1>
+
+          <RevenuePlatformTabs
+            platform={platform}
+            counts={revenueCounts}
+            onChange={setPlatform}
+            ppamongSublabel="com.ppamong.app · AdMob 앱"
+            badminton9Sublabel="레거시 앱 (bbanden 등)"
+            countLabel="개 앱"
+          />
+
+          <p className="text-sm text-[#666] mb-4">
+            현재 탭{" "}
+            <span className="font-semibold text-[#201E22]">
+              {platform === "ppamong" ? "빠몽" : "빠던9"}
+            </span>
+            {platform === "ppamong"
+              ? " · 운영 의사결정은 이 탭 기준으로 확인하세요."
+              : " · 레거시 AdMob 앱 수익 참고용입니다."}
+          </p>
 
           {!isConfigured && !isLoading && (
             <div className="mb-6 p-4 bg-[#FFF3E0] border border-[#FF9800] rounded-lg">
@@ -418,13 +444,13 @@ export default function VideosPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
             <StatCard
               title="총 시청 횟수 / 요청수"
-              subtitle="AdMob 광고 요청 수 (최근 30일)"
+              subtitle={`${platform === "ppamong" ? "빠몽" : "빠던9"} AdMob 요청 (최근 30일)`}
               value={totalViews.toLocaleString()}
               isLoading={isLoading}
             />
             <StatCard
               title="총 수익"
-              subtitle="AdMob 예상 수익 (최근 30일)"
+              subtitle={`${platform === "ppamong" ? "빠몽" : "빠던9"} 예상 수익 (최근 30일)`}
               value={totalRevenue.toLocaleString()}
               unit="원"
               isLoading={isLoading}

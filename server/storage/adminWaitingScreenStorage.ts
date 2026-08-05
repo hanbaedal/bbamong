@@ -1,8 +1,26 @@
 import { WaitingScreenModel, getNextSequence } from "../UserStorage/db";
 import type { InsertWaitingScreen, WaitingScreen } from "../../shared/schema";
+import {
+  BADMINTON9_REVENUE_MONGO_FILTER,
+  PPAMONG_REVENUE_MONGO_FILTER,
+  REVENUE_SOURCE_PPAMONG,
+  revenuePlatformFilter,
+  type RevenuePlatform,
+} from "../utils/revenuePlatform";
+
+export interface PaginatedWaitingScreens {
+  data: WaitingScreen[];
+  total: number;
+  platform: RevenuePlatform;
+  counts: { ppamong: number; badminton9: number };
+}
 
 export interface IAdminWaitingScreenStorage {
-  getAllWaitingScreens(page: number, limit: number): Promise<{ data: WaitingScreen[]; total: number }>;
+  getAllWaitingScreens(
+    page: number,
+    limit: number,
+    platform?: RevenuePlatform,
+  ): Promise<PaginatedWaitingScreens>;
   getWaitingScreenById(id: number): Promise<WaitingScreen | undefined>;
   createWaitingScreen(data: InsertWaitingScreen): Promise<WaitingScreen>;
   updateWaitingScreen(id: number, data: Partial<InsertWaitingScreen>): Promise<WaitingScreen | undefined>;
@@ -10,13 +28,23 @@ export interface IAdminWaitingScreenStorage {
 }
 
 export class AdminWaitingScreenStorage implements IAdminWaitingScreenStorage {
-  async getAllWaitingScreens(page = 1, limit = 8) {
+  async getAllWaitingScreens(page = 1, limit = 8, platform: RevenuePlatform = "ppamong") {
     const offset = (page - 1) * limit;
-    const [data, total] = await Promise.all([
-      WaitingScreenModel.find().sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
-      WaitingScreenModel.countDocuments(),
+    const filter = revenuePlatformFilter(platform);
+
+    const [data, total, ppamongCount, badminton9Count] = await Promise.all([
+      WaitingScreenModel.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+      WaitingScreenModel.countDocuments(filter),
+      WaitingScreenModel.countDocuments(PPAMONG_REVENUE_MONGO_FILTER),
+      WaitingScreenModel.countDocuments(BADMINTON9_REVENUE_MONGO_FILTER),
     ]);
-    return { data: data as WaitingScreen[], total };
+
+    return {
+      data: data as WaitingScreen[],
+      total,
+      platform,
+      counts: { ppamong: ppamongCount, badminton9: badminton9Count },
+    };
   }
 
   async getWaitingScreenById(id: number): Promise<WaitingScreen | undefined> {
@@ -26,7 +54,11 @@ export class AdminWaitingScreenStorage implements IAdminWaitingScreenStorage {
 
   async createWaitingScreen(data: InsertWaitingScreen): Promise<WaitingScreen> {
     const screenId = await getNextSequence("waitingScreen");
-    const doc = await WaitingScreenModel.create({ id: screenId, ...data });
+    const doc = await WaitingScreenModel.create({
+      id: screenId,
+      ...data,
+      dataSource: REVENUE_SOURCE_PPAMONG,
+    });
     return doc.toObject() as WaitingScreen;
   }
 

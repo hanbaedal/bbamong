@@ -28,8 +28,10 @@ export async function adminAdvertisementRoutes(app: Express): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 8;
+      const platform =
+        (req.query.platform as string) === "badminton9" ? "badminton9" : "ppamong";
 
-      const result = await adminAdvertisementStorage.getAllAdvertisements(page, limit);
+      const result = await adminAdvertisementStorage.getAllAdvertisements(page, limit, platform);
 
       res.json(result);
     } catch (error) {

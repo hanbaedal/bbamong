@@ -97,12 +97,15 @@ const SYNC_TABLES: SyncTableDef[] = [
     label: "광고",
     model: AdvertisementModel,
     counterName: "advertisement",
+    /** 빠던9 PG 광고는 동기화하지 않음 — 빠몽 admin 등록 전용 */
+    skipPgRow: () => true,
   },
   {
     pgTable: "waiting_screens",
     label: "대기 화면",
     model: WaitingScreenModel,
     counterName: "waitingScreen",
+    skipPgRow: () => true,
   },
   { pgTable: "notices", label: "공지사항", model: NoticeModel, counterName: "notice" },
   { pgTable: "terms", label: "약관", model: TermModel, counterName: "term" },
@@ -133,6 +136,7 @@ const SYNC_TABLES: SyncTableDef[] = [
     label: "광고 시청 기록",
     model: AdViewHistoryModel,
     counterName: "adViewHistory",
+    skipPgRow: () => true,
   },
   { pgTable: "counters", label: "시퀀스 카운터", model: CounterModel, upsertKey: "name" },
 ];

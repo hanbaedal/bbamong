@@ -20,6 +20,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { RevenuePlatformTabs, type RevenuePlatform } from "./revenuePlatformUi";
 
 // Mock 데이터
 const dailyRevenueData = [
@@ -78,6 +79,7 @@ const detailData = [
 export default function BannerRevenuePage() {
   const { assets } = useAdminAssets();
   const [period, setPeriod] = useState("전체");
+  const [platform, setPlatform] = useState<RevenuePlatform>("ppamong");
   const [date, setDate] = useState("일자");
   const [method, setMethod] = useState("방법");
   const [advertiser, setAdvertiser] = useState("광고주");
@@ -130,9 +132,7 @@ export default function BannerRevenuePage() {
           >
             <span className="text-sm text-[#BFBFBF]">수익 관리</span>
             <span className="text-sm text-[#BFBFBF]">&gt;</span>
-            <span className="text-sm text-[#201E22]">
-              동영상 광고 수익 현황
-            </span>
+            <span className="text-sm text-[#201E22]">배너 수익</span>
           </div>
 
           {/* Page Title */}
@@ -141,9 +141,26 @@ export default function BannerRevenuePage() {
             data-testid="text-page-title"
           >
             <img src={assets.adListIcon} className="w-8 h-8" alt="icon" />{" "}
-            동영상 광고 수익 현황
+            배너 수익
           </h1>
 
+          <RevenuePlatformTabs
+            platform={platform}
+            counts={{ ppamong: 1, badminton9: 0 }}
+            onChange={setPlatform}
+            ppamongSublabel="데모 UI (API 연동 예정)"
+            badminton9Sublabel="레거시 배너 — 미연동"
+            countLabel=""
+          />
+
+          {platform === "badminton9" ? (
+            <div className="mb-6 rounded-lg border border-dashed border-[#E0E0E0] bg-[#FAFAFA] p-10 text-center">
+              <p className="text-sm text-[#888]">
+                빠던9 배너 수익 API가 연결되지 않았습니다. 레거시 데이터는 AdMob·동영상 광고 탭에서 확인하세요.
+              </p>
+            </div>
+          ) : (
+          <>
           {/* Filter Section */}
           <div className="mb-6 flex items-center gap-3">
             <Select value={period} onValueChange={setPeriod}>
@@ -210,7 +227,10 @@ export default function BannerRevenuePage() {
               검색하기
             </button>
           </div>
+          </>
+          )}
         </div>
+        {platform === "ppamong" && (
         <div className="flex-1 overflow-y-auto">
           {/* Stats Cards */}
           <div className="grid grid-cols-4 gap-4 mb-10">
@@ -414,6 +434,7 @@ export default function BannerRevenuePage() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </AdminLayout>
   );

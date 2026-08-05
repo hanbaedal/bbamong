@@ -7,23 +7,8 @@ import {
   appAdmobConfigStorage,
   evaluateAdmobProductionReadiness,
 } from "../UserStorage/appAdmobConfigStorage";
-
-interface ReportRow {
-  dimensionValues?: {
-    DATE?: { value: string };
-  };
-  metricValues?: {
-    ESTIMATED_EARNINGS?: { microsValue: string };
-    AD_REQUESTS?: { integerValue: string };
-    IMPRESSIONS?: { integerValue: string };
-  };
-}
-
-interface ReportResponseItem {
-  header?: object;
-  row?: ReportRow;
-  footer?: { matchingRowCount: string };
-}
+import { fetchAdmobRevenueReport } from "../utils/admobRevenueReport";
+import type { RevenuePlatform } from "../utils/revenuePlatform";
 
 const optionalAdMobId = z.string().max(200).optional().default("");
 
@@ -145,122 +130,67 @@ export async function adminAdmobRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.get("/api/admin/admob/revenue-report", adminAuthMiddleware, async (_req, res) => {
+  app.get("/api/admin/admob/revenue-report", adminAuthMiddleware, async (req, res) => {
     try {
+      const platform: RevenuePlatform =
+        (req.query.platform as string) === "badminton9" ? "badminton9" : "ppamong";
+
       const client = await createAdmobApiClient();
       if (!client) {
         return res.status(200).json({
           error: "AdMob API 자격 증명이 설정되지 않았습니다.",
           configured: false,
+          platform,
           totalViews: 0,
           totalImpressions: 0,
           totalRevenue: 0,
           dailyRevenueData: [],
           currencyCode: "KRW",
+          counts: { ppamong: 0, badminton9: 0 },
+          appBreakdown: [],
         });
       }
 
-      const { admob, accountName } = client;
-
-      const today = new Date();
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(today.getDate() - 30);
-
-      const reportSpec = {
-        dateRange: {
-          startDate: {
-            year: thirtyDaysAgo.getFullYear(),
-            month: thirtyDaysAgo.getMonth() + 1,
-            day: thirtyDaysAgo.getDate(),
-          },
-          endDate: {
-            year: today.getFullYear(),
-            month: today.getMonth() + 1,
-            day: today.getDate(),
-          },
-        },
-        dimensions: ["DATE"],
-        metrics: ["ESTIMATED_EARNINGS", "AD_REQUESTS", "IMPRESSIONS"],
-        localizationSettings: {
-          currencyCode: "KRW",
-          languageCode: "ko-KR",
-        },
-      };
-
-      const response = await admob.accounts.networkReport.generate({
-        parent: accountName,
-        requestBody: {
-          reportSpec,
-        },
-      });
-
-      let totalEarnings = 0;
-      let totalAdRequests = 0;
-      let totalImpressions = 0;
-      const dailyData: { date: string; revenue: number }[] = [];
-
-      const reportData = response.data as ReportResponseItem[] | ReportResponseItem | undefined;
-
-      if (reportData) {
-        const items = Array.isArray(reportData) ? reportData : [reportData];
-
-        for (const item of items) {
-          if (item.row) {
-            const row = item.row;
-            const dateValue = row.dimensionValues?.DATE?.value;
-            const earningsMicros = row.metricValues?.ESTIMATED_EARNINGS?.microsValue;
-            const adRequests = row.metricValues?.AD_REQUESTS?.integerValue;
-            const impressions = row.metricValues?.IMPRESSIONS?.integerValue;
-
-            const earnings = earningsMicros ? parseInt(earningsMicros) / 1000000 : 0;
-            totalEarnings += earnings;
-            totalAdRequests += adRequests ? parseInt(adRequests) : 0;
-            totalImpressions += impressions ? parseInt(impressions) : 0;
-
-            if (dateValue) {
-              const formattedDate = `${dateValue.substring(4, 6)}/${dateValue.substring(6, 8)}`;
-              dailyData.push({
-                date: formattedDate,
-                revenue: Math.round(earnings),
-              });
-            }
-          }
-        }
-      }
-
-      dailyData.sort((a, b) => a.date.localeCompare(b.date));
-
-      res.json({
-        configured: true,
-        totalViews: totalAdRequests,
-        totalImpressions,
-        totalRevenue: Math.round(totalEarnings),
-        dailyRevenueData: dailyData,
-        currencyCode: "KRW",
-      });
-    } catch (error: any) {
+      const config = await appAdmobConfigStorage.getConfig();
+      const result = await fetchAdmobRevenueReport(
+        client.admob,
+        client.accountName,
+        config,
+        platform,
+      );
+      res.json(result);
+    } catch (error: unknown) {
+      const err = error as { code?: number; message?: string };
       console.error("AdMob 리포트 조회 실패:", error);
+      const platform: RevenuePlatform =
+        (req.query.platform as string) === "badminton9" ? "badminton9" : "ppamong";
 
-      if (error.code === 403 || error.code === 401) {
+      if (err.code === 403 || err.code === 401) {
         return res.status(200).json({
           error: "AdMob API 접근 권한이 없습니다. 자격 증명을 확인해주세요.",
           configured: false,
+          platform,
           totalViews: 0,
           totalImpressions: 0,
           totalRevenue: 0,
           dailyRevenueData: [],
           currencyCode: "KRW",
+          counts: { ppamong: 0, badminton9: 0 },
+          appBreakdown: [],
         });
       }
 
       res.status(200).json({
-        error: `AdMob 리포트 조회에 실패했습니다: ${error.message}`,
+        error: `AdMob 리포트 조회에 실패했습니다: ${err.message ?? "unknown"}`,
         configured: false,
+        platform,
         totalViews: 0,
         totalImpressions: 0,
         totalRevenue: 0,
         dailyRevenueData: [],
         currencyCode: "KRW",
+        counts: { ppamong: 0, badminton9: 0 },
+        appBreakdown: [],
       });
     }
   });

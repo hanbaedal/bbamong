@@ -9,15 +9,19 @@ import AdminLayout from "../adminLayout";
 import { useToast } from "@/hooks/use-toast";
 import AdminPagination from "../components/AdminPagination";
 import { useResponsivePageSize } from "@/hooks/useResponsivePageSize";
+import { RevenuePlatformTabs, type RevenuePlatform } from "./revenuePlatformUi";
 
 interface PaginatedResponse {
   data: Advertisement[];
   total: number;
+  platform: RevenuePlatform;
+  counts: { ppamong: number; badminton9: number };
 }
 
 export default function AdvertisementManagement() {
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
+  const [platform, setPlatform] = useState<RevenuePlatform>("ppamong");
   const [showRegisterPopup, setShowRegisterPopup] = useState(false);
   const [videoName, setVideoName] = useState("");
   const [earnedPoints, setEarnedPoints] = useState(4);
@@ -26,15 +30,15 @@ export default function AdvertisementManagement() {
   const { toast } = useToast();
 
   const itemsPerPage = useResponsivePageSize(50);
-  useEffect(() => { setCurrentPage(1); }, [itemsPerPage]);
+  useEffect(() => { setCurrentPage(1); }, [itemsPerPage, platform]);
   const { assets } = useAdminAssets();
 
   const { data, isLoading } = useQuery<PaginatedResponse>({
-    queryKey: ["/api/admin/advertisements", currentPage, itemsPerPage],
+    queryKey: ["/api/admin/advertisements", currentPage, itemsPerPage, platform],
     queryFn: async () => {
       const res = await apiRequest(
         "GET",
-        `/api/admin/advertisements?page=${currentPage}&limit=${itemsPerPage}`,
+        `/api/admin/advertisements?page=${currentPage}&limit=${itemsPerPage}&platform=${platform}`,
       );
       return res.json();
     },
@@ -42,6 +46,7 @@ export default function AdvertisementManagement() {
 
   const advertisements = data?.data || [];
   const totalPages = data?.total ? Math.ceil(data.total / itemsPerPage) : 1;
+  const counts = data?.counts ?? { ppamong: 0, badminton9: 0 };
 
   const handleGetUploadParameters = async (file?: File) => {
     const fileExtension = file
@@ -157,19 +162,32 @@ export default function AdvertisementManagement() {
         광고 관리
       </h1>
 
+      <RevenuePlatformTabs
+        platform={platform}
+        counts={counts}
+        onChange={setPlatform}
+        ppamongSublabel="빠몽 등록 광고"
+        badminton9Sublabel="PG 동기화 레거시"
+        countLabel="건"
+      />
+
       <div className="bg-white rounded">
         {/* 상단 헤더 */}
         <div className="flex items-center justify-between py-4 border-b border-[#E9E9E9]">
           <div className="text-sm text-[#414141] pb-3 px-11 text-base font-medium border-b-2 border-[#E11936] text-[#E11936]">
-            목록
+            {platform === "ppamong" ? "빠몽 광고 목록" : "빠던9 레거시 목록"}
           </div>
-          <button
-            onClick={() => setShowRegisterPopup(true)}
-            className="px-4 py-2 bg-[#E11936] text-white text-sm font-medium rounded hover:bg-[#C71530]"
-            data-testid="button-register"
-          >
-            + 광고 추가
-          </button>
+          {platform === "ppamong" ? (
+            <button
+              onClick={() => setShowRegisterPopup(true)}
+              className="px-4 py-2 bg-[#E11936] text-white text-sm font-medium rounded hover:bg-[#C71530]"
+              data-testid="button-register"
+            >
+              + 광고 추가
+            </button>
+          ) : (
+            <span className="text-xs text-[#888] pr-4">레거시 — 조회만</span>
+          )}
         </div>
 
         {/* 테이블 헤더 */}

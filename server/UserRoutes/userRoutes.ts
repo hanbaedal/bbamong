@@ -12,6 +12,7 @@ import {
   mongoose,
   getNextSequence,
 } from "../UserStorage/db";
+import { PPAMONG_REVENUE_MONGO_FILTER } from "../utils/revenuePlatform";
 
 import { insertUserSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
@@ -1162,9 +1163,9 @@ export async function userRoutes(app: Express): Promise<void> {
     try {
       const userId = req.user!.userId;
 
-      // ID 1, 2만 가져오기 (소개 영상)
-      const videoAds = await AdvertisementModel.find({ id: { $in: [1, 2] } })
+      const videoAds = await AdvertisementModel.find(PPAMONG_REVENUE_MONGO_FILTER)
         .sort({ id: 1 })
+        .limit(2)
         .lean();
 
       const viewHistory = await AdViewHistoryModel.find({ userId }).lean();

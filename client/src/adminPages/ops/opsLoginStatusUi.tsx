@@ -40,12 +40,14 @@ export function PlatformTab({
   label,
   sublabel,
   count,
+  countLabel = "명",
   onClick,
 }: {
   active: boolean;
   label: string;
   sublabel: string;
   count: number;
+  countLabel?: string;
   onClick: () => void;
 }) {
   return (
@@ -63,7 +65,10 @@ export function PlatformTab({
         {label}
       </p>
       <p className="text-[11px] text-[#888] mt-0.5">{sublabel}</p>
-      <p className="text-lg font-bold tabular-nums text-[#201E22] mt-1">{count}명</p>
+      <p className="text-lg font-bold tabular-nums text-[#201E22] mt-1">
+        {count}
+        {countLabel}
+      </p>
     </button>
   );
 }
@@ -89,12 +94,14 @@ export function OpsPlatformTabs({
   onChange,
   ppamongSublabel,
   badminton9Sublabel,
+  countLabel = "명",
 }: {
   platform: OpsPlatform;
   counts: { ppamong: number; badminton9: number };
   onChange: (p: OpsPlatform) => void;
   ppamongSublabel: string;
   badminton9Sublabel: string;
+  countLabel?: string;
 }) {
   return (
     <div className="flex flex-wrap gap-3 mb-5">
@@ -103,6 +110,7 @@ export function OpsPlatformTabs({
         label="빠몽"
         sublabel={ppamongSublabel}
         count={counts.ppamong}
+        countLabel={countLabel}
         onClick={() => onChange("ppamong")}
       />
       <PlatformTab
@@ -110,6 +118,7 @@ export function OpsPlatformTabs({
         label="빠던9"
         sublabel={badminton9Sublabel}
         count={counts.badminton9}
+        countLabel={countLabel}
         onClick={() => onChange("badminton9")}
       />
     </div>
