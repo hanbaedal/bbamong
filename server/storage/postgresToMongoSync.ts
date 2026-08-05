@@ -107,7 +107,7 @@ const SYNC_TABLES: SyncTableDef[] = [
     counterName: "waitingScreen",
     skipPgRow: () => true,
   },
-  { pgTable: "notices", label: "공지사항", model: NoticeModel, counterName: "notice" },
+  { pgTable: "notices", label: "공지사항", model: NoticeModel, counterName: "notice", normalizeDoc: normalizeLegacyDataSourceDoc },
   { pgTable: "terms", label: "약관", model: TermModel, counterName: "term" },
   { pgTable: "faqs", label: "FAQ", model: FaqModel, counterName: "faq" },
   { pgTable: "inquiries", label: "문의", model: InquiryModel, counterName: "inquiry" },
@@ -201,6 +201,12 @@ const PG_FIELD_MAP: Record<string, string> = {
 };
 
 /** sparse unique 인덱스 충돌 방지 (phone:null, providerId:null 등) */
+async function normalizeLegacyDataSourceDoc(doc: Record<string, unknown>): Promise<void> {
+  if (!doc.dataSource) {
+    doc.dataSource = "badminton9";
+  }
+}
+
 async function normalizeUserDoc(doc: Record<string, unknown>): Promise<void> {
   const provider = typeof doc.provider === "string" && doc.provider ? doc.provider : "local";
   doc.provider = provider;

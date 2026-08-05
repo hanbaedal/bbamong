@@ -193,6 +193,7 @@ const noticeSchema = new Schema(
     title: { type: String, required: true },
     content: { type: String, required: true },
     displayOrder: { type: Number, default: 0 },
+    dataSource: { type: String, default: "" },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
   },

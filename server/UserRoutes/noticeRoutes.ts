@@ -48,6 +48,12 @@ export async function noticeRoutes(app: Express): Promise<void> {
   // 모든 공지사항 조회
   app.get("/api/notices", async (req, res) => {
     try {
+      const platformParam = req.query.platform as string | undefined;
+      if (platformParam === "ppamong" || platformParam === "badminton9") {
+        const platform = platformParam === "badminton9" ? "badminton9" : "ppamong";
+        const result = await storage.getNoticesForPlatform(platform);
+        return res.json(result);
+      }
       const notices = await storage.getAllNotices();
       return res.json(notices);
     } catch (error) {

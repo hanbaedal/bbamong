@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AdminLayout from "./adminLayout";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/adminQueryClient";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import { X, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import AdminPagination from "./components/AdminPagination";
 import { useResponsivePageSize } from "@/hooks/useResponsivePageSize";
+import { OpsPlatformTabs, type OpsPlatform } from "./ops/opsLoginStatusUi";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   DndContext,
   closestCenter,
@@ -34,27 +36,46 @@ interface Notice {
   displayOrder: number;
   createdAt: string;
   updatedAt: string;
+  dataSource?: string;
 }
 
-type SidePanelMode = 'add' | 'detail' | null;
+interface NoticeListResponse {
+  notices: Notice[];
+  platform: OpsPlatform;
+  counts: { ppamong: number; badminton9: number };
+}
 
-// Sortable Row Component
-function SortableNoticeRow({ notice, index, formatDate, getTagColor, handleDeleteClick, handleRowClick }: {
+type SidePanelMode = "add" | "detail" | null;
+
+function getTagColor(tag: string): string {
+  switch (tag) {
+    case "긴급":
+      return "bg-[#FFEBEE] text-[#C62828] border border-[#FFCDD2]";
+    case "중요":
+      return "bg-[#FFF3E0] text-[#E65100] border border-[#FFE0B2]";
+    case "보통":
+      return "bg-[#E3F2FD] text-[#1565C0] border border-[#BBDEFB]";
+    default:
+      return "bg-[#F5F5F5] text-[#666] border border-[#EEEEEE]";
+  }
+}
+
+function SortableNoticeRow({
+  notice,
+  index,
+  formatDate,
+  handleDeleteClick,
+  handleRowClick,
+}: {
   notice: Notice;
   index: number;
   formatDate: (date: string) => string;
-  getTagColor: (tag: string) => string;
   handleDeleteClick: (id: number, e: React.MouseEvent) => void;
   handleRowClick: (notice: Notice) => void;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: notice.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: notice.id,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -63,97 +84,111 @@ function SortableNoticeRow({ notice, index, formatDate, getTagColor, handleDelet
   };
 
   return (
-    <div
+    <tr
       ref={setNodeRef}
       style={style}
       onClick={() => handleRowClick(notice)}
-      className="relative grid grid-cols-[8%_16%_46%_14%_16%] px-2 md:px-4 h-16 bg-white border-b border-[#E9E9E9] items-center text-xs md:text-sm text-[#201E22] cursor-pointer hover:bg-[#F7F7F7]"
+      className="border-b border-[#EDE9F6]/80 cursor-pointer hover:bg-[#FAFAFA] transition-colors"
       data-testid={`notice-row-${index}`}
     >
-      <div className="absolute left-0 px-2 cursor-grab active:cursor-grabbing" {...attributes} {...listeners}>
-        <GripVertical size={20} className="text-[#BFBFBF]" />
-      </div>
-      <div className="text-[#414141] pl-8">#{notice.id}</div>
-      <div className="text-[#414141] text-xs">
-        {formatDate(notice.createdAt)}
-      </div>
-      <div className="truncate text-[#414141]" title={notice.title}>
-        {notice.title}
-      </div>
-      <div>
-        <span
-          className={`px-2 py-1 rounded text-xs font-medium ${getTagColor(notice.tag)}`}
+      <td className="px-2 py-1.5 w-8">
+        <button
+          type="button"
+          className="cursor-grab active:cursor-grabbing text-[#BFBFBF] touch-none"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
         >
+          <GripVertical size={14} />
+        </button>
+      </td>
+      <td className="px-2 py-1.5 text-[#888] tabular-nums whitespace-nowrap">#{notice.id}</td>
+      <td className="px-2 py-1.5 text-[#666] tabular-nums whitespace-nowrap">
+        {formatDate(notice.createdAt)}
+      </td>
+      <td className="px-2 py-1.5 text-[#201E22] max-w-[280px] truncate" title={notice.title}>
+        {notice.title}
+      </td>
+      <td className="px-2 py-1.5 whitespace-nowrap">
+        <span className={cn("inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium", getTagColor(notice.tag))}>
           {notice.tag}
         </span>
-      </div>
-      <div>
+      </td>
+      <td className="px-2 py-1.5 whitespace-nowrap">
         <button
+          type="button"
           onClick={(e) => handleDeleteClick(notice.id, e)}
-          className="px-2 md:px-3 py-1 text-[10px] md:text-xs font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530]"
+          className="px-2 py-0.5 text-[10px] font-medium text-white bg-[#E57373] rounded hover:bg-[#EF5350]"
           data-testid={`button-delete-${index}`}
         >
           삭제
         </button>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
 export default function NoticesPage() {
   const [currentPage, setCurrentPage] = useState(1);
+  const [platform, setPlatform] = useState<OpsPlatform>("ppamong");
   const itemsPerPage = useResponsivePageSize();
-  useEffect(() => { setCurrentPage(1); }, [itemsPerPage]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedNoticeId, setSelectedNoticeId] = useState<number | null>(null);
-  const {assets} = useAdminAssets();
   const { toast } = useToast();
-  
-  // 사이드 패널 상태
+
   const [sidePanelMode, setSidePanelMode] = useState<SidePanelMode>(null);
   const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
-  
-  // 폼 상태
+
   const [formTitle, setFormTitle] = useState("");
   const [formTag, setFormTag] = useState("노출");
   const [formContent, setFormContent] = useState("");
 
-  const { data: allNotices, isLoading, refetch } = useQuery<Notice[]>({
-    queryKey: ["/api/notices"],
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage, platform]);
+
+  const { data, isLoading } = useQuery<NoticeListResponse>({
+    queryKey: ["/api/notices", platform],
     queryFn: async () => {
-      const res = await apiRequest("GET", '/api/notices');
-      return res.json(); // 반드시 Notice[] 반환
+      const res = await apiRequest("GET", `/api/notices?platform=${platform}`);
+      return res.json();
     },
   });
 
-  // 드래그 앤 드롭 센서
+  const allNotices = data?.notices ?? [];
+  const counts = data?.counts ?? { ppamong: 0, badminton9: 0 };
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
+  const invalidateNotices = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/notices"] });
+  };
+
   const createMutation = useMutation({
-    mutationFn: async (data: { tag: string; title: string; content: string }) => {
-      return await apiRequest("POST", "/api/notices", data);
+    mutationFn: async (payload: { tag: string; title: string; content: string }) => {
+      return await apiRequest("POST", "/api/notices", payload);
     },
     onSuccess: () => {
-      refetch();
+      invalidateNotices();
       handleCloseSidePanel();
       toast({ description: "공지사항이 등록되었습니다." });
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: { tag: string; title: string; content: string } }) => {
-      return await apiRequest("PATCH", `/api/notices/${id}`, data);
+    mutationFn: async ({ id, data: payload }: { id: number; data: { tag: string; title: string; content: string } }) => {
+      return await apiRequest("PATCH", `/api/notices/${id}`, payload);
     },
     onSuccess: () => {
       handleCloseSidePanel();
       toast({ description: "공지사항이 수정되었습니다." });
-      refetch();
+      invalidateNotices();
     },
   });
 
@@ -162,7 +197,7 @@ export default function NoticesPage() {
       return await apiRequest("DELETE", `/api/notices/${id}`);
     },
     onSuccess: () => {
-      refetch();
+      invalidateNotices();
       toast({ description: "공지사항이 삭제되었습니다." });
     },
   });
@@ -172,14 +207,20 @@ export default function NoticesPage() {
       return await apiRequest("PUT", "/api/notices/reorder", { updates });
     },
     onSuccess: () => {
-      refetch();
+      invalidateNotices();
       toast({ description: "순서가 변경되었습니다." });
     },
   });
 
-  // 사이드 패널 핸들러
   const handleOpenAddPanel = () => {
-    setSidePanelMode('add');
+    if (platform !== "ppamong") {
+      toast({
+        variant: "destructive",
+        description: "새 공지는 빠몽 탭에서 등록합니다. (빠던9는 PG 레거시 조회 전용)",
+      });
+      return;
+    }
+    setSidePanelMode("add");
     setFormTitle("");
     setFormTag("노출");
     setFormContent("");
@@ -188,7 +229,7 @@ export default function NoticesPage() {
 
   const handleRowClick = (notice: Notice) => {
     setSelectedNotice(notice);
-    setSidePanelMode('detail');
+    setSidePanelMode("detail");
     setFormTitle(notice.title);
     setFormTag(notice.tag);
     setFormContent(notice.content);
@@ -214,16 +255,16 @@ export default function NoticesPage() {
       return;
     }
 
-    const data = {
+    const payload = {
       tag: formTag,
       title: formTitle,
       content: formContent,
     };
 
-    if (sidePanelMode === 'add') {
-      createMutation.mutate(data);
-    } else if (sidePanelMode === 'detail' && selectedNotice) {
-      updateMutation.mutate({ id: selectedNotice.id, data });
+    if (sidePanelMode === "add") {
+      createMutation.mutate(payload);
+    } else if (sidePanelMode === "detail" && selectedNotice) {
+      updateMutation.mutate({ id: selectedNotice.id, data: payload });
     }
   };
 
@@ -246,11 +287,9 @@ export default function NoticesPage() {
     setSelectedNoticeId(null);
   };
 
-  // 드래그 종료 핸들러 (즉시 저장)
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-
-    if (!over || active.id === over.id || !allNotices) return;
+    if (!over || active.id === over.id) return;
 
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
@@ -258,19 +297,14 @@ export default function NoticesPage() {
 
     const oldIndex = pageNotices.findIndex((item) => item.id === active.id);
     const newIndex = pageNotices.findIndex((item) => item.id === over.id);
-
     if (oldIndex === -1 || newIndex === -1) return;
 
-    // 현재 페이지 내에서 재정렬
     const reordered = arrayMove(pageNotices, oldIndex, newIndex);
-    
-    // displayOrder 계산 (전역 인덱스 고려)
     const updates = reordered.map((notice, index) => ({
       id: notice.id,
       displayOrder: startIndex + index,
     }));
 
-    // 즉시 저장
     reorderMutation.mutate(updates);
   };
 
@@ -282,123 +316,113 @@ export default function NoticesPage() {
     return `${year}.${month}.${day}`;
   };
 
-  const getTagColor = (tag: string) => {
-    switch (tag) {
-      case "전체":
-        return "bg-[#FFF3CD] text-[#956424]";
-      case "우선":
-        return "bg-[#FFF3CD] text-[#956424]";
-      case "긴급":
-        return "bg-[#FFF3CD] text-[#956424]";
-      default:
-        return "bg-[#FFF3CD] text-[#956424]";
-    }
-  };
-
-  const notices = allNotices || [];
-  const totalPages = Math.ceil(notices.length / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(allNotices.length / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentNotices = notices.slice(startIndex, endIndex);
-
-  const SkeletonRow = () => (
-    <div className="grid grid-cols-[8%_16%_46%_14%_16%] px-2 md:px-4 py-2 md:py-5 h-16 bg-white border-b border-[#E9E9E9] items-center animate-pulse">
-      <div className="h-3 md:h-4 bg-[#E9E9E9] rounded w-6 md:w-8"></div>
-      <div className="h-3 md:h-4 bg-[#E9E9E9] rounded w-14 md:w-20"></div>
-      <div className="h-3 md:h-4 bg-[#E9E9E9] rounded w-3/4"></div>
-      <div className="h-5 md:h-6 bg-[#E9E9E9] rounded w-10 md:w-12"></div>
-      <div className="h-6 md:h-8 bg-[#E9E9E9] rounded w-10 md:w-12"></div>
-    </div>
+  const currentNotices = useMemo(
+    () => allNotices.slice(startIndex, startIndex + itemsPerPage),
+    [allNotices, startIndex, itemsPerPage],
   );
+
+  const canEditSelected =
+    platform === "ppamong" &&
+    (sidePanelMode === "add" || selectedNotice?.dataSource !== "badminton9");
 
   return (
     <AdminLayout>
-      <div className="flex items-center gap-2 mb-3 md:mb-4 lg:mb-6" data-testid="breadcrumb">
-        <span className="text-xs md:text-sm text-[#201E22]">공지 사항</span>
-      </div>
-
-      <h1
-        className="text-lg md:text-xl lg:text-2xl font-semibold text-[#201E22] mb-3 md:mb-4 lg:mb-6 flex items-center gap-2"
-        data-testid="text-page-title"
-      >
-        <img src={assets.adNoticeIcon} className="w-6 h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" alt="icon" /> 공지 사항
-      </h1>
-
-      {/* 탭 및 버튼 */}
-      <div className="flex items-center justify-between mb-3 md:mb-4 lg:mb-6 border-b border-[#E9E9E9]">
-        <div className="flex gap-4 md:gap-6 lg:gap-8">
-          <div className="pb-2 md:pb-3 px-1 text-sm md:text-base font-medium border-b-2 border-[#E11936] text-[#E11936]">
-            목록 {notices.length}건
+      <div className="flex flex-col h-full min-h-0 -mx-3 sm:-mx-4 md:-mx-5 lg:-mx-6 xl:-mx-8">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8">
+          <p className="text-sm font-semibold text-[#201E22]" data-testid="text-page-title">
+            공지 사항
             {reorderMutation.isPending && (
-              <span className="ml-2 text-xs text-[#E11936]">저장 중...</span>
+              <span className="ml-2 text-xs font-normal text-[#E11936]">순서 저장 중…</span>
             )}
-          </div>
-        </div>
-        <button
-          onClick={handleOpenAddPanel}
-          className="px-4 py-2 bg-[#E11936] text-white text-sm font-medium rounded hover:bg-[#C71530]"
-          data-testid="button-add-notice"
-        >
-          + 공지사항 추가
-        </button>
-      </div>
-
-      {/* 테이블 헤더 */}
-      <div className="grid grid-cols-[8%_16%_46%_14%_16%] px-2 md:px-4 py-2 md:py-3 bg-[#F9F9F9] text-xs md:text-sm font-medium text-[#4D4B4E] mb-2">
-        <div>No</div>
-        <div>등록일</div>
-        <div>제목</div>
-        <div>상태</div>
-        <div>관리</div>
-      </div>
-
-      {/* 테이블 바디 */}
-      <div className="flex-1 overflow-y-auto">
-        {isLoading ? (
-          <div className="space-y-0">
-            {Array.from({ length: itemsPerPage }).map((_, index) => (
-              <SkeletonRow key={index} />
-            ))}
-          </div>
-        ) : currentNotices.length === 0 ? (
-          <div className="flex items-center justify-center py-16 md:py-24 lg:py-32">
-            <p className="text-sm md:text-base text-[#BFBFBF]">등록된 공지사항이 없습니다.</p>
-          </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
+          </p>
+          <Button
+            size="sm"
+            className="h-8 text-xs bg-[#E57373] hover:bg-[#EF5350]"
+            onClick={handleOpenAddPanel}
+            data-testid="button-add-notice"
           >
-            <SortableContext
-              items={currentNotices.map((n) => n.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-0">
-                {currentNotices.map((notice, index) => (
-                  <SortableNoticeRow
-                    key={notice.id}
-                    notice={notice}
-                    index={index}
-                    formatDate={formatDate}
-                    getTagColor={getTagColor}
-                    handleDeleteClick={handleDeleteClick}
-                    handleRowClick={() => handleRowClick(notice)}
-                  />
+            + 공지 추가
+          </Button>
+        </div>
+
+        <div className="px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8 mb-3">
+          <OpsPlatformTabs
+            platform={platform}
+            counts={counts}
+            onChange={setPlatform}
+            ppamongSublabel="빠몽 앱 공지"
+            badminton9Sublabel="PG 레거시 공지"
+          />
+        </div>
+
+        <div className="flex-1 overflow-auto min-h-0 mx-3 sm:mx-4 md:mx-5 lg:mx-6 xl:mx-8 border border-[#E8E4F3] rounded-lg overflow-x-auto">
+          {isLoading ? (
+            <table className="w-full text-xs min-w-[640px] border-collapse">
+              <thead>
+                <tr className="bg-[#F3F0FF] border-b border-[#E8E4F3] text-left text-[11px] text-[#6B5B95]">
+                  <th className="px-2 py-2 w-8" aria-label="순서" />
+                  <th className="px-2 py-2 font-semibold">No</th>
+                  <th className="px-2 py-2 font-semibold">등록일</th>
+                  <th className="px-2 py-2 font-semibold">제목</th>
+                  <th className="px-2 py-2 font-semibold">상태</th>
+                  <th className="px-2 py-2 font-semibold w-16">관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: itemsPerPage }).map((_, index) => (
+                  <tr key={index} className="border-b border-[#F0F0F0] animate-pulse">
+                    {Array.from({ length: 6 }).map((__, col) => (
+                      <td key={col} className="px-2 py-2">
+                        <div className="h-3 bg-[#E9E9E9] rounded" />
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
+              </tbody>
+            </table>
+          ) : currentNotices.length === 0 ? (
+            <div className="py-12 text-center text-sm text-[#BFBFBF]">
+              {platform === "ppamong" ? "빠몽 공지가 없습니다." : "빠던9 레거시 공지가 없습니다."}
+            </div>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <table className="w-full text-xs min-w-[640px] border-collapse">
+                <thead>
+                  <tr className="bg-[#F3F0FF] border-b border-[#E8E4F3] text-left text-[11px] text-[#6B5B95]">
+                    <th className="px-2 py-2 w-8" aria-label="순서" />
+                    <th className="px-2 py-2 font-semibold whitespace-nowrap">No</th>
+                    <th className="px-2 py-2 font-semibold whitespace-nowrap">등록일</th>
+                    <th className="px-2 py-2 font-semibold whitespace-nowrap min-w-[200px]">제목</th>
+                    <th className="px-2 py-2 font-semibold whitespace-nowrap">상태</th>
+                    <th className="px-2 py-2 font-semibold whitespace-nowrap w-16">관리</th>
+                  </tr>
+                </thead>
+                <SortableContext items={currentNotices.map((n) => n.id)} strategy={verticalListSortingStrategy}>
+                  <tbody>
+                    {currentNotices.map((notice, index) => (
+                      <SortableNoticeRow
+                        key={notice.id}
+                        notice={notice}
+                        index={index}
+                        formatDate={formatDate}
+                        handleDeleteClick={handleDeleteClick}
+                        handleRowClick={handleRowClick}
+                      />
+                    ))}
+                  </tbody>
+                </SortableContext>
+              </table>
+            </DndContext>
+          )}
+        </div>
+
+        <div className="px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8 mt-3">
+          <AdminPagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+        </div>
       </div>
 
-      <AdminPagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={setCurrentPage}
-      />
-
-      {/* 삭제 확인 팝업 */}
       {showDeleteConfirm && (
         <SimpleConfirmPopup
           message="해당 공지사항을 삭제하시겠어요?"
@@ -409,77 +433,59 @@ export default function NoticesPage() {
         />
       )}
 
-      {/* 사이드 패널 오버레이 */}
       {sidePanelMode && (
-        <div
-          className="fixed inset-0 bg-black/50 z-[60]"
-          onClick={handleCloseSidePanel}
-        />
+        <div className="fixed inset-0 bg-black/50 z-[60]" onClick={handleCloseSidePanel} />
       )}
 
-      {/* 사이드 패널 */}
       {sidePanelMode && (
         <div
-          className="fixed right-0 top-0 h-full w-[800px] bg-white shadow-lg z-[70] flex flex-col animate-slide-in-right"
-          style={{
-            animation: "slideInRight 0.3s ease-out",
-          }}
+          className="fixed right-0 top-0 h-full w-full max-w-[min(800px,100vw)] bg-white shadow-lg z-[70] flex flex-col"
+          style={{ animation: "slideInRight 0.3s ease-out" }}
         >
-          {/* 헤더 */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-[#E9E9E9]">
-            <h2 className="text-lg font-semibold text-[#201E22]">
-              {sidePanelMode === 'add' ? '공지사항 상세' : '공지사항 상세'}
-            </h2>
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[#E9E9E9]">
+            <h2 className="text-base font-semibold text-[#201E22]">공지사항 상세</h2>
             <button
+              type="button"
               onClick={handleCloseSidePanel}
               className="text-[#BFBFBF] hover:text-[#201E22]"
               data-testid="button-close-panel"
             >
-              <X size={24} />
+              <X size={22} />
             </button>
           </div>
 
-          {/* 내용 */}
-          <div className="flex-1 overflow-y-auto px-6 py-6">
-            {/* 제목 */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-[#6B6B6B] mb-2">
-                공지사항 제목
-              </label>
-              {sidePanelMode === 'add' || isEditMode ? (
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            <div className="mb-5">
+              <label className="block text-xs font-medium text-[#888] mb-1.5">공지사항 제목</label>
+              {sidePanelMode === "add" || isEditMode ? (
                 <input
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   placeholder="제목을 입력해 주세요."
-                  className="w-full px-4 py-3 border border-[#E9E9E9] rounded-lg text-sm text-[#201E22] placeholder:text-[#BFBFBF] focus:outline-none focus:border-[#E11936]"
+                  className="w-full px-3 py-2 border border-[#E9E9E9] rounded-lg text-sm focus:outline-none focus:border-[#E11936]"
                   data-testid="input-title"
                 />
               ) : (
-                <div className="text-base text-[#201E22] font-medium">
-                  {selectedNotice?.title}
-                </div>
+                <div className="text-sm text-[#201E22] font-medium">{selectedNotice?.title}</div>
               )}
             </div>
 
-            {/* 부문 선택 */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-[#6B6B6B] mb-2">
-                부문 선택
-              </label>
-              {sidePanelMode === 'add' || isEditMode ? (
-                <div className="flex gap-2">
-                  {['노출', '보통', '중요', '긴급'].map((tag) => (
+            <div className="mb-5">
+              <label className="block text-xs font-medium text-[#888] mb-1.5">부문 선택</label>
+              {sidePanelMode === "add" || isEditMode ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {["노출", "보통", "중요", "긴급"].map((tag) => (
                     <button
                       key={tag}
+                      type="button"
                       onClick={() => setFormTag(tag)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      className={cn(
+                        "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
                         formTag === tag
-                          ? tag === '보통'
-                            ? 'bg-[#FF0000] text-white'
-                            : 'bg-[#E11936] text-white'
-                          : 'bg-[#F7F7F7] text-[#6B6B6B] hover:bg-[#E9E9E9]'
-                      }`}
+                          ? "bg-[#E57373] text-white"
+                          : "bg-[#F5F5F5] text-[#666] hover:bg-[#E9E9E9]",
+                      )}
                       data-testid={`button-tag-${tag}`}
                     >
                       {tag}
@@ -487,32 +493,21 @@ export default function NoticesPage() {
                   ))}
                 </div>
               ) : (
-                <div>
-                  <span
-                    className={`px-3 py-1.5 rounded text-sm font-medium ${
-                      selectedNotice?.tag === '보통'
-                        ? 'bg-[#FF0000] text-white'
-                        : 'bg-[#E11936] text-white'
-                    }`}
-                  >
-                    {selectedNotice?.tag}
-                  </span>
-                </div>
+                <span className={cn("inline-flex px-2 py-0.5 rounded text-xs font-medium", getTagColor(selectedNotice?.tag ?? ""))}>
+                  {selectedNotice?.tag}
+                </span>
               )}
             </div>
 
-            {/* 내용 */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-[#6B6B6B] mb-2">
-                공지사항 내용
-              </label>
-              {sidePanelMode === 'add' || isEditMode ? (
+            <div className="mb-5">
+              <label className="block text-xs font-medium text-[#888] mb-1.5">공지사항 내용</label>
+              {sidePanelMode === "add" || isEditMode ? (
                 <textarea
                   value={formContent}
                   onChange={(e) => setFormContent(e.target.value)}
                   placeholder="내용을 입력해 주세요."
                   rows={12}
-                  className="w-full px-4 py-3 border border-[#E9E9E9] rounded-lg text-sm text-[#201E22] placeholder:text-[#BFBFBF] focus:outline-none focus:border-[#E11936] resize-none"
+                  className="w-full px-3 py-2 border border-[#E9E9E9] rounded-lg text-sm focus:outline-none focus:border-[#E11936] resize-none"
                   data-testid="textarea-content"
                 />
               ) : (
@@ -523,41 +518,52 @@ export default function NoticesPage() {
             </div>
           </div>
 
-          {/* 푸터 버튼 */}
-          <div className="px-6 py-4 border-t border-[#E9E9E9]">
-            {sidePanelMode === 'add' ? (
+          <div className="px-5 py-3 border-t border-[#E9E9E9]">
+            {sidePanelMode === "add" ? (
               <button
+                type="button"
                 onClick={handleSubmit}
                 disabled={createMutation.isPending}
-                className="w-full h-12 bg-black text-white rounded-lg font-medium hover:bg-[#2A2A2A] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-10 bg-[#201E22] text-white rounded-lg text-sm font-medium hover:bg-[#2A2A2A] disabled:opacity-50"
                 data-testid="button-submit"
               >
                 {createMutation.isPending ? "등록 중..." : "등록하기"}
               </button>
             ) : isEditMode ? (
               <button
+                type="button"
                 onClick={handleSubmit}
-                disabled={updateMutation.isPending}
-                className="w-full h-12 bg-black text-white rounded-lg font-medium hover:bg-[#2A2A2A] disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={updateMutation.isPending || !canEditSelected}
+                className="w-full h-10 bg-[#201E22] text-white rounded-lg text-sm font-medium hover:bg-[#2A2A2A] disabled:opacity-50"
                 data-testid="button-update"
               >
-                {updateMutation.isPending ? "등록 중..." : "등록하기"}
+                {updateMutation.isPending ? "저장 중..." : "저장하기"}
               </button>
             ) : (
               <div className="flex gap-2">
                 <button
-                  onClick={() => setIsEditMode(true)}
-                  className="flex-1 h-12 bg-[#F7F7F7] text-[#201E22] rounded-lg font-medium hover:bg-[#E9E9E9]"
+                  type="button"
+                  onClick={() => {
+                    if (!canEditSelected) {
+                      toast({
+                        variant: "destructive",
+                        description: "빠던9 레거시 공지는 조회만 가능합니다.",
+                      });
+                      return;
+                    }
+                    setIsEditMode(true);
+                  }}
+                  className="flex-1 h-10 bg-[#F5F5F5] text-[#201E22] rounded-lg text-sm font-medium hover:bg-[#E9E9E9]"
                   data-testid="button-edit"
                 >
                   수정하기
                 </button>
                 <button
-                  onClick={handleSubmit}
-                  className="flex-1 h-12 bg-black text-white rounded-lg font-medium hover:bg-[#2A2A2A]"
-                  data-testid="button-submit"
+                  type="button"
+                  onClick={handleCloseSidePanel}
+                  className="flex-1 h-10 border border-[#E9E9E9] rounded-lg text-sm font-medium"
                 >
-                  등록하기
+                  닫기
                 </button>
               </div>
             )}
