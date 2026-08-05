@@ -2,9 +2,10 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo, u
 import { useLocation } from "wouter";
 import { App } from "@capacitor/app";
 import { getFullUrl, getOrRefreshAccessToken, queryClient } from "@/lib/queryClient";
-import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clearTokens } from "@/lib/tokenManager";
+import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clearTokens, hydrateAccessToken } from "@/lib/tokenManager";
 import { isNativePlatform } from "@/lib/logoutPlugin";
 import { markPostLogout, USER_LOGIN_PATH } from "@/lib/loginSession";
+import { isGameEmbedMode, requestEmbedAccessToken } from "@/lib/gameEmbed";
 
 export interface AttendanceRecord {
   id: number;
@@ -129,12 +130,30 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const isUserApp = !currentPath.startsWith("/admin") && !currentPath.startsWith("/manager");
 
     if (isUserApp) {
+      await hydrateAccessToken();
+
+      if (isGameEmbedMode() && window.parent !== window && !getAccessToken()) {
+        const parentToken = await requestEmbedAccessToken();
+        if (parentToken) {
+          setAccessToken(parentToken);
+        }
+      }
+
       const token = getAccessToken();
       const refreshToken = await getRefreshToken();
       if (!token && !refreshToken) {
         setUser(null);
         setIsUserLoaded(true);
         return;
+      }
+
+      if (!token && refreshToken) {
+        const refreshedToken = await getOrRefreshAccessToken();
+        if (!refreshedToken) {
+          setUser(null);
+          setIsUserLoaded(true);
+          return;
+        }
       }
     }
     

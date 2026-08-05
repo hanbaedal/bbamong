@@ -1,5 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clearTokens } from "./tokenManager";
+import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clearTokens, hydrateAccessToken } from "./tokenManager";
 import {
   isGameSessionProtected,
   notifyUserSessionExpiredSafe,
@@ -143,11 +143,15 @@ export async function keepAliveUserSession(): Promise<boolean> {
 
 export async function getOrRefreshAccessToken(): Promise<string | null> {
   let token = getAccessToken();
-  
+
+  if (!token) {
+    token = await hydrateAccessToken();
+  }
+
   if (token) {
     return token;
   }
-  
+
   const refreshed = await refreshUserAccessToken();
   if (refreshed) {
     return getAccessToken();

@@ -9,6 +9,7 @@ import PageHeader from "@/components/PageHeader";
 import { useUser } from "@/contexts/UserContext";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, getFullUrl } from "@/lib/queryClient";
+import { getAccessToken } from "@/lib/tokenManager";
 import { useToast } from "@/hooks/use-toast";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import debounce from "lodash.debounce";
@@ -177,10 +178,10 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user?.id) return;
-    const token = localStorage.getItem("userToken") || sessionStorage.getItem("userToken");
+    const token = getAccessToken();
     if (!token) return;
     fetch(getFullUrl("/api/users/me"), {
-      headers: { "Authorization": `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => res.json())
       .then(data => {

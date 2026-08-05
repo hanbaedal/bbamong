@@ -6,7 +6,10 @@ import {
   buildGameEmbedUrl,
   GAME_EMBED_MESSAGE,
   isGameEmbedMessage,
+  isGameEmbedAuthRequestMessage,
+  respondToEmbedAuthRequest,
 } from "@/lib/gameEmbed";
+import { getAccessToken } from "@/lib/tokenManager";
 
 export interface MenuLink {
   label: string;
@@ -80,6 +83,11 @@ export default function GameMenuPanel({
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (!isGameEmbedMessage(event.data)) return;
+
+      if (isGameEmbedAuthRequestMessage(event.data)) {
+        respondToEmbedAuthRequest(event, getAccessToken());
+        return;
+      }
 
       if (event.data.type === GAME_EMBED_MESSAGE.CLOSE) {
         setSelectedLink(null);

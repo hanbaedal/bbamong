@@ -6,8 +6,11 @@ import {
   GAME_EMBED_MESSAGE,
   isGameEmbedMessage,
   isHomeEmbedNavigateMessage,
+  isGameEmbedAuthRequestMessage,
+  respondToEmbedAuthRequest,
   withEmbedQuery,
 } from "@/lib/gameEmbed";
+import { getAccessToken } from "@/lib/tokenManager";
 
 interface HomeEmbedPanelModalProps {
   open: boolean;
@@ -40,6 +43,16 @@ export default function HomeEmbedPanelModal({
   useEffect(() => {
     if (href) rootHrefRef.current = href;
   }, [href]);
+
+  useEffect(() => {
+    const onAuthRequest = (event: MessageEvent) => {
+      if (isGameEmbedAuthRequestMessage(event.data)) {
+        respondToEmbedAuthRequest(event, getAccessToken());
+      }
+    };
+    window.addEventListener("message", onAuthRequest);
+    return () => window.removeEventListener("message", onAuthRequest);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
