@@ -52,7 +52,6 @@ function formatDate(iso: string): string {
 function ReleaseCard({
   kind,
   title,
-  description,
   release,
   versionLabel,
   onVersionChange,
@@ -62,7 +61,6 @@ function ReleaseCard({
 }: {
   kind: AppReleaseKind;
   title: string;
-  description: string;
   release: AppReleaseMeta | null;
   versionLabel: string;
   onVersionChange: (value: string) => void;
@@ -74,8 +72,7 @@ function ReleaseCard({
 
   return (
     <div className="bg-white border border-[#E9E9E9] rounded-lg p-6">
-      <h3 className="text-base font-semibold text-[#201E22] mb-1">{title}</h3>
-      <p className="text-xs text-[#888] mb-4">{description}</p>
+      <h3 className="text-base font-semibold text-[#201E22] mb-4">{title}</h3>
 
       {release ? (
         <div className="mb-4 p-3 rounded-lg bg-[#FAFAFA] border border-[#E9E9E9] text-sm space-y-1">
@@ -296,29 +293,21 @@ export default function AppReleaseManagementPage() {
     <AdminLayout>
       <div className="flex flex-col h-screen">
         <div className="flex-shrink-0">
-          <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-2 mb-6" data-testid="breadcrumb">
             <span className="text-sm text-[#BFBFBF]">업무 관리</span>
             <span className="text-sm text-[#BFBFBF]">&gt;</span>
             <span className="text-sm text-[#201E22]">앱 파일 등록/다운로드</span>
           </div>
 
-          <h1 className="text-2xl font-semibold text-[#201E22] mb-2 flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-[#201E22] mb-6 flex items-center gap-2">
             <img src={assets.adTermIcon} className="w-8 h-8" alt="" />
             앱 파일 등록/다운로드
           </h1>
-          <p className="text-sm text-[#888] mb-6">
-            사용자·운영자 Android APK/AAB를 등록하고 관리자가 다운로드합니다. (최대 150MB)
-          </p>
         </div>
 
         <div className="flex-1 overflow-y-auto pb-8 space-y-6">
           <div className="bg-white border border-[#E9E9E9] rounded-lg p-6">
-            <h3 className="text-base font-semibold text-[#201E22] mb-1">GitHub Actions에서 가져오기</h3>
-            <p className="text-xs text-[#888] mb-4">
-              {githubStatus?.repo ?? "hanbaedal/bbamong"} · {githubStatus?.workflowName ?? "Build APKs"} 워크플로
-              아티팩트(bamong-user-apk, bbamong-manager-apk)를 서버에 등록합니다.
-              서버 Replit Secrets에 <code className="text-[#555]">GITHUB_TOKEN</code>이 필요합니다.
-            </p>
+            <h3 className="text-base font-semibold text-[#201E22] mb-4">GitHub Actions에서 가져오기</h3>
 
             {githubStatus && (
               <div
@@ -382,7 +371,6 @@ export default function AppReleaseManagementPage() {
               <ReleaseCard
                 kind="user"
                 title="사용자 앱 (PPAMONG)"
-                description="회원용 앱 APK/AAB — GitHub Actions bbamong-user.apk 등"
                 release={releases?.user ?? null}
                 versionLabel={userVersion}
                 onVersionChange={setUserVersion}
@@ -393,7 +381,6 @@ export default function AppReleaseManagementPage() {
               <ReleaseCard
                 kind="manager"
                 title="운영자 앱 (PPAMONG 매니저)"
-                description="경기 운영용 앱 APK/AAB — GitHub Actions bbamong-manager.apk 등"
                 release={releases?.manager ?? null}
                 versionLabel={managerVersion}
                 onVersionChange={setManagerVersion}
@@ -403,12 +390,6 @@ export default function AppReleaseManagementPage() {
               />
             </>
           )}
-
-          <div className="p-4 rounded-lg border border-[#E9E9E9] bg-[#FAFAFA] text-xs text-[#666] space-y-1">
-            <p>· 슈퍼어드민·일반어드민이 접근할 수 있습니다.</p>
-            <p>· 파일은 서버 디스크(data/app-releases)에 저장됩니다. Replit 재배포 시 유지되도록 볼륨/백업을 확인하세요.</p>
-            <p>· Play Store 출시 전 내부 배포용으로 사용하세요.</p>
-          </div>
         </div>
       </div>
     </AdminLayout>

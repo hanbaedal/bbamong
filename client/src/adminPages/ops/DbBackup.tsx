@@ -244,7 +244,7 @@ export default function DbBackupPage() {
   return (
     <AdminLayout>
       <div className="flex flex-col h-full min-h-0">
-        <div className="flex items-center gap-2 mb-3 md:mb-4 shrink-0">
+        <div className="flex items-center gap-2 mb-3 md:mb-4 shrink-0" data-testid="breadcrumb">
           <span className="text-xs md:text-sm text-[#BFBFBF]">업무관리</span>
           <span className="text-xs md:text-sm text-[#BFBFBF]">&gt;</span>
           <span className="text-xs md:text-sm text-[#201E22]">디비 백업하기</span>

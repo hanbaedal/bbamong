@@ -78,7 +78,7 @@ export default function AppHomeSettingsPage() {
   return (
     <AdminLayout>
       <div className="flex flex-col h-full min-h-0">
-        <div className="flex items-center gap-2 mb-3 shrink-0">
+        <div className="flex items-center gap-2 mb-3 shrink-0" data-testid="breadcrumb">
           <span className="text-xs text-[#BFBFBF]">기본</span>
           <span className="text-xs text-[#BFBFBF]">&gt;</span>
           <span className="text-xs text-[#201E22]">앱 홈 설정</span>

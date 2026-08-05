@@ -8,7 +8,10 @@ export const adminPageContentClass =
 export const adminPageTitleClass =
   "text-xl lg:text-2xl xl:text-[1.75rem] font-semibold text-[#201E22] flex items-center gap-2";
 
-export const adminPageDescClass = "text-sm lg:text-base text-[#666] mt-1";
+export const adminPageDescClass = "text-sm lg:text-base text-[#666] mt-1 hidden";
+
+/** adminLayout에서 전역 숨김 — 페이지 상단 부가 설명 */
+export const adminPageIntroTestId = "page-intro";
 
 export const adminBreadcrumbClass = "text-xs lg:text-sm text-[#BFBFBF]";
 

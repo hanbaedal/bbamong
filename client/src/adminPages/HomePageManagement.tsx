@@ -444,7 +444,7 @@ export default function HomePageManagementPage() {
   return (
     <AdminLayout>
       <div className={adminPageShellClass}>
-        <div className="flex items-center gap-2 mb-3 shrink-0">
+        <div className="flex items-center gap-2 mb-3 shrink-0" data-testid="breadcrumb">
           <span className="text-xs lg:text-sm text-[#BFBFBF]">쇼핑몰</span>
           <span className="text-xs lg:text-sm text-[#BFBFBF]">&gt;</span>
           <span className="text-xs lg:text-sm text-[#201E22]">쇼핑몰 관리</span>

@@ -83,7 +83,7 @@ export default function ManagerLoginStatusPage() {
         />
 
         {!isLoading && rows.length > 0 && (
-          <p className="text-sm text-[#666] mb-3">
+          <p className="text-sm text-[#666] mb-3 hidden" data-testid="page-intro">
             현재 탭{" "}
             <span className="font-semibold text-[#201E22]">
               {platform === "ppamong" ? "빠몽" : "빠던9"}

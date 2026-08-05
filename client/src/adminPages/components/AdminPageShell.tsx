@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import {
   adminPageContentClass,
-  adminPageDescClass,
   adminPageShellClass,
   adminPageTitleClass,
 } from "./adminPageStyles";
 
 interface AdminPageShellProps {
   title: string;
+  /** @deprecated 부가 설명은 표시하지 않습니다 */
   description?: string;
   icon?: ReactNode;
   actions?: ReactNode;
@@ -18,7 +18,6 @@ interface AdminPageShellProps {
 /** 관리자 페이지 공통: 풀 너비 + 반응형 타이포 */
 export default function AdminPageShell({
   title,
-  description,
   icon,
   actions,
   headerExtra,
@@ -32,7 +31,6 @@ export default function AdminPageShell({
             {icon}
             {title}
           </h1>
-          {description ? <p className={adminPageDescClass}>{description}</p> : null}
         </div>
         {actions ? <div className="shrink-0">{actions}</div> : null}
       </div>
