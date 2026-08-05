@@ -1,44 +1,28 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { ko } from "date-fns/locale";
 import AdminLayout from "../adminLayout";
+import AdminPageShell from "../components/AdminPageShell";
+import { adminTableClass, adminTableWrapClass } from "../components/adminPageStyles";
 import { apiRequest, queryClient, adminFetch } from "@/lib/adminQueryClient";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import { useUser } from "@/contexts/UserContext";
 import { useLocation } from "wouter";
 import AdminPagination from "../components/AdminPagination";
 import { useResponsivePageSize } from "@/hooks/useResponsivePageSize";
-
-interface LoginStatusRow {
-  id: string;
-  username: string;
-  name: string;
-  status: "온라인" | "오프라인";
-  lastLogin: string | null;
-  lastLogout: string | null;
-  sessionDuration: string;
-}
-
-interface LoginStatusResponse {
-  rows: LoginStatusRow[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
-function formatDateTime(date: string | null) {
-  if (!date) return "--";
-  const d = new Date(date);
-  return `${format(d, "yyyy.MM.dd", { locale: ko })}\n${format(d, "aa h:mm:ss", { locale: ko })}`;
-}
+import {
+  formatOpsDateTime,
+  OnlineBadge,
+  OpsPlatformTabs,
+  type OpsLoginStatusResponse,
+  type OpsPlatform,
+} from "./opsLoginStatusUi";
 
 export default function ManagerLoginStatusPage() {
   const { user, isUserLoaded } = useUser();
   const [, setLocation] = useLocation();
   const { assets } = useAdminAssets();
   const [currentPage, setCurrentPage] = useState(1);
+  const [platform, setPlatform] = useState<OpsPlatform>("ppamong");
   const itemsPerPage = useResponsivePageSize();
   const isSuperAdmin = user?.userType === "슈퍼어드민";
 
@@ -48,13 +32,13 @@ export default function ManagerLoginStatusPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [itemsPerPage]);
+  }, [itemsPerPage, platform]);
 
-  const { data, isLoading } = useQuery<LoginStatusResponse>({
-    queryKey: ["/api/admin/ops/manager-login-status", currentPage, itemsPerPage],
+  const { data, isLoading } = useQuery<OpsLoginStatusResponse>({
+    queryKey: ["/api/admin/ops/manager-login-status", currentPage, itemsPerPage, platform],
     queryFn: async () => {
       const res = await adminFetch(
-        `/api/admin/ops/manager-login-status?page=${currentPage}&limit=${itemsPerPage}`,
+        `/api/admin/ops/manager-login-status?page=${currentPage}&limit=${itemsPerPage}&platform=${platform}`,
       );
       if (!res.ok) throw new Error("조회 실패");
       return res.json();
@@ -80,74 +64,117 @@ export default function ManagerLoginStatusPage() {
 
   const rows = data?.rows ?? [];
   const totalPages = data?.totalPages ?? 1;
+  const counts = data?.counts ?? { ppamong: 0, badminton9: 0 };
+  const onlineCount = rows.filter((r) => r.status === "온라인").length;
 
   return (
     <AdminLayout>
-      <div className="flex flex-col h-full min-h-0">
-        <div className="flex items-center gap-2 mb-3 md:mb-4 shrink-0">
-          <span className="text-xs md:text-sm text-[#BFBFBF]">업무관리</span>
-          <span className="text-xs md:text-sm text-[#BFBFBF]">&gt;</span>
-          <span className="text-xs md:text-sm text-[#201E22]">운영자 로그인 현황</span>
-        </div>
-
-        <h1 className="text-lg md:text-xl font-semibold text-[#201E22] mb-4 flex items-center gap-2">
-          <img src={assets.adMangerListIcon} className="w-8 h-8" alt="" />
-          운영자 로그인 현황
-        </h1>
-
-        <div className="grid grid-cols-[14%_14%_12%_18%_18%_14%_10%] min-w-[720px] px-4 py-3 bg-[#F9F9F9] text-xs md:text-sm font-medium text-[#4D4B4E] shrink-0">
-          <div>운영자 ID</div>
-          <div>이름</div>
-          <div>상태</div>
-          <div>마지막 로그인</div>
-          <div>마지막 로그아웃</div>
-          <div>세션 시간</div>
-          <div>관리</div>
-        </div>
-
-        <div className="flex-1 overflow-auto min-h-0">
-          {isLoading ? (
-            <div className="p-8 text-center text-[#BFBFBF]">불러오는 중...</div>
-          ) : rows.length === 0 ? (
-            <div className="p-8 text-center text-[#BFBFBF]">운영자가 없습니다.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              {rows.map((row) => (
-                <div
-                  key={row.id}
-                  className="grid grid-cols-[14%_14%_12%_18%_18%_14%_10%] min-w-[720px] px-4 py-4 border-b text-xs md:text-sm items-center"
-                >
-                  <div className="truncate">{row.username}</div>
-                  <div className="truncate">{row.name}</div>
-                  <div className={row.status === "온라인" ? "text-[#4285F4]" : "text-[#888]"}>
-                    {row.status}
-                  </div>
-                  <div className="whitespace-pre-line">{formatDateTime(row.lastLogin)}</div>
-                  <div className="whitespace-pre-line">{formatDateTime(row.lastLogout)}</div>
-                  <div>{row.sessionDuration}</div>
-                  <div>
-                    {row.status === "온라인" && (
-                      <button
-                        type="button"
-                        onClick={() => forceLogoutMutation.mutate(row.id)}
-                        className="px-2 py-1 text-xs text-white bg-[#E11936] rounded hover:bg-[#C71530]"
-                      >
-                        세션 종료
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <AdminPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
+      <AdminPageShell
+        title="운영자 로그인 현황"
+        description="빠몽·빠던9 운영자 세션을 구분해 확인합니다."
+        icon={<img src={assets.adMangerListIcon} className="w-7 h-7 lg:w-8 lg:h-8" alt="" />}
+      >
+        <OpsPlatformTabs
+          platform={platform}
+          counts={counts}
+          onChange={setPlatform}
+          ppamongSublabel="op1~op5 현장 운영자"
+          badminton9Sublabel="레거시 매니저"
         />
-      </div>
+
+        {!isLoading && rows.length > 0 && (
+          <p className="text-sm text-[#666] mb-3">
+            현재 탭{" "}
+            <span className="font-semibold text-[#201E22]">
+              {platform === "ppamong" ? "빠몽" : "빠던9"}
+            </span>{" "}
+            · 이 페이지 {rows.length}명
+            {onlineCount > 0 && (
+              <span className="text-[#4285F4]"> · 온라인 {onlineCount}명</span>
+            )}
+          </p>
+        )}
+
+        {isLoading ? (
+          <div className={`${adminTableWrapClass} bg-white`}>
+            <div className="p-8 text-center text-sm text-[#888]">불러오는 중...</div>
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-[#E0E0E0] bg-[#FAFAFA] p-10 text-center">
+            <p className="text-sm text-[#888]">
+              {platform === "ppamong"
+                ? "빠몽 운영자 로그인 기록이 없습니다."
+                : "빠던9 레거시 운영자가 없습니다."}
+            </p>
+          </div>
+        ) : (
+          <div className={adminTableWrapClass}>
+            <table className={adminTableClass}>
+              <thead>
+                <tr className="bg-[#FAFAFA] border-b border-[#E9E9E9] text-left text-xs text-[#888]">
+                  <th className="px-4 py-3 font-medium">운영자</th>
+                  <th className="px-4 py-3 font-medium">배정 경기</th>
+                  <th className="px-4 py-3 font-medium w-24 text-center">상태</th>
+                  <th className="px-4 py-3 font-medium">마지막 로그인</th>
+                  <th className="px-4 py-3 font-medium">마지막 로그아웃</th>
+                  <th className="px-4 py-3 font-medium">세션 시간</th>
+                  <th className="px-4 py-3 font-medium w-24 text-center">관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="border-b border-[#F0F0F0] bg-white hover:bg-[#FFFBFB] transition-colors"
+                  >
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-[#201E22]">{row.name}</p>
+                      <p className="text-xs font-mono text-[#888] mt-0.5">{row.username}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[#444]">
+                      {row.assignedMatchNumber ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <OnlineBadge status={row.status} />
+                    </td>
+                    <td className="px-4 py-3 text-xs text-[#444] whitespace-nowrap tabular-nums">
+                      {formatOpsDateTime(row.lastLogin)}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-[#444] whitespace-nowrap tabular-nums">
+                      {formatOpsDateTime(row.lastLogout)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[#444] tabular-nums">
+                      {row.sessionDuration}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {row.status === "온라인" ? (
+                        <button
+                          type="button"
+                          onClick={() => forceLogoutMutation.mutate(row.id)}
+                          disabled={forceLogoutMutation.isPending}
+                          className="px-2.5 py-1 text-xs font-medium text-[#E11936] border border-[#E11936]/30 rounded hover:bg-[#FFF5F6] disabled:opacity-50"
+                        >
+                          세션 종료
+                        </button>
+                      ) : (
+                        <span className="text-xs text-[#CCC]">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="mt-4">
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }

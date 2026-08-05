@@ -24,6 +24,17 @@ import {
   CounterModel,
 } from "../mongodb/models";
 import { hasActiveSession } from "../sessionManager";
+import {
+  BADMINTON9_MANAGER_MONGO_FILTER,
+  PPAMONG_MANAGER_MONGO_FILTER,
+  resolveManagerPlatform,
+} from "../utils/managerPlatform";
+import {
+  BADMINTON9_ADMIN_MONGO_FILTER,
+  PPAMONG_ADMIN_MONGO_FILTER,
+  resolveAdminPlatform,
+  type AdminPlatform,
+} from "../utils/staffUsername";
 
 export interface BackupTableInfo {
   pgTable: string;
@@ -75,6 +86,8 @@ export interface LoginStatusRow {
   userType?: string;
   department?: string | null;
   position?: string | null;
+  assignedMatchNumber?: string | null;
+  platform: AdminPlatform;
 }
 
 export interface LoginStatusResponse {
@@ -83,6 +96,8 @@ export interface LoginStatusResponse {
   page: number;
   limit: number;
   totalPages: number;
+  platform: AdminPlatform;
+  counts: { ppamong: number; badminton9: number };
 }
 
 function formatDuration(milliseconds: number): string {
@@ -185,9 +200,17 @@ export class SuperAdminOpsStorage {
     }
   }
 
-  async getAdminLoginStatus(page = 1, limit = 8): Promise<LoginStatusResponse> {
-    const filter = { userType: { $in: ["일반어드민", "슈퍼어드민"] } };
-    const total = await AdminUserModel.countDocuments(filter);
+  async getAdminLoginStatus(
+    page = 1,
+    limit = 8,
+    platform: AdminPlatform = "ppamong",
+  ): Promise<LoginStatusResponse> {
+    const filter = platform === "ppamong" ? PPAMONG_ADMIN_MONGO_FILTER : BADMINTON9_ADMIN_MONGO_FILTER;
+    const [total, ppamongCount, badminton9Count] = await Promise.all([
+      AdminUserModel.countDocuments(filter),
+      AdminUserModel.countDocuments(PPAMONG_ADMIN_MONGO_FILTER),
+      AdminUserModel.countDocuments(BADMINTON9_ADMIN_MONGO_FILTER),
+    ]);
     const totalPages = Math.ceil(total / limit) || 1;
     const offset = (page - 1) * limit;
 
@@ -208,6 +231,7 @@ export class SuperAdminOpsStorage {
           userType: admin.userType,
           department: admin.department ?? null,
           position: admin.position ?? null,
+          platform: resolveAdminPlatform(admin.username, admin.userType),
           status: isOnline ? "온라인" : "오프라인",
           lastLogin: admin.lastLogin ?? null,
           lastLogout: admin.lastLogout ?? null,
@@ -220,17 +244,33 @@ export class SuperAdminOpsStorage {
       }),
     );
 
-    return { rows, total, page, limit, totalPages };
+    return {
+      rows,
+      total,
+      page,
+      limit,
+      totalPages,
+      platform,
+      counts: { ppamong: ppamongCount, badminton9: badminton9Count },
+    };
   }
 
-  async getManagerLoginStatus(page = 1, limit = 8): Promise<LoginStatusResponse> {
-    const filter = { userType: "매니저" };
-    const total = await AdminUserModel.countDocuments(filter);
+  async getManagerLoginStatus(
+    page = 1,
+    limit = 8,
+    platform: AdminPlatform = "ppamong",
+  ): Promise<LoginStatusResponse> {
+    const filter = platform === "ppamong" ? PPAMONG_MANAGER_MONGO_FILTER : BADMINTON9_MANAGER_MONGO_FILTER;
+    const [total, ppamongCount, badminton9Count] = await Promise.all([
+      AdminUserModel.countDocuments(filter),
+      AdminUserModel.countDocuments(PPAMONG_MANAGER_MONGO_FILTER),
+      AdminUserModel.countDocuments(BADMINTON9_MANAGER_MONGO_FILTER),
+    ]);
     const totalPages = Math.ceil(total / limit) || 1;
     const offset = (page - 1) * limit;
 
     const managers = await AdminUserModel.find(filter)
-      .select("id username name lastLogin lastLogout userType assignedMatchNumber")
+      .select("id username name lastLogin lastLogout userType assignedMatchNumber department position")
       .sort({ lastLogin: -1, id: 1 })
       .skip(offset)
       .limit(limit)
@@ -244,6 +284,10 @@ export class SuperAdminOpsStorage {
           username: manager.username,
           name: manager.name,
           userType: manager.userType,
+          department: manager.department ?? null,
+          position: manager.position ?? null,
+          assignedMatchNumber: manager.assignedMatchNumber ?? null,
+          platform: resolveManagerPlatform(manager.username),
           status: isOnline ? "온라인" : "오프라인",
           lastLogin: manager.lastLogin ?? null,
           lastLogout: manager.lastLogout ?? null,
@@ -256,7 +300,15 @@ export class SuperAdminOpsStorage {
       }),
     );
 
-    return { rows, total, page, limit, totalPages };
+    return {
+      rows,
+      total,
+      page,
+      limit,
+      totalPages,
+      platform,
+      counts: { ppamong: ppamongCount, badminton9: badminton9Count },
+    };
   }
 
   async forceManagerLogout(managerId: string): Promise<void> {

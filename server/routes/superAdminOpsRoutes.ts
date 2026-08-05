@@ -94,7 +94,9 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 8;
-      const result = await superAdminOpsStorage.getAdminLoginStatus(page, limit);
+      const platform =
+        (req.query.platform as string) === "badminton9" ? "badminton9" : "ppamong";
+      const result = await superAdminOpsStorage.getAdminLoginStatus(page, limit, platform);
       res.json(result);
     } catch (error) {
       console.error("[Ops] admin-login-status error:", error);
@@ -106,7 +108,9 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 8;
-      const result = await superAdminOpsStorage.getManagerLoginStatus(page, limit);
+      const platform =
+        (req.query.platform as string) === "badminton9" ? "badminton9" : "ppamong";
+      const result = await superAdminOpsStorage.getManagerLoginStatus(page, limit, platform);
       res.json(result);
     } catch (error) {
       console.error("[Ops] manager-login-status error:", error);
