@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
 import { AdminUserModel } from "./UserStorage/db";
+import { STAFF_USERNAME_REGEX } from "./utils/staffUsername";
 
 const SUPER_ADMIN_USERNAME = "ppamong";
 const SUPER_ADMIN_EMAIL = "ppamong@ppamong.com";
@@ -31,6 +32,7 @@ export async function ensureSuperAdmin(): Promise<void> {
       status: "활성화",
     });
     console.log("[Bootstrap] 슈퍼바이저 계정 생성: ppamong");
+    await cleanupLegacyStaffAdmins();
     return;
   }
 
@@ -51,4 +53,19 @@ export async function ensureSuperAdmin(): Promise<void> {
     await AdminUserModel.updateOne({ username: SUPER_ADMIN_USERNAME }, updates);
     console.log("[Bootstrap] 슈퍼바이저 계정 설정 갱신: ppamong");
   }
+
+  await cleanupLegacyStaffAdmins();
+}
+
+/** 빠던9(PostgreSQL)에서 동기화된 레거시 일반어드민 삭제 — ppamong.XX 등록 관리자만 유지 */
+export async function cleanupLegacyStaffAdmins(): Promise<number> {
+  const result = await AdminUserModel.deleteMany({
+    userType: "일반어드민",
+    username: { $not: STAFF_USERNAME_REGEX },
+  });
+  const deleted = result.deletedCount ?? 0;
+  if (deleted > 0) {
+    console.log(`[Bootstrap] 레거시 일반어드민 ${deleted}건 삭제 (ppamong.XX 등록 관리자만 유지)`);
+  }
+  return deleted;
 }

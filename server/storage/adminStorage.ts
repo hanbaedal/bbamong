@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { AdminUserModel } from "../UserStorage/db";
 import type { InsertAdminUser, AdminUser, User } from "@shared/schema";
 import { UserModel } from "../UserStorage/db";
+import { STAFF_USERNAME_REGEX } from "../utils/staffUsername";
 
 export interface IAdminStorage {
   createAdminUser(data: InsertAdminUser): Promise<AdminUser>;
@@ -30,7 +31,11 @@ export interface IAdminStorage {
   ): Promise<{ data: AdminUser[]; total: number; pendingCount: number; approvedCount: number }>;
 }
 
-const EXCLUDED_TYPES = ["매니저", "슈퍼어드민"];
+/** 슈퍼바이저 등록 관리자만 (ppamong.XX · 빠던9 레거시 제외) */
+const STAFF_LIST_FILTER = {
+  userType: "일반어드민" as const,
+  username: { $regex: STAFF_USERNAME_REGEX },
+};
 
 export class AdminStorage implements IAdminStorage {
   async createAdminUser(data: InsertAdminUser): Promise<AdminUser> {
@@ -117,12 +122,12 @@ export class AdminStorage implements IAdminStorage {
 
   async getAdminUsersByStatus(status: "대기중" | "승인" | "거부", page = 1, limit = 8) {
     const offset = (page - 1) * limit;
-    const baseFilter = { approvalStatus: status, userType: { $nin: EXCLUDED_TYPES } };
+    const baseFilter = { approvalStatus: status, ...STAFF_LIST_FILTER };
 
     const [total, pendingCount, approvedCount, data] = await Promise.all([
       AdminUserModel.countDocuments(baseFilter),
-      AdminUserModel.countDocuments({ approvalStatus: "대기중", userType: { $nin: EXCLUDED_TYPES } }),
-      AdminUserModel.countDocuments({ approvalStatus: "승인", userType: { $nin: EXCLUDED_TYPES } }),
+      AdminUserModel.countDocuments({ approvalStatus: "대기중", ...STAFF_LIST_FILTER }),
+      AdminUserModel.countDocuments({ approvalStatus: "승인", ...STAFF_LIST_FILTER }),
       AdminUserModel.find(baseFilter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
     ]);
 
@@ -141,7 +146,7 @@ export class AdminStorage implements IAdminStorage {
 
     const searchFilter: Record<string, unknown> = {
       approvalStatus: status,
-      userType: { $nin: EXCLUDED_TYPES },
+      ...STAFF_LIST_FILTER,
     };
 
     if (filterType === "전체") {
@@ -159,8 +164,8 @@ export class AdminStorage implements IAdminStorage {
 
     const [total, pendingCount, approvedCount, data] = await Promise.all([
       AdminUserModel.countDocuments(searchFilter),
-      AdminUserModel.countDocuments({ approvalStatus: "대기중", userType: { $nin: EXCLUDED_TYPES } }),
-      AdminUserModel.countDocuments({ approvalStatus: "승인", userType: { $nin: EXCLUDED_TYPES } }),
+      AdminUserModel.countDocuments({ approvalStatus: "대기중", ...STAFF_LIST_FILTER }),
+      AdminUserModel.countDocuments({ approvalStatus: "승인", ...STAFF_LIST_FILTER }),
       AdminUserModel.find(searchFilter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
     ]);
 

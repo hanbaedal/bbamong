@@ -45,6 +45,8 @@ interface SyncTableDef {
   storePasswordPlain?: boolean;
   /** PG 행 → Mongo 문서 변환 후 보정 */
   normalizeDoc?: (doc: Record<string, unknown>) => void | Promise<void>;
+  /** PG 행을 Mongo에 반영하지 않을 때 true (admin_users: 레거시 일반어드민 제외) */
+  skipPgRow?: (doc: Record<string, unknown>) => boolean;
 }
 
 const SYNC_TABLES: SyncTableDef[] = [
@@ -72,6 +74,8 @@ const SYNC_TABLES: SyncTableDef[] = [
     ],
     insertDefaults: { operatorSlot: null, dailyPasswordPlain: "", dailyPasswordDate: "", logoutAllowed: false },
     storePasswordPlain: true,
+    /** 빠던9 일반어드민은 동기화하지 않음 — ppamong staff register 전용 */
+    skipPgRow: (doc) => doc.userType === "일반어드민",
   },
   {
     pgTable: "matches",
@@ -433,6 +437,9 @@ async function prepareDocsFromPgRows(
     }
     if (def.storePasswordPlain) {
       await normalizePasswordFields(doc);
+    }
+    if (def.skipPgRow?.(doc)) {
+      continue;
     }
     if (def.normalizeDoc) {
       await def.normalizeDoc(doc);

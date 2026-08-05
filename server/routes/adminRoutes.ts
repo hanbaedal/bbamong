@@ -12,7 +12,7 @@ import {
   resolveAdminPasswordPlain,
   verifyAdminPassword,
 } from "../utils/passwordAscii";
-import { getNextStaffUsername } from "../utils/staffUsername";
+import { getNextStaffUsername, isStaffRegisteredUsername } from "../utils/staffUsername";
 import {
   clearAdminAuthCookies,
   setAdminAccessCookie,
@@ -426,6 +426,13 @@ export async function adminRoutes(app: Express): Promise<void> {
         return res.status(403).json({ error: "슈퍼바이저 계정은 삭제할 수 없습니다." });
       }
 
+      if (
+        targetUser.userType === "일반어드민" &&
+        !isStaffRegisteredUsername(targetUser.username)
+      ) {
+        return res.status(400).json({ error: "등록된 관리자(staff)만 삭제할 수 있습니다." });
+      }
+
       const sessionType: "manager" | "admin" = targetUser.userType === "매니저" ? "manager" : "admin";
 
       try {
@@ -616,6 +623,9 @@ export async function adminRoutes(app: Express): Promise<void> {
       }
       if (target.userType === "매니저") {
         return res.status(400).json({ error: "매니저 계정은 운영자 관리 메뉴에서 수정하세요." });
+      }
+      if (target.userType !== "일반어드민" || !isStaffRegisteredUsername(target.username)) {
+        return res.status(400).json({ error: "등록된 관리자(staff)만 수정할 수 있습니다." });
       }
 
       const updatePayload: Record<string, unknown> = {};

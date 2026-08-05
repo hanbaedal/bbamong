@@ -1,15 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest, adminFetch } from "@/lib/adminQueryClient";
 import { useLocation } from "wouter";
 import AdminLayout from "../adminLayout";
+import AdminPageShell from "../components/AdminPageShell";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useAdminAssets } from "@/contexts/AdminAssetContext";
+import { Label } from "@/components/ui/label";
 import { useUser } from "@/contexts/UserContext";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, UserRound } from "lucide-react";
 
 interface StaffFormData {
   name: string;
@@ -31,32 +32,42 @@ const emptyForm: StaffFormData = {
   notes: "",
 };
 
-function FormField({
+function Field({
   label,
   required,
   children,
+  className = "",
 }: {
   label: string;
   required?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start border-b border-[#E9E9E9] last:border-b-0">
-      <div className="sm:w-36 md:w-40 shrink-0 bg-[#FAFAFA] px-3 py-2.5 sm:px-4 sm:py-3 sm:min-h-[3.25rem] sm:flex sm:items-center">
-        <span className="text-xs sm:text-sm font-medium text-[#414141]">
-          {label}
-          {required ? <span className="text-[#E11936] ml-0.5">*</span> : null}
-        </span>
-      </div>
-      <div className="flex-1 min-w-0 px-3 py-2.5 sm:px-4 sm:py-3">{children}</div>
+    <div className={className}>
+      <Label className="text-xs text-[#666] mb-1 block">
+        {label}
+        {required ? <span className="text-[#E11936] ml-0.5">*</span> : null}
+      </Label>
+      {children}
     </div>
+  );
+}
+
+function FormSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-lg border border-[#E9E9E9] bg-white overflow-hidden">
+      <div className="px-4 py-2 border-b border-[#F0F0F0] bg-[#FAFAFA]">
+        <h2 className="text-sm font-semibold text-[#201E22]">{title}</h2>
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
   );
 }
 
 export default function StaffRegisterPage() {
   const { user, isUserLoaded } = useUser();
   const [, setLocation] = useLocation();
-  const { assets } = useAdminAssets();
   const { toast } = useToast();
   const [formData, setFormData] = useState<StaffFormData>(emptyForm);
   const [showPassword, setShowPassword] = useState(false);
@@ -126,126 +137,142 @@ export default function StaffRegisterPage() {
     createMutation.mutate(formData);
   };
 
+  const displayName = formData.name.trim() || "이름 미입력";
+
   return (
     <AdminLayout>
-      <div className="w-full max-w-3xl mx-auto flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-1 px-1">
-        <div className="flex items-center gap-2 mb-4 sm:mb-6">
-          <img
-            src={assets.adminLogo}
-            alt=""
-            className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
-            data-testid="img-staff-register-logo"
-          />
-          <h1
-            className="text-lg sm:text-xl md:text-2xl font-semibold text-[#201E22]"
-            data-testid="text-page-title"
-          >
-            관리자 등록
-          </h1>
-        </div>
+      <AdminPageShell title="관리자 등록" description="슈퍼어드민 전용 · ppamong.XX 아이디 자동 부여">
+        <form onSubmit={handleSubmit} className="max-w-4xl">
+          <div className="mb-4 rounded-lg border border-[#E9E9E9] bg-white px-4 py-3 flex flex-wrap items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FFF5F6] text-[#E11936]">
+              <UserRound className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-lg font-semibold text-[#201E22] truncate" data-testid="preview-name">
+                {displayName}
+              </p>
+              <p className="text-xs text-[#888] mt-0.5">
+                아이디{" "}
+                <span className="font-medium text-[#201E22]" data-testid="input-username">
+                  {isUsernameLoading ? "불러오는 중..." : nextUsername || "—"}
+                </span>
+                {formData.department || formData.position ? (
+                  <span className="text-[#AAA]">
+                    {" "}
+                    · {[formData.department, formData.position].filter(Boolean).join(" / ")}
+                  </span>
+                ) : null}
+              </p>
+            </div>
+          </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col pb-8">
-          <div className="border border-[#E9E9E9] rounded-lg overflow-hidden bg-white">
-            <FormField label="아이디" required>
-              <Input
-                value={isUsernameLoading ? "불러오는 중..." : nextUsername}
-                readOnly
-                className="bg-[#FAFAFA] text-[#201E22] font-medium h-10 sm:h-11 text-sm"
-                data-testid="input-username"
-              />
-              <p className="text-[11px] text-[#888] mt-1">ppamong.01 형식으로 자동 부여됩니다.</p>
-            </FormField>
-
-            <FormField label="비밀번호" required>
-              <div className="relative">
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
-                  minLength={6}
-                  autoComplete="new-password"
-                  className="pr-10 h-10 sm:h-11 text-sm"
-                  data-testid="input-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#414141] p-1"
-                  aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+          <div className="space-y-4">
+            <FormSection title="기본 정보">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Field label="이름" required className="sm:col-span-2">
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                    autoFocus
+                    placeholder="실명 입력"
+                    className="h-9 text-sm"
+                    data-testid="input-name"
+                  />
+                </Field>
+                <Field label="전화번호" required>
+                  <Input
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="01012345678"
+                    required
+                    inputMode="tel"
+                    className="h-9 text-sm"
+                    data-testid="input-phone"
+                  />
+                </Field>
+                <Field label="이메일" required>
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                    className="h-9 text-sm"
+                    data-testid="input-email"
+                  />
+                </Field>
+                <Field label="부서">
+                  <Input
+                    value={formData.department}
+                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    className="h-9 text-sm"
+                    data-testid="input-department"
+                  />
+                </Field>
+                <Field label="직책">
+                  <Input
+                    value={formData.position}
+                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                    className="h-9 text-sm"
+                    data-testid="input-position"
+                  />
+                </Field>
               </div>
-            </FormField>
+            </FormSection>
 
-            <FormField label="이름" required>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-                className="h-10 sm:h-11 text-sm"
-                data-testid="input-name"
-              />
-            </FormField>
+            <FormSection title="계정">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Field label="아이디" required>
+                  <Input
+                    value={isUsernameLoading ? "불러오는 중..." : nextUsername}
+                    readOnly
+                    className="h-9 text-sm bg-[#FAFAFA] font-medium"
+                    data-testid="input-username-field"
+                  />
+                  <p className="text-[10px] text-[#888] mt-1">ppamong.01 형식 자동 부여</p>
+                </Field>
+                <Field label="비밀번호" required>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                      className="h-9 pr-9 text-sm"
+                      data-testid="input-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#414141] p-0.5"
+                      aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </Field>
+              </div>
+            </FormSection>
 
-            <FormField label="전화번호" required>
-              <Input
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="01012345678"
-                required
-                inputMode="tel"
-                className="h-10 sm:h-11 text-sm"
-                data-testid="input-phone"
-              />
-            </FormField>
-
-            <FormField label="이메일" required>
-              <Input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-                className="h-10 sm:h-11 text-sm"
-                data-testid="input-email"
-              />
-            </FormField>
-
-            <FormField label="부서">
-              <Input
-                value={formData.department}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                className="h-10 sm:h-11 text-sm"
-                data-testid="input-department"
-              />
-            </FormField>
-
-            <FormField label="직책">
-              <Input
-                value={formData.position}
-                onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                className="h-10 sm:h-11 text-sm"
-                data-testid="input-position"
-              />
-            </FormField>
-
-            <FormField label="참고">
+            <FormSection title="참고">
               <Textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-                className="resize-y min-h-[72px] text-sm"
+                rows={2}
+                placeholder="메모 (선택)"
+                className="resize-none min-h-[56px] text-sm"
                 data-testid="input-notes"
               />
-            </FormField>
+            </FormSection>
           </div>
 
-          <div className="flex flex-col-reverse sm:flex-row gap-2 justify-center mt-6 sm:mt-8">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 justify-end mt-5">
             <Button
               type="button"
               variant="outline"
-              className="w-full sm:w-auto h-11"
+              className="h-9"
               onClick={() => setLocation("/admin/staff/list")}
               data-testid="button-cancel"
             >
@@ -253,7 +280,7 @@ export default function StaffRegisterPage() {
             </Button>
             <Button
               type="submit"
-              className="w-full sm:w-auto h-11 bg-[#E11936] hover:bg-[#B71C1C] text-white min-w-[88px]"
+              className="h-9 bg-[#E11936] hover:bg-[#B71C1C] text-white min-w-[88px]"
               disabled={createMutation.isPending || isUsernameLoading || !nextUsername}
               data-testid="button-submit"
             >
@@ -261,7 +288,7 @@ export default function StaffRegisterPage() {
             </Button>
           </div>
         </form>
-      </div>
+      </AdminPageShell>
     </AdminLayout>
   );
 }

@@ -332,7 +332,7 @@ export default function StaffListPage() {
             <img src={assets.adListIcon} className="w-6 h-6 md:w-7 md:h-7 lg:w-8 lg:h-8" alt="icon" /> 관리자 리스트
           </h1>
           <p className="text-sm text-[#666] mt-1">
-            슈퍼바이저가 등록한 관리자 목록 · 수정·삭제 (총 {approvedCount}명)
+            슈퍼바이저가 등록한 관리자만 표시 (ppamong.XX) · 빠던9 레거시 제외 · 총 {approvedCount}명
           </p>
         </div>
 
@@ -369,9 +369,9 @@ export default function StaffListPage() {
         </div>
 
         <div className="overflow-x-auto shrink-0">
-        <div className="grid grid-cols-[14%_9%_15%_11%_11%_12%_28%] min-w-[720px] px-2 md:px-4 py-2 md:py-3 bg-[#F9F9F9] text-xs md:text-sm font-medium text-[#4D4B4E]">
-          <div>아이디</div>
+        <div className="grid grid-cols-[9%_14%_15%_11%_11%_12%_28%] min-w-[720px] px-2 md:px-4 py-2 md:py-3 bg-[#F9F9F9] text-xs md:text-sm font-medium text-[#4D4B4E]">
           <div>이름</div>
+          <div>아이디</div>
           <div>이메일</div>
           <div>부서</div>
           <div>직책</div>
@@ -400,16 +400,16 @@ export default function StaffListPage() {
               {admins.map((admin, index) => (
                 <div
                   key={admin.id}
-                  className="grid grid-cols-[14%_9%_15%_11%_11%_12%_28%] min-w-[720px] px-2 md:px-4 py-2 md:py-5 bg-white border-b border-[#E9E9E9] text-xs md:text-sm text-[#201E22] items-center min-h-16"
+                  className="grid grid-cols-[9%_14%_15%_11%_11%_12%_28%] min-w-[720px] px-2 md:px-4 py-2 md:py-5 bg-white border-b border-[#E9E9E9] text-xs md:text-sm text-[#201E22] items-center min-h-16"
                   data-testid={`admin-row-${index}`}
                 >
-                  <div className="truncate" title={admin.id}>
+                  <div className="truncate font-medium" title={admin.name}>
+                    {admin.name}
+                  </div>
+                  <div className="truncate font-mono text-[11px]" title={admin.username}>
                     {admin.username && admin.username.length > 16
                       ? `${admin.username.substring(0, 16)}...`
                       : admin.username}
-                  </div>
-                  <div className="truncate" title={admin.name}>
-                    {admin.name}
                   </div>
                   <div className="truncate" title={admin.email}>
                     {admin.email}
