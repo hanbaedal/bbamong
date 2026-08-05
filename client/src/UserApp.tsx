@@ -11,6 +11,7 @@ import { Capacitor } from "@capacitor/core";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
 import "@/styles/user-landscape.css";
 import GameEmbedBootstrap from "@/components/GameEmbedBootstrap";
+import GameEmbedAuthBridge from "@/components/GameEmbedAuthBridge";
 import GameOrientationManager from "@/components/game/GameOrientationManager";
 import { preloadUserAssets } from "@/lib/userAssetPreloader";
 import LoginPage from "@/pages/auth/login";
@@ -243,6 +244,7 @@ function UserApp() {
           <TooltipProvider>
             <AppStateManager>
               <GameOrientationManager />
+              <GameEmbedAuthBridge />
               <GameEmbedBootstrap />
               <Toaster />
               <UserSessionExpiredPopup />

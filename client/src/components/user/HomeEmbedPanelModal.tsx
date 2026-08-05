@@ -6,11 +6,9 @@ import {
   GAME_EMBED_MESSAGE,
   isGameEmbedMessage,
   isHomeEmbedNavigateMessage,
-  isGameEmbedAuthRequestMessage,
-  respondToEmbedAuthRequest,
+  pushEmbedAccessTokenToFrame,
   withEmbedQuery,
 } from "@/lib/gameEmbed";
-import { getAccessToken } from "@/lib/tokenManager";
 
 interface HomeEmbedPanelModalProps {
   open: boolean;
@@ -45,14 +43,17 @@ export default function HomeEmbedPanelModal({
   }, [href]);
 
   useEffect(() => {
-    const onAuthRequest = (event: MessageEvent) => {
-      if (isGameEmbedAuthRequestMessage(event.data)) {
-        respondToEmbedAuthRequest(event, getAccessToken());
-      }
+    if (!open || !href) return;
+    const frame = iframeRef.current;
+    if (!frame) return;
+
+    const onLoad = () => {
+      void pushEmbedAccessTokenToFrame(frame);
     };
-    window.addEventListener("message", onAuthRequest);
-    return () => window.removeEventListener("message", onAuthRequest);
-  }, []);
+
+    frame.addEventListener("load", onLoad);
+    return () => frame.removeEventListener("load", onLoad);
+  }, [open, href]);
 
   useEffect(() => {
     if (!open) return;

@@ -132,7 +132,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (isUserApp) {
       await hydrateAccessToken();
 
-      if (isGameEmbedMode() && window.parent !== window && !getAccessToken()) {
+      if (isGameEmbedMode() && window.parent !== window) {
         const parentToken = await requestEmbedAccessToken();
         if (parentToken) {
           setAccessToken(parentToken);

@@ -1,4 +1,6 @@
 /** 게임 화면 iframe 임베드 — 헤더·푸터 숨김 */
+import { getOrRefreshAccessToken } from "@/lib/queryClient";
+
 export function isGameEmbedMode(): boolean {
   if (typeof window === "undefined") return false;
   return new URLSearchParams(window.location.search).get("embed") === "1";
@@ -38,13 +40,18 @@ export function isGameEmbedAuthRequestMessage(
   return !!data && typeof data === "object" && (data as GameEmbedMessage).type === GAME_EMBED_MESSAGE.REQUEST_AUTH;
 }
 
-/** embed iframe → 부모 창에 access token 요청 */
-export function requestEmbedAccessToken(timeoutMs = 3000): Promise<string | null> {
+/** embed iframe → 부모 창에 access token 요청 (재시도 포함) */
+export function requestEmbedAccessToken(
+  timeoutMs = 5000,
+  retryIntervalMs = 250,
+): Promise<string | null> {
   if (!isGameEmbedMode() || window.parent === window) {
     return Promise.resolve(null);
   }
 
   return new Promise((resolve) => {
+    let settled = false;
+
     const onMessage = (event: MessageEvent) => {
       const data = event.data;
       if (
@@ -55,23 +62,65 @@ export function requestEmbedAccessToken(timeoutMs = 3000): Promise<string | null
         return;
       }
       const token = (data as GameEmbedMessage).accessToken;
-      cleanup();
-      resolve(typeof token === "string" && token.length > 0 ? token : null);
+      if (typeof token !== "string" || token.length === 0) return;
+      finish(token);
     };
 
-    const timer = window.setTimeout(() => {
-      cleanup();
-      resolve(null);
-    }, timeoutMs);
-
-    const cleanup = () => {
+    const finish = (token: string | null) => {
+      if (settled) return;
+      settled = true;
       window.removeEventListener("message", onMessage);
-      window.clearTimeout(timer);
+      window.clearInterval(retryTimer);
+      window.clearTimeout(timeoutTimer);
+      resolve(token);
+    };
+
+    const requestFromParent = () => {
+      window.parent.postMessage({ type: GAME_EMBED_MESSAGE.REQUEST_AUTH }, "*");
     };
 
     window.addEventListener("message", onMessage);
-    window.parent.postMessage({ type: GAME_EMBED_MESSAGE.REQUEST_AUTH }, "*");
+    requestFromParent();
+
+    const retryTimer = window.setInterval(requestFromParent, retryIntervalMs);
+    const timeoutTimer = window.setTimeout(() => finish(null), timeoutMs);
   });
+}
+
+/** embed iframe — 부모가 push한 토큰 수신 리스너 등록 */
+export function listenForEmbedAccessToken(
+  onToken: (token: string) => void,
+): () => void {
+  const onMessage = (event: MessageEvent) => {
+    const data = event.data;
+    if (
+      !data ||
+      typeof data !== "object" ||
+      (data as GameEmbedMessage).type !== GAME_EMBED_MESSAGE.AUTH
+    ) {
+      return;
+    }
+    const token = (data as GameEmbedMessage).accessToken;
+    if (typeof token === "string" && token.length > 0) {
+      onToken(token);
+    }
+  };
+
+  window.addEventListener("message", onMessage);
+  return () => window.removeEventListener("message", onMessage);
+}
+
+/** 부모 → iframe access token 선전달 */
+export async function pushEmbedAccessTokenToFrame(
+  frame: HTMLIFrameElement | null | undefined,
+): Promise<void> {
+  const target = frame?.contentWindow;
+  if (!target) return;
+
+  const token = await getOrRefreshAccessToken();
+  if (!token) return;
+
+  target.postMessage({ type: GAME_EMBED_MESSAGE.AUTH, accessToken: token }, "*");
 }
 
 /** embed iframe이 토큰 요청 시 부모에서 호출 */
@@ -83,7 +132,7 @@ export function respondToEmbedAuthRequest(event: MessageEvent, accessToken: stri
 
   (event.source as Window).postMessage(
     { type: GAME_EMBED_MESSAGE.AUTH, accessToken },
-    event.origin || "*",
+    "*",
   );
 }
 

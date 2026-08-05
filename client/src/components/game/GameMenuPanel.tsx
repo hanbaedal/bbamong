@@ -6,10 +6,8 @@ import {
   buildGameEmbedUrl,
   GAME_EMBED_MESSAGE,
   isGameEmbedMessage,
-  isGameEmbedAuthRequestMessage,
-  respondToEmbedAuthRequest,
+  pushEmbedAccessTokenToFrame,
 } from "@/lib/gameEmbed";
-import { getAccessToken } from "@/lib/tokenManager";
 
 export interface MenuLink {
   label: string;
@@ -72,9 +70,24 @@ export default function GameMenuPanel({
   const [selectedLink, setSelectedLink] = useState<MenuLink | null>(null);
   const selectedLinkRef = useRef<MenuLink | null>(null);
 
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
   useEffect(() => {
     selectedLinkRef.current = selectedLink;
   }, [selectedLink]);
+
+  useEffect(() => {
+    if (!selectedLink?.href) return;
+    const frame = iframeRef.current;
+    if (!frame) return;
+
+    const onLoad = () => {
+      void pushEmbedAccessTokenToFrame(frame);
+    };
+
+    frame.addEventListener("load", onLoad);
+    return () => frame.removeEventListener("load", onLoad);
+  }, [selectedLink?.href]);
 
   useEffect(() => {
     setSelectedLink(null);
@@ -83,11 +96,6 @@ export default function GameMenuPanel({
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (!isGameEmbedMessage(event.data)) return;
-
-      if (isGameEmbedAuthRequestMessage(event.data)) {
-        respondToEmbedAuthRequest(event, getAccessToken());
-        return;
-      }
 
       if (event.data.type === GAME_EMBED_MESSAGE.CLOSE) {
         setSelectedLink(null);
@@ -227,6 +235,7 @@ export default function GameMenuPanel({
               </button>
             </div>
             <iframe
+              ref={iframeRef}
               key={selectedLink.href}
               src={buildGameEmbedUrl(selectedLink.href)}
               title={selectedLink.label}
