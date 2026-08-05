@@ -6,8 +6,10 @@ export async function operatorMonitoringRoutes(app: Express): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 8;
+      const platform =
+        (req.query.platform as string) === "badminton9" ? "badminton9" : "ppamong";
 
-      const result = await operatorMonitoringStorage.getOperators(page, limit);
+      const result = await operatorMonitoringStorage.getOperators(page, limit, platform);
       res.json(result);
     } catch (error: any) {
       console.error("운영자 목록 조회 실패:", error);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import AdminLayout from "../adminLayout";
@@ -8,6 +8,10 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/adminQueryClient";
 import LiveScoreboard from "@/components/LiveScoreboard";
 import { useApiSportsHealth, useLiveScoreboard } from "@/hooks/useLiveScoreboard";
+import { Button } from "@/components/ui/button";
+import { OpsPlatformTabs, type OpsPlatform } from "../ops/opsLoginStatusUi";
+import { countMatchesByPlatform, resolveMatchPlatform } from "@/lib/matchPlatform";
+import { cn } from "@/lib/utils";
 
 interface Match {
   id: string;
@@ -18,6 +22,9 @@ interface Match {
   matchStatus: string;
   currentRound: number;
   controlMode?: string;
+  matchDate?: string | null;
+  apiSportsGameId?: number | null;
+  registrationOrder?: number | null;
 }
 
 interface OverallStats {
@@ -38,53 +45,6 @@ interface RoundDetail {
   totalWinners: number;
   result: string | null;
   distributedPoints: number;
-}
-
-function MonitoringStatCard({
-  label,
-  value,
-  accent,
-  transitioning,
-}: {
-  label: string;
-  value: string | number;
-  accent?: boolean;
-  transitioning?: boolean;
-}) {
-  return (
-    <div className="rounded-lg border border-[#E9E9E9] bg-white px-4 py-3 min-w-0">
-      <p className="text-xs text-[#888] truncate">{label}</p>
-      <p
-        className={`text-lg font-bold mt-1 tabular-nums transition-all duration-300 ${
-          transitioning ? "opacity-0 -translate-y-1" : "opacity-100 translate-y-0"
-        } ${accent ? "text-[#E11936]" : "text-[#201E22]"}`}
-      >
-        {typeof value === "number" ? value.toLocaleString() : value}
-      </p>
-    </div>
-  );
-}
-
-function MonitoringSection({
-  title,
-  action,
-  children,
-  className = "",
-}: {
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <section className={`rounded-[10px] border border-[#E9E9E9] bg-white overflow-hidden ${className}`}>
-      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[#F0F0F0] bg-[#FAFAFA]">
-        <h3 className="text-sm font-semibold text-[#201E22]">{title}</h3>
-        {action}
-      </div>
-      <div className="p-4">{children}</div>
-    </section>
-  );
 }
 
 function formatDateKey(dateKey: string) {
@@ -114,6 +74,7 @@ export default function RealtimeGameMonitoring() {
 
   const [selectedMatchIndex, setSelectedMatchIndex] =
     useState(getInitialMatchIndex);
+  const [platform, setPlatform] = useState<OpsPlatform>("ppamong");
   const [overallStats, setOverallStats] = useState<OverallStats | null>(null);
   const [roundDetails, setRoundDetails] = useState<RoundDetail[]>([]);
   const [showConfirmPopup, setShowConfirmPopup] = useState(false);
@@ -171,17 +132,32 @@ export default function RealtimeGameMonitoring() {
       {} as Record<string, Match[]>,
     ) || {};
 
-  // 현재 날짜의 경기들 (name에서 숫자 추출하여 정렬)
-  const currentDateMatches = useMemo(() => {
+  // 현재 날짜의 전체 경기 (name 숫자 정렬)
+  const allDateMatches = useMemo(() => {
     const matches = params?.dateKey ? groupedMatches[params.dateKey] || [] : [];
-
-    // name에서 숫자를 추출하여 정렬 (예: "1경기", "2경기", "10경기")
     return matches.sort((a, b) => {
       const numA = parseInt(a.name.match(/\d+/)?.[0] || "0", 10);
       const numB = parseInt(b.name.match(/\d+/)?.[0] || "0", 10);
       return numA - numB;
     });
   }, [params?.dateKey, groupedMatches]);
+
+  const platformCounts = useMemo(
+    () => countMatchesByPlatform(allDateMatches),
+    [allDateMatches],
+  );
+
+  const currentDateMatches = useMemo(
+    () => allDateMatches.filter((m) => resolveMatchPlatform(m) === platform),
+    [allDateMatches, platform],
+  );
+
+  useEffect(() => {
+    setSelectedMatchIndex(0);
+    const url = new URL(window.location.href);
+    url.searchParams.set("matchIndex", "0");
+    window.history.replaceState({}, "", url.toString());
+  }, [platform]);
 
   // 날짜가 바뀌면 URL 파라미터 확인 후 탭 설정
   useEffect(() => {
@@ -201,6 +177,13 @@ export default function RealtimeGameMonitoring() {
 
     setIsTransitioning(false);
   }, [params?.dateKey]);
+
+  useEffect(() => {
+    if (currentDateMatches.length === 0) return;
+    if (selectedMatchIndex >= currentDateMatches.length) {
+      setSelectedMatchIndex(0);
+    }
+  }, [currentDateMatches.length, selectedMatchIndex]);
 
   const selectedMatch = currentDateMatches[selectedMatchIndex];
   const { data: apiHealth } = useApiSportsHealth();
@@ -800,303 +783,287 @@ export default function RealtimeGameMonitoring() {
     window.history.replaceState({}, "", url.toString());
   };
 
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
+    if (selectedMatch?.id) {
+      queryClient.invalidateQueries({
+        queryKey: ["/api/live-match/matches", selectedMatch.id],
+      });
+    }
+  };
+
+  const matchTimeLabel = selectedMatch
+    ? isMatchCompleted
+      ? `${formatTime(selectedMatch.startTime)}~${formatTime(selectedMatch.endTime)}`
+      : `${formatTime(selectedMatch.startTime)}~진행중`
+    : "";
+
   return (
     <AdminLayout>
-      <div className="flex items-center gap-2 mb-4" data-testid="breadcrumb">
-        <Link
-          href="/admin/match-management?tab=matches"
-          className="text-sm text-[#BFBFBF] hover:text-[#E11936] transition-colors"
-          data-testid="link-match-management"
-        >
-          경기 관리
-        </Link>
-        <span className="text-sm text-[#BFBFBF]">&gt;</span>
-        <span className="text-sm text-[#201E22]">실시간 게임 모니터링</span>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <h1
-          className="text-xl font-semibold text-[#201E22] flex items-center gap-2"
+      <div className="flex flex-col h-full min-h-0 -mx-3 sm:-mx-4 md:-mx-5 lg:-mx-6 xl:-mx-8">
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 mb-3 px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8"
           data-testid="text-page-title"
         >
-          <img src={assets.adListIcon} className="w-7 h-7" alt="" />
-          실시간 게임 모니터링
-        </h1>
-        {params?.dateKey && (
-          <span className="text-sm text-[#666] bg-[#F5F5F5] px-3 py-1 rounded-full">
-            {formatDateKey(params.dateKey)} (KST)
-          </span>
-        )}
-      </div>
-
-      {currentDateMatches.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-6">
-          {currentDateMatches.map((match, index) => (
-            <button
-              key={match.id}
-              type="button"
-              onClick={() => handleSelectMatchTab(index)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                selectedMatchIndex === index
-                  ? "border-[#E11936] bg-[#FFF5F5] text-[#E11936]"
-                  : "border-[#E9E9E9] bg-white text-[#888] hover:border-[#E11936]/40"
-              }`}
-              data-testid={`tab-match-${index + 1}`}
-            >
-              {match.name}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {selectedMatch && (
-        <div className="space-y-5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <MonitoringStatCard
-              label="총 예측자"
-              value={overallStats?.totalPredictors ?? 0}
-              transitioning={isTransitioning}
-            />
-            <MonitoringStatCard
-              label="총 참여기록"
-              value={overallStats?.totalPredictionPoints ?? 0}
-              accent
-              transitioning={isTransitioning}
-            />
-            <MonitoringStatCard
-              label="현재 라운드"
-              value={overallStats?.currentRound || selectedMatch.currentRound || 0}
-              transitioning={isTransitioning}
-            />
-            <MonitoringStatCard
-              label="총 승리자"
-              value={overallStats?.totalWinners ?? 0}
-              transitioning={isTransitioning}
-            />
-            <MonitoringStatCard
-              label="분배 참여기록"
-              value={overallStats?.totalDistributedPoints ?? 0}
-              accent
-              transitioning={isTransitioning}
-            />
-            <MonitoringStatCard
-              label="경기 시간"
-              value={
-                isMatchCompleted
-                  ? `${formatTime(selectedMatch.startTime)}~${formatTime(selectedMatch.endTime)}`
-                  : `${formatTime(selectedMatch.startTime)}~진행중`
-              }
-              transitioning={isTransitioning}
-            />
+          <Link
+            href="/admin/match-management?tab=matches"
+            className="text-xs text-[#888] hover:text-[#E11936]"
+            data-testid="link-match-management"
+          >
+            ← 경기 관리
+          </Link>
+          <div className="flex items-center gap-2">
+            {params?.dateKey && (
+              <span className="text-xs text-[#666] tabular-nums">{formatDateKey(params.dateKey)}</span>
+            )}
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRefresh}>
+              새로고침
+            </Button>
           </div>
+        </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-            <div className="xl:col-span-2 space-y-5">
-              <MonitoringSection title="실시간 스코어보드">
-                <LiveScoreboard scoreboard={scoreboardPayload?.scoreboard ?? null} compact />
-              </MonitoringSection>
+        <div className="px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8 mb-3">
+          <OpsPlatformTabs
+            platform={platform}
+            counts={platformCounts}
+            onChange={setPlatform}
+            ppamongSublabel="KBO · API 연동 경기"
+            badminton9Sublabel="PG 레거시 경기"
+            countLabel="경기"
+          />
+        </div>
 
-              <MonitoringSection title="라운드별 예측 현황">
-                <div className="overflow-x-auto -mx-4 px-4">
-                  <table className="w-full min-w-[640px] text-sm">
+        {currentDateMatches.length > 0 && (
+          <div className="overflow-x-auto mb-3 px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8">
+            <div className="flex gap-1.5 min-w-max pb-1">
+              {currentDateMatches.map((match, index) => (
+                <button
+                  key={match.id}
+                  type="button"
+                  onClick={() => handleSelectMatchTab(index)}
+                  className={cn(
+                    "px-3 py-1 rounded-md text-xs font-medium border whitespace-nowrap transition-colors",
+                    selectedMatchIndex === index
+                      ? "border-[#E11936] bg-[#FFF5F6] text-[#E11936]"
+                      : "border-[#E9E9E9] bg-white text-[#888] hover:border-[#E11936]/30",
+                  )}
+                  data-testid={`tab-match-${index + 1}`}
+                >
+                  {match.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {selectedMatch && (
+          <div className="flex flex-col flex-1 min-h-0 space-y-2">
+            <div className="px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8">
+              <LiveScoreboard scoreboard={scoreboardPayload?.scoreboard ?? null} dense />
+            </div>
+
+            <div
+              className={cn(
+                "mx-3 sm:mx-4 md:mx-5 lg:mx-6 xl:mx-8 px-3 py-2 rounded-md bg-[#F3F0FF] border border-[#EDE9F6] text-xs sm:text-sm text-[#201E22] tabular-nums transition-opacity duration-300",
+                isTransitioning ? "opacity-50" : "opacity-100",
+              )}
+            >
+              <span className="text-[#666]">예측 </span>
+              <span className="font-semibold">{overallStats?.totalPredictors ?? 0}</span>
+              <span className="text-[#CCC] mx-1.5">·</span>
+              <span className="text-[#666]">참여 </span>
+              <span className="font-semibold text-[#E11936]">
+                {(overallStats?.totalPredictionPoints ?? 0).toLocaleString()}
+              </span>
+              <span className="text-[#CCC] mx-1.5">·</span>
+              <span className="text-[#666]">R</span>
+              <span className="font-semibold ml-0.5">
+                {overallStats?.currentRound || selectedMatch.currentRound || 0}
+              </span>
+              <span className="text-[#CCC] mx-1.5">·</span>
+              <span className="text-[#666]">승리 </span>
+              <span className="font-semibold">{overallStats?.totalWinners ?? 0}</span>
+              <span className="text-[#CCC] mx-1.5">·</span>
+              <span className="text-[#666]">분배 </span>
+              <span className="font-semibold text-[#E11936]">
+                {(overallStats?.totalDistributedPoints ?? 0).toLocaleString()}
+              </span>
+              <span className="text-[#CCC] mx-1.5">·</span>
+              <span className="text-[#888]">{matchTimeLabel}</span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-2 flex-1 min-h-0 px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8 pb-4">
+              <div className="lg:col-span-3 flex flex-col min-h-0 rounded-lg border border-[#E8E4F3] overflow-hidden bg-white">
+                <div className="px-2.5 py-1.5 bg-[#F3F0FF] border-b border-[#EDE9F6] text-xs font-semibold text-[#6B5B95]">
+                  라운드
+                </div>
+                <div className="overflow-x-auto flex-1 min-h-0">
+                  <table className="w-full min-w-[520px] text-xs">
                     <thead>
-                      <tr className="text-left text-xs text-[#888] border-b border-[#EEE]">
-                        <th className="pb-2 pr-3 font-medium">회차</th>
-                        <th className="pb-2 pr-3 font-medium">상태</th>
-                        <th className="pb-2 pr-3 font-medium text-right">예측</th>
-                        <th className="pb-2 pr-3 font-medium text-right">참여기록</th>
-                        <th className="pb-2 pr-3 font-medium">결과</th>
-                        <th className="pb-2 pr-3 font-medium text-right">승리</th>
-                        <th className="pb-2 font-medium text-right">분배</th>
+                      <tr className="text-left text-[#888] border-b border-[#F0F0F0] bg-[#FAFAFA]">
+                        <th className="px-2 py-1.5 font-medium">회차</th>
+                        <th className="px-2 py-1.5 font-medium">상태</th>
+                        <th className="px-2 py-1.5 font-medium text-right">예측</th>
+                        <th className="px-2 py-1.5 font-medium text-right">참여</th>
+                        <th className="px-2 py-1.5 font-medium">결과</th>
+                        <th className="px-2 py-1.5 font-medium text-right">분배</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#F0F0F0]">
+                    <tbody className="divide-y divide-[#F5F5F5]">
                       {roundsToDisplay.map((round, index) => (
-                        <tr
-                          key={round.roundNumber}
-                          className="text-[#201E22]"
-                          data-testid={`game-row-${index}`}
-                        >
-                          <td className="py-2.5 pr-3 font-medium">{round.game}</td>
-                          <td className="py-2.5 pr-3 text-[#666]">{round.predictStatus}</td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums">
-                            {round.predictCount ?? "--"}
+                        <tr key={round.roundNumber} className="text-[#201E22]" data-testid={`game-row-${index}`}>
+                          <td className="px-2 py-1.5 font-medium">{round.game}</td>
+                          <td className="px-2 py-1.5 text-[#666]">{round.predictStatus}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{round.predictCount ?? "—"}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {round.totalPoint != null ? round.totalPoint.toLocaleString() : "—"}
                           </td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums">
-                            {round.totalPoint != null ? round.totalPoint.toLocaleString() : "--"}
-                          </td>
-                          <td className="py-2.5 pr-3">{round.result}</td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums">
-                            {round.winners ?? "--"}
-                          </td>
-                          <td className="py-2.5 text-right tabular-nums">
-                            {round.distributedPoint != null
-                              ? round.distributedPoint.toLocaleString()
-                              : "--"}
+                          <td className="px-2 py-1.5">{round.result}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {round.distributedPoint != null ? round.distributedPoint.toLocaleString() : "—"}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              </MonitoringSection>
-            </div>
+              </div>
 
-            <div className="space-y-5">
-              <MonitoringSection
-                title="운영 제어"
-                action={
-                  <span
-                    className={`inline-flex items-center gap-1.5 text-xs font-medium ${
-                      apiHealth?.healthy ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        apiHealth?.healthy ? "bg-green-500" : "bg-red-500"
-                      }`}
-                    />
-                    API {apiHealth?.healthy ? "정상" : "오류"}
-                  </span>
-                }
-              >
-                <div className="space-y-3">
-                  <p className="text-xs text-[#888] leading-relaxed">
-                    {controlMode === "manual" ? "수동 제어" : "자동 동기화"} · 지연{" "}
-                    {apiHealth?.latencyMs ?? "-"}ms
-                    {apiHealth?.lastError && (
-                      <span className="block text-red-600 mt-1">{apiHealth.lastError}</span>
-                    )}
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
+              <div className="lg:col-span-2 flex flex-col gap-2 min-h-0">
+                <div className="rounded-lg border border-[#E8E4F3] bg-white p-2.5">
+                  <div className="flex flex-wrap items-center gap-1 mb-2">
                     <button
                       type="button"
                       onClick={handleSyncFromApiSports}
                       disabled={isSyncingApi}
-                      className="px-3 py-2 text-xs rounded-lg border border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936] disabled:opacity-50"
+                      className="px-2 py-1 text-[11px] rounded border border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936] disabled:opacity-50 whitespace-nowrap"
                     >
-                      {isSyncingApi ? "동기화 중..." : "API 경기 등록"}
+                      {isSyncingApi ? "동기화…" : "API 등록"}
                     </button>
                     <button
                       type="button"
                       onClick={handleToggleControlMode}
-                      className={`px-3 py-2 text-xs rounded-lg border ${
+                      className={cn(
+                        "px-2 py-1 text-[11px] rounded border whitespace-nowrap",
                         controlMode === "manual"
-                          ? "border-red-400 text-red-600 bg-red-50"
-                          : "border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936]"
-                      }`}
+                          ? "border-red-300 text-red-600 bg-red-50"
+                          : "border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936]",
+                      )}
                     >
-                      {controlMode === "manual" ? "수동 제어" : "수동 전환"}
+                      {controlMode === "manual" ? "수동 ON" : "수동 전환"}
                     </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
                       type="button"
                       onClick={handleAdToggle}
                       disabled={isMatchCompleted || isAdLoading}
-                      className={`py-3 rounded-lg text-sm font-semibold text-white transition ${
+                      className={cn(
+                        "px-2 py-1 text-[11px] rounded font-medium text-white whitespace-nowrap",
                         isMatchCompleted || isAdLoading
-                          ? "bg-[#AAA] cursor-not-allowed"
-                          : "bg-[#4CAF50] hover:bg-[#45A049]"
-                      }`}
+                          ? "bg-[#BDBDBD] cursor-not-allowed"
+                          : "bg-[#81C784] hover:bg-[#66BB6A]",
+                      )}
                       data-testid="button-ad-toggle"
                     >
-                      {isAdPlaying ? `광고 ${formatAdTime(adElapsedTime)}` : "광고 재생"}
+                      {isAdPlaying ? `광고 ${formatAdTime(adElapsedTime)}` : "광고"}
                     </button>
                     <button
                       type="button"
                       onClick={handleEndMatchClick}
                       disabled={isMatchCompleted}
-                      className={`py-3 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-1 transition ${
+                      className={cn(
+                        "px-2 py-1 text-[11px] rounded font-medium text-white inline-flex items-center gap-1 whitespace-nowrap",
                         isMatchCompleted
-                          ? "bg-[#AAA] cursor-not-allowed"
-                          : "bg-[#E11936] hover:bg-[#C71530]"
-                      }`}
+                          ? "bg-[#BDBDBD] cursor-not-allowed"
+                          : "bg-[#E57373] hover:bg-[#EF5350]",
+                      )}
                       data-testid="button-end-match"
                     >
-                      <img src={assets.adFlagIcon} className="w-4 h-4" alt="" />
+                      <img src={assets.adFlagIcon} className="w-3 h-3" alt="" />
                       {isMatchCompleted ? "종료됨" : "경기 종료"}
                     </button>
+                    <span
+                      className={cn(
+                        "ml-auto inline-flex items-center gap-1 text-[10px] font-medium whitespace-nowrap",
+                        apiHealth?.healthy ? "text-green-600" : "text-red-600",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "w-1.5 h-1.5 rounded-full",
+                          apiHealth?.healthy ? "bg-green-500" : "bg-red-500",
+                        )}
+                      />
+                      API {apiHealth?.healthy ? "정상" : "오류"} {apiHealth?.latencyMs ?? "-"}ms
+                    </span>
                   </div>
-                </div>
-              </MonitoringSection>
+                  {apiHealth?.lastError && (
+                    <p className="text-[10px] text-red-600 mb-2 truncate" title={apiHealth.lastError}>
+                      {apiHealth.lastError}
+                    </p>
+                  )}
 
-              <MonitoringSection title="현재 라운드 배팅">
-                {bettingItems.length === 0 ? (
-                  <p className="text-xs text-[#888]">배팅 데이터 없음</p>
-                ) : (
-                  <div className="space-y-3">
-                    {bettingItems.map((item) => (
-                      <div key={item.prediction}>
-                        <div className="flex justify-between text-xs text-[#666] mb-1">
-                          <span>
-                            {item.prediction} ({item.odds}배)
-                          </span>
-                          <span>
-                            {item.count}명 · {item.totalPoints}P
-                          </span>
-                        </div>
-                        <div className="h-1.5 bg-[#F0F0F0] rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-[#E11936] rounded-full"
-                            style={{
-                              width: `${Math.round(((item.totalPoints || 0) / maxBetPoints) * 100)}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </MonitoringSection>
-
-              <MonitoringSection
-                title="승리팀 · 스코어 배팅"
-                action={
-                  sideBetSummary?.sideBetsLocked ? (
-                    <span className="text-xs text-amber-600 font-medium">마감</span>
+                  {bettingItems.length === 0 ? (
+                    <p className="text-[11px] text-[#888]">배팅 데이터 없음</p>
                   ) : (
-                    <span className="text-xs text-green-600 font-medium">접수중</span>
-                  )
-                }
-              >
-                <div className="grid grid-cols-1 gap-3 text-xs">
-                  <div className="rounded-lg bg-[#F9F9F9] p-3">
-                    <p className="font-semibold text-[#201E22] mb-1">승리팀 (2배)</p>
-                    <p className="text-[#666]">
-                      {sideBetSummary?.summary?.winner?.count ?? 0}명 ·{" "}
-                      {sideBetSummary?.summary?.winner?.totalPoints ?? 0}P
-                    </p>
-                    <p className="text-[#888] mt-1">
-                      홈 {sideBetSummary?.summary?.winner?.home ?? 0} / 원정{" "}
-                      {sideBetSummary?.summary?.winner?.away ?? 0}
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-[#F9F9F9] p-3">
-                    <p className="font-semibold text-[#201E22] mb-1">최종 스코어 (20배)</p>
-                    <p className="text-[#666]">
-                      {sideBetSummary?.summary?.score?.count ?? 0}명 ·{" "}
-                      {sideBetSummary?.summary?.score?.totalPoints ?? 0}P
-                    </p>
-                  </div>
-                  <p className="text-[11px] text-[#888]">
-                    대기 {sideBetSummary?.summary?.pending ?? 0} · 적중{" "}
-                    {sideBetSummary?.summary?.won ?? 0} · 미적중{" "}
-                    {sideBetSummary?.summary?.lost ?? 0} · 환불{" "}
-                    {sideBetSummary?.summary?.refunded ?? 0}
+                    <div className="space-y-1.5 mb-2">
+                      {bettingItems.slice(0, 4).map((item) => (
+                        <div key={item.prediction} className="flex items-center gap-2 text-[11px]">
+                          <span className="text-[#666] shrink-0 w-[72px] truncate" title={item.prediction}>
+                            {item.prediction}
+                          </span>
+                          <div className="flex-1 h-1 bg-[#F0F0F0] rounded-full overflow-hidden min-w-[40px]">
+                            <div
+                              className="h-full bg-[#E57373] rounded-full"
+                              style={{
+                                width: `${Math.round(((item.totalPoints || 0) / maxBetPoints) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-[#888] tabular-nums shrink-0">
+                            {item.count}명·{item.totalPoints}P
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-[#666] leading-relaxed border-t border-[#F0F0F0] pt-2">
+                    <span className="font-medium text-[#201E22]">사이드벳</span>
+                    {sideBetSummary?.sideBetsLocked ? (
+                      <span className="ml-1.5 text-amber-600">마감</span>
+                    ) : (
+                      <span className="ml-1.5 text-green-600">접수중</span>
+                    )}
+                    <span className="text-[#CCC] mx-1">|</span>
+                    승리팀 {sideBetSummary?.summary?.winner?.count ?? 0}명 ·{" "}
+                    {sideBetSummary?.summary?.winner?.totalPoints ?? 0}P
+                    <span className="text-[#CCC] mx-1">|</span>
+                    스코어 {sideBetSummary?.summary?.score?.count ?? 0}명 ·{" "}
+                    {sideBetSummary?.summary?.score?.totalPoints ?? 0}P
+                    <span className="block text-[#888] mt-0.5">
+                      대기 {sideBetSummary?.summary?.pending ?? 0} · 적중{" "}
+                      {sideBetSummary?.summary?.won ?? 0} · 미적중{" "}
+                      {sideBetSummary?.summary?.lost ?? 0}
+                    </span>
                   </p>
                 </div>
-              </MonitoringSection>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {!selectedMatch && (
-        <div className="flex items-center justify-center h-[400px]">
-          <p className="text-base text-[#BFBFBF]">경기 데이터가 없습니다.</p>
-        </div>
-      )}
+        {!selectedMatch && (
+          <div className="flex items-center justify-center py-20 px-4">
+            <p className="text-sm text-[#BFBFBF]">
+              {allDateMatches.length === 0
+                ? "이 날짜에 등록된 경기가 없습니다."
+                : platform === "ppamong"
+                  ? "빠몽(KBO) 경기가 없습니다."
+                  : "빠던9 레거시 경기가 없습니다."}
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* 미완료 라운드 경고 팝업 */}
       {showIncompleteRoundsWarning && selectedMatch && incompleteRoundsInfo && (
