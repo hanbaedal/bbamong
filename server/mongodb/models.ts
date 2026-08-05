@@ -33,6 +33,8 @@ const userSchema = new Schema(
     lastLogout: { type: Date, default: null },
     lastActive: { type: Date, default: null },
     totalDonationAmount: { type: Number, default: 0 },
+    /** ppamong | badminton9 — 빠몽 가입 vs PG 레거시 */
+    dataSource: { type: String, default: "" },
   },
   { versionKey: false },
 );

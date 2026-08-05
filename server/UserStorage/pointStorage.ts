@@ -6,6 +6,10 @@ import {
 } from "./db";
 import type { ClientSession } from "mongoose";
 import type { PointTransaction, InsertPointTransaction } from "@shared/schema";
+import {
+  type MemberPlatform,
+  buildUserPlatformMatchForAgg,
+} from "../utils/memberPlatform";
 
 export class PointStorage {
   async _updateUserPointsInTx(
@@ -159,44 +163,57 @@ export class PointStorage {
     };
   }
 
-  async getEarnedPointsRankings(page = 1, limit = 8) {
+  async getEarnedPointsRankings(
+    page = 1,
+    limit = 8,
+    platform: MemberPlatform = "ppamong",
+  ) {
     const offset = (page - 1) * limit;
     const MAX_RANK = 100;
+    const platformMatch = buildUserPlatformMatchForAgg("user", platform);
 
     const allRankings = await PointTransactionModel.aggregate<{
       userId: string;
+      username: string;
+      name: string;
+      email: string | null;
       earnedPoints: number;
     }>([
       { $match: { transactionType: "earned" } },
       { $group: { _id: "$userId", earnedPoints: { $sum: "$amount" } } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+      { $match: platformMatch },
       { $sort: { earnedPoints: -1 } },
       { $limit: MAX_RANK },
+      {
+        $project: {
+          _id: 0,
+          userId: "$_id",
+          username: "$user.username",
+          name: "$user.name",
+          email: "$user.email",
+          earnedPoints: 1,
+        },
+      },
     ]);
 
     const total = allRankings.length;
-    const pageSlice = allRankings.slice(
-      offset > MAX_RANK ? MAX_RANK : offset,
-      (offset > MAX_RANK ? MAX_RANK : offset) + limit,
-    );
-
-    const data = await Promise.all(
-      pageSlice.map(async (r) => {
-        const user = await UserModel.findOne({ id: r.userId }).select("username name").lean();
-        return {
-          userId: r.userId,
-          username: user?.username || "",
-          name: user?.name || "",
-          earnedPoints: r.earnedPoints,
-        };
-      }),
-    );
+    const pageSlice = allRankings.slice(offset, offset + limit);
 
     return {
-      data,
+      data: pageSlice,
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     };
   }
 

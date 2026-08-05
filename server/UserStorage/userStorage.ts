@@ -21,6 +21,7 @@ import {
 } from "../utils/passwordAscii";
 import { pointStorage } from "./pointStorage";
 import { deleteSession } from "../sessionManager";
+import { MEMBER_SOURCE_PPAMONG } from "../utils/memberPlatform";
 
 function generateInviteCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -138,6 +139,7 @@ export class UserStorage {
       referralCode: validReferralCode,
       isSuspended: 0,
       provider: user.provider ?? "local",
+      dataSource: MEMBER_SOURCE_PPAMONG,
     });
     const newUser = doc.toObject() as User;
 
@@ -358,6 +360,7 @@ export class UserStorage {
       inviteCode,
       referralCode: validReferralCode,
       isSuspended: 0,
+      dataSource: MEMBER_SOURCE_PPAMONG,
     });
     const newUser = doc.toObject() as User;
 

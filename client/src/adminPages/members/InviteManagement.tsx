@@ -1,109 +1,147 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import AdminLayout from "../adminLayout";
 import { useAdminAssets } from "@/contexts/AdminAssetContext";
+import { apiRequest } from "@/lib/adminQueryClient";
 import AdminPagination from "../components/AdminPagination";
 import { useResponsivePageSize } from "@/hooks/useResponsivePageSize";
+import {
+  MemberPlatformTabsBar,
+  MemberTableEmpty,
+  MemberTableLoading,
+  MemberTableShell,
+  memberCompactTableClass,
+  memberRowClass,
+  memberTdClass,
+  memberThClass,
+  truncateText,
+  type MemberPaginatedMeta,
+  type MemberPlatform,
+} from "./memberAdminUi";
 
-// 샘플 데이터
-const sampleInvites = [
-  { id: 1, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 6400 },
-  { id: 2, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 6300 },
-  { id: 3, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 6000 },
-  { id: 4, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 6100 },
-  { id: 5, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 6000 },
-  { id: 6, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 5900 },
-  { id: 7, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 5800 },
-  { id: 8, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 5700 },
-  { id: 9, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 5600 },
-  { id: 10, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 5500 },
-  { id: 11, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 5400 },
-  { id: 12, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 5300 },
-  { id: 13, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 5200 },
-  { id: 14, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 5100 },
-  { id: 15, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 5000 },
-  { id: 16, userId: "nobukber", name: "노벅비", email: "nobukber@email.com", inviteCount: 4900 },
-];
+interface InviteRankingRow {
+  userId: string;
+  username: string;
+  name: string;
+  email: string | null;
+  inviteCount: number;
+}
+
+type InviteResponse = MemberPaginatedMeta & {
+  data: InviteRankingRow[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
 
 export default function InviteManagementPage() {
   const { assets } = useAdminAssets();
+  const [platform, setPlatform] = useState<MemberPlatform>("ppamong");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = useResponsivePageSize();
-  useEffect(() => { setCurrentPage(1); }, [itemsPerPage]);
 
-  // 페이지네이션 계산
-  const totalPages = Math.ceil(sampleInvites.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentInvites = sampleInvites.slice(startIndex, endIndex);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage, platform]);
+
+  const { data, isLoading } = useQuery<InviteResponse>({
+    queryKey: ["admin-invite-rankings", platform, currentPage, itemsPerPage],
+    queryFn: async () => {
+      const res = await apiRequest(
+        "GET",
+        `/api/admin/invite-rankings?page=${currentPage}&limit=${itemsPerPage}&platform=${platform}`,
+      );
+      return res.json();
+    },
+  });
+
+  const invites = data?.data ?? [];
+  const counts = data?.counts ?? { ppamong: 0, badminton9: 0 };
+  const totalPages = data?.totalPages ?? 1;
 
   return (
     <AdminLayout>
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 mb-6" data-testid="breadcrumb">
-        <span className="text-sm text-[#BFBFBF]">회원 관리</span>
-        <span className="text-sm text-[#BFBFBF]">&gt;</span>
-        <span className="text-sm text-[#201E22]">친구 초대 관리</span>
+      <div className="flex items-center gap-2 mb-3" data-testid="breadcrumb">
+        <span className="text-xs text-[#BFBFBF]">회원 관리</span>
+        <span className="text-xs text-[#BFBFBF]">&gt;</span>
+        <span className="text-xs text-[#201E22]">친구 초대 관리</span>
       </div>
 
-      {/* Page Title */}
       <h1
-        className="text-2xl font-semibold text-[#201E22] mb-6 flex items-center gap-2"
+        className="text-lg font-semibold text-[#201E22] mb-3 flex items-center gap-2"
         data-testid="text-page-title"
       >
-        <img src={assets.adListIcon} className="w-8 h-8" alt="icon" /> 팀 친구 초대 관리
+        <img src={assets.adListIcon} className="w-6 h-6" alt="" />
+        팀 친구 초대 관리
       </h1>
 
-      <div className="bg-white rounded-lg shadow-sm">
-        {/* 탭 */}
-        <div className="flex border-b border-[#E9E9E9] mb-6">
-          <button
-            className="pb-3 px-1 text-base font-medium border-b-2 border-[#E11936] text-[#E11936]"
-            data-testid="tab-invite-management"
-          >
-            친구 초대 관리
-          </button>
-        </div>
+      <MemberPlatformTabsBar
+        platform={platform}
+        counts={counts}
+        onChange={(next) => {
+          setPlatform(next);
+          setCurrentPage(1);
+        }}
+      />
 
-        {/* 테이블 헤더 */}
-        <div className="grid grid-cols-[15%_20%_20%_25%_20%] px-4 py-3 bg-[#F5F5F5] border-y border-[#E9E9E9] items-center">
-          <div className="text-sm font-semibold text-[#201E22]">초대 순번</div>
-          <div className="text-sm font-semibold text-[#201E22]">ID</div>
-          <div className="text-sm font-semibold text-[#201E22]">이름</div>
-          <div className="text-sm font-semibold text-[#201E22]">이메일</div>
-          <div className="text-sm font-semibold text-[#201E22]">초대된 횟수</div>
-        </div>
+      {isLoading ? (
+        <MemberTableLoading rows={itemsPerPage} cols={5} />
+      ) : invites.length === 0 ? (
+        <MemberTableEmpty
+          message={
+            platform === "ppamong"
+              ? "빠몽 회원 초대 기록이 없습니다."
+              : "빠던9 레거시 초대 기록이 없습니다."
+          }
+        />
+      ) : (
+        <MemberTableShell>
+          <table className={memberCompactTableClass}>
+            <thead>
+              <tr className="bg-[#FAFAFA] border-b border-[#E9E9E9] text-left">
+                <th className={`${memberThClass} w-12 text-center`}>순위</th>
+                <th className={memberThClass}>ID</th>
+                <th className={`${memberThClass} w-20`}>이름</th>
+                <th className={memberThClass}>이메일</th>
+                <th className={`${memberThClass} w-20 text-right`}>초대 수</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invites.map((invite, index) => {
+                const rank = (currentPage - 1) * itemsPerPage + index + 1;
+                return (
+                  <tr
+                    key={invite.userId}
+                    className={memberRowClass}
+                    data-testid={`invite-row-${index}`}
+                  >
+                    <td className={`${memberTdClass} text-center tabular-nums`}>{rank}</td>
+                    <td className={memberTdClass} title={invite.username}>
+                      {truncateText(invite.username, 18)}
+                    </td>
+                    <td className={memberTdClass}>{truncateText(invite.name, 8)}</td>
+                    <td className={memberTdClass} title={invite.email ?? undefined}>
+                      {truncateText(invite.email, 22)}
+                    </td>
+                    <td className={`${memberTdClass} text-right font-semibold tabular-nums`}>
+                      {invite.inviteCount.toLocaleString()}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </MemberTableShell>
+      )}
 
-        {/* 테이블 바디 */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="space-y-0">
-            {currentInvites.map((invite, index) => (
-              <div
-                key={invite.id}
-                className="grid grid-cols-[15%_20%_20%_25%_20%] px-4 h-16 bg-white border-b border-[#E9E9E9] items-center text-sm text-[#201E22]"
-                data-testid={`invite-row-${index}`}
-              >
-                <div className="text-[#414141]">{invite.id}</div>
-                <div className="truncate text-[#414141]" title={invite.userId}>
-                  {invite.userId}
-                </div>
-                <div className="truncate text-[#414141]" title={invite.name}>
-                  {invite.name}
-                </div>
-                <div className="truncate text-[#414141]" title={invite.email}>
-                  {invite.email}
-                </div>
-                <div className="text-[#414141]">{invite.inviteCount.toLocaleString()}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
+      {(data?.total ?? 0) > 0 && (
         <AdminPagination
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
         />
-      </div>
+      )}
     </AdminLayout>
   );
 }

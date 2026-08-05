@@ -12,11 +12,19 @@ import {
 } from "../UserStorage/db";
 import type { User } from "@shared/schema";
 import { deleteSession } from "../sessionManager";
+import {
+  type MemberPlatform,
+  memberPlatformFilter,
+  PPAMONG_MEMBER_MONGO_FILTER,
+  BADMINTON9_MEMBER_MONGO_FILTER,
+} from "../utils/memberPlatform";
 
 export interface IAdminUserStorage {
-  getRegularUsersPaginated(limit: number, offset: number): Promise<User[]>;
-  getRegularUsersCount(): Promise<number>;
-  getRegularSuspendedUsersCount(): Promise<number>;
+  getRegularUsersPaginated(platform: MemberPlatform, limit: number, offset: number): Promise<User[]>;
+  getSuspendedUsersPaginated(platform: MemberPlatform, limit: number, offset: number): Promise<User[]>;
+  getRegularUsersCount(platform: MemberPlatform): Promise<number>;
+  getRegularSuspendedUsersCount(platform: MemberPlatform): Promise<number>;
+  getMemberPlatformCounts(): Promise<{ ppamong: number; badminton9: number }>;
   suspendUser(userId: string, isSuspended: boolean): Promise<User | undefined>;
   restoreUser(userId: string): Promise<User | undefined>;
   hardDeleteUser(userId: string): Promise<boolean>;
@@ -24,12 +32,26 @@ export interface IAdminUserStorage {
 }
 
 export class AdminUserStorage implements IAdminUserStorage {
-  /** 게스트 제외 · 미삭제 회원 (isSuspended 누락/0 모두 포함) */
-  private baseFilter = { isSuspended: { $ne: 1 }, provider: { $ne: "guest" } };
-  private suspendedFilter = { isSuspended: 1, provider: { $ne: "guest" } };
+  private guestExclusion = { provider: { $ne: "guest" } };
 
-  async getRegularUsersPaginated(limit: number, offset: number): Promise<User[]> {
-    const docs = await UserModel.find(this.baseFilter)
+  private activeFilter(platform: MemberPlatform) {
+    return {
+      ...memberPlatformFilter(platform),
+      isSuspended: { $ne: 1 },
+      ...this.guestExclusion,
+    };
+  }
+
+  private suspendedFilter(platform: MemberPlatform) {
+    return {
+      ...memberPlatformFilter(platform),
+      isSuspended: 1,
+      ...this.guestExclusion,
+    };
+  }
+
+  async getRegularUsersPaginated(platform: MemberPlatform, limit: number, offset: number): Promise<User[]> {
+    const docs = await UserModel.find(this.activeFilter(platform))
       .sort({ createdAt: -1, lastLogin: -1 })
       .skip(offset)
       .limit(limit)
@@ -37,8 +59,8 @@ export class AdminUserStorage implements IAdminUserStorage {
     return docs as User[];
   }
 
-  async getSuspendedUsersPaginated(limit: number, offset: number): Promise<User[]> {
-    const docs = await UserModel.find(this.suspendedFilter)
+  async getSuspendedUsersPaginated(platform: MemberPlatform, limit: number, offset: number): Promise<User[]> {
+    const docs = await UserModel.find(this.suspendedFilter(platform))
       .sort({ suspendedAt: -1, createdAt: -1 })
       .skip(offset)
       .limit(limit)
@@ -46,12 +68,20 @@ export class AdminUserStorage implements IAdminUserStorage {
     return docs as User[];
   }
 
-  async getRegularUsersCount(): Promise<number> {
-    return UserModel.countDocuments(this.baseFilter);
+  async getRegularUsersCount(platform: MemberPlatform): Promise<number> {
+    return UserModel.countDocuments(this.activeFilter(platform));
   }
 
-  async getRegularSuspendedUsersCount(): Promise<number> {
-    return UserModel.countDocuments(this.suspendedFilter);
+  async getRegularSuspendedUsersCount(platform: MemberPlatform): Promise<number> {
+    return UserModel.countDocuments(this.suspendedFilter(platform));
+  }
+
+  async getMemberPlatformCounts(): Promise<{ ppamong: number; badminton9: number }> {
+    const [ppamong, badminton9] = await Promise.all([
+      UserModel.countDocuments({ ...PPAMONG_MEMBER_MONGO_FILTER, ...this.guestExclusion, isSuspended: { $ne: 1 } }),
+      UserModel.countDocuments({ ...BADMINTON9_MEMBER_MONGO_FILTER, ...this.guestExclusion, isSuspended: { $ne: 1 } }),
+    ]);
+    return { ppamong, badminton9 };
   }
 
   async suspendUser(userId: string, isSuspended: boolean): Promise<User | undefined> {

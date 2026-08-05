@@ -16,6 +16,10 @@ import type {
 import { computeInningHalfSwitch } from "./gamePhase";
 import { calculateFixedOddsPayout } from "@shared/predictionOdds";
 import type { ClientSession } from "mongoose";
+import {
+  type MemberPlatform,
+  buildUserPlatformMatchForAgg,
+} from "../utils/memberPlatform";
 
 export async function getUserBalance(userId: string): Promise<number> {
   const user = await UserModel.findOne({ id: userId }).select("points").lean();
@@ -1005,40 +1009,55 @@ export async function getMatchOverallStatistics(matchId: string) {
   };
 }
 
-export async function getVictoryRankings(page = 1, limit = 8) {
+export async function getVictoryRankings(
+  page = 1,
+  limit = 8,
+  platform: MemberPlatform = "ppamong",
+) {
   const MAX_RANK = 100;
   const offset = (page - 1) * limit;
+  const platformMatch = buildUserPlatformMatchForAgg("user", platform);
 
   const allRankings = await PredictionModel.aggregate<{
     userId: string;
+    username: string;
+    name: string;
+    email: string | null;
     victoryCount: number;
   }>([
     { $match: { status: "success" } },
     { $group: { _id: "$userId", victoryCount: { $sum: 1 } } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "_id",
+        foreignField: "id",
+        as: "user",
+      },
+    },
+    { $unwind: "$user" },
+    { $match: platformMatch },
     { $sort: { victoryCount: -1 } },
     { $limit: MAX_RANK },
-    { $project: { userId: "$_id", victoryCount: 1, _id: 0 } },
+    {
+      $project: {
+        _id: 0,
+        userId: "$_id",
+        username: "$user.username",
+        name: "$user.name",
+        email: "$user.email",
+        victoryCount: 1,
+      },
+    },
   ]);
 
-  const total = Math.min(allRankings.length, MAX_RANK);
-  const totalPages = Math.ceil(MAX_RANK / limit);
+  const total = allRankings.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
-  if (offset >= MAX_RANK) {
+  if (offset >= total) {
     return { data: [], total, page, limit, totalPages };
   }
 
-  const pageSlice = allRankings.slice(offset, offset + limit);
-  const data = await Promise.all(
-    pageSlice.map(async (r) => {
-      const user = await UserModel.findOne({ id: r.userId }).select("username name").lean();
-      return {
-        userId: r.userId,
-        username: user?.username || "",
-        name: user?.name || "",
-        victoryCount: r.victoryCount,
-      };
-    }),
-  );
-
+  const data = allRankings.slice(offset, offset + limit);
   return { data, total, page, limit, totalPages };
 }

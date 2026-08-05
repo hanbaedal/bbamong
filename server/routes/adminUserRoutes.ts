@@ -2,8 +2,11 @@ import type { Express } from "express";
 import { AdminUserStorage } from "../storage/adminUserStorage";
 import { adminAuthMiddleware } from "../middleware/adminAuth";
 import { deleteSession } from "../sessionManager";
+import { parseMemberPlatform } from "../utils/memberPlatform";
+import { AdminInviteStorage } from "../storage/adminInviteStorage";
 
 const adminUserStorage = new AdminUserStorage();
+const adminInviteStorage = new AdminInviteStorage();
 
 export async function adminUserRoutes(app: Express): Promise<void> {
   app.get("/api/admin/regular-users", adminAuthMiddleware, async (req, res) => {
@@ -11,14 +14,14 @@ export async function adminUserRoutes(app: Express): Promise<void> {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 8;
       const offset = (page - 1) * limit;
+      const platform = parseMemberPlatform(req.query.platform);
 
-      const regularUsers = await adminUserStorage.getRegularUsersPaginated(
-        limit,
-        offset,
-      );
-
-      const total = await adminUserStorage.getRegularUsersCount();
-      const suspendedTotal = await adminUserStorage.getRegularSuspendedUsersCount();
+      const [regularUsers, total, suspendedTotal, counts] = await Promise.all([
+        adminUserStorage.getRegularUsersPaginated(platform, limit, offset),
+        adminUserStorage.getRegularUsersCount(platform),
+        adminUserStorage.getRegularSuspendedUsersCount(platform),
+        adminUserStorage.getMemberPlatformCounts(),
+      ]);
 
       const usersWithoutPassword = regularUsers.map(
         ({ password, verificationCode, ...user }) => user,
@@ -28,6 +31,8 @@ export async function adminUserRoutes(app: Express): Promise<void> {
         data: usersWithoutPassword,
         total,
         suspendedTotal,
+        platform,
+        counts,
       });
     } catch (error) {
       console.error("Get regular users error:", error);
@@ -40,14 +45,14 @@ export async function adminUserRoutes(app: Express): Promise<void> {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 8;
       const offset = (page - 1) * limit;
+      const platform = parseMemberPlatform(req.query.platform);
 
-      const regularUsers = await adminUserStorage.getSuspendedUsersPaginated(
-        limit,
-        offset,
-      );
-
-      const total = await adminUserStorage.getRegularUsersCount();
-      const suspendedTotal = await adminUserStorage.getRegularSuspendedUsersCount();
+      const [regularUsers, total, suspendedTotal, counts] = await Promise.all([
+        adminUserStorage.getSuspendedUsersPaginated(platform, limit, offset),
+        adminUserStorage.getRegularUsersCount(platform),
+        adminUserStorage.getRegularSuspendedUsersCount(platform),
+        adminUserStorage.getMemberPlatformCounts(),
+      ]);
 
       const usersWithoutPassword = regularUsers.map(
         ({ password, verificationCode, ...user }) => user,
@@ -57,6 +62,8 @@ export async function adminUserRoutes(app: Express): Promise<void> {
         data: usersWithoutPassword,
         total,
         suspendedTotal,
+        platform,
+        counts,
       });
     } catch (error) {
       console.error("Get regular users error:", error);
@@ -134,6 +141,24 @@ export async function adminUserRoutes(app: Express): Promise<void> {
       });
     } catch (error) {
       console.error("Hard delete user error:", error);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.get("/api/admin/invite-rankings", adminAuthMiddleware, async (req, res) => {
+    try {
+      const page = Number(req.query.page) || 1;
+      const limit = Number(req.query.limit) || 8;
+      const platform = parseMemberPlatform(req.query.platform);
+
+      const [rankings, counts] = await Promise.all([
+        adminInviteStorage.getInviteRankings(platform, page, limit),
+        adminUserStorage.getMemberPlatformCounts(),
+      ]);
+
+      return res.json({ ...rankings, platform, counts });
+    } catch (error) {
+      console.error("Get invite rankings error:", error);
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   });

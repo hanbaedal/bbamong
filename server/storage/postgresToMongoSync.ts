@@ -57,7 +57,7 @@ const SYNC_TABLES: SyncTableDef[] = [
     model: UserModel,
     insertDefaults: { provider: "local" },
     omitNullFields: ["phone", "inviteCode"],
-    preserveOnUpdate: ["password", "passwordPlain"],
+    preserveOnUpdate: ["password", "passwordPlain", "dataSource"],
     storePasswordPlain: true,
     normalizeDoc: normalizeUserDoc,
   },
@@ -207,6 +207,9 @@ async function normalizeUserDoc(doc: Record<string, unknown>): Promise<void> {
   const providerId = doc.providerId;
   if (providerId == null || providerId === "") {
     doc.providerId = String(doc.id);
+  }
+  if (!doc.dataSource) {
+    doc.dataSource = "badminton9";
   }
   for (const key of ["phone", "inviteCode", "email", "referralCode"] as const) {
     const val = doc[key];
