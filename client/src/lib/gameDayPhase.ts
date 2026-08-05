@@ -1,7 +1,7 @@
 import type { GameMatchItem } from "@/components/game/gameMatchUtils";
 import { isMatchSelectableForGame } from "@/components/game/gameMatchUtils";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
-import { isConfirmedPostponedMatch } from "@shared/apiSportsStatus";
+import { normalizeApiStatusShort } from "@shared/apiSportsStatus";
 import { resolveMatchManagementStatusDisplay } from "@shared/matchManagementStatus";
 
 export type GameDayPhase = "loading" | "all_ended" | "pregame" | "live";
@@ -47,6 +47,23 @@ export const GAME_TERMINAL_DISPLAY: Record<
 
 function classifyMatchTerminal(match: GameMatchItem): GameTerminalKind | "playable" {
   if (match.matchStatus === "ongoing") return "playable";
+  if (match.matchStatus === "completed") return "ended";
+
+  if (match.matchStatus === "cancelled") {
+    const short = normalizeApiStatusShort(match.liveScoreboard?.statusShort);
+    const long = (match.liveScoreboard?.statusLong ?? "").toLowerCase();
+    const label = (match.liveScoreboard?.inningLabel ?? "").trim();
+    if (
+      short === "PST" ||
+      short === "POST" ||
+      short === "POSTPONED" ||
+      label === "연기" ||
+      /postpon|연기/.test(long)
+    ) {
+      return "postponed";
+    }
+    return "cancelled";
+  }
 
   const display = resolveMatchManagementStatusDisplay({
     matchStatus: match.matchStatus,
@@ -62,20 +79,6 @@ function classifyMatchTerminal(match: GameMatchItem): GameTerminalKind | "playab
   if (display === "연기됨" || display === "연기") return "postponed";
   if (display === "경기종료" || display === "종료" || display === "경기 종료") {
     return "ended";
-  }
-  if (match.matchStatus === "completed") return "ended";
-  if (match.matchStatus === "cancelled") {
-    if (
-      isConfirmedPostponedMatch({
-        matchStatus: match.matchStatus,
-        statusShort: match.liveScoreboard?.statusShort,
-        statusLong: match.liveScoreboard?.statusLong,
-        inningLabel: match.liveScoreboard?.inningLabel,
-      })
-    ) {
-      return "postponed";
-    }
-    return "cancelled";
   }
   if (match.matchStatus === "scheduled") return "playable";
   return "playable";
