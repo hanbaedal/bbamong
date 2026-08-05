@@ -108,9 +108,14 @@ export default function GameNoticeBanner({ suppressed = false }: { suppressed?: 
 
   const { data, isLoading } = useQuery<{ notice: GameNotice | null }>({
     queryKey: ["/api/users/notices/banner"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/users/notices/banner");
+      return res.json();
+    },
     enabled: Boolean(user?.id),
     refetchOnMount: "always",
     staleTime: 30_000,
+    retry: false,
   });
 
   const dismissMutation = useMutation({

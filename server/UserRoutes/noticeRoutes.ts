@@ -10,7 +10,7 @@ export async function noticeRoutes(app: Express): Promise<void> {
   // 게임 배너용 — 미확인 공지 1건
   app.get("/api/users/notices/banner", userAuthMiddleware, async (req: AuthenticatedUserRequest, res) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
       if (!userId) {
         return res.status(401).json({ error: "인증이 필요합니다." });
       }
@@ -25,7 +25,7 @@ export async function noticeRoutes(app: Express): Promise<void> {
   // 공지 배너/모달 닫기 (더 이상 표시 안 함)
   app.post("/api/users/notices/:id/dismiss", userAuthMiddleware, async (req: AuthenticatedUserRequest, res) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user?.userId;
       if (!userId) {
         return res.status(401).json({ error: "인증이 필요합니다." });
       }
