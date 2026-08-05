@@ -48,7 +48,14 @@ export function getGameStorySection(id: string | undefined) {
 }
 
 export function getGameInfoSection(id: string | undefined) {
+  if (id === GAME_INFO_PROFILE_EDIT_SECTION.id) {
+    return GAME_INFO_PROFILE_EDIT_SECTION;
+  }
   return GAME_INFO_SECTIONS.find((s) => s.id === id) ?? GAME_INFO_SECTIONS[0];
+}
+
+export function getGameInfoMenuActiveId(sectionId: string): string {
+  return sectionId === GAME_INFO_PROFILE_EDIT_SECTION.id ? "profile" : sectionId;
 }
 
 /** verify 완료 후 프로필 편집 */

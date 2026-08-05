@@ -16,7 +16,7 @@ const LEGACY_TO_STORY: Record<string, string> = {
 
 const LEGACY_TO_INFO: Record<string, string> = {
   "/verify-identity": "profile",
-  "/profile": "profile",
+  "/profile": "profile-edit",
   "/point": "point",
   "/faq": "faq",
   "/terms": "terms",
@@ -91,7 +91,23 @@ export function mapBackForLandscapeSplit(currentPath: string, fallbackPath: stri
   if (currentPath === `${HOME_BOARD_BASE}/new`) return HOME_BOARD_BASE;
   if (/^\/home\/board\/\d+$/.test(currentPath)) return HOME_BOARD_BASE;
 
+  if (currentPath === `${GAME_INFO_BASE}/profile-edit`) {
+    if (fallbackPath === "/verify-identity" || fallbackPath === "/profile") {
+      return `${GAME_INFO_BASE}/profile`;
+    }
+  }
+
   if (currentPath.startsWith(GAME_STORY_BASE) || currentPath.startsWith(GAME_INFO_BASE)) {
+    if (
+      fallbackPath === "/home" ||
+      fallbackPath === "/verify-identity" ||
+      fallbackPath === "/profile" ||
+      fallbackPath === "/customer-center" ||
+      fallbackPath === "/board" ||
+      fallbackPath === "/notice"
+    ) {
+      return "/prediction";
+    }
     return "/prediction";
   }
 

@@ -12,6 +12,7 @@ import { clearTokens } from "@/lib/tokenManager";
 import {
   GAME_INFO_SECTIONS,
   GAME_INFO_WITHDRAW_ITEM,
+  getGameInfoMenuActiveId,
   getGameInfoSection,
 } from "@/lib/gameSplitConfig";
 
@@ -58,7 +59,7 @@ export default function GameInfoSplitPage() {
           <LandscapeHubMenu
             theme="info"
             items={menuItems}
-            activeId={section.id}
+            activeId={getGameInfoMenuActiveId(section.id)}
             onSelect={(id) => setLocation(`/game/info/${id}`)}
             onDangerAction={() => {
               if (checkGuest()) return;
