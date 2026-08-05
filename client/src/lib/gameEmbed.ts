@@ -7,6 +7,10 @@ import {
   requestInlinePanelBack,
   requestInlinePanelClose,
 } from "@/lib/embedPanelController";
+import {
+  mapBackForLandscapeSplit,
+  mapPathForLandscapeSplit,
+} from "@/lib/landscapeSplitRoutes";
 
 export function isIframeEmbedMode(): boolean {
   if (typeof window === "undefined") return false;
@@ -172,6 +176,14 @@ export function withEmbedQuery(path: string): string {
 }
 
 export function navigateEmbed(path: string, setLocation: (path: string) => void): void {
+  if (typeof window !== "undefined") {
+    const splitPath = mapPathForLandscapeSplit(window.location.pathname, path);
+    if (splitPath) {
+      setLocation(splitPath);
+      return;
+    }
+  }
+
   if (isInlinePanelEmbedMode()) {
     setLocation(path);
     return;
@@ -208,6 +220,14 @@ export function navigateBackOrEmbed(
   setLocation: (path: string) => void,
 ): void {
   if (requestInlinePanelBack()) return;
+
+  if (typeof window !== "undefined") {
+    const splitBack = mapBackForLandscapeSplit(window.location.pathname, fallbackPath);
+    if (splitBack) {
+      setLocation(splitBack);
+      return;
+    }
+  }
 
   if (isIframeEmbedMode()) {
     requestGameEmbedBack();

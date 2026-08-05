@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import LandscapeGameShell from "@/components/game/LandscapeGameShell";
 import GameSelectModal from "@/components/game/GameSelectModal";
@@ -70,9 +71,9 @@ interface SideBetsMeResponse {
 
 export default function PredictionPage() {
   const { user } = useUser();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const matchEndedHandledRef = useRef(false);
-  const [activePanel, setActivePanel] = useState<GameMenuAction | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [liveScoreboard, setLiveScoreboard] = useState<LiveScoreboard | null>(null);
   const [currentBatter, setCurrentBatter] = useState<CurrentBatterPreview | null>(null);
@@ -395,14 +396,6 @@ export default function PredictionPage() {
     };
   }, [selectedMatch?.id, shouldPollPhase]);
 
-  const { data: predictionStats, isLoading: statsLoading } = useQuery<{
-    statistics: { today?: { total: number; wins: number } };
-  }>({
-    queryKey: ["/api/users/predictions?page=1&limit=1"],
-    enabled: activePanel === "story" && Boolean(user),
-    refetchOnMount: "always",
-  });
-
   const stadiumOptions = useMemo(
     () => collectStadiumOptions(viewableMatches),
     [viewableMatches],
@@ -451,16 +444,21 @@ export default function PredictionPage() {
 
   const handleMenuSelect = (action: GameMenuAction) => {
     if (action === "home") {
-      setActivePanel(null);
       navigateToHome();
       return;
     }
     if (action === "mall") {
-      setActivePanel(null);
       openMallFromApp();
       return;
     }
-    setActivePanel((prev) => (prev === action ? null : action));
+    if (action === "story") {
+      setLocation("/game/story/victory");
+      return;
+    }
+    if (action === "info") {
+      setLocation("/game/info/profile");
+      return;
+    }
   };
 
   const handleMatchSelect = (matchId: string) => {
@@ -549,11 +547,8 @@ export default function PredictionPage() {
         scoreboard={liveScoreboard}
         scoreLoading={scoreLoading && Boolean(selectedMatch)}
         matchesLoading={matchesLoading}
-        activePanel={activePanel}
+        activePanel={null}
         onMenuSelect={handleMenuSelect}
-        onClosePanel={() => setActivePanel(null)}
-        todayStats={predictionStats?.statistics?.today}
-        statsLoading={statsLoading}
         screenPhase={isLivePlay ? flow.screenPhase : "wait_start"}
         selectedPrediction={isLivePlay ? flow.selectedPrediction : null}
         labelsVisible={isLivePlay && flow.labelsVisible}

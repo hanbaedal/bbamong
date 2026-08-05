@@ -10,6 +10,7 @@ import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import userFavicon from "@assets/user/user-mascot-favicon.png";
 import "@/styles/user-landscape.css";
+import "@/styles/landscape-split.css";
 import GameEmbedBootstrap from "@/components/GameEmbedBootstrap";
 import GameEmbedAuthBridge from "@/components/GameEmbedAuthBridge";
 import GameOrientationManager from "@/components/game/GameOrientationManager";
@@ -43,6 +44,11 @@ import VictoryHistoryPage from "@/pages/setting/victory-history";
 import InvitePage from "@/pages/setting/invite";
 import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
+import HomeNoticeSplitPage from "@/pages/landscape/HomeNoticeSplitPage";
+import HomeInquirySplitPage from "@/pages/landscape/HomeInquirySplitPage";
+import HomeBoardSplitPage from "@/pages/landscape/HomeBoardSplitPage";
+import GameStorySplitPage from "@/pages/landscape/GameStorySplitPage";
+import GameInfoSplitPage from "@/pages/landscape/GameInfoSplitPage";
 import UserSessionExpiredPopup from "@/components/UserSessionExpiredPopup";
 import { openMallFromApp, GAME_PATH } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
@@ -106,6 +112,23 @@ function Router() {
       <Route path="/home/game-guide">{() => <ProtectedRoute component={GameGuidePage} />}</Route>
       <Route path="/home/guide">{() => <ProtectedRoute component={UserGuidePage} />}</Route>
       <Route path="/home/simulation">{() => <ProtectedRoute component={UserSimulationPage} />}</Route>
+
+      <Route path="/home/board/new">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
+      <Route path="/home/board/:id">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
+      <Route path="/home/board">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
+
+      <Route path="/home/inquiry/new">{() => <ProtectedRoute component={HomeInquirySplitPage} />}</Route>
+      <Route path="/home/inquiry/:id">{() => <ProtectedRoute component={HomeInquirySplitPage} />}</Route>
+      <Route path="/home/inquiry">{() => <ProtectedRoute component={HomeInquirySplitPage} />}</Route>
+
+      <Route path="/home/notice/:id">{() => <ProtectedRoute component={HomeNoticeSplitPage} />}</Route>
+      <Route path="/home/notice">{() => <ProtectedRoute component={HomeNoticeSplitPage} />}</Route>
+
+      <Route path="/game/story/:section">{() => <ProtectedRoute component={GameStorySplitPage} />}</Route>
+      <Route path="/game/story">{() => <Redirect to="/game/story/victory" />}</Route>
+      <Route path="/game/info/:section">{() => <ProtectedRoute component={GameInfoSplitPage} />}</Route>
+      <Route path="/game/info">{() => <Redirect to="/game/info/profile" />}</Route>
+
       <Route path="/mall">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
 
       <Route path="/prediction">{() => <ProtectedRoute component={PredictionPage} />}</Route>

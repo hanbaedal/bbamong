@@ -123,34 +123,19 @@ export default function HomePage() {
     {
       id: "notice",
       label: "공지사항",
-      onClick: () =>
-        openEmbed({
-          id: "notice",
-          title: "공지사항",
-          href: "/notice",
-        }),
+      onClick: () => setLocation("/home/notice"),
       icon: <img src={assets.homeMenuNoticeIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
     {
       id: "inquiry",
       label: "문의하기",
-      onClick: () =>
-        openEmbed({
-          id: "inquiry",
-          title: "문의하기",
-          href: "/customer-center",
-        }),
+      onClick: () => setLocation("/home/inquiry"),
       icon: <img src={assets.homeMenuInquiryIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
     {
       id: "board",
       label: "게시판",
-      onClick: () =>
-        openEmbed({
-          id: "board",
-          title: "게시판",
-          href: "/board",
-        }),
+      onClick: () => setLocation("/home/board"),
       icon: <img src={assets.homeMenuBoardIcon} alt="" className="user-landscape-menu-icon-img--color" />,
     },
   );
