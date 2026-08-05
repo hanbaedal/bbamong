@@ -12,7 +12,12 @@ import {
   resolveAdminPasswordPlain,
   verifyAdminPassword,
 } from "../utils/passwordAscii";
-import { getNextStaffUsername, isStaffRegisteredUsername } from "../utils/staffUsername";
+import { parseMemberPlatform } from "../utils/memberPlatform";
+import {
+  getNextStaffUsername,
+  isStaffRegisteredUsername,
+  type AdminPlatform,
+} from "../utils/staffUsername";
 import {
   clearAdminAuthCookies,
   setAdminAccessCookie,
@@ -468,6 +473,7 @@ export async function adminRoutes(app: Express): Promise<void> {
       const limit = parseInt(req.query.limit as string) || 8;
       const search = (req.query.search as string) || "";
       const filterType = (req.query.filterType as string) || "전체";
+      const platform = parseMemberPlatform(req.query.platform) as AdminPlatform;
 
       if (!["대기중", "승인", "거부"].includes(status)) {
         return res.status(400).json({ error: "올바르지 않은 상태 값입니다." });
@@ -477,7 +483,7 @@ export async function adminRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "올바르지 않은 필터 타입입니다." });
       }
 
-      let admins, total, pendingCount, approvedCount;
+      let admins, total, pendingCount, approvedCount, counts;
 
       // 검색어가 있으면 검색 함수 사용
       if (search.trim()) {
@@ -486,23 +492,26 @@ export async function adminRoutes(app: Express): Promise<void> {
           search.trim(),
           filterType as "전체" | "부서" | "직책",
           page,
-          limit
+          limit,
+          platform,
         );
         admins = result.data;
         total = result.total;
         pendingCount = result.pendingCount;
         approvedCount = result.approvedCount;
+        counts = result.counts;
       } else {
-        // 검색어가 없으면 기존 함수 사용
         const result = await adminStorage.getAdminUsersByStatus(
           status as "대기중" | "승인" | "거부",
           page,
-          limit
+          limit,
+          platform,
         );
         admins = result.data;
         total = result.total;
         pendingCount = result.pendingCount;
         approvedCount = result.approvedCount;
+        counts = result.counts;
       }
 
       // 비밀번호 제외하고 반환 (슈퍼바이저 staff 목록 — passwordPlain 포함)
@@ -516,6 +525,8 @@ export async function adminRoutes(app: Express): Promise<void> {
         totalPages: Math.ceil(total / limit),
         pendingCount,
         approvedCount,
+        platform,
+        counts,
       });
     } catch (error) {
       console.error("Get staff list error:", error);

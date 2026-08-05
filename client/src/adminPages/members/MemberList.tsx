@@ -18,6 +18,7 @@ import {
   formatCompactDateTime,
   memberCompactTableClass,
   memberRowClass,
+  memberTheadRowClass,
   memberTdClass,
   memberThClass,
   truncateText,
@@ -225,7 +226,7 @@ export default function MemberListPage() {
         <MemberTableShell>
           <table className={`${memberCompactTableClass} min-w-[720px]`}>
             <thead>
-              <tr className="bg-[#FAFAFA] border-b border-[#E9E9E9] text-left">
+              <tr className={memberTheadRowClass}>
                 <th className={memberThClass}>ID</th>
                 <th className={`${memberThClass} w-16`}>이름</th>
                 <th className={`${memberThClass} w-24`}>전화</th>

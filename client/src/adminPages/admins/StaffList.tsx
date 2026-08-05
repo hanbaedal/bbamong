@@ -3,8 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest, adminFetch } from "@/lib/adminQueryClient";
 import { useLocation } from "wouter";
 import AdminLayout from "../adminLayout";
-import AdminPageShell from "../components/AdminPageShell";
-import { adminTableClass, adminTableWrapClass } from "../components/adminPageStyles";
 import type { AdminUser } from "@shared/schema";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import debounce from "lodash.debounce";
@@ -25,11 +23,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAdminAssets } from "@/contexts/AdminAssetContext";
 import { useUser } from "@/contexts/UserContext";
 import AdminPagination from "../components/AdminPagination";
 import { useResponsivePageSize } from "@/hooks/useResponsivePageSize";
-import { Pencil, Plus, Trash2, UserRound } from "lucide-react";
+import { Plus, Trash2, UserRound } from "lucide-react";
+import type { OpsPlatform } from "../ops/opsLoginStatusUi";
+import {
+  AdminCompactListPage,
+  AdminCompactTable,
+  AdminCompactTableShell,
+  adminCompactTdClass,
+  adminCompactThClass,
+  adminCompactTheadRowClass,
+  adminCompactTrClass,
+} from "../components/adminCompactListUi";
 
 type AdminUserWithoutPassword = Omit<AdminUser, "password"> & {
   passwordPlain?: string;
@@ -64,6 +71,8 @@ interface StaffListResponse {
   limit: number;
   totalPages: number;
   approvedCount: number;
+  platform: OpsPlatform;
+  counts: { ppamong: number; badminton9: number };
 }
 
 function StaffStatusBadge({ status }: { status: string | null | undefined }) {
@@ -117,11 +126,11 @@ export default function StaffListPage() {
   }, [isUserLoaded, isSuperAdmin, setLocation]);
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [platform, setPlatform] = useState<OpsPlatform>("ppamong");
   const itemsPerPage = useResponsivePageSize();
   useEffect(() => {
     setCurrentPage(1);
-  }, [itemsPerPage]);
-  const { assets } = useAdminAssets();
+  }, [itemsPerPage, platform]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<"전체" | "부서" | "직책">("전체");
   const [tempSearchQuery, setTempSearchQuery] = useState("");
@@ -140,11 +149,11 @@ export default function StaffListPage() {
   const { data, isLoading } = useQuery<StaffListResponse>({
     queryKey: [
       "/api/admin/staff",
-      { page: currentPage, limit: itemsPerPage, search: searchQuery, filterType },
+      { page: currentPage, limit: itemsPerPage, search: searchQuery, filterType, platform },
     ],
     queryFn: async () => {
       const response = await adminFetch(
-        `/api/admin/staff?status=승인&page=${currentPage}&limit=${itemsPerPage}&search=${searchQuery}&filterType=${filterType}`,
+        `/api/admin/staff?status=승인&page=${currentPage}&limit=${itemsPerPage}&search=${searchQuery}&filterType=${filterType}&platform=${platform}`,
       );
       if (!response.ok) {
         throw new Error("Failed to fetch staff list");
@@ -227,7 +236,7 @@ export default function StaffListPage() {
 
   const admins = data?.admins || [];
   const totalPages = data?.totalPages || 1;
-  const approvedCount = data?.approvedCount || 0;
+  const counts = data?.counts ?? { ppamong: 0, badminton9: 0 };
 
   const handleDeactivateClick = (admin: AdminUserWithoutPassword) => {
     setSelectedAdminForDeactivate(admin);
@@ -293,169 +302,117 @@ export default function StaffListPage() {
 
   return (
     <AdminLayout>
-      <AdminPageShell
+      <AdminCompactListPage
         title="관리자 리스트"
-        description={`슈퍼바이저 등록 관리자 (ppamong.XX) · 총 ${approvedCount}명`}
-        icon={
-          <img
-            src={assets.adListIcon}
-            className="w-7 h-7 lg:w-8 lg:h-8"
-            alt=""
-            data-testid="text-page-title"
-          />
-        }
+        platformTabs={{
+          platform,
+          counts,
+          onChange: setPlatform,
+          ppamongSublabel: "ppamong.XX 등록 staff",
+          badminton9Sublabel: "PG 레거시 일반어드민",
+          countLabel: "명",
+        }}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {toolbar}
-            <Button
-              type="button"
-              className="h-9 bg-[#E11936] hover:bg-[#B71C1C] text-white gap-1.5"
-              onClick={() => setLocation("/admin/staff/register")}
-            >
-              <Plus className="h-4 w-4" />
-              관리자 등록
-            </Button>
-          </div>
-        }
-      >
-        {isLoading ? (
-          <div className={`${adminTableWrapClass} bg-white`}>
-            <div className="p-8 text-center text-sm text-[#888]">불러오는 중...</div>
-          </div>
-        ) : admins.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-[#E0E0E0] bg-[#FAFAFA] p-12 text-center">
-            <UserRound className="mx-auto h-10 w-10 text-[#CCC] mb-3" />
-            <p className="text-sm text-[#888]">등록된 관리자가 없습니다.</p>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-4 h-9"
-              onClick={() => setLocation("/admin/staff/register")}
-            >
-              관리자 등록하기
-            </Button>
-          </div>
-        ) : (
           <>
-            <div className={`hidden md:block ${adminTableWrapClass}`}>
-              <table className={adminTableClass}>
-                <thead>
-                  <tr className="bg-[#FAFAFA] border-b border-[#E9E9E9] text-left text-xs text-[#888]">
-                    <th className="px-4 py-3 font-medium">이름</th>
-                    <th className="px-4 py-3 font-medium">아이디</th>
-                    <th className="px-4 py-3 font-medium">연락처</th>
-                    <th className="px-4 py-3 font-medium">부서 / 직책</th>
-                    <th className="px-4 py-3 font-medium w-20 text-center">상태</th>
-                    <th className="px-4 py-3 font-medium w-28 text-center">관리</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {admins.map((admin, index) => (
-                    <tr
-                      key={admin.id}
-                      className="border-b border-[#F0F0F0] bg-white hover:bg-[#FFFBFB] transition-colors"
-                      data-testid={`admin-row-${index}`}
-                    >
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-[#201E22]">{admin.name}</p>
-                        <p className="text-xs text-[#888] mt-0.5 truncate max-w-[180px]" title={admin.email}>
-                          {admin.email}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-[#444]">{admin.username}</td>
-                      <td className="px-4 py-3 text-sm text-[#444] tabular-nums">{admin.phone}</td>
-                      <td className="px-4 py-3 text-sm text-[#444]">
-                        {[admin.department, admin.position].filter(Boolean).join(" · ") || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <StaffStatusBadge status={admin.status} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => openEdit(admin)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#4285F4] border border-[#4285F4]/30 rounded hover:bg-[#EEF4FF]"
-                            data-testid={`button-edit-${index}`}
-                          >
-                            <Pencil className="h-3 w-3" />
-                            수정
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeactivateClick(admin)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#E11936] border border-[#E11936]/30 rounded hover:bg-[#FFF5F6]"
-                            data-testid={`button-deactivate-${index}`}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            삭제
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="md:hidden space-y-3">
-              {admins.map((admin, index) => (
-                <article
-                  key={admin.id}
-                  className="rounded-lg border border-[#E9E9E9] bg-white p-4"
-                  data-testid={`admin-card-${index}`}
-                >
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-[#201E22]">{admin.name}</p>
-                      <p className="text-xs font-mono text-[#888] mt-0.5">{admin.username}</p>
-                    </div>
-                    <StaffStatusBadge status={admin.status} />
-                  </div>
-                  <dl className="grid grid-cols-[72px_1fr] gap-y-1 text-xs text-[#666] mb-3">
-                    <dt>이메일</dt>
-                    <dd className="text-[#201E22] truncate">{admin.email}</dd>
-                    <dt>전화</dt>
-                    <dd className="text-[#201E22]">{admin.phone}</dd>
-                    <dt>부서</dt>
-                    <dd className="text-[#201E22]">
-                      {[admin.department, admin.position].filter(Boolean).join(" · ") || "—"}
-                    </dd>
-                  </dl>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 flex-1 text-xs"
-                      onClick={() => openEdit(admin)}
-                    >
-                      수정
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 flex-1 text-xs text-[#E11936] border-[#E11936]/30"
-                      onClick={() => handleDeactivateClick(admin)}
-                    >
-                      삭제
-                    </Button>
-                  </div>
-                </article>
-              ))}
-            </div>
+            {toolbar}
+            {platform === "ppamong" ? (
+              <Button
+                type="button"
+                className="h-8 text-xs bg-[#E11936] hover:bg-[#B71C1C] text-white gap-1.5"
+                onClick={() => setLocation("/admin/staff/register")}
+              >
+                <Plus className="h-4 w-4" />
+                관리자 등록
+              </Button>
+            ) : null}
           </>
-        )}
-
-        <div className="mt-4 shrink-0">
+        }
+        footer={
           <AdminPagination
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={setCurrentPage}
           />
-        </div>
-      </AdminPageShell>
+        }
+      >
+        <AdminCompactTableShell
+          minWidth={680}
+          isLoading={isLoading}
+          loadingCols={6}
+          emptyMessage={
+            admins.length === 0
+              ? platform === "ppamong"
+                ? "등록된 빠몽 관리자가 없습니다."
+                : "빠던9 레거시 관리자가 없습니다."
+              : undefined
+          }
+        >
+          {admins.length > 0 ? (
+            <AdminCompactTable minWidth={680}>
+              <thead>
+                <tr className={adminCompactTheadRowClass}>
+                  <th className={adminCompactThClass}>이름</th>
+                  <th className={adminCompactThClass}>아이디</th>
+                  <th className={adminCompactThClass}>연락처</th>
+                  <th className={adminCompactThClass}>부서 / 직책</th>
+                  <th className={`${adminCompactThClass} text-center`}>상태</th>
+                  <th className={`${adminCompactThClass} text-center w-28`}>관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {admins.map((admin, index) => (
+                  <tr key={admin.id} className={adminCompactTrClass} data-testid={`admin-row-${index}`}>
+                    <td className={adminCompactTdClass}>
+                      <p className="font-semibold">{admin.name}</p>
+                      <p className="text-[10px] text-[#888] truncate max-w-[140px]" title={admin.email}>
+                        {admin.email}
+                      </p>
+                    </td>
+                    <td className={`${adminCompactTdClass} font-mono text-[#444] whitespace-nowrap`}>
+                      {admin.username}
+                    </td>
+                    <td className={`${adminCompactTdClass} tabular-nums whitespace-nowrap`}>
+                      {admin.phone}
+                    </td>
+                    <td className={`${adminCompactTdClass} whitespace-nowrap`}>
+                      {[admin.department, admin.position].filter(Boolean).join(" · ") || "—"}
+                    </td>
+                    <td className={`${adminCompactTdClass} text-center`}>
+                      <StaffStatusBadge status={admin.status} />
+                    </td>
+                    <td className={adminCompactTdClass}>
+                      <div className="flex items-center justify-center gap-1">
+                        {platform === "ppamong" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openEdit(admin)}
+                              className="px-2 py-0.5 text-[10px] font-medium text-[#4285F4] border border-[#4285F4]/30 rounded hover:bg-[#EEF4FF]"
+                              data-testid={`button-edit-${index}`}
+                            >
+                              수정
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeactivateClick(admin)}
+                              className="px-2 py-0.5 text-[10px] font-medium text-[#E11936] border border-[#E11936]/30 rounded hover:bg-[#FFF5F6]"
+                              data-testid={`button-deactivate-${index}`}
+                            >
+                              삭제
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-[#AAA]">조회 전용</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </AdminCompactTable>
+          ) : null}
+        </AdminCompactTableShell>
+      </AdminCompactListPage>
 
       {deactivateConfirmOpen && selectedAdminForDeactivate && (
         <SimpleConfirmPopup

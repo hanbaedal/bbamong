@@ -1,10 +1,44 @@
 import { InquiryModel, UserModel, getNextSequence } from "./db";
 import type { Inquiry, InsertInquiry } from "@shared/schema";
+import {
+  BADMINTON9_REVENUE_MONGO_FILTER,
+  PPAMONG_REVENUE_MONGO_FILTER,
+  REVENUE_SOURCE_PPAMONG,
+  revenuePlatformFilter,
+  type RevenuePlatform,
+} from "../utils/revenuePlatform";
+
+export interface InquiryListResponse {
+  data: Array<
+    Inquiry & {
+      userName: string;
+      userUsername: string;
+    }
+  >;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  pendingCount: number;
+  resolvedCount: number;
+  platform: RevenuePlatform;
+  counts: { ppamong: number; badminton9: number };
+}
+
+function statusFilterFromTab(status?: string): Record<string, string> | undefined {
+  if (status === "답변 대기") return { status: "pending" };
+  if (status === "답변 완료") return { status: "resolved" };
+  return undefined;
+}
 
 export class InquiryStorage {
   async createInquiry(inquiry: InsertInquiry): Promise<Inquiry> {
     const id = await getNextSequence("inquiry");
-    const doc = await InquiryModel.create({ id, ...inquiry });
+    const doc = await InquiryModel.create({
+      id,
+      ...inquiry,
+      dataSource: REVENUE_SOURCE_PPAMONG,
+    });
     return doc.toObject() as Inquiry;
   }
 
@@ -51,23 +85,26 @@ export class InquiryStorage {
     await InquiryModel.deleteOne({ id });
   }
 
-  async getAllInquiries(status?: string, page: number = 1, limit: number = 8) {
-    let statusFilter: Record<string, string> | undefined;
-    if (status === "답변 대기") {
-      statusFilter = { status: "pending" };
-    } else if (status === "답변 완료") {
-      statusFilter = { status: "resolved" };
-    }
-
-    const filter = statusFilter ?? {};
+  async getAllInquiries(
+    status?: string,
+    page: number = 1,
+    limit: number = 8,
+    platform: RevenuePlatform = "ppamong",
+  ): Promise<InquiryListResponse> {
+    const statusFilter = statusFilterFromTab(status);
+    const platformFilter = revenuePlatformFilter(platform);
+    const filter = statusFilter ? { ...platformFilter, ...statusFilter } : platformFilter;
     const offset = (page - 1) * limit;
 
-    const [total, inquiries, pendingCount, resolvedCount] = await Promise.all([
-      InquiryModel.countDocuments(filter),
-      InquiryModel.find(filter).sort({ id: -1 }).skip(offset).limit(limit).lean(),
-      InquiryModel.countDocuments({ status: "pending" }),
-      InquiryModel.countDocuments({ status: "resolved" }),
-    ]);
+    const [total, inquiries, pendingCount, resolvedCount, ppamongCount, badminton9Count] =
+      await Promise.all([
+        InquiryModel.countDocuments(filter),
+        InquiryModel.find(filter).sort({ id: -1 }).skip(offset).limit(limit).lean(),
+        InquiryModel.countDocuments({ ...platformFilter, status: "pending" }),
+        InquiryModel.countDocuments({ ...platformFilter, status: "resolved" }),
+        InquiryModel.countDocuments(PPAMONG_REVENUE_MONGO_FILTER),
+        InquiryModel.countDocuments(BADMINTON9_REVENUE_MONGO_FILTER),
+      ]);
 
     const totalPages = Math.ceil(total / limit);
 
@@ -90,6 +127,8 @@ export class InquiryStorage {
       totalPages,
       pendingCount,
       resolvedCount,
+      platform,
+      counts: { ppamong: ppamongCount, badminton9: badminton9Count },
     };
   }
 }

@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { adminAuthMiddleware } from "../middleware/adminAuth";
+import { parseMemberPlatform } from "../utils/memberPlatform";
 import {
   ensureOperatorsReady,
   listOperatorAccounts,
@@ -10,9 +11,10 @@ import {
 } from "../managerOperatorService";
 
 export async function operatorAdminRoutes(app: Express): Promise<void> {
-  app.get("/api/admin/operators", adminAuthMiddleware, async (_req, res) => {
+  app.get("/api/admin/operators", adminAuthMiddleware, async (req, res) => {
     try {
-      const data = await listOperatorAccounts();
+      const platform = parseMemberPlatform(req.query.platform);
+      const data = await listOperatorAccounts(platform);
       res.json(data);
     } catch (error) {
       console.error("운영자 계정 목록 조회 실패:", error);

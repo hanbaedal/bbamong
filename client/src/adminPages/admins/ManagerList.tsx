@@ -15,6 +15,15 @@ import {
   operatorMatchPhaseBadgeClass,
   type OperatorMatchPhase,
 } from "@shared/operatorMatchStatus";
+import type { OpsPlatform } from "../ops/opsLoginStatusUi";
+import {
+  AdminCompactListPage,
+  AdminCompactTable,
+  AdminCompactTableShell,
+  adminCompactTdClass,
+  adminCompactThClass,
+  adminCompactTheadRowClass,
+} from "../components/adminCompactListUi";
 
 interface OperatorAccount {
   id: string;
@@ -36,6 +45,8 @@ interface OperatorAccount {
 interface OperatorsResponse {
   operators: OperatorAccount[];
   todayMatches: unknown[];
+  platform: OpsPlatform;
+  counts: { ppamong: number; badminton9: number };
 }
 
 const OPERATOR_ROW_TINT: Record<number, string> = {
@@ -92,6 +103,7 @@ function operatorWithToken(op: OperatorAccount, tokenOverride?: string): Operato
 
 export default function ManagerListPage() {
   const { toast } = useToast();
+  const [platform, setPlatform] = useState<OpsPlatform>("ppamong");
   const showQrButton = useMemo(() => !canUseNativeShare(), []);
   const [qrModal, setQrModal] = useState<{
     username: string;
@@ -99,17 +111,19 @@ export default function ManagerListPage() {
   } | null>(null);
 
   const { data, isLoading, refetch } = useQuery<OperatorsResponse>({
-    queryKey: ["/api/admin/operators"],
+    queryKey: ["/api/admin/operators", platform],
     queryFn: async () => {
-      const response = await adminFetch("/api/admin/operators");
+      const response = await adminFetch(`/api/admin/operators?platform=${platform}`);
       if (!response.ok) throw new Error("Failed to fetch operators");
       return response.json();
     },
     refetchOnMount: true,
-    refetchInterval: 60_000,
+    refetchInterval: platform === "ppamong" ? 60_000 : false,
   });
 
   const operators = data?.operators ?? [];
+  const counts = data?.counts ?? { ppamong: 0, badminton9: 0 };
+  const isPpamong = platform === "ppamong";
 
   const rotateMutation = useMutation({
     mutationFn: async (operatorId: string) => {
@@ -130,9 +144,11 @@ export default function ManagerListPage() {
             )
           : result.operators;
 
-      queryClient.setQueryData(["/api/admin/operators"], {
+      queryClient.setQueryData(["/api/admin/operators", platform], {
         operators,
         todayMatches: result.todayMatches,
+        platform,
+        counts: result.counts ?? counts,
       });
 
       const opForCopy = canUseLink && op ? operatorWithToken(op, freshToken) : null;
@@ -161,9 +177,11 @@ export default function ManagerListPage() {
       return res.json() as Promise<OperatorsResponse & { message?: string }>;
     },
     onSuccess: (result) => {
-      queryClient.setQueryData(["/api/admin/operators"], {
+      queryClient.setQueryData(["/api/admin/operators", platform], {
         operators: result.operators,
         todayMatches: result.todayMatches,
+        platform,
+        counts: result.counts ?? counts,
       });
       toast({ description: result.message ?? "API 동기화 설정이 변경되었습니다." });
     },
@@ -244,105 +262,128 @@ export default function ManagerListPage() {
 
   return (
     <AdminLayout>
-      <div className="flex flex-col h-full min-h-0 -mx-3 sm:-mx-4 md:-mx-5 lg:-mx-6 xl:-mx-8">
-        <div className="flex justify-end mb-2 shrink-0 px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8">
+      <AdminCompactListPage
+        title="운영자 리스트"
+        platformTabs={{
+          platform,
+          counts,
+          onChange: setPlatform,
+          ppamongSublabel: "op1~op5 현장 운영",
+          badminton9Sublabel: "PG 레거시 매니저",
+          countLabel: "명",
+        }}
+        actions={
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => refetch()}>
             새로고침
           </Button>
-        </div>
-
-        <div className="flex-1 overflow-auto min-h-0 w-full">
-          {isLoading ? (
-            <div className="border-y border-[#E8E4F3] bg-[#FAFAFA] py-10 text-center text-sm text-[#888]">
-              불러오는 중...
-            </div>
-          ) : operators.length === 0 ? (
-            <div className="mx-3 sm:mx-4 rounded-lg border border-dashed border-[#E0E0E0] bg-[#FAFAFA] p-12 text-center">
-              <p className="text-sm text-[#888]">
-                운영자 계정이 없습니다. 운영자 등록 메뉴에서 계정을 생성하세요.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto border-y border-[#E8E4F3] w-full">
-              <table className="w-full text-xs sm:text-sm min-w-[960px] border-collapse">
-                <thead>
-                  <tr className="bg-[#F3F0FF] border-b border-[#E8E4F3] text-left text-[11px] sm:text-xs text-[#6B5B95]">
-                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap">운영자</th>
-                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap min-w-[160px]">담당경기</th>
-                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap min-w-[130px]">경기시간</th>
-                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-center">경기</th>
-                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-center">링크</th>
-                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap text-center">계정</th>
-                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap min-w-[120px]">최근로그인</th>
-                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap">비밀번호</th>
-                    <th className="px-2.5 py-2 font-semibold whitespace-nowrap min-w-[220px]">관리</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {operators.map((op, index) => (
-                    <tr
-                      key={op.id}
-                      className={`border-b border-[#EDE9F6]/80 transition-colors align-middle ${operatorRowTint(op.operatorSlot)}`}
-                      data-testid={`manager-row-${index}`}
-                    >
-                      <td className="px-2.5 py-2 font-bold text-[#201E22] whitespace-nowrap">
-                        {op.username}
-                      </td>
-                      <td className="px-2.5 py-2 text-[#201E22] whitespace-nowrap">
-                        <span className="font-medium" title={op.assignedMatchNumber ?? undefined}>
+        }
+      >
+        <AdminCompactTableShell
+          minWidth={isPpamong ? 960 : 640}
+          isLoading={isLoading}
+          loadingCols={isPpamong ? 9 : 5}
+          emptyMessage={
+            operators.length === 0
+              ? isPpamong
+                ? "빠몽 운영자 계정이 없습니다."
+                : "빠던9 레거시 운영자가 없습니다."
+              : undefined
+          }
+        >
+          {operators.length > 0 ? (
+            <AdminCompactTable minWidth={isPpamong ? 960 : 640}>
+              <thead>
+                <tr className={adminCompactTheadRowClass}>
+                  <th className={adminCompactThClass}>운영자</th>
+                  {isPpamong ? (
+                    <>
+                      <th className={adminCompactThClass}>담당경기</th>
+                      <th className={adminCompactThClass}>경기시간</th>
+                      <th className={`${adminCompactThClass} text-center`}>경기</th>
+                      <th className={`${adminCompactThClass} text-center`}>링크</th>
+                    </>
+                  ) : (
+                    <th className={adminCompactThClass}>담당경기</th>
+                  )}
+                  <th className={`${adminCompactThClass} text-center`}>계정</th>
+                  <th className={adminCompactThClass}>최근로그인</th>
+                  {isPpamong ? (
+                    <>
+                      <th className={adminCompactThClass}>비밀번호</th>
+                      <th className={`${adminCompactThClass} min-w-[220px]`}>관리</th>
+                    </>
+                  ) : (
+                    <th className={adminCompactThClass}>비밀번호</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {operators.map((op, index) => (
+                  <tr
+                    key={op.id}
+                    className={`border-b border-[#EDE9F6]/80 align-middle ${isPpamong ? operatorRowTint(op.operatorSlot) : "bg-[#F0F7FF]"}`}
+                    data-testid={`manager-row-${index}`}
+                  >
+                    <td className={`${adminCompactTdClass} font-bold whitespace-nowrap`}>{op.username}</td>
+                    {isPpamong ? (
+                      <>
+                        <td className={`${adminCompactTdClass} whitespace-nowrap`}>
                           {op.assignedMatchNumber ?? "—"}
-                        </span>
-                      </td>
-                      <td className="px-2.5 py-2 text-[#666] tabular-nums whitespace-nowrap">
-                        {op.assignedMatchDetail && op.assignedMatchDetail !== "(오늘 경기 없음)"
-                          ? op.assignedMatchDetail
-                          : "—"}
-                      </td>
-                      <td className="px-2.5 py-2 text-center whitespace-nowrap">
-                        {op.assignedMatchStatusLabel ? (
+                        </td>
+                        <td className={`${adminCompactTdClass} text-[#666] tabular-nums whitespace-nowrap`}>
+                          {op.assignedMatchDetail && op.assignedMatchDetail !== "(오늘 경기 없음)"
+                            ? op.assignedMatchDetail
+                            : "—"}
+                        </td>
+                        <td className={`${adminCompactTdClass} text-center whitespace-nowrap`}>
+                          {op.assignedMatchStatusLabel ? (
+                            <span
+                              className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${operatorMatchPhaseBadgeClass(op.assignedMatchStatusLabel)}`}
+                            >
+                              {op.assignedMatchStatusLabel}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className={`${adminCompactTdClass} text-center whitespace-nowrap`}>
                           <span
-                            className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${operatorMatchPhaseBadgeClass(op.assignedMatchStatusLabel)}`}
+                            className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${linkStatusBadgeClass(op.loginLinkActive)}`}
                           >
-                            {op.assignedMatchStatusLabel}
+                            {op.loginLinkActive ? "발급" : "없음"}
                           </span>
-                        ) : (
-                          <span className="text-[#BDBDBD]">—</span>
-                        )}
+                        </td>
+                      </>
+                    ) : (
+                      <td className={`${adminCompactTdClass} whitespace-nowrap`}>
+                        {op.assignedMatchNumber ?? "—"}
                       </td>
-                      <td className="px-2.5 py-2 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${linkStatusBadgeClass(op.loginLinkActive)}`}
-                        >
-                          {op.loginLinkActive ? "발급" : "없음"}
-                        </span>
-                      </td>
-                      <td className="px-2.5 py-2 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${accountStatusBadgeClass(op.status)} ${operatorAccountStatusClass(op.status)}`}
-                        >
-                          {op.status}
-                        </span>
-                      </td>
-                      <td className="px-2.5 py-2 text-[#666] tabular-nums whitespace-nowrap text-[11px]">
-                        {op.lastLogin ? new Date(op.lastLogin).toLocaleString("ko-KR") : "—"}
-                      </td>
-                      <td className="px-2.5 py-2 whitespace-nowrap">
-                        <span
-                          className="inline-block font-mono text-xs font-bold text-[#C62828] bg-[#FFF5F6] border border-[#FFCDD2] rounded px-1.5 py-0.5 tracking-wide select-all"
-                          data-testid={`operator-password-${index}`}
-                        >
-                          {op.dailyPasswordPlain || "—"}
-                        </span>
-                      </td>
-                      <td className="px-2.5 py-2">{renderActionButtons(op, index)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
+                    )}
+                    <td className={`${adminCompactTdClass} text-center whitespace-nowrap`}>
+                      <span
+                        className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${accountStatusBadgeClass(op.status)} ${operatorAccountStatusClass(op.status)}`}
+                      >
+                        {op.status}
+                      </span>
+                    </td>
+                    <td className={`${adminCompactTdClass} text-[#666] tabular-nums whitespace-nowrap text-[11px]`}>
+                      {op.lastLogin ? new Date(op.lastLogin).toLocaleString("ko-KR") : "—"}
+                    </td>
+                    <td className={`${adminCompactTdClass} whitespace-nowrap`}>
+                      <span className="font-mono text-[11px] font-bold text-[#C62828] bg-[#FFF5F6] border border-[#FFCDD2] rounded px-1.5 py-0.5">
+                        {op.dailyPasswordPlain || "—"}
+                      </span>
+                    </td>
+                    {isPpamong ? (
+                      <td className={adminCompactTdClass}>{renderActionButtons(op, index)}</td>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </AdminCompactTable>
+          ) : null}
+        </AdminCompactTableShell>
+      </AdminCompactListPage>
 
       {qrModal && (
         <div

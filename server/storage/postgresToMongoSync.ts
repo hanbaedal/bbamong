@@ -110,7 +110,13 @@ const SYNC_TABLES: SyncTableDef[] = [
   { pgTable: "notices", label: "공지사항", model: NoticeModel, counterName: "notice", normalizeDoc: normalizeLegacyDataSourceDoc },
   { pgTable: "terms", label: "약관", model: TermModel, counterName: "term" },
   { pgTable: "faqs", label: "FAQ", model: FaqModel, counterName: "faq" },
-  { pgTable: "inquiries", label: "문의", model: InquiryModel, counterName: "inquiry" },
+  {
+    pgTable: "inquiries",
+    label: "문의",
+    model: InquiryModel,
+    counterName: "inquiry",
+    normalizeDoc: normalizeLegacyDataSourceDoc,
+  },
   { pgTable: "comments", label: "댓글", model: CommentModel, counterName: "comment" },
   {
     pgTable: "ebook_purchases",

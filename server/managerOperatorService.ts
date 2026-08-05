@@ -21,6 +21,11 @@ import {
   isConfirmedPostponedMatch,
 } from "../shared/apiSportsStatus";
 import { resolveMatchTeamNames } from "../shared/matchTeamDisplay";
+import type { AdminPlatform } from "../utils/staffUsername";
+import {
+  BADMINTON9_MANAGER_MONGO_FILTER,
+  PPAMONG_MANAGER_MONGO_FILTER,
+} from "./utils/managerPlatform";
 
 export const OPERATOR_USERNAMES = ["op1", "op2", "op3", "op4", "op5"] as const;
 const OPERATOR_COUNT = 5;
@@ -734,10 +739,50 @@ export interface OperatorAccountView {
   operatorSlot: number;
 }
 
-export async function listOperatorAccounts(): Promise<{
+export async function listOperatorAccounts(platform: AdminPlatform = "ppamong"): Promise<{
   operators: OperatorAccountView[];
   todayMatches: OrderedTodayMatch[];
+  platform: AdminPlatform;
+  counts: { ppamong: number; badminton9: number };
 }> {
+  const [ppamongCount, badminton9Count] = await Promise.all([
+    AdminUserModel.countDocuments(PPAMONG_MANAGER_MONGO_FILTER),
+    AdminUserModel.countDocuments(BADMINTON9_MANAGER_MONGO_FILTER),
+  ]);
+
+  if (platform === "badminton9") {
+    const docs = await AdminUserModel.find(BADMINTON9_MANAGER_MONGO_FILTER)
+      .select(
+        "id username name assignedMatchNumber status dailyPasswordPlain lastLogin operatorSlot",
+      )
+      .sort({ username: 1 })
+      .lean();
+
+    const operators: OperatorAccountView[] = docs.map((doc) => ({
+      id: doc.id,
+      username: doc.username,
+      name: doc.name,
+      assignedMatchNumber: doc.assignedMatchNumber ?? null,
+      assignedMatchStatusLabel: null,
+      assignedMatchDetail: null,
+      status: doc.status ?? "활성화",
+      dailyPasswordPlain: (doc as { dailyPasswordPlain?: string }).dailyPasswordPlain ?? "",
+      dailyPasswordDate: "",
+      loginLinkToken: "",
+      loginLinkActive: false,
+      apiSyncEnabled: false,
+      lastLogin: doc.lastLogin ?? null,
+      operatorSlot: 0,
+    }));
+
+    return {
+      operators,
+      todayMatches: [],
+      platform,
+      counts: { ppamong: ppamongCount, badminton9: badminton9Count },
+    };
+  }
+
   await ensureOperatorsReady();
   await syncAllOperatorAccountStatuses();
 
@@ -795,6 +840,8 @@ export async function listOperatorAccounts(): Promise<{
   return {
     operators: operators.sort((a, b) => a.operatorSlot - b.operatorSlot),
     todayMatches,
+    platform,
+    counts: { ppamong: ppamongCount, badminton9: badminton9Count },
   };
 }
 

@@ -16,6 +16,9 @@ export interface MemberPaginatedMeta {
 
 export const memberCompactTableClass = "w-full text-xs min-w-[480px]";
 
+export const memberTheadRowClass =
+  "bg-[#F3F0FF] border-b border-[#E8E4F3] text-left text-[11px] text-[#6B5B95]";
+
 export function MemberPlatformTabsBar({
   platform,
   counts,
@@ -93,7 +96,7 @@ export function truncateText(value: string | null | undefined, max = 14): string
   return value.length > max ? `${value.slice(0, max)}…` : value;
 }
 
-export const memberThClass = "px-2.5 py-2 font-medium text-[#888] whitespace-nowrap";
-export const memberTdClass = "px-2.5 py-1.5 text-[#201E22] align-middle";
+export const memberThClass = "px-2 py-2 font-semibold whitespace-nowrap text-[#6B5B95]";
+export const memberTdClass = "px-2 py-1.5 text-[#201E22] align-middle";
 export const memberRowClass =
-  "border-b border-[#F0F0F0] bg-white hover:bg-[#FFFBFB] transition-colors";
+  "border-b border-[#EDE9F6]/80 hover:bg-[#FAFAFA] transition-colors";

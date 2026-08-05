@@ -180,6 +180,7 @@ const inquirySchema = new Schema(
     content: { type: String, required: true },
     status: { type: String, default: "pending" },
     response: { type: String, default: null },
+    dataSource: { type: String, default: "" },
     createdAt: { type: Date, default: Date.now },
   },
   { versionKey: false },

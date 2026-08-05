@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { inquiryStorage as storage } from "../UserStorage/inquiryStorage";
 import { insertInquirySchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
+import { parseMemberPlatform } from "../utils/memberPlatform";
 
 export async function inquiryRoutes(app: Express): Promise<void> {
   // 문의 등록
@@ -106,8 +107,9 @@ export async function inquiryRoutes(app: Express): Promise<void> {
       const status = req.query.status as string;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 8;
+      const platform = parseMemberPlatform(req.query.platform);
 
-      const result = await storage.getAllInquiries(status, page, limit);
+      const result = await storage.getAllInquiries(status, page, limit, platform);
       return res.json(result);
     } catch (error) {
       console.error("Get all inquiries error:", error);

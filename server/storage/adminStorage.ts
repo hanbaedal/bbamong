@@ -2,7 +2,10 @@ import { randomUUID } from "crypto";
 import { AdminUserModel } from "../UserStorage/db";
 import type { InsertAdminUser, AdminUser, User } from "@shared/schema";
 import { UserModel } from "../UserStorage/db";
-import { STAFF_USERNAME_REGEX } from "../utils/staffUsername";
+import {
+  STAFF_USERNAME_REGEX,
+  type AdminPlatform,
+} from "../utils/staffUsername";
 
 export interface IAdminStorage {
   createAdminUser(data: InsertAdminUser): Promise<AdminUser>;
@@ -21,21 +24,55 @@ export interface IAdminStorage {
     status: "대기중" | "승인" | "거부",
     page: number,
     limit: number,
-  ): Promise<{ data: AdminUser[]; total: number; pendingCount: number; approvedCount: number }>;
+    platform?: AdminPlatform,
+  ): Promise<{
+    data: AdminUser[];
+    total: number;
+    pendingCount: number;
+    approvedCount: number;
+    platform: AdminPlatform;
+    counts: { ppamong: number; badminton9: number };
+  }>;
   searchAdminUsersByStatus(
     status: "대기중" | "승인" | "거부",
     searchQuery: string,
     filterType: "전체" | "부서" | "직책",
     page: number,
     limit: number,
-  ): Promise<{ data: AdminUser[]; total: number; pendingCount: number; approvedCount: number }>;
+    platform?: AdminPlatform,
+  ): Promise<{
+    data: AdminUser[];
+    total: number;
+    pendingCount: number;
+    approvedCount: number;
+    platform: AdminPlatform;
+    counts: { ppamong: number; badminton9: number };
+  }>;
 }
 
-/** 슈퍼바이저 등록 관리자만 (ppamong.XX · 빠던9 레거시 제외) */
-const STAFF_LIST_FILTER = {
+/** 슈퍼바이저 등록 관리자만 (ppamong.XX) */
+const PPAMONG_STAFF_LIST_FILTER = {
   userType: "일반어드민" as const,
   username: { $regex: STAFF_USERNAME_REGEX },
 };
+
+/** 빠던9 레거시 일반어드민 (ppamong.XX 제외) */
+const BADMINTON9_STAFF_LIST_FILTER = {
+  userType: "일반어드민" as const,
+  username: { $not: STAFF_USERNAME_REGEX },
+};
+
+function staffListPlatformFilter(platform: AdminPlatform): Record<string, unknown> {
+  return platform === "ppamong" ? PPAMONG_STAFF_LIST_FILTER : BADMINTON9_STAFF_LIST_FILTER;
+}
+
+async function staffPlatformCounts(status: "대기중" | "승인" | "거부") {
+  const [ppamong, badminton9] = await Promise.all([
+    AdminUserModel.countDocuments({ approvalStatus: status, ...PPAMONG_STAFF_LIST_FILTER }),
+    AdminUserModel.countDocuments({ approvalStatus: status, ...BADMINTON9_STAFF_LIST_FILTER }),
+  ]);
+  return { ppamong, badminton9 };
+}
 
 export class AdminStorage implements IAdminStorage {
   async createAdminUser(data: InsertAdminUser): Promise<AdminUser> {
@@ -120,18 +157,24 @@ export class AdminStorage implements IAdminStorage {
     return doc ? (doc as User) : undefined;
   }
 
-  async getAdminUsersByStatus(status: "대기중" | "승인" | "거부", page = 1, limit = 8) {
+  async getAdminUsersByStatus(
+    status: "대기중" | "승인" | "거부",
+    page = 1,
+    limit = 8,
+    platform: AdminPlatform = "ppamong",
+  ) {
     const offset = (page - 1) * limit;
-    const baseFilter = { approvalStatus: status, ...STAFF_LIST_FILTER };
+    const baseFilter = { approvalStatus: status, ...staffListPlatformFilter(platform) };
 
-    const [total, pendingCount, approvedCount, data] = await Promise.all([
+    const [total, pendingCount, approvedCount, data, counts] = await Promise.all([
       AdminUserModel.countDocuments(baseFilter),
-      AdminUserModel.countDocuments({ approvalStatus: "대기중", ...STAFF_LIST_FILTER }),
-      AdminUserModel.countDocuments({ approvalStatus: "승인", ...STAFF_LIST_FILTER }),
+      AdminUserModel.countDocuments({ approvalStatus: "대기중", ...staffListPlatformFilter(platform) }),
+      AdminUserModel.countDocuments({ approvalStatus: "승인", ...staffListPlatformFilter(platform) }),
       AdminUserModel.find(baseFilter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+      staffPlatformCounts("승인"),
     ]);
 
-    return { data: data as AdminUser[], total, pendingCount, approvedCount };
+    return { data: data as AdminUser[], total, pendingCount, approvedCount, platform, counts };
   }
 
   async searchAdminUsersByStatus(
@@ -140,13 +183,14 @@ export class AdminStorage implements IAdminStorage {
     filterType: "전체" | "부서" | "직책",
     page = 1,
     limit = 8,
+    platform: AdminPlatform = "ppamong",
   ) {
     const offset = (page - 1) * limit;
     const regex = { $regex: searchQuery, $options: "i" };
 
     const searchFilter: Record<string, unknown> = {
       approvalStatus: status,
-      ...STAFF_LIST_FILTER,
+      ...staffListPlatformFilter(platform),
     };
 
     if (filterType === "전체") {
@@ -162,14 +206,15 @@ export class AdminStorage implements IAdminStorage {
       searchFilter.position = regex;
     }
 
-    const [total, pendingCount, approvedCount, data] = await Promise.all([
+    const [total, pendingCount, approvedCount, data, counts] = await Promise.all([
       AdminUserModel.countDocuments(searchFilter),
-      AdminUserModel.countDocuments({ approvalStatus: "대기중", ...STAFF_LIST_FILTER }),
-      AdminUserModel.countDocuments({ approvalStatus: "승인", ...STAFF_LIST_FILTER }),
+      AdminUserModel.countDocuments({ approvalStatus: "대기중", ...staffListPlatformFilter(platform) }),
+      AdminUserModel.countDocuments({ approvalStatus: "승인", ...staffListPlatformFilter(platform) }),
       AdminUserModel.find(searchFilter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+      staffPlatformCounts("승인"),
     ]);
 
-    return { data: data as AdminUser[], total, pendingCount, approvedCount };
+    return { data: data as AdminUser[], total, pendingCount, approvedCount, platform, counts };
   }
 
   async getTopDonors(page = 1, limit = 8): Promise<{ data: User[]; total: number }> {
