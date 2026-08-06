@@ -93,7 +93,9 @@ export function mapPathForLandscapeSplit(currentPath: string, targetPath: string
     if (targetBase === "/inquiry/create") return withQuery(`${HOME_INQUIRY_BASE}/new`, targetQuery);
     const m = targetBase.match(/^\/inquiry\/(\d+)$/);
     if (m) return withQuery(`${HOME_INQUIRY_BASE}/${m[1]}`, targetQuery);
-    if (targetBase === "/customer-center") return withQuery(HOME_INQUIRY_BASE, targetQuery);
+    if (targetBase === "/customer-center" || targetBase === HOME_INQUIRY_BASE) {
+      return withQuery(HOME_INQUIRY_BASE, targetQuery);
+    }
     return null;
   }
 
@@ -101,7 +103,9 @@ export function mapPathForLandscapeSplit(currentPath: string, targetPath: string
     if (targetBase === "/board/create") return withQuery(`${HOME_BOARD_BASE}/new`, targetQuery);
     const m = targetBase.match(/^\/board\/(\d+)$/);
     if (m) return withQuery(`${HOME_BOARD_BASE}/${m[1]}`, targetQuery);
-    if (targetBase === "/board") return withQuery(HOME_BOARD_BASE, targetQuery);
+    if (targetBase === "/board" || targetBase === HOME_BOARD_BASE) {
+      return withQuery(HOME_BOARD_BASE, targetQuery);
+    }
     return null;
   }
 

@@ -66,7 +66,7 @@ export default function CreatePostPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
-      navigateEmbed("/board?created=true", setLocation);
+      navigateEmbed("/home/board?created=true", setLocation);
     },
   });
 
@@ -74,7 +74,7 @@ export default function CreatePostPage() {
     if (title.trim() || content.trim()) {
       setShowBackConfirm(true);
     } else {
-      navigateEmbed("/board", setLocation);
+      navigateEmbed("/home/board", setLocation);
     }
   };
 
@@ -153,6 +153,17 @@ export default function CreatePostPage() {
           onBlur={handleBlur}
           className="w-full flex-1 bg-transparent text-white text-sm placeholder:text-[#6B6B6B] focus:outline-none resize-none min-h-[200px]"
         />
+        <div className="lscape-form-submit-bar">
+          <button
+            type="button"
+            data-testid="button-submit-post-inline"
+            onClick={handleSubmit}
+            disabled={createPostMutation.isPending}
+            className="lscape-form-submit-bar__btn"
+          >
+            {createPostMutation.isPending ? "등록중..." : "등록"}
+          </button>
+        </div>
       </div>
 
       <GuestRestrictionPopup show={showGuestPopup} onClose={() => setShowGuestPopup(false)} />

@@ -83,7 +83,7 @@ export default function InquiryCreatePage() {
         title: "성공",
         description: "문의가 등록되었습니다.",
       });
-      navigateEmbed("/customer-center", setLocation);
+      navigateEmbed("/home/inquiry", setLocation);
     },
     onError: (error: any) => {
       toast({
@@ -118,7 +118,7 @@ export default function InquiryCreatePage() {
       <PageHeader
         leftAction={
           <button
-            onClick={() => navigateEmbed("/customer-center", setLocation)}
+            onClick={() => navigateEmbed("/home/inquiry", setLocation)}
             data-testid="button-back"
             className="p-1 focus:outline-none focus-visible:outline-none"
           >
@@ -177,6 +177,17 @@ export default function InquiryCreatePage() {
             className="w-full h-full bg-transparent text-white placeholder:text-[#6B6B6B] border-0 py-3 focus:outline-none resize-none"
             data-testid="textarea-content"
           />
+        </div>
+        <div className="lscape-form-submit-bar">
+          <button
+            type="button"
+            data-testid="button-submit-inline"
+            onClick={handleSubmit}
+            disabled={createMutation.isPending}
+            className="lscape-form-submit-bar__btn"
+          >
+            {createMutation.isPending ? "등록 중..." : "등록"}
+          </button>
         </div>
       </div>
 
