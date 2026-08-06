@@ -65,12 +65,16 @@ export default function CustomerSupportPage() {
     setCurrentPage(1);
   }, [itemsPerPage, platform]);
 
-  const queryKey = canEdit
-    ? `/api/admin/inquiries?platform=ppamong&official=1&page=${currentPage}&limit=${itemsPerPage}`
-    : `/api/admin/inquiries?platform=badminton9&status=전체&page=${currentPage}&limit=${itemsPerPage}`;
+  const queryKey = `/api/admin/inquiries?platform=${platform}&page=${currentPage}&limit=${itemsPerPage}${
+    platform === "badminton9" ? "&status=전체" : ""
+  }`;
 
   const { data, isLoading } = useQuery<InquiryListResponse>({
     queryKey: [queryKey],
+    queryFn: async () => {
+      const res = await apiRequest("GET", queryKey);
+      return res.json();
+    },
     placeholderData: (previousData) => previousData,
   });
 

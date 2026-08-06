@@ -11,6 +11,9 @@ import {
 import {
   PPAMONG_OFFICIAL_AUTHOR_ID,
   PPAMONG_OFFICIAL_DISPLAY_NAME,
+  adminInquiryPlatformFilter,
+  countSupportPlatformInquiries,
+  ppamongOfficialInquiryFilter,
 } from "../utils/ppamongOfficialContent";
 
 export interface InquiryListResponse {
@@ -42,8 +45,7 @@ export class InquiryStorage {
     Array<Inquiry & { category: string; title: string; content: string; response: string | null }>
   > {
     const rows = await InquiryModel.find({
-      isOfficial: true,
-      ...PPAMONG_REVENUE_MONGO_FILTER,
+      ...ppamongOfficialInquiryFilter(),
       status: "resolved",
     })
       .sort({ id: -1 })
@@ -52,11 +54,7 @@ export class InquiryStorage {
   }
 
   async isOfficialPpamongInquiry(id: number): Promise<boolean> {
-    const row = await InquiryModel.findOne({
-      id,
-      isOfficial: true,
-      ...PPAMONG_REVENUE_MONGO_FILTER,
-    })
+    const row = await InquiryModel.findOne({ id, ...ppamongOfficialInquiryFilter() })
       .select("id")
       .lean();
     return !!row;
@@ -88,7 +86,7 @@ export class InquiryStorage {
     data: Partial<{ category: string; title: string; content: string; response: string }>,
   ): Promise<Inquiry | undefined> {
     const doc = await InquiryModel.findOneAndUpdate(
-      { id, isOfficial: true, ...PPAMONG_REVENUE_MONGO_FILTER },
+      { id, ...ppamongOfficialInquiryFilter() },
       data,
       { new: true },
     ).lean();
@@ -96,11 +94,7 @@ export class InquiryStorage {
   }
 
   async deleteOfficialInquiry(id: number): Promise<boolean> {
-    const result = await InquiryModel.deleteOne({
-      id,
-      isOfficial: true,
-      ...PPAMONG_REVENUE_MONGO_FILTER,
-    });
+    const result = await InquiryModel.deleteOne({ id, ...ppamongOfficialInquiryFilter() });
     return (result.deletedCount ?? 0) > 0;
   }
 
@@ -197,6 +191,52 @@ export class InquiryStorage {
     return { success: true, message: "문의가 삭제되었습니다." };
   }
 
+  async getAdminOfficialInquiries(
+    page = 1,
+    limit = 8,
+  ): Promise<InquiryListResponse> {
+    const filter = ppamongOfficialInquiryFilter();
+    const offset = (page - 1) * limit;
+    const [total, inquiries, counts] = await Promise.all([
+      InquiryModel.countDocuments(filter),
+      InquiryModel.find(filter).sort({ id: -1 }).skip(offset).limit(limit).lean(),
+      countSupportPlatformInquiries(),
+    ]);
+
+    const data = await Promise.all(
+      inquiries.map(async (row) => {
+        const isOfficial =
+          (row as Inquiry & { isOfficial?: boolean }).isOfficial ||
+          row.userId === PPAMONG_OFFICIAL_AUTHOR_ID;
+        if (isOfficial) {
+          return {
+            ...(row as Inquiry),
+            userName: PPAMONG_OFFICIAL_DISPLAY_NAME,
+            userUsername: "ppamong-official",
+          };
+        }
+        const user = await UserModel.findOne({ id: row.userId }).select("name username").lean();
+        return {
+          ...(row as Inquiry),
+          userName: user?.name || "Unknown",
+          userUsername: user?.username || "Unknown",
+        };
+      }),
+    );
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+      pendingCount: 0,
+      resolvedCount: total,
+      platform: "ppamong",
+      counts,
+    };
+  }
+
   async getAllInquiries(
     status?: string,
     page: number = 1,
@@ -204,19 +244,17 @@ export class InquiryStorage {
     platform: RevenuePlatform = "ppamong",
   ): Promise<InquiryListResponse> {
     const statusFilter = statusFilterFromTab(status);
-    const platformFilter = revenuePlatformFilter(platform);
+    const platformFilter = adminInquiryPlatformFilter(platform);
     const filter = statusFilter ? { ...platformFilter, ...statusFilter } : platformFilter;
     const offset = (page - 1) * limit;
 
-    const [total, inquiries, pendingCount, resolvedCount, ppamongCount, badminton9Count] =
-      await Promise.all([
-        InquiryModel.countDocuments(filter),
-        InquiryModel.find(filter).sort({ id: -1 }).skip(offset).limit(limit).lean(),
-        InquiryModel.countDocuments({ ...platformFilter, status: "pending" }),
-        InquiryModel.countDocuments({ ...platformFilter, status: "resolved" }),
-        InquiryModel.countDocuments(PPAMONG_REVENUE_MONGO_FILTER),
-        InquiryModel.countDocuments(BADMINTON9_REVENUE_MONGO_FILTER),
-      ]);
+    const [total, inquiries, pendingCount, resolvedCount, counts] = await Promise.all([
+      InquiryModel.countDocuments(filter),
+      InquiryModel.find(filter).sort({ id: -1 }).skip(offset).limit(limit).lean(),
+      InquiryModel.countDocuments({ ...platformFilter, status: "pending" }),
+      InquiryModel.countDocuments({ ...platformFilter, status: "resolved" }),
+      countSupportPlatformInquiries(),
+    ]);
 
     const totalPages = Math.ceil(total / limit);
 
@@ -240,7 +278,7 @@ export class InquiryStorage {
       pendingCount,
       resolvedCount,
       platform,
-      counts: { ppamong: ppamongCount, badminton9: badminton9Count },
+      counts,
     };
   }
 }

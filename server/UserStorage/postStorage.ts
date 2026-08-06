@@ -13,6 +13,9 @@ import {
 import {
   PPAMONG_OFFICIAL_AUTHOR_ID,
   PPAMONG_OFFICIAL_DISPLAY_NAME,
+  adminSupportPlatformFilter,
+  countSupportPlatformPosts,
+  ppamongOfficialPostFilter,
 } from "../utils/ppamongOfficialContent";
 
 export interface AdminPostListItem extends Post {
@@ -40,10 +43,7 @@ export interface AdminPostDetail extends Post {
 export class PostStorage {
   /** 앱 게시판 — 빠몽 운영자(공식) 글만 */
   async getOfficialPosts(): Promise<Array<Post & { authorName: string }>> {
-    const posts = await PostModel.find({
-      isOfficial: true,
-      ...PPAMONG_REVENUE_MONGO_FILTER,
-    })
+    const posts = await PostModel.find(ppamongOfficialPostFilter())
       .sort({ createdAt: -1 })
       .lean();
 
@@ -54,11 +54,7 @@ export class PostStorage {
   }
 
   async isOfficialPpamongPost(id: number): Promise<boolean> {
-    const post = await PostModel.findOne({
-      id,
-      isOfficial: true,
-      ...PPAMONG_REVENUE_MONGO_FILTER,
-    })
+    const post = await PostModel.findOne({ id, ...ppamongOfficialPostFilter() })
       .select("id")
       .lean();
     return !!post;
@@ -83,7 +79,7 @@ export class PostStorage {
     data: Partial<{ title: string; content: string }>,
   ): Promise<Post | undefined> {
     const doc = await PostModel.findOneAndUpdate(
-      { id, isOfficial: true, ...PPAMONG_REVENUE_MONGO_FILTER },
+      { id, ...ppamongOfficialPostFilter() },
       data,
       { new: true },
     ).lean();
@@ -91,11 +87,7 @@ export class PostStorage {
   }
 
   async adminDeleteOfficialPost(id: number): Promise<boolean> {
-    const existing = await PostModel.findOne({
-      id,
-      isOfficial: true,
-      ...PPAMONG_REVENUE_MONGO_FILTER,
-    }).lean();
+    const existing = await PostModel.findOne({ id, ...ppamongOfficialPostFilter() }).lean();
     if (!existing) return false;
     await CommentModel.deleteMany({ postId: id });
     await PostModel.deleteOne({ id });
@@ -117,34 +109,37 @@ export class PostStorage {
     counts: { ppamong: number; badminton9: number };
   }> {
     const filter: Record<string, unknown> = {
-      isOfficial: true,
-      ...revenuePlatformFilter(platform),
+      ...adminSupportPlatformFilter(platform),
     };
     if (search?.trim()) {
       filter.title = { $regex: search.trim(), $options: "i" };
     }
     const offset = (page - 1) * limit;
-    const [total, posts, ppamongCount, badminton9Count] = await Promise.all([
+    const [total, posts, counts] = await Promise.all([
       PostModel.countDocuments(filter),
       PostModel.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
-      PostModel.countDocuments({ isOfficial: true, ...PPAMONG_REVENUE_MONGO_FILTER }),
-      PostModel.countDocuments({
-        isOfficial: true,
-        ...revenuePlatformFilter("badminton9"),
-      }),
+      countSupportPlatformPosts(),
     ]);
 
     return {
-      posts: posts.map((row) => ({
-        ...(row as Post),
-        authorName: PPAMONG_OFFICIAL_DISPLAY_NAME,
-      })),
+      posts: await Promise.all(
+        posts.map(async (row) => {
+          const isOfficial =
+            (row as Post & { isOfficial?: boolean }).isOfficial ||
+            row.authorId === PPAMONG_OFFICIAL_AUTHOR_ID;
+          if (isOfficial) {
+            return { ...(row as Post), authorName: PPAMONG_OFFICIAL_DISPLAY_NAME };
+          }
+          const author = await UserModel.findOne({ id: row.authorId }).select("name").lean();
+          return { ...(row as Post), authorName: author?.name || "Unknown" };
+        }),
+      ),
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit) || 1,
       platform,
-      counts: { ppamong: ppamongCount, badminton9: badminton9Count },
+      counts,
     };
   }
 

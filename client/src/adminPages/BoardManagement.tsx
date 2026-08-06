@@ -81,6 +81,10 @@ export default function BoardManagementPage() {
 
   const { data, isLoading } = useQuery<AdminPostListResponse>({
     queryKey: [listQueryKey],
+    queryFn: async () => {
+      const res = await apiRequest("GET", listQueryKey);
+      return res.json();
+    },
     placeholderData: (previousData) => previousData,
   });
 

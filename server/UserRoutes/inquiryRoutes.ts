@@ -157,29 +157,6 @@ export async function inquiryRoutes(app: Express): Promise<void> {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 8;
       const platform = parseMemberPlatform(req.query.platform);
-      const officialOnly = req.query.official === "1";
-
-      if (officialOnly && platform === "ppamong") {
-        const all = await storage.getOfficialInquiries();
-        const offset = (page - 1) * limit;
-        const slice = all.slice(offset, offset + limit);
-        return res.json({
-          data: slice.map((row) => ({
-            ...row,
-            userName: "빠몽",
-            userUsername: "ppamong-official",
-            status: "resolved",
-          })),
-          total: all.length,
-          page,
-          limit,
-          totalPages: Math.ceil(all.length / limit) || 1,
-          pendingCount: 0,
-          resolvedCount: all.length,
-          platform,
-          counts: { ppamong: all.length, badminton9: 0 },
-        });
-      }
 
       const result = await storage.getAllInquiries(status, page, limit, platform);
       return res.json(result);

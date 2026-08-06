@@ -18,6 +18,7 @@ import { getRedisClient } from "./redis";
 import { connectMongoDB } from "./UserStorage/db";
 import { ensureSuperAdmin } from "./bootstrapSuperAdmin";
 import { syncMemberDataSourceTags } from "./utils/memberDataSourceSync";
+import { backfillOfficialSupportContent } from "./utils/officialContentBackfill";
 import { ensureOperatorsReady, syncOperatorMatchAssignments } from "./managerOperatorService";
 import { startManagerDailyPasswordBatch } from "./managerDailyPasswordBatch";
 import { startMatchManagementSchedule } from "./apiSports/matchManagementSchedule";
@@ -182,6 +183,12 @@ app.use((req, res, next) => {
   if (memberTags.badminton9 > 0 || memberTags.ppamong > 0) {
     log(
       `Member dataSource sync: badminton9 ${memberTags.badminton9}, ppamong ${memberTags.ppamong}`,
+    );
+  }
+  const supportTags = await backfillOfficialSupportContent();
+  if (supportTags.posts > 0 || supportTags.inquiries > 0) {
+    log(
+      `Official support content backfill: posts ${supportTags.posts}, inquiries ${supportTags.inquiries}`,
     );
   }
   await ensureSuperAdmin();
