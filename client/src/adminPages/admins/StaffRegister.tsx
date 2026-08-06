@@ -133,92 +133,105 @@ export default function StaffRegisterPage() {
           <div className="rounded-lg border border-[#E9E9E9] bg-white p-3 sm:p-4">
             <p className="text-[11px] text-[#888] mb-3 pb-2 border-b border-[#F0F0F0]">
               슈퍼어드민 전용 · 빠몽 관리자 (
-              <span className="font-medium text-[#201E22]" data-testid="input-username">
+              <span className="font-medium text-[#201E22]" data-testid="preview-username">
                 {isUsernameLoading ? "…" : nextUsername || "—"}
               </span>
               ) 자동 부여
             </p>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-3 gap-y-2">
-              <CompactField label="이름" required className="col-span-2 md:col-span-1">
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  autoFocus
-                  placeholder="실명"
-                  className={inputClass}
-                  data-testid="input-name"
-                />
-              </CompactField>
-              <CompactField label="전화번호" required>
-                <Input
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="01012345678"
-                  required
-                  inputMode="tel"
-                  className={inputClass}
-                  data-testid="input-phone"
-                />
-              </CompactField>
-              <CompactField label="이메일" required>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                  className={inputClass}
-                  data-testid="input-email"
-                />
-              </CompactField>
-              <CompactField label="부서">
-                <Input
-                  value={formData.department}
-                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                  className={inputClass}
-                  data-testid="input-department"
-                />
-              </CompactField>
-              <CompactField label="직책">
-                <Input
-                  value={formData.position}
-                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                  className={inputClass}
-                  data-testid="input-position"
-                />
-              </CompactField>
-              <CompactField label="아이디" required>
-                <Input
-                  value={isUsernameLoading ? "불러오는 중…" : nextUsername}
-                  readOnly
-                  className={`${inputClass} bg-[#FAFAFA] font-medium`}
-                  data-testid="input-username-field"
-                />
-              </CompactField>
-              <CompactField label="비밀번호" required>
-                <div className="relative">
+            <div className="space-y-2">
+              {/* 1행: 이름 | 전화번호 */}
+              <div className="grid grid-cols-2 gap-x-3">
+                <CompactField label="이름" required>
                   <Input
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
-                    minLength={6}
-                    autoComplete="new-password"
-                    className={`${inputClass} pr-8`}
-                    data-testid="input-password"
+                    autoFocus
+                    placeholder="실명"
+                    className={inputClass}
+                    data-testid="input-name"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#414141] p-0.5"
-                    aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                  >
-                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-              </CompactField>
-              <CompactField label="메모" className="col-span-2 md:col-span-3">
+                </CompactField>
+                <CompactField label="전화번호" required>
+                  <Input
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="01012345678"
+                    required
+                    inputMode="tel"
+                    className={inputClass}
+                    data-testid="input-phone"
+                  />
+                </CompactField>
+              </div>
+
+              {/* 2행: 아이디 | 비밀번호 */}
+              <div className="grid grid-cols-2 gap-x-3">
+                <CompactField label="아이디" required>
+                  <Input
+                    value={isUsernameLoading ? "불러오는 중…" : nextUsername}
+                    readOnly
+                    className={`${inputClass} bg-[#FAFAFA] font-medium`}
+                    data-testid="input-username-field"
+                  />
+                </CompactField>
+                <CompactField label="비밀번호" required>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                      className={`${inputClass} pr-8`}
+                      data-testid="input-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#888] hover:text-[#414141] p-0.5"
+                      aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </CompactField>
+              </div>
+
+              {/* 3행: 이메일 | 부서 | 직책 */}
+              <div className="grid grid-cols-3 gap-x-3">
+                <CompactField label="이메일" required>
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                    className={inputClass}
+                    data-testid="input-email"
+                  />
+                </CompactField>
+                <CompactField label="부서">
+                  <Input
+                    value={formData.department}
+                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    className={inputClass}
+                    data-testid="input-department"
+                  />
+                </CompactField>
+                <CompactField label="직책">
+                  <Input
+                    value={formData.position}
+                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                    className={inputClass}
+                    data-testid="input-position"
+                  />
+                </CompactField>
+              </div>
+
+              {/* 4행: 메모 */}
+              <CompactField label="메모">
                 <Textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
