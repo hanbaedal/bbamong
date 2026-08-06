@@ -24,6 +24,8 @@ import {
   CounterModel,
 } from "../mongodb/models";
 import { syncMemberDataSourceTags } from "../utils/memberDataSourceSync";
+import { backfillOfficialSupportContent } from "../utils/officialContentBackfill";
+import { PPAMONG_OFFICIAL_AUTHOR_ID } from "../utils/ppamongOfficialContent";
 
 export type PgMongoSyncMode = "replace" | "merge";
 
@@ -91,7 +93,7 @@ const SYNC_TABLES: SyncTableDef[] = [
     model: AttendanceRecordModel,
     counterName: "attendanceRecord",
   },
-  { pgTable: "posts", label: "게시글", model: PostModel, counterName: "post" },
+  { pgTable: "posts", label: "게시글", model: PostModel, counterName: "post", normalizeDoc: normalizeLegacyDataSourceDoc },
   { pgTable: "ebooks", label: "전자책", model: EbookModel, counterName: "ebook" },
   {
     pgTable: "advertisements",
@@ -615,6 +617,23 @@ async function syncTableMerge(
   return result;
 }
 
+function replaceDeleteFilter(def: SyncTableDef): Record<string, unknown> {
+  /** 빠몽 운영자 공식 글 — PG replace 동기화 시 삭제하지 않음 */
+  if (def.pgTable === "posts") {
+    return {
+      isOfficial: { $ne: true },
+      authorId: { $ne: PPAMONG_OFFICIAL_AUTHOR_ID },
+    };
+  }
+  if (def.pgTable === "inquiries") {
+    return {
+      isOfficial: { $ne: true },
+      userId: { $ne: PPAMONG_OFFICIAL_AUTHOR_ID },
+    };
+  }
+  return {};
+}
+
 async function syncTableReplace(
   pg: postgres.Sql,
   def: SyncTableDef,
@@ -642,7 +661,7 @@ async function syncTableReplace(
     result.droppedNoId = droppedNoKey;
   }
 
-  const deleted = await def.model.deleteMany({});
+  const deleted = await def.model.deleteMany(replaceDeleteFilter(def));
   result.deleted = deleted.deletedCount ?? 0;
 
   if (docs.length === 0) {
@@ -809,6 +828,17 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
           );
         } catch (tagError) {
           console.error("[PgMongoSync] Member dataSource tag sync failed:", tagError);
+        }
+      }
+
+      if (defs.some((d) => d.pgTable === "posts" || d.pgTable === "inquiries")) {
+        try {
+          const support = await backfillOfficialSupportContent();
+          console.log(
+            `[PgMongoSync] Official support backfill: posts ${support.posts}, inquiries ${support.inquiries}`,
+          );
+        } catch (backfillError) {
+          console.error("[PgMongoSync] Official support backfill failed:", backfillError);
         }
       }
     }

@@ -44,10 +44,7 @@ export class InquiryStorage {
   async getOfficialInquiries(): Promise<
     Array<Inquiry & { category: string; title: string; content: string; response: string | null }>
   > {
-    const rows = await InquiryModel.find({
-      ...ppamongOfficialInquiryFilter(),
-      status: "resolved",
-    })
+    const rows = await InquiryModel.find(ppamongOfficialInquiryFilter())
       .sort({ id: -1 })
       .lean();
     return rows as Inquiry[];
