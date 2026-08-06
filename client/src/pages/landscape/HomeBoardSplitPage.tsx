@@ -3,10 +3,9 @@ import { useLocation, useRoute } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import LandscapeMasterDetailShell, { LandscapeEmptyPane } from "@/components/landscape/LandscapeMasterDetailShell";
 import LandscapeCompactPane from "@/components/landscape/LandscapeCompactPane";
-import LandscapeFormPane from "@/components/landscape/LandscapeFormPane";
 import BoardCompactList from "@/components/landscape/compact/BoardCompactList";
 import BoardCompactDetail from "@/components/landscape/compact/BoardCompactDetail";
-import CreatePostPage from "@/pages/create-post";
+import BoardCompactCreate from "@/components/landscape/compact/BoardCompactCreate";
 
 export default function HomeBoardSplitPage() {
   const [location, setLocation] = useLocation();
@@ -24,7 +23,11 @@ export default function HomeBoardSplitPage() {
 
   let right;
   if (isNew) {
-    right = <LandscapeFormPane theme="board" component={CreatePostPage} />;
+    right = (
+      <LandscapeCompactPane theme="board">
+        <BoardCompactCreate />
+      </LandscapeCompactPane>
+    );
   } else if (id) {
     right = (
       <LandscapeCompactPane theme="board">

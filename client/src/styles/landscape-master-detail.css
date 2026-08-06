@@ -1087,6 +1087,62 @@
   resize: vertical;
 }
 
+.lscape-detail--create {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 10px 12px 14px;
+  box-sizing: border-box;
+}
+
+.lscape-detail__create-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.lscape-detail__create-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.lscape-detail__create-form {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lscape-detail__create-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.lscape-detail__edit-textarea--grow {
+  flex: 1 1 0;
+  min-height: 120px;
+  resize: none;
+}
+
+.lscape-detail__edit-select {
+  cursor: pointer;
+  appearance: auto;
+}
+
+.lscape-theme-inquiry .lscape-detail__action-btn--inquiry {
+  border-color: #e11936;
+  background: #e11936;
+  color: #fff;
+}
+
 .lscape-detail__edit-actions {
   display: flex;
   justify-content: flex-end;
