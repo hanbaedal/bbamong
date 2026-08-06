@@ -227,7 +227,7 @@ export default function MemberListPage() {
           <table className={`${memberCompactTableClass} min-w-[720px]`}>
             <thead>
               <tr className={memberTheadRowClass}>
-                <th className={memberThClass}>ID</th>
+                <th className={`${memberThClass} w-20 max-w-20`}>ID</th>
                 <th className={`${memberThClass} w-16`}>이름</th>
                 <th className={`${memberThClass} w-24`}>전화</th>
                 <th className={`${memberThClass} w-16 text-right`}>P</th>
@@ -243,8 +243,8 @@ export default function MemberListPage() {
                 const online = isUserOnline(user);
                 return (
                   <tr key={user.id} className={memberRowClass} data-testid={`user-row-${index}`}>
-                    <td className={memberTdClass} title={user.username}>
-                      {truncateText(user.username, 16)}
+                    <td className={`${memberTdClass} w-20 max-w-20`} title={user.username}>
+                      {truncateText(user.username, 10)}
                     </td>
                     <td className={memberTdClass}>{truncateText(user.name, 6)}</td>
                     <td className={`${memberTdClass} tabular-nums`}>{user.phone || "—"}</td>

@@ -130,7 +130,7 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
     },
     {
       id: "revenue-operator",
-      title: "수익 · 운영자",
+      title: "수익",
       items: [
         {
           id: "revenue-management",
@@ -163,6 +163,24 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
             },
           ],
         },
+      ],
+    },
+    {
+      id: "match-members",
+      title: "경기 · 회원",
+      items: [
+        {
+          id: "match-management",
+          label: "경기 관리 (달력)",
+          path: "/admin/match-management",
+          iconKey: "adMatchIcon",
+        },
+        {
+          id: "match-monitoring",
+          label: "실시간 게임 모니터링",
+          path: "/admin/match-monitoring",
+          iconKey: "adListIcon",
+        },
         {
           id: "operator-management",
           label: "운영자 관리",
@@ -187,24 +205,6 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
               iconKey: "adManagerMonitoringIcon",
             },
           ],
-        },
-      ],
-    },
-    {
-      id: "match-members",
-      title: "경기 · 회원",
-      items: [
-        {
-          id: "match-management",
-          label: "경기 관리 (달력)",
-          path: "/admin/match-management",
-          iconKey: "adMatchIcon",
-        },
-        {
-          id: "match-monitoring",
-          label: "실시간 게임 모니터링",
-          path: "/admin/match-monitoring",
-          iconKey: "adListIcon",
         },
         {
           id: "members",
@@ -259,22 +259,22 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
     },
     {
       id: "notice-support",
-      title: "공지 · 지원",
+      title: "고객 지원",
       items: [
-        {
-          id: "notice-management",
-          label: "공지 사항",
-          path: "/admin/notices",
-          iconKey: "adNoticeIcon",
-        },
         {
           id: "customer-support",
           label: "고객 지원 관리",
           iconKey: "adCustomerIcon",
           children: [
             {
+              id: "notice-management",
+              label: "공지 사항",
+              path: "/admin/notices",
+              iconKey: "adNoticeIcon",
+            },
+            {
               id: "support-center",
-              label: "고객 지원 센터",
+              label: "문의하기",
               path: "/admin/support",
               iconKey: "adCustomerIcon",
             },

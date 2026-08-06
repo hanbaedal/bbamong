@@ -1,5 +1,6 @@
 import { NoticeModel, NoticeReadModel } from "./db";
 import type { Notice } from "@shared/schema";
+import { PPAMONG_REVENUE_MONGO_FILTER } from "../utils/revenuePlatform";
 
 const TAG_PRIORITY: Record<string, number> = {
   긴급: 4,
@@ -30,7 +31,7 @@ export class NoticeReadStorage {
 
   async getLatestUnreadNotice(userId: string): Promise<Notice | null> {
     const dismissed = await this.getDismissedNoticeIds(userId);
-    const notices = (await NoticeModel.find()
+    const notices = (await NoticeModel.find(PPAMONG_REVENUE_MONGO_FILTER)
       .sort({ displayOrder: 1, createdAt: -1 })
       .lean()) as Notice[];
 

@@ -42,13 +42,12 @@ export default function CustomerCenterPage() {
   const { showGuestPopup, setShowGuestPopup, checkGuest } = useGuestRestriction(isGuest);
 
   const { data: allInquiries = [], isLoading } = useQuery<Inquiry[]>({
-    queryKey: ["inquiries", user?.id],
+    queryKey: ["/api/inquiries"],
     queryFn: async () => {
-      if (!user?.id) return [];
-      const res = await apiRequest("GET", `/api/inquiries?userId=${user.id}`);
-      return await res.json() as Inquiry[];
+      const res = await apiRequest("GET", "/api/inquiries");
+      return (await res.json()) as Inquiry[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !isGuest,
     refetchOnMount: "always",
     staleTime: 0,
   });

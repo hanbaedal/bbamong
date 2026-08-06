@@ -71,7 +71,6 @@ export default function InquiryCreatePage() {
     mutationFn: async () => {
       if (!user) throw new Error("사용자 정보가 없습니다.");
       const response = await apiRequest("POST", "/api/inquiries", {
-        userId: user.id,
         category,
         title,
         content,
@@ -79,8 +78,7 @@ export default function InquiryCreatePage() {
       return response.json();
     },
     onSuccess: () => {
-      // 문의 내역 캐시 무효화 (customer-center의 queryKey와 일치)
-      queryClient.invalidateQueries({ queryKey: ["inquiries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/inquiries"] });
       toast({
         title: "성공",
         description: "문의가 등록되었습니다.",

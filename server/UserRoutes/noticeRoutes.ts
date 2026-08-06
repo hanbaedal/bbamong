@@ -5,6 +5,7 @@ import { insertNoticeSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
 import { userAuthMiddleware, type AuthenticatedUserRequest } from "../middleware/userAuth";
+import { adminAuthMiddleware } from "../middleware/adminAuth";
 
 export async function noticeRoutes(app: Express): Promise<void> {
   // 게임 배너용 — 미확인 공지 1건
@@ -45,7 +46,7 @@ export async function noticeRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 모든 공지사항 조회
+  // 앱 홈 — 빠몽(ppamong) 공지만 (읽기 전용)
   app.get("/api/notices", async (req, res) => {
     try {
       const platformParam = req.query.platform as string | undefined;
@@ -54,15 +55,15 @@ export async function noticeRoutes(app: Express): Promise<void> {
         const result = await storage.getNoticesForPlatform(platform);
         return res.json(result);
       }
-      const notices = await storage.getAllNotices();
-      return res.json(notices);
+      const result = await storage.getNoticesForPlatform("ppamong");
+      return res.json(result.notices);
     } catch (error) {
       console.error("Get notices error:", error);
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   });
 
-  // 단일 공지사항 조회
+  // 단일 공지 — 빠몽 공지만
   app.get("/api/notices/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -75,6 +76,10 @@ export async function noticeRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "공지사항을 찾을 수 없습니다." });
       }
 
+      if ((notice as { dataSource?: string }).dataSource !== "ppamong") {
+        return res.status(404).json({ error: "공지사항을 찾을 수 없습니다." });
+      }
+
       return res.json(notice);
     } catch (error) {
       console.error("Get notice error:", error);
@@ -82,8 +87,8 @@ export async function noticeRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 공지사항 생성
-  app.post("/api/notices", async (req, res) => {
+  // 공지사항 생성 (관리자)
+  app.post("/api/notices", adminAuthMiddleware, async (req, res) => {
     try {
       const result = insertNoticeSchema.safeParse(req.body);
 
@@ -100,8 +105,8 @@ export async function noticeRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 공지사항 수정
-  app.patch("/api/notices/:id", async (req, res) => {
+  // 공지사항 수정 (관리자)
+  app.patch("/api/notices/:id", adminAuthMiddleware, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -126,8 +131,8 @@ export async function noticeRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 공지사항 삭제
-  app.delete("/api/notices/:id", async (req, res) => {
+  // 공지사항 삭제 (관리자)
+  app.delete("/api/notices/:id", adminAuthMiddleware, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -142,8 +147,8 @@ export async function noticeRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 공지사항 순서 변경
-  app.put("/api/notices/reorder", async (req, res) => {
+  // 공지사항 순서 변경 (관리자)
+  app.put("/api/notices/reorder", adminAuthMiddleware, async (req, res) => {
     try {
       const schema = z.object({
         updates: z.array(

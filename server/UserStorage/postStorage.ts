@@ -33,34 +33,49 @@ export class PostStorage {
     limit: number,
     search?: string,
     searchType: "all" | "author" | "title" = "title",
+    platform: MemberPlatform = "ppamong",
   ): Promise<{
     posts: Array<Post & { authorName: string; commentCount: number }>;
     total: number;
     hasMore: boolean;
   }> {
     const offset = (page - 1) * limit;
+    const ppamongAuthorIds = await this.getAuthorIdsForPlatform(platform);
+    const authorScope =
+      ppamongAuthorIds.length > 0 ? { authorId: { $in: ppamongAuthorIds } } : { authorId: "__none__" };
 
-    let postFilter: Record<string, unknown> = {};
+    let postFilter: Record<string, unknown> = { ...authorScope };
     let authorIds: string[] | undefined;
 
     if (search) {
       if (searchType === "title") {
-        postFilter = { title: { $regex: search, $options: "i" } };
+        postFilter = { ...authorScope, title: { $regex: search, $options: "i" } };
       } else if (searchType === "author") {
-        const authors = await UserModel.find({ name: { $regex: search, $options: "i" } })
+        const authors = await UserModel.find({
+          ...memberPlatformFilter(platform),
+          name: { $regex: search, $options: "i" },
+        })
           .select("id")
           .lean();
         authorIds = authors.map((a) => a.id);
-        postFilter = { authorId: { $in: authorIds } };
+        postFilter = { authorId: { $in: authorIds.length ? authorIds : ["__none__"] } };
       } else if (searchType === "all") {
-        const authors = await UserModel.find({ name: { $regex: search, $options: "i" } })
+        const authors = await UserModel.find({
+          ...memberPlatformFilter(platform),
+          name: { $regex: search, $options: "i" },
+        })
           .select("id")
           .lean();
         authorIds = authors.map((a) => a.id);
         postFilter = {
-          $or: [
-            { title: { $regex: search, $options: "i" } },
-            { authorId: { $in: authorIds } },
+          $and: [
+            authorScope,
+            {
+              $or: [
+                { title: { $regex: search, $options: "i" } },
+                { authorId: { $in: authorIds.length ? authorIds : ["__none__"] } },
+              ],
+            },
           ],
         };
       }
@@ -96,6 +111,13 @@ export class PostStorage {
     const id = await getNextSequence("post");
     const doc = await PostModel.create({ id, ...post });
     return doc.toObject() as Post;
+  }
+
+  async isPpamongPost(id: number): Promise<boolean> {
+    const post = await PostModel.findOne({ id }).select("authorId").lean();
+    if (!post) return false;
+    const ppamongIds = await this.getAuthorIdsForPlatform("ppamong");
+    return ppamongIds.includes(post.authorId);
   }
 
   async getPost(id: number): Promise<(Post & { authorName: string }) | undefined> {

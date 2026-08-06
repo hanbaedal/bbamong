@@ -43,7 +43,12 @@ export class InquiryStorage {
   }
 
   async getInquiriesByUser(userId: string): Promise<Array<Inquiry & { userName: string }>> {
-    const inquiries = await InquiryModel.find({ userId }).sort({ id: -1 }).lean();
+    const inquiries = await InquiryModel.find({
+      userId,
+      ...PPAMONG_REVENUE_MONGO_FILTER,
+    })
+      .sort({ id: -1 })
+      .lean();
     const results: Array<Inquiry & { userName: string }> = [];
 
     for (const row of inquiries) {
@@ -83,6 +88,41 @@ export class InquiryStorage {
 
   async deleteInquiry(id: number): Promise<void> {
     await InquiryModel.deleteOne({ id });
+  }
+
+  async updateInquiryByOwner(
+    id: number,
+    userId: string,
+    data: Partial<Pick<InsertInquiry, "category" | "title" | "content">>,
+  ): Promise<{ success: boolean; message: string; inquiry?: Inquiry }> {
+    const inquiry = await InquiryModel.findOne({ id, ...PPAMONG_REVENUE_MONGO_FILTER }).lean();
+    if (!inquiry) return { success: false, message: "문의를 찾을 수 없습니다." };
+    if (inquiry.userId !== userId) return { success: false, message: "본인 문의만 수정할 수 있습니다." };
+    if (inquiry.status !== "pending") {
+      return { success: false, message: "답변 대기 중인 문의만 수정할 수 있습니다." };
+    }
+
+    const doc = await InquiryModel.findOneAndUpdate({ id }, data, { new: true }).lean();
+    return {
+      success: true,
+      message: "문의가 수정되었습니다.",
+      inquiry: doc as Inquiry,
+    };
+  }
+
+  async deleteInquiryByOwner(
+    id: number,
+    userId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const inquiry = await InquiryModel.findOne({ id, ...PPAMONG_REVENUE_MONGO_FILTER }).lean();
+    if (!inquiry) return { success: false, message: "문의를 찾을 수 없습니다." };
+    if (inquiry.userId !== userId) return { success: false, message: "본인 문의만 삭제할 수 있습니다." };
+    if (inquiry.status !== "pending") {
+      return { success: false, message: "답변 대기 중인 문의만 삭제할 수 있습니다." };
+    }
+
+    await InquiryModel.deleteOne({ id });
+    return { success: true, message: "문의가 삭제되었습니다." };
   }
 
   async getAllInquiries(

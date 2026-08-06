@@ -60,7 +60,7 @@ export default function CreatePostPage() {
   };
 
   const createPostMutation = useMutation({
-    mutationFn: async (data: { title: string; content: string; authorId: string }) => {
+    mutationFn: async (data: { title: string; content: string }) => {
       const res = await apiRequest("POST", "/api/posts", data);
       return await res.json();
     },
@@ -102,7 +102,6 @@ export default function CreatePostPage() {
     createPostMutation.mutate({
       title: title.trim(),
       content: content.trim(),
-      authorId: user.id,
     });
   };
 

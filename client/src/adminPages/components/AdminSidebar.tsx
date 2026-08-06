@@ -191,16 +191,12 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
     >
       <div className="p-1.5 md:p-2 flex flex-col gap-0">
         {menuSections.map((section, sectionIndex) => (
-          <div key={section.id}>
-            {sectionIndex > 0 && (
-              <div
-                className="my-1 h-px bg-[#E5E7EB] w-full"
-                role="separator"
-                aria-hidden="true"
-              />
-            )}
+          <div
+            key={section.id}
+            className={cn(sectionIndex > 0 && "mt-3 pt-2 border-t border-[#EDE4E6]")}
+          >
             {section.title && (
-              <p className="px-2 pb-0.5 text-[10px] font-semibold tracking-wide text-[#9CA3AF] leading-none">
+              <p className="px-2 pb-1 text-[10px] font-semibold tracking-wide text-[#9CA3AF] leading-none">
                 {section.title}
               </p>
             )}

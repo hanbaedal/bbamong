@@ -73,11 +73,11 @@ export default function PostDetailPage() {
   });
 
   const createCommentMutation = useMutation({
-    mutationFn: async (data: { content: string; authorId: string }) => {
+    mutationFn: async (content: string) => {
       const res = await apiRequest(
         "POST",
         `/api/posts/${postId}/comments`,
-        data,
+        { content },
       );
       return await res.json();
     },
@@ -93,10 +93,7 @@ export default function PostDetailPage() {
     if (checkGuest()) return;
     if (!commentContent.trim() || !user) return;
 
-    createCommentMutation.mutate({
-      content: commentContent.trim(),
-      authorId: user.id,
-    });
+    createCommentMutation.mutate(commentContent.trim());
   };
 
   const formatDate = (date: Date) => {
