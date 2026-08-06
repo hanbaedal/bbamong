@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { cn } from "@/lib/utils";
 import AdminLayout from "./adminLayout";
 import { useUser } from "@/contexts/UserContext";
 import { useLocation } from "wouter";
@@ -27,7 +28,10 @@ export default function AdminHomePage() {
         </div>
 
         <div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 lg:gap-2.5 items-start flex-1 min-h-0 content-start"
+          className={cn(
+            "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 lg:gap-2.5 items-start flex-1 min-h-0 content-start",
+            columns.length > 5 ? "xl:grid-cols-6" : "xl:grid-cols-5",
+          )}
           data-testid="admin-sitemap-grid"
         >
           {columns.map((column) => (

@@ -121,7 +121,7 @@ export default function AdminSitemapColumn({
   currentPath,
   onNavigate,
 }: AdminSitemapColumnProps) {
-  const theme = SITEMAP_COLUMN_THEMES[columnId] ?? SITEMAP_COLUMN_THEMES.basic;
+  const theme = SITEMAP_COLUMN_THEMES[columnId] ?? SITEMAP_COLUMN_THEMES.main;
 
   return (
     <section

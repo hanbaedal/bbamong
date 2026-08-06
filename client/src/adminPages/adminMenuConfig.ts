@@ -25,6 +25,19 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
           path: "/admin/app-home-settings",
           iconKey: "adNoticeIcon",
         },
+        {
+          id: "basic-work-management",
+          label: "업무 관리",
+          iconKey: "adTermIcon",
+          children: [
+            {
+              id: "app-releases",
+              label: "앱 파일 등록/다운로드",
+              path: "/admin/ops/app-releases",
+              iconKey: "adTermIcon",
+            },
+          ],
+        },
       ],
     },
     {
@@ -103,7 +116,7 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
         },
         {
           id: "ops-management",
-          label: "업무 관리",
+          label: "시스템 운영",
           iconKey: "adTermIcon",
           children: [
             {
@@ -246,18 +259,6 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
       ],
     },
     {
-      id: "ops-tools",
-      title: "업무 관리",
-      items: [
-        {
-          id: "app-releases",
-          label: "앱 파일 등록/다운로드",
-          path: "/admin/ops/app-releases",
-          iconKey: "adTermIcon",
-        },
-      ],
-    },
-    {
       id: "notice-support",
       title: "고객 지원",
       items: [
@@ -323,26 +324,33 @@ export interface AdminSitemapColumn {
   items: AdminMenuItem[];
 }
 
-/** 사이트맵 열별 파스텔 카드 테마 */
+/** 사이트맵 열별 파스텔 카드 테마 (섹션 id = 사이드바 그룹 id) */
 export const SITEMAP_COLUMN_THEMES: Record<
   string,
   { bg: string; border: string; headerText: string; accentBorder: string; badge: string }
 > = {
-  basic: {
+  main: {
     bg: "bg-[#F5F3FF]",
     border: "border-[#E8E4F3]",
     headerText: "text-[#6B5B95]",
     accentBorder: "border-[#D1C4E9]",
     badge: "bg-[#EDE7F6] text-[#6B5B95]",
   },
-  "mall-shop": {
+  mall: {
     bg: "bg-[#FFF8F0]",
     border: "border-[#FFE0B2]",
     headerText: "text-[#8D6E63]",
     accentBorder: "border-[#FFCC80]",
     badge: "bg-[#FFF3E0] text-[#8D6E63]",
   },
-  "mall-sales": {
+  "staff-ops": {
+    bg: "bg-[#F3E5F5]",
+    border: "border-[#E1BEE7]",
+    headerText: "text-[#7B1FA2]",
+    accentBorder: "border-[#CE93D8]",
+    badge: "bg-[#F3E5F5] text-[#7B1FA2]",
+  },
+  "revenue-operator": {
     bg: "bg-[#F0F7FF]",
     border: "border-[#BBDEFB]",
     headerText: "text-[#1565C0]",
@@ -356,7 +364,7 @@ export const SITEMAP_COLUMN_THEMES: Record<
     accentBorder: "border-[#A5D6A7]",
     badge: "bg-[#E8F5E9] text-[#2E7D32]",
   },
-  "ops-support": {
+  "notice-support": {
     bg: "bg-[#FFF5F8]",
     border: "border-[#FFCDD2]",
     headerText: "text-[#C62828]",
@@ -374,51 +382,15 @@ export function countSitemapLinks(items: AdminMenuItem[]): number {
   return count;
 }
 
-/** 사이트맵 5열 — 모니터링·사이트맵 페이지 제외 */
+/** 사이트맵 — 왼쪽 사이드바 섹션과 1:1 (모니터링 페이지만 항목에서 제외) */
 export function buildAdminSitemapColumns(isSuperAdmin: boolean): AdminSitemapColumn[] {
-  const sections = buildAdminMenuSections(isSuperAdmin);
-  const sectionById = Object.fromEntries(sections.map((section) => [section.id, section]));
-
-  const basicItems = stripExcludedSitemapItems(
-    (sectionById.main?.items ?? []).filter((item) => item.id !== "admin-home"),
-  );
-  const supervisorItems = isSuperAdmin ? (sectionById["staff-ops"]?.items ?? []) : [];
-
-  const mallItems = sectionById.mall?.items ?? [];
-  const mallShopGroup = mallItems.find((item) => item.id === "mall-group");
-  const mallSalesGroup = mallItems.find((item) => item.id === "mall-sales-group");
-
-  return [
-    {
-      id: "basic",
-      label: "기본",
-      items: stripExcludedSitemapItems([...basicItems, ...supervisorItems]),
-    },
-    {
-      id: "mall-shop",
-      label: "쇼핑몰",
-      items: stripExcludedSitemapItems(mallShopGroup?.children ?? []),
-    },
-    {
-      id: "mall-sales",
-      label: "판매관리",
-      items: stripExcludedSitemapItems(mallSalesGroup?.children ?? []),
-    },
-    {
-      id: "match-members",
-      label: "경기·회원",
-      items: stripExcludedSitemapItems(sectionById["match-members"]?.items ?? []),
-    },
-    {
-      id: "ops-support",
-      label: "운영·지원",
-      items: stripExcludedSitemapItems([
-        ...(sectionById["ops-tools"]?.items ?? []),
-        ...(sectionById["revenue-operator"]?.items ?? []),
-        ...(sectionById["notice-support"]?.items ?? []),
-      ]),
-    },
-  ].filter((column) => column.items.length > 0);
+  return buildAdminMenuSections(isSuperAdmin)
+    .map((section) => ({
+      id: section.id,
+      label: section.title ?? section.id,
+      items: stripExcludedSitemapItems(section.items),
+    }))
+    .filter((column) => column.items.length > 0);
 }
 
 /** 사이트맵용 — 사이트맵 페이지 자체는 제외 */
