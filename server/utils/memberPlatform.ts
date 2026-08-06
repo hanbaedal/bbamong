@@ -11,7 +11,7 @@ export const PPAMONG_MEMBER_MONGO_FILTER = {
   dataSource: MEMBER_SOURCE_PPAMONG,
 };
 
-/** MongoDB — PG 동기화·레거시 (dataSource 없음 포함) */
+/** MongoDB — PG 동기화·레거시 (dataSource 없음은 기동/backfill 전까지 여기 포함) */
 export const BADMINTON9_MEMBER_MONGO_FILTER = {
   $or: [
     { dataSource: MEMBER_SOURCE_BADMINTON9 },

@@ -17,6 +17,7 @@ import { startSuspendedUserCleanupBatch } from "./suspendedUserCleanupBatch";
 import { getRedisClient } from "./redis";
 import { connectMongoDB } from "./UserStorage/db";
 import { ensureSuperAdmin } from "./bootstrapSuperAdmin";
+import { backfillPpamongMemberDataSource } from "./UserStorage/userStorage";
 import { ensureOperatorsReady, syncOperatorMatchAssignments } from "./managerOperatorService";
 import { startManagerDailyPasswordBatch } from "./managerDailyPasswordBatch";
 import { startMatchManagementSchedule } from "./apiSports/matchManagementSchedule";
@@ -177,6 +178,10 @@ app.use((req, res, next) => {
   const redisProcess = await startRedis();
 
   await connectMongoDB();
+  const backfilled = await backfillPpamongMemberDataSource();
+  if (backfilled > 0) {
+    log(`Member dataSource backfill: ${backfilled} user(s) → ppamong`);
+  }
   await ensureSuperAdmin();
   await ensureOperatorsReady();
   await syncOperatorMatchAssignments();

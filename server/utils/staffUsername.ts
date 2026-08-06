@@ -18,6 +18,14 @@ export function resolveAdminPlatform(username: string, userType: string): AdminP
   return "badminton9";
 }
 
+/** 빠몽 관리자 웹(/admin) 로그인·API 접근 허용 */
+export function canAccessPpamongAdminWeb(username: string, userType: string): boolean {
+  return resolveAdminPlatform(username, userType) === "ppamong";
+}
+
+export const PPAMONG_ADMIN_WEB_DENIED_MESSAGE =
+  "빠몽에서 등록된 관리자 계정만 로그인할 수 있습니다.";
+
 export const PPAMONG_ADMIN_MONGO_FILTER = {
   $or: [
     { userType: "슈퍼어드민" },

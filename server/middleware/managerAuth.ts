@@ -3,6 +3,8 @@ import jwt from "jsonwebtoken";
 import { verifyAccessToken, verifyRefreshToken, generateAccessToken, generateRefreshToken, type TokenPayload } from "../utils/jwt";
 import { AdminUserModel } from "../UserStorage/db";
 import { refreshSession, hasActiveSession } from "../sessionManager";
+import { canAccessPpamongOperator } from "../utils/managerPlatform";
+import { PPAMONG_OPERATOR_LOGIN_DENIED } from "../../shared/operatorLoginPolicy";
 
 export interface AuthenticatedManagerRequest extends Request {
   manager?: TokenPayload;
@@ -25,6 +27,9 @@ async function tryRefreshManagerToken(req: Request, res: Response): Promise<Toke
       clearManagerAuthCookies(res);
       return null;
     }
+
+    const valid = await validateManagerStatus(decoded, res);
+    if (!valid) return null;
 
     const newAccessToken = generateAccessToken({
       adminId: decoded.adminId,
@@ -64,7 +69,7 @@ async function tryRefreshManagerToken(req: Request, res: Response): Promise<Toke
 
 async function validateManagerStatus(decoded: TokenPayload, res: Response): Promise<boolean> {
   const manager = await AdminUserModel.findOne({ id: decoded.adminId })
-    .select("approvalStatus status")
+    .select("approvalStatus status username userType")
     .lean();
 
   if (!manager) {
@@ -75,6 +80,12 @@ async function validateManagerStatus(decoded: TokenPayload, res: Response): Prom
   if (manager.approvalStatus !== "승인") {
     clearManagerAuthCookies(res);
     res.status(403).json({ message: "승인되지 않은 계정입니다." });
+    return false;
+  }
+
+  if (!canAccessPpamongOperator(manager.username, manager.userType)) {
+    clearManagerAuthCookies(res);
+    res.status(403).json({ message: PPAMONG_OPERATOR_LOGIN_DENIED });
     return false;
   }
 
@@ -92,11 +103,9 @@ export async function managerAuthMiddleware(
     const refreshed = await tryRefreshManagerToken(req, res);
     if (refreshed) {
       if (refreshed.userType !== "매니저") {
-        res.status(403).json({ message: "매니저 권한이 필요합니다." });
+        res.status(403).json({ message: "운영자 권한이 필요합니다." });
         return;
       }
-      const valid = await validateManagerStatus(refreshed, res);
-      if (!valid) return;
       req.manager = refreshed;
       next();
       return;
@@ -108,7 +117,7 @@ export async function managerAuthMiddleware(
   try {
     const decoded = verifyAccessToken(accessToken);
     if (decoded.userType !== "매니저") {
-      res.status(403).json({ message: "매니저 권한이 필요합니다." });
+      res.status(403).json({ message: "운영자 권한이 필요합니다." });
       return;
     }
     const valid = await validateManagerStatus(decoded, res);
@@ -133,11 +142,9 @@ export async function managerAuthMiddleware(
       const refreshed = await tryRefreshManagerToken(req, res);
       if (refreshed) {
         if (refreshed.userType !== "매니저") {
-          res.status(403).json({ message: "매니저 권한이 필요합니다." });
+          res.status(403).json({ message: "운영자 권한이 필요합니다." });
           return;
         }
-        const valid = await validateManagerStatus(refreshed, res);
-        if (!valid) return;
         req.manager = refreshed;
         next();
         return;

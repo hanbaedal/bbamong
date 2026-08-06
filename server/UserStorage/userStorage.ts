@@ -394,4 +394,28 @@ export class UserStorage {
   }
 }
 
+/** dataSource 없음 → 빠몽 앱 가입으로 간주 (PG 레거시는 sync 시 badminton9 명시) */
+export async function ensurePpamongMemberDataSource(userId: string): Promise<void> {
+  await UserModel.updateOne(
+    {
+      id: userId,
+      provider: { $ne: "guest" },
+      $or: [{ dataSource: { $exists: false } }, { dataSource: null }, { dataSource: "" }],
+    },
+    { $set: { dataSource: MEMBER_SOURCE_PPAMONG } },
+  );
+}
+
+/** 기동 시 1회 — 미태깅 회원을 빠몽 탭으로 보정 */
+export async function backfillPpamongMemberDataSource(): Promise<number> {
+  const result = await UserModel.updateMany(
+    {
+      provider: { $ne: "guest" },
+      $or: [{ dataSource: { $exists: false } }, { dataSource: null }, { dataSource: "" }],
+    },
+    { $set: { dataSource: MEMBER_SOURCE_PPAMONG } },
+  );
+  return result.modifiedCount ?? 0;
+}
+
 export const userStorage = new UserStorage();

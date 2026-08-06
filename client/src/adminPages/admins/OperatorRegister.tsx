@@ -55,6 +55,9 @@ export default function OperatorRegisterPage() {
               자동 할당됩니다.
             </li>
             <li>운영자 리스트에서 아이디·비밀번호·로그인 링크를 확인·공유할 수 있습니다 (경기 종료 전까지 유효).</li>
+            <li>
+              <strong>빠던9 레거시 운영자 계정</strong>은 빠몽 운영자 앱에 로그인할 수 없습니다. 빠몽에서 정의한 op1~op5만 사용합니다.
+            </li>
           </ul>
         </div>
 

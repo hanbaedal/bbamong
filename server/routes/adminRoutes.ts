@@ -16,6 +16,8 @@ import { parseMemberPlatform } from "../utils/memberPlatform";
 import {
   getNextStaffUsername,
   isStaffRegisteredUsername,
+  canAccessPpamongAdminWeb,
+  PPAMONG_ADMIN_WEB_DENIED_MESSAGE,
   type AdminPlatform,
 } from "../utils/staffUsername";
 import {
@@ -108,6 +110,10 @@ export async function adminRoutes(app: Express): Promise<void> {
         return res.status(403).json({ error: "관리자 계정이 아닙니다." });
       }
 
+      if (!canAccessPpamongAdminWeb(admin.username, admin.userType)) {
+        return res.status(403).json({ error: PPAMONG_ADMIN_WEB_DENIED_MESSAGE });
+      }
+
       // 승인 상태 확인
       if (admin.approvalStatus === "대기중") {
         return res.status(403).json({ error: "관리자 승인 대기 중입니다." });
@@ -189,6 +195,11 @@ export async function adminRoutes(app: Express): Promise<void> {
       if (!admin || admin.approvalStatus !== "승인") {
         clearAdminAuthCookies(res);
         return res.status(401).json({ error: "유효하지 않은 사용자입니다." });
+      }
+
+      if (!canAccessPpamongAdminWeb(admin.username, admin.userType)) {
+        clearAdminAuthCookies(res);
+        return res.status(403).json({ error: PPAMONG_ADMIN_WEB_DENIED_MESSAGE });
       }
 
       const tokenPayload = {

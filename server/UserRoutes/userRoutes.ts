@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { userStorage as storage } from "../UserStorage/userStorage"
+import { userStorage as storage, ensurePpamongMemberDataSource } from "../UserStorage/userStorage"
 import { attendanceStorage as attendanceStorage } from "../UserStorage/attendanceStorage"
 import {
   UserModel,
@@ -264,6 +264,7 @@ export async function userRoutes(app: Express): Promise<void> {
 
       // lastLogin, lastActive 동시 업데이트
       const now = new Date();
+      await ensurePpamongMemberDataSource(user.id);
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       // Redis 세션 생성
@@ -344,6 +345,7 @@ export async function userRoutes(app: Express): Promise<void> {
       const refreshToken = generateUserRefreshToken(tokenPayload);
 
       const now = new Date();
+      await ensurePpamongMemberDataSource(user.id);
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       await createSession("user", user.id, {
@@ -807,6 +809,7 @@ export async function userRoutes(app: Express): Promise<void> {
       });
 
       const now = new Date();
+      await ensurePpamongMemberDataSource(user.id);
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       const updatedUser = await storage.getUser(user.id);
@@ -881,6 +884,7 @@ export async function userRoutes(app: Express): Promise<void> {
 
       // 리프레시 토큰으로 자동 로그인 시에도 lastLogin, lastActive 업데이트
       const now = new Date();
+      await ensurePpamongMemberDataSource(user.id);
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       const tokenPayload = {

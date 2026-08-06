@@ -1,15 +1,19 @@
 import type { Express, Request, Response } from "express";
-import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { AdminStorage } from "../storage/adminStorage";
 import { adminMatchStorage } from "../storage/adminMatchStorage";
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAccessToken } from "../utils/jwt";
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAccessToken, type TokenPayload } from "../utils/jwt";
 import { broadcastManager } from "../liveMatch/broadcastManager";
 import { startRound, stopRound, cancelStartRound, cancelStopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { hasActiveSession, createSession, deleteSession, refreshSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
-import { ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken, assertOperatorLoginAllowed, isOperatorCredentialsActive, OPERATOR_USERNAMES } from "../managerOperatorService";
+import { ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken, isOperatorCredentialsActive } from "../managerOperatorService";
 import { resolveClientLoginGeo } from "../utils/clientGeo";
+import { canAccessPpamongOperator } from "../utils/managerPlatform";
+import {
+  PPAMONG_OPERATOR_LINK_ONLY,
+  PPAMONG_OPERATOR_LOGIN_DENIED,
+} from "../../shared/operatorLoginPolicy";
 
 const adminStorage = new AdminStorage();
 const MANAGER_APP_SCHEME = "ppamongmanager";
@@ -29,6 +33,40 @@ function getManagerAccessToken(req: Request): string | null {
     return authHeader.substring(7);
   }
   return req.cookies?.managerAccessToken || null;
+}
+
+/** Bearer/쿠키 토큰 + 빠몽 운영자(op1~op5) 여부 검증 */
+async function requirePpamongOperatorAuth(req: Request, res: Response): Promise<TokenPayload | null> {
+  const accessToken = getManagerAccessToken(req);
+  if (!accessToken) {
+    res.status(401).json({ error: "로그인이 필요합니다." });
+    return null;
+  }
+
+  let decoded: TokenPayload;
+  try {
+    decoded = verifyAccessToken(accessToken);
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      res.status(401).json({ error: "인증이 만료되었습니다." });
+    } else {
+      res.status(401).json({ error: "유효하지 않은 토큰입니다." });
+    }
+    return null;
+  }
+
+  if (decoded.userType !== "매니저") {
+    res.status(403).json({ error: "매니저 권한이 필요합니다." });
+    return null;
+  }
+
+  const manager = await adminStorage.getAdminUserById(decoded.adminId);
+  if (!manager || !canAccessPpamongOperator(manager.username, manager.userType)) {
+    res.status(403).json({ error: PPAMONG_OPERATOR_LOGIN_DENIED });
+    return null;
+  }
+
+  return decoded;
 }
 
 function clearManagerAuthCookies(res: Response): void {
@@ -275,6 +313,10 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: message, deactivated });
       }
 
+      if (!canAccessPpamongOperator(resolved.username, resolved.userType)) {
+        return res.status(403).json({ error: PPAMONG_OPERATOR_LOGIN_DENIED });
+      }
+
       let accessToken: string;
       let refreshToken: string;
       try {
@@ -312,98 +354,9 @@ export async function managerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 매니저 로그인
-  app.post("/api/manager/login", async (req, res) => {
-    try {
-      await ensureOperatorsReady();
-
-      const { email, password } = req.body;
-
-      if (!email || !password) {
-        return res.status(400).json({ error: "이메일 또는 아이디와 비밀번호를 입력해주세요." });
-      }
-
-      let manager = await adminStorage.getAdminUserByEmail(email);
-      if (!manager) {
-        manager = await adminStorage.getAdminUserByUsername(email);
-      }
-
-      if (!manager) {
-        return res.status(401).json({ error: "이메일 또는 비밀번호가 일치하지 않습니다." });
-      }
-
-      // 매니저 타입 확인
-      if (manager.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 계정이 아닙니다." });
-      }
-
-      // 승인 상태 확인
-      if (manager.approvalStatus !== "승인") {
-        return res.status(403).json({ error: "계정이 승인되지 않았습니다." });
-      }
-
-      // 비활성화 상태 확인
-      if (manager.status === "비활성화") {
-        return res.status(403).json({ error: "비활성화된 계정입니다. 관리자에게 문의하세요.", deactivated: true });
-      }
-
-      if (OPERATOR_USERNAMES.includes(manager.username as (typeof OPERATOR_USERNAMES)[number])) {
-        try {
-          await assertOperatorLoginAllowed({
-            id: manager.id,
-            username: manager.username,
-            operatorSlot: (manager as { operatorSlot?: number }).operatorSlot,
-          });
-        } catch (credError: unknown) {
-          const message =
-            credError instanceof Error
-              ? credError.message
-              : "로그인 정보가 만료되었습니다. 관리자에게 새 정보를 요청하세요.";
-          return res.status(401).json({ error: message });
-        }
-      }
-
-      const isBcryptHash = manager.password.startsWith("$2b$") || manager.password.startsWith("$2a$");
-      let passwordMatch = false;
-
-      if (isBcryptHash) {
-        passwordMatch = await bcrypt.compare(password, manager.password);
-      } else {
-        passwordMatch = password === manager.password;
-        if (passwordMatch) {
-          const hashedPassword = await bcrypt.hash(password, 10);
-          await adminStorage.updateAdminUser(manager.id, { password: hashedPassword });
-          console.log(`[Manager Login] 평문 비밀번호를 bcrypt로 자동 변환: ${manager.email}`);
-        }
-      }
-
-      if (!passwordMatch) {
-        return res.status(401).json({ error: "이메일 또는 비밀번호가 일치하지 않습니다." });
-      }
-
-      const { accessToken, refreshToken } = await establishManagerSession(req, res, {
-        id: manager.id,
-        email: manager.email,
-        userType: manager.userType,
-        approvalStatus: manager.approvalStatus,
-      });
-
-      return res.json({
-        success: true,
-        message: "로그인 성공",
-        accessToken,
-        refreshToken,
-      });
-    } catch (error) {
-      if (error instanceof ManagerSessionActiveError) {
-        return res.status(409).json({
-          error: error.message,
-          sessionActive: true,
-        });
-      }
-      console.error("Manager login error:", error);
-      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
-    }
+  // 아이디·비밀번호 로그인 — 빠몽 운영자 앱은 카톡 링크 전용
+  app.post("/api/manager/login", async (_req, res) => {
+    return res.status(403).json({ error: PPAMONG_OPERATOR_LINK_ONLY });
   });
 
   // Refresh token으로 access token 재발급
@@ -445,6 +398,12 @@ export async function managerRoutes(app: Express): Promise<void> {
         res.clearCookie("managerAccessToken", { path: "/" });
         res.clearCookie("managerRefreshToken", { path: "/" });
         return res.status(403).json({ error: "비활성화된 계정입니다.", deactivated: true });
+      }
+
+      if (!canAccessPpamongOperator(manager.username, manager.userType)) {
+        res.clearCookie("managerAccessToken", { path: "/" });
+        res.clearCookie("managerRefreshToken", { path: "/" });
+        return res.status(403).json({ error: PPAMONG_OPERATOR_LOGIN_DENIED });
       }
 
       if (!(await isOperatorCredentialsActive(manager.id))) {
@@ -511,14 +470,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 로그아웃 - BO에서 로그아웃 권한이 부여된 경우에만 허용
   app.post("/api/manager/logout", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-      if (!accessToken) {
-        return res.status(401).json({ error: "인증이 필요합니다." });
-      }
-      const decoded = verifyAccessToken(accessToken);
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(401).json({ error: "유효하지 않은 토큰입니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
       const managerId = decoded.adminId;
 
       const permitted = await hasLogoutPermission("manager", managerId);
@@ -566,22 +519,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 현재 로그인한 매니저 정보 조회
   app.get("/api/manager/me", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-
-      if (!accessToken) {
-        return res.status(401).json({ error: "로그인이 필요합니다." });
-      }
-
-      const decoded = verifyAccessToken(accessToken);
-
-      if (!decoded) {
-        return res.status(401).json({ error: "유효하지 않은 토큰입니다." });
-      }
-
-      // 매니저 타입 확인
-      if (decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 계정이 아닙니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const manager = await adminStorage.getAdminUserById(decoded.adminId);
 
@@ -643,17 +582,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 오늘의 경기 목록 조회 (매니저에게 할당된 경기만)
   app.get("/api/manager/matches/today", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-
-      if (!accessToken) {
-        return res.status(401).json({ error: "로그인이 필요합니다." });
-      }
-
-      const decoded = verifyAccessToken(accessToken);
-
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const manager = await adminStorage.getAdminUserById(decoded.adminId);
       if (manager?.status === "비활성화") {
@@ -674,17 +604,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 경기 상세 조회 (매니저에게 할당된 경기만)
   app.get("/api/manager/matches/:id", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-
-      if (!accessToken) {
-        return res.status(401).json({ error: "로그인이 필요합니다." });
-      }
-
-      const decoded = verifyAccessToken(accessToken);
-
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const manager = await adminStorage.getAdminUserById(decoded.adminId);
       if (manager?.status === "비활성화") {
@@ -714,17 +635,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 예측 시작 (매니저 전용)
   app.post("/api/manager/matches/:id/prediction/start", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-
-      if (!accessToken) {
-        return res.status(401).json({ error: "로그인이 필요합니다." });
-      }
-
-      const decoded = verifyAccessToken(accessToken);
-
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const { id } = req.params;
       
@@ -769,17 +681,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 예측 중지 (매니저 전용)
   app.post("/api/manager/matches/:id/prediction/stop", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-
-      if (!accessToken) {
-        return res.status(401).json({ error: "로그인이 필요합니다." });
-      }
-
-      const decoded = verifyAccessToken(accessToken);
-
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const { id } = req.params;
       
@@ -815,13 +718,8 @@ export async function managerRoutes(app: Express): Promise<void> {
 
   app.post("/api/manager/matches/:id/prediction/cancel-start", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-      if (!accessToken) return res.status(401).json({ error: "로그인이 필요합니다." });
-
-      const decoded = verifyAccessToken(accessToken);
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const { id } = req.params;
       const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
@@ -853,13 +751,8 @@ export async function managerRoutes(app: Express): Promise<void> {
 
   app.post("/api/manager/matches/:id/prediction/cancel-stop", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-      if (!accessToken) return res.status(401).json({ error: "로그인이 필요합니다." });
-
-      const decoded = verifyAccessToken(accessToken);
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const { id } = req.params;
       const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
@@ -892,17 +785,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 예측 결과 전송 (매니저 전용)
   app.post("/api/manager/matches/:id/result", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-
-      if (!accessToken) {
-        return res.status(401).json({ error: "로그인이 필요합니다." });
-      }
-
-      const decoded = verifyAccessToken(accessToken);
-
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const { id } = req.params;
       const { result } = req.body;
@@ -990,13 +874,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 다음 타자 (매니저 전용)
   app.post("/api/manager/control/:id/round/next-batter", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-      if (!accessToken) return res.status(401).json({ error: "로그인이 필요합니다." });
-
-      const decoded = verifyAccessToken(accessToken);
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const { id } = req.params;
       const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
@@ -1066,13 +945,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 투수 교체 (매니저 전용) — 타순 유지, 라운드만 진행
   app.post("/api/manager/control/:id/round/pitcher-change", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-      if (!accessToken) return res.status(401).json({ error: "로그인이 필요합니다." });
-
-      const decoded = verifyAccessToken(accessToken);
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const { id } = req.params;
       const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
@@ -1140,13 +1014,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 공수교대 (매니저 전용)
   app.post("/api/manager/control/:id/round/switch-half", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-      if (!accessToken) return res.status(401).json({ error: "로그인이 필요합니다." });
-
-      const decoded = verifyAccessToken(accessToken);
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const { id } = req.params;
       const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
@@ -1217,17 +1086,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 광고 시작 (매니저 전용)
   app.post("/api/manager/matches/:id/ad/start", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-
-      if (!accessToken) {
-        return res.status(401).json({ error: "로그인이 필요합니다." });
-      }
-
-      const decoded = verifyAccessToken(accessToken);
-
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const { id } = req.params;
       
@@ -1264,17 +1124,8 @@ export async function managerRoutes(app: Express): Promise<void> {
   // 광고 중지 (매니저 전용)
   app.post("/api/manager/matches/:id/ad/stop", async (req, res) => {
     try {
-      const accessToken = getManagerAccessToken(req);
-
-      if (!accessToken) {
-        return res.status(401).json({ error: "로그인이 필요합니다." });
-      }
-
-      const decoded = verifyAccessToken(accessToken);
-
-      if (!decoded || decoded.userType !== "매니저") {
-        return res.status(403).json({ error: "매니저 권한이 필요합니다." });
-      }
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
 
       const { id } = req.params;
       

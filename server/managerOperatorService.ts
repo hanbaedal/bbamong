@@ -24,10 +24,11 @@ import { resolveMatchTeamNames } from "../shared/matchTeamDisplay";
 import type { AdminPlatform } from "../utils/staffUsername";
 import {
   BADMINTON9_MANAGER_MONGO_FILTER,
+  OPERATOR_USERNAMES,
   PPAMONG_MANAGER_MONGO_FILTER,
 } from "./utils/managerPlatform";
 
-export const OPERATOR_USERNAMES = ["op1", "op2", "op3", "op4", "op5"] as const;
+export { OPERATOR_USERNAMES } from "./utils/managerPlatform";
 const OPERATOR_COUNT = 5;
 const PASSWORD_CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
