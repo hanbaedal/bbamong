@@ -1,0 +1,134 @@
+/* 관리자 사이트맵·사이드바 — 섹션별 파스텔 카드 (슈퍼바이저와 동일 계열) */
+
+.admin-section-card {
+  --admin-section-accent: #d1c4e9;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 0.5rem;
+}
+
+.admin-section-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid rgb(0 0 0 / 0.05);
+}
+
+.admin-section-card__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.admin-section-card__accent {
+  width: 3px;
+  height: 14px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--admin-section-accent);
+}
+
+.admin-section-card__title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--admin-section-title);
+}
+
+.admin-section-card__badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--admin-section-badge-bg);
+  color: var(--admin-section-badge-text);
+}
+
+.admin-section-card--main {
+  --admin-section-accent: #d1c4e9;
+  --admin-section-title: #6b5b95;
+  --admin-section-badge-bg: #ede7f6;
+  --admin-section-badge-text: #6b5b95;
+  --admin-section-tree-border: #d1c4e9;
+  background-color: #f5f3ff;
+  border-color: #e8e4f3;
+}
+
+.admin-section-card--mall {
+  --admin-section-accent: #ffcc80;
+  --admin-section-title: #8d6e63;
+  --admin-section-badge-bg: #fff3e0;
+  --admin-section-badge-text: #8d6e63;
+  --admin-section-tree-border: #ffcc80;
+  background-color: #fff8f0;
+  border-color: #ffe0b2;
+}
+
+.admin-section-card--staff-ops {
+  --admin-section-accent: #ce93d8;
+  --admin-section-title: #7b1fa2;
+  --admin-section-badge-bg: #f3e5f5;
+  --admin-section-badge-text: #7b1fa2;
+  --admin-section-tree-border: #ce93d8;
+  background-color: #f3e5f5;
+  border-color: #e1bee7;
+}
+
+.admin-section-card--revenue-operator {
+  --admin-section-accent: #90caf9;
+  --admin-section-title: #1565c0;
+  --admin-section-badge-bg: #e3f2fd;
+  --admin-section-badge-text: #1565c0;
+  --admin-section-tree-border: #90caf9;
+  background-color: #f0f7ff;
+  border-color: #bbdefb;
+}
+
+.admin-section-card--match-members {
+  --admin-section-accent: #a5d6a7;
+  --admin-section-title: #2e7d32;
+  --admin-section-badge-bg: #e8f5e9;
+  --admin-section-badge-text: #2e7d32;
+  --admin-section-tree-border: #a5d6a7;
+  background-color: #f1f8f4;
+  border-color: #c8e6c9;
+}
+
+.admin-section-card--notice-support {
+  --admin-section-accent: #ef9a9a;
+  --admin-section-title: #c62828;
+  --admin-section-badge-bg: #ffebee;
+  --admin-section-badge-text: #c62828;
+  --admin-section-tree-border: #ef9a9a;
+  background-color: #fff5f8;
+  border-color: #ffcdd2;
+}
+
+.admin-section-tree-border {
+  border-left-width: 2px;
+  border-left-style: solid;
+  border-left-color: var(--admin-section-tree-border);
+}
+
+/* 사이드바 섹션 박스 */
+.admin-sidebar-section {
+  padding: 0.375rem 0.25rem 0.5rem;
+  margin-bottom: 0.375rem;
+}
+
+.admin-sidebar-section .admin-section-card__title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0 0.375rem 0.25rem;
+}
+
+.admin-sidebar-section .admin-section-card__accent {
+  margin-left: 0.375rem;
+}

@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import AdminHeader from "./components/AdminHeader";
 import AdminSidebar from "./components/AdminSidebar";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import "./adminSectionThemes.css";
 
 interface AdminLayoutProps {
   children: ReactNode;

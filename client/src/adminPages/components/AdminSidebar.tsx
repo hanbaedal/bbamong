@@ -5,6 +5,7 @@ import { useUser } from "@/contexts/UserContext";
 import { cn } from "@/lib/utils";
 import {
   buildAdminMenuSections,
+  getAdminSectionCardClass,
   type AdminMenuItem,
 } from "../adminMenuConfig";
 
@@ -190,15 +191,19 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
       data-testid="admin-sidebar"
     >
       <div className="p-1.5 md:p-2 flex flex-col gap-0">
-        {menuSections.map((section, sectionIndex) => (
+        {menuSections.map((section) => (
           <div
             key={section.id}
-            className={cn(sectionIndex > 0 && "mt-3 pt-2 border-t border-[#EDE4E6]")}
+            className={cn(
+              "admin-section-card admin-sidebar-section",
+              getAdminSectionCardClass(section.id),
+            )}
           >
             {section.title && (
-              <p className="px-2 pb-1 text-[10px] font-semibold tracking-wide text-[#9CA3AF] leading-none">
-                {section.title}
-              </p>
+              <div className="admin-section-card__title-wrap">
+                <span className="admin-section-card__accent" aria-hidden />
+                <p className="admin-section-card__title">{section.title}</p>
+              </div>
             )}
             <div className="flex flex-col gap-0">
               {section.items.map((item) => renderMenuItem(item))}

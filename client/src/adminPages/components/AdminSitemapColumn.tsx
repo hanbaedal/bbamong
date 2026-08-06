@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { AdminMenuItem } from "../adminMenuConfig";
-import { SITEMAP_COLUMN_THEMES } from "../adminMenuConfig";
+import { getAdminSectionCardClass } from "../adminMenuConfig";
 
 interface AdminSitemapColumnProps {
   columnId: string;
@@ -45,13 +45,11 @@ function SitemapTreeItem({
   item,
   currentPath,
   onNavigate,
-  accentBorder,
   depth = 0,
 }: {
   item: AdminMenuItem;
   currentPath: string;
   onNavigate: (path: string) => void;
-  accentBorder: string;
   depth?: number;
 }) {
   const hasChildren = !!item.children?.length;
@@ -92,9 +90,8 @@ function SitemapTreeItem({
       {hasChildren && (
         <ul
           className={cn(
-            "space-y-0",
-            depth === 0 ? "mt-0.5 ml-1 pl-1.5 border-l-2" : "ml-1 pl-1.5 border-l",
-            accentBorder,
+            "space-y-0 admin-section-tree-border",
+            depth === 0 ? "mt-0.5 ml-1 pl-1.5" : "ml-1 pl-1.5 border-l",
           )}
         >
           {item.children!.map((child) => (
@@ -103,7 +100,6 @@ function SitemapTreeItem({
               item={child}
               currentPath={currentPath}
               onNavigate={onNavigate}
-              accentBorder={accentBorder}
               depth={depth + 1}
             />
           ))}
@@ -121,21 +117,21 @@ export default function AdminSitemapColumn({
   currentPath,
   onNavigate,
 }: AdminSitemapColumnProps) {
-  const theme = SITEMAP_COLUMN_THEMES[columnId] ?? SITEMAP_COLUMN_THEMES.main;
+  const themeClass = getAdminSectionCardClass(columnId);
 
   return (
     <section
       className={cn(
-        "min-w-0 flex flex-col rounded-lg border p-2.5 lg:p-3 h-full",
-        theme.bg,
-        theme.border,
+        "admin-section-card min-w-0 flex flex-col p-2.5 lg:p-3 h-full",
+        themeClass,
       )}
     >
-      <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-black/5">
-        <h2 className={cn("text-xs font-bold", theme.headerText)}>{label}</h2>
-        <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded tabular-nums", theme.badge)}>
-          {linkCount}개
-        </span>
+      <div className="admin-section-card__header">
+        <div className="admin-section-card__title-wrap">
+          <span className="admin-section-card__accent" aria-hidden />
+          <h2 className="admin-section-card__title">{label}</h2>
+        </div>
+        <span className="admin-section-card__badge">{linkCount}개</span>
       </div>
 
       <ul className="space-y-0.5">
@@ -145,7 +141,6 @@ export default function AdminSitemapColumn({
             item={item}
             currentPath={currentPath}
             onNavigate={onNavigate}
-            accentBorder={theme.accentBorder}
           />
         ))}
       </ul>
