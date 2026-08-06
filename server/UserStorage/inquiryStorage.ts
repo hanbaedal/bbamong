@@ -8,6 +8,11 @@ import {
   type RevenuePlatform,
 } from "../utils/revenuePlatform";
 
+import {
+  PPAMONG_OFFICIAL_AUTHOR_ID,
+  PPAMONG_OFFICIAL_DISPLAY_NAME,
+} from "../utils/ppamongOfficialContent";
+
 export interface InquiryListResponse {
   data: Array<
     Inquiry & {
@@ -32,6 +37,73 @@ function statusFilterFromTab(status?: string): Record<string, string> | undefine
 }
 
 export class InquiryStorage {
+  /** 앱 문의 FAQ — 빠몽 운영자 게시글만 */
+  async getOfficialInquiries(): Promise<
+    Array<Inquiry & { category: string; title: string; content: string; response: string | null }>
+  > {
+    const rows = await InquiryModel.find({
+      isOfficial: true,
+      ...PPAMONG_REVENUE_MONGO_FILTER,
+      status: "resolved",
+    })
+      .sort({ id: -1 })
+      .lean();
+    return rows as Inquiry[];
+  }
+
+  async isOfficialPpamongInquiry(id: number): Promise<boolean> {
+    const row = await InquiryModel.findOne({
+      id,
+      isOfficial: true,
+      ...PPAMONG_REVENUE_MONGO_FILTER,
+    })
+      .select("id")
+      .lean();
+    return !!row;
+  }
+
+  async createOfficialInquiry(data: {
+    category: string;
+    title: string;
+    content: string;
+    response: string;
+  }): Promise<Inquiry> {
+    const id = await getNextSequence("inquiry");
+    const doc = await InquiryModel.create({
+      id,
+      userId: PPAMONG_OFFICIAL_AUTHOR_ID,
+      category: data.category,
+      title: data.title,
+      content: data.content,
+      response: data.response,
+      status: "resolved",
+      dataSource: REVENUE_SOURCE_PPAMONG,
+      isOfficial: true,
+    });
+    return doc.toObject() as Inquiry;
+  }
+
+  async updateOfficialInquiry(
+    id: number,
+    data: Partial<{ category: string; title: string; content: string; response: string }>,
+  ): Promise<Inquiry | undefined> {
+    const doc = await InquiryModel.findOneAndUpdate(
+      { id, isOfficial: true, ...PPAMONG_REVENUE_MONGO_FILTER },
+      data,
+      { new: true },
+    ).lean();
+    return doc ? (doc as Inquiry) : undefined;
+  }
+
+  async deleteOfficialInquiry(id: number): Promise<boolean> {
+    const result = await InquiryModel.deleteOne({
+      id,
+      isOfficial: true,
+      ...PPAMONG_REVENUE_MONGO_FILTER,
+    });
+    return (result.deletedCount ?? 0) > 0;
+  }
+
   async createInquiry(inquiry: InsertInquiry): Promise<Inquiry> {
     const id = await getNextSequence("inquiry");
     const doc = await InquiryModel.create({

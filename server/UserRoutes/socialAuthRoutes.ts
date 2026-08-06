@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { userStorage, ensurePpamongMemberDataSource } from "../UserStorage/userStorage";
+import { userStorage } from "../UserStorage/userStorage";
 import { 
   generateUserAccessToken, 
   generateUserRefreshToken 
@@ -445,7 +445,6 @@ export function registerSocialAuthRoutes(app: Express) {
       });
 
       const now = new Date();
-      await ensurePpamongMemberDataSource(user.id);
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       const authCode = crypto.randomBytes(32).toString('hex');
@@ -608,7 +607,6 @@ export function registerSocialAuthRoutes(app: Express) {
       });
 
       const now = new Date();
-      await ensurePpamongMemberDataSource(user.id);
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       const authCode = crypto.randomBytes(32).toString('hex');
@@ -741,7 +739,6 @@ export function registerSocialAuthRoutes(app: Express) {
       });
 
       const now = new Date();
-      await ensurePpamongMemberDataSource(user.id);
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
       const authCode = crypto.randomBytes(32).toString('hex');

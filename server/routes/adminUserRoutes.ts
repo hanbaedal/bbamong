@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { AdminUserStorage } from "../storage/adminUserStorage";
-import { adminAuthMiddleware } from "../middleware/adminAuth";
+import { adminAuthMiddleware, superAdminAuthMiddleware } from "../middleware/adminAuth";
 import { deleteSession } from "../sessionManager";
 import { parseMemberPlatform } from "../utils/memberPlatform";
+import { syncMemberDataSourceTags } from "../utils/memberDataSourceSync";
 import { AdminInviteStorage } from "../storage/adminInviteStorage";
 
 const adminUserStorage = new AdminUserStorage();
@@ -142,6 +143,20 @@ export async function adminUserRoutes(app: Express): Promise<void> {
     } catch (error) {
       console.error("Hard delete user error:", error);
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  });
+
+  app.post("/api/admin/members/sync-data-source", superAdminAuthMiddleware, async (_req, res) => {
+    try {
+      const tags = await syncMemberDataSourceTags();
+      return res.json({
+        success: true,
+        message: "회원 dataSource 태그를 재정렬했습니다.",
+        ...tags,
+      });
+    } catch (error) {
+      console.error("Member dataSource sync error:", error);
+      return res.status(500).json({ error: "회원 dataSource 재정렬에 실패했습니다." });
     }
   });
 

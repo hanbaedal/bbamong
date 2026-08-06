@@ -4,6 +4,16 @@ import {
   memberPlatformFilter,
   type MemberPlatform,
 } from "../utils/memberPlatform";
+import {
+  PPAMONG_REVENUE_MONGO_FILTER,
+  REVENUE_SOURCE_PPAMONG,
+  revenuePlatformFilter,
+  type RevenuePlatform,
+} from "../utils/revenuePlatform";
+import {
+  PPAMONG_OFFICIAL_AUTHOR_ID,
+  PPAMONG_OFFICIAL_DISPLAY_NAME,
+} from "../utils/ppamongOfficialContent";
 
 export interface AdminPostListItem extends Post {
   authorName: string;
@@ -28,6 +38,116 @@ export interface AdminPostDetail extends Post {
 }
 
 export class PostStorage {
+  /** 앱 게시판 — 빠몽 운영자(공식) 글만 */
+  async getOfficialPosts(): Promise<Array<Post & { authorName: string }>> {
+    const posts = await PostModel.find({
+      isOfficial: true,
+      ...PPAMONG_REVENUE_MONGO_FILTER,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return posts.map((row) => ({
+      ...(row as Post),
+      authorName: PPAMONG_OFFICIAL_DISPLAY_NAME,
+    }));
+  }
+
+  async isOfficialPpamongPost(id: number): Promise<boolean> {
+    const post = await PostModel.findOne({
+      id,
+      isOfficial: true,
+      ...PPAMONG_REVENUE_MONGO_FILTER,
+    })
+      .select("id")
+      .lean();
+    return !!post;
+  }
+
+  async createOfficialPost(data: { title: string; content: string }): Promise<Post> {
+    const id = await getNextSequence("post");
+    const doc = await PostModel.create({
+      id,
+      title: data.title,
+      content: data.content,
+      authorId: PPAMONG_OFFICIAL_AUTHOR_ID,
+      dataSource: REVENUE_SOURCE_PPAMONG,
+      isOfficial: true,
+      viewCount: 0,
+    });
+    return doc.toObject() as Post;
+  }
+
+  async updateOfficialPost(
+    id: number,
+    data: Partial<{ title: string; content: string }>,
+  ): Promise<Post | undefined> {
+    const doc = await PostModel.findOneAndUpdate(
+      { id, isOfficial: true, ...PPAMONG_REVENUE_MONGO_FILTER },
+      data,
+      { new: true },
+    ).lean();
+    return doc ? (doc as Post) : undefined;
+  }
+
+  async adminDeleteOfficialPost(id: number): Promise<boolean> {
+    const existing = await PostModel.findOne({
+      id,
+      isOfficial: true,
+      ...PPAMONG_REVENUE_MONGO_FILTER,
+    }).lean();
+    if (!existing) return false;
+    await CommentModel.deleteMany({ postId: id });
+    await PostModel.deleteOne({ id });
+    return true;
+  }
+
+  async getAdminOfficialPosts(
+    platform: RevenuePlatform = "ppamong",
+    page = 1,
+    limit = 8,
+    search?: string,
+  ): Promise<{
+    posts: Array<Post & { authorName: string }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    platform: RevenuePlatform;
+    counts: { ppamong: number; badminton9: number };
+  }> {
+    const filter: Record<string, unknown> = {
+      isOfficial: true,
+      ...revenuePlatformFilter(platform),
+    };
+    if (search?.trim()) {
+      filter.title = { $regex: search.trim(), $options: "i" };
+    }
+    const offset = (page - 1) * limit;
+    const [total, posts, ppamongCount, badminton9Count] = await Promise.all([
+      PostModel.countDocuments(filter),
+      PostModel.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
+      PostModel.countDocuments({ isOfficial: true, ...PPAMONG_REVENUE_MONGO_FILTER }),
+      PostModel.countDocuments({
+        isOfficial: true,
+        ...revenuePlatformFilter("badminton9"),
+      }),
+    ]);
+
+    return {
+      posts: posts.map((row) => ({
+        ...(row as Post),
+        authorName: PPAMONG_OFFICIAL_DISPLAY_NAME,
+      })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+      platform,
+      counts: { ppamong: ppamongCount, badminton9: badminton9Count },
+    };
+  }
+
   async getPosts(
     page: number,
     limit: number,
@@ -123,6 +243,13 @@ export class PostStorage {
   async getPost(id: number): Promise<(Post & { authorName: string }) | undefined> {
     const post = await PostModel.findOne({ id }).lean();
     if (!post) return undefined;
+
+    if ((post as Post & { isOfficial?: boolean }).isOfficial) {
+      return {
+        ...(post as Post),
+        authorName: PPAMONG_OFFICIAL_DISPLAY_NAME,
+      };
+    }
 
     const author = await UserModel.findOne({ id: post.authorId }).select("name").lean();
     return {

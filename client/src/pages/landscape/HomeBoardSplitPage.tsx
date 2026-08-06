@@ -1,44 +1,35 @@
 import { useEffect } from "react";
 import { useLocation, useRoute } from "wouter";
-import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import LandscapeMasterDetailShell, { LandscapeEmptyPane } from "@/components/landscape/LandscapeMasterDetailShell";
 import LandscapeCompactPane from "@/components/landscape/LandscapeCompactPane";
 import BoardCompactList from "@/components/landscape/compact/BoardCompactList";
 import BoardCompactDetail from "@/components/landscape/compact/BoardCompactDetail";
-import BoardCompactCreate from "@/components/landscape/compact/BoardCompactCreate";
 
 export default function HomeBoardSplitPage() {
   const [location, setLocation] = useLocation();
-  const { toast } = useToast();
-  const isNew = location === "/home/board/new";
+  const [, params] = useRoute("/home/board/:id");
+  const id = params?.id;
+
+  const { data: posts = [] } = useQuery<Array<{ id: number }>>({
+    queryKey: ["/api/posts"],
+  });
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("created") !== "true") return;
-    toast({ description: "게시글을 등록했습니다" });
-    window.history.replaceState({}, "", "/home/board");
-  }, [toast]);
-  const [, params] = useRoute("/home/board/:id");
-  const id = isNew ? null : params?.id;
+    if (id || location !== "/home/board") return;
+    if (posts.length > 0) {
+      setLocation(`/home/board/${posts[0].id}`);
+    }
+  }, [id, location, posts, setLocation]);
 
-  let right;
-  if (isNew) {
-    right = (
-      <LandscapeCompactPane theme="board">
-        <BoardCompactCreate />
-      </LandscapeCompactPane>
-    );
-  } else if (id) {
-    right = (
+  const right =
+    id != null ? (
       <LandscapeCompactPane theme="board">
         <BoardCompactDetail />
       </LandscapeCompactPane>
+    ) : (
+      <LandscapeEmptyPane message="게시글을 선택하세요" hint="왼쪽 목록에서 항목을 눌러주세요" />
     );
-  } else {
-    right = (
-      <LandscapeEmptyPane message="게시글을 선택하세요" hint="왼쪽 목록에서 글을 선택하세요" />
-    );
-  }
 
   return (
     <LandscapeMasterDetailShell
@@ -48,9 +39,8 @@ export default function HomeBoardSplitPage() {
       testId="home-board-split"
       left={
         <BoardCompactList
-          selectedId={isNew ? "new" : id}
+          selectedId={id}
           onSelect={(postId) => setLocation(`/home/board/${postId}`)}
-          onCreate={() => setLocation("/home/board/new")}
         />
       }
       right={right}

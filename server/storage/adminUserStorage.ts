@@ -78,8 +78,8 @@ export class AdminUserStorage implements IAdminUserStorage {
 
   async getMemberPlatformCounts(): Promise<{ ppamong: number; badminton9: number }> {
     const [ppamong, badminton9] = await Promise.all([
-      UserModel.countDocuments({ ...PPAMONG_MEMBER_MONGO_FILTER, ...this.guestExclusion, isSuspended: { $ne: 1 } }),
-      UserModel.countDocuments({ ...BADMINTON9_MEMBER_MONGO_FILTER, ...this.guestExclusion, isSuspended: { $ne: 1 } }),
+      UserModel.countDocuments({ ...PPAMONG_MEMBER_MONGO_FILTER, ...this.guestExclusion }),
+      UserModel.countDocuments({ ...BADMINTON9_MEMBER_MONGO_FILTER, ...this.guestExclusion }),
     ]);
     return { ppamong, badminton9 };
   }

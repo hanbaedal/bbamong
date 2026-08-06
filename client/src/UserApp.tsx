@@ -87,11 +87,11 @@ function Router() {
       </Route>
 
       {/* 가로 split — 구체 경로를 /home 보다 먼저 등록 */}
-      <Route path="/home/board/new">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
+      <Route path="/home/board/new">{() => <Redirect to="/home/board" />}</Route>
       <Route path="/home/board/:id">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
       <Route path="/home/board">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
 
-      <Route path="/home/inquiry/new">{() => <ProtectedRoute component={HomeInquirySplitPage} />}</Route>
+      <Route path="/home/inquiry/new">{() => <Redirect to="/home/inquiry" />}</Route>
       <Route path="/home/inquiry/:id">{() => <ProtectedRoute component={HomeInquirySplitPage} />}</Route>
       <Route path="/home/inquiry">{() => <ProtectedRoute component={HomeInquirySplitPage} />}</Route>
 

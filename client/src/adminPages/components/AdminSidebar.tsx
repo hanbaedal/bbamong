@@ -136,7 +136,7 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
               expandedItems.includes(item.id) ? "max-h-80" : "max-h-0",
             )}
           >
-            <div className="mt-0 mb-0.5 border-l border-[#E8D4D8] ml-3.5">
+            <div className="mt-0 mb-0.5 admin-section-tree-border ml-3.5">
               {item.children.map((child) => (
                 <button
                   key={child.id}

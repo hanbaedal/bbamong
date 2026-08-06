@@ -23,6 +23,7 @@ import {
   AdViewHistoryModel,
   CounterModel,
 } from "../mongodb/models";
+import { syncMemberDataSourceTags } from "../utils/memberDataSourceSync";
 
 export type PgMongoSyncMode = "replace" | "merge";
 
@@ -57,7 +58,7 @@ const SYNC_TABLES: SyncTableDef[] = [
     model: UserModel,
     insertDefaults: { provider: "local" },
     omitNullFields: ["phone", "inviteCode"],
-    preserveOnUpdate: ["password", "passwordPlain", "dataSource"],
+    preserveOnUpdate: ["password", "passwordPlain"],
     storePasswordPlain: true,
     normalizeDoc: normalizeUserDoc,
   },
@@ -799,6 +800,17 @@ async function runSync(defs: SyncTableDef[]): Promise<SyncRunResult> {
     if (!tables.some((t) => t.error && !t.skipped)) {
       await rebuildMongoCounters(defs);
       countParity = await buildCountParity(pg, defs);
+
+      if (defs.some((d) => d.pgTable === "users")) {
+        try {
+          const tags = await syncMemberDataSourceTags();
+          console.log(
+            `[PgMongoSync] Member dataSource: badminton9 ${tags.badminton9}, ppamong ${tags.ppamong}`,
+          );
+        } catch (tagError) {
+          console.error("[PgMongoSync] Member dataSource tag sync failed:", tagError);
+        }
+      }
     }
   } finally {
     await pg.end();
