@@ -90,7 +90,10 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
         <div key={item.id} className="rounded transition-all duration-200">
           <button
             onClick={() => toggleExpanded(item.id)}
-            className="w-full flex items-center justify-between px-2 py-1 rounded hover:bg-[#FDF2F3] transition"
+            className={cn(
+              "admin-sidebar-menu-btn w-full flex items-center justify-between px-2 py-1 rounded transition",
+              isParentActive(item) && "is-active",
+            )}
             data-testid={`menu-${item.id}`}
           >
             <div className="flex items-center gap-1.5 min-w-0">
@@ -102,9 +105,10 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
                 />
               )}
               <span
-                className={`text-[11px] font-semibold truncate leading-tight ${
-                  isParentActive(item) ? "text-[#E11936]" : "text-[#4D4B4E]"
-                }`}
+                className={cn(
+                  "text-[11px] font-semibold truncate leading-tight",
+                  isParentActive(item) ? "text-[var(--admin-section-title,#E11936)]" : "text-[#4D4B4E]",
+                )}
               >
                 {item.label}
               </span>
@@ -122,7 +126,7 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
             >
               <path
                 d="M7.5 5L12.5 10L7.5 15"
-                stroke={isParentActive(item) ? "#E11936" : "#4D4B4E"}
+                stroke={isParentActive(item) ? "var(--admin-section-title, #E11936)" : "#4D4B4E"}
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -141,11 +145,10 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
                 <button
                   key={child.id}
                   onClick={() => handleMenuClick(child.path)}
-                  className={`w-full flex items-center pl-2.5 pr-1.5 py-0.5 rounded-r transition text-left ${
-                    isActive(child.path)
-                      ? "bg-[rgba(225,25,54,0.12)] text-[#E11936] font-semibold"
-                      : "hover:bg-[#FDF2F3] text-[#5C5A5E]"
-                  }`}
+                  className={cn(
+                    "admin-sidebar-menu-btn w-full flex items-center pl-2.5 pr-1.5 py-0.5 rounded-r transition text-left text-[#5C5A5E]",
+                    isActive(child.path) && "is-active",
+                  )}
                   data-testid={`menu-${child.id}`}
                 >
                   <span className="text-[10px] leading-tight">{child.label}</span>
@@ -161,11 +164,10 @@ export default function AdminSidebar({ onNavigate, className }: AdminSidebarProp
       <button
         key={item.id}
         onClick={() => item.path && handleTopLevelClick(item.path)}
-        className={`w-full flex items-center gap-1.5 px-2 py-1 rounded transition ${
-          isActive(item.path)
-            ? "bg-[rgba(225,25,54,0.12)] text-[#E11936]"
-            : "hover:bg-[#FDF2F3] text-[#4D4B4E]"
-        }`}
+        className={cn(
+          "admin-sidebar-menu-btn w-full flex items-center gap-1.5 px-2 py-1 rounded transition text-[#4D4B4E]",
+          isActive(item.path) && "is-active",
+        )}
         data-testid={`menu-${item.id}`}
       >
         <div className="w-3.5 h-3.5 flex items-center justify-center flex-shrink-0">

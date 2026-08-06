@@ -29,10 +29,9 @@ function SitemapLink({
       type="button"
       onClick={() => onNavigate(path)}
       className={cn(
-        "text-left text-[11px] leading-tight rounded px-1.5 py-0.5 transition-colors w-full",
-        active
-          ? "text-[#E11936] font-semibold bg-white/80"
-          : "text-[#4D4B4E] hover:text-[#E11936] hover:bg-white/60",
+        "text-left text-[11px] leading-tight rounded px-1.5 py-0.5 transition-colors w-full admin-sitemap-link",
+        active && "is-active",
+        !active && "text-[#4D4B4E]",
         className,
       )}
     >
@@ -80,7 +79,7 @@ function SitemapTreeItem({
       ) : (
         <p
           className={cn(
-            "text-[10px] font-semibold uppercase tracking-wide opacity-80 px-1.5 py-0.5",
+            "admin-sitemap-group-label text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5",
             depth > 0 && "mt-0.5",
           )}
         >
