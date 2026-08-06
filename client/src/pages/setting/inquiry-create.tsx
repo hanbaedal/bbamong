@@ -138,23 +138,31 @@ export default function InquiryCreatePage() {
       />
 
       {/* 폼 */}
-      <div className={`flex-1 flex flex-col px-5 pt-[10px] overflow-y-scroll-touch ${keyboardVisible ? 'pb-4' : 'pb-bottom-nav'}`}>
+      <div
+        className={`lscape-form-body flex-1 flex flex-col px-5 pt-[10px] overflow-y-scroll-touch min-h-0 ${keyboardVisible ? "pb-4" : "pb-bottom-nav"}`}
+      >
         <h1 data-testid="text-page-title" className="text-white text-[20px] font-bold text-center pt-4 pb-3">문의하기</h1>
-        {/* 카테고리 선택 */}
-        <button
-          onClick={() => setShowCategorySheet(true)}
-          className="w-full flex items-center justify-between py-3 border-b border-[#373539] mb-5"
-          data-testid="button-select-category"
-        >
-          <span className={category ? "text-white" : "text-[#6B6B6B]"}>
-            {category || "문의 카테고리를 선택해 주세요"}
-          </span>
-          <ChevronDown className="w-5 h-5 text-[#6B6B6B]" />
-        </button>
+        <div className="lscape-form-field">
+          <span className="lscape-form-label">카테고리</span>
+          <button
+            type="button"
+            onClick={() => setShowCategorySheet(true)}
+            className="w-full flex items-center justify-between py-3 border-b border-[#373539]"
+            data-testid="button-select-category"
+          >
+            <span className={category ? "text-white" : "text-[#6B6B6B]"}>
+              {category || "문의 카테고리를 선택해 주세요"}
+            </span>
+            <ChevronDown className="w-5 h-5 text-[#6B6B6B]" />
+          </button>
+        </div>
 
-        {/* 제목 입력 */}
-        <div className="mb-5">
+        <div className="lscape-form-field">
+          <label htmlFor="inquiry-title" className="lscape-form-label">
+            제목
+          </label>
           <input
+            id="inquiry-title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -166,15 +174,18 @@ export default function InquiryCreatePage() {
           />
         </div>
 
-        {/* 내용 입력 */}
-        <div className="flex-1">
+        <div className="lscape-form-field lscape-form-field--grow">
+          <label htmlFor="inquiry-content" className="lscape-form-label">
+            내용
+          </label>
           <textarea
+            id="inquiry-content"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onFocus={handleFocus}
             onBlur={handleBlur}
             placeholder="내용을 입력해 주세요."
-            className="w-full h-full bg-transparent text-white placeholder:text-[#6B6B6B] border-0 py-3 focus:outline-none resize-none"
+            className="w-full flex-1 min-h-[200px] bg-transparent text-white placeholder:text-[#6B6B6B] border-0 py-3 focus:outline-none resize-none"
             data-testid="textarea-content"
           />
         </div>

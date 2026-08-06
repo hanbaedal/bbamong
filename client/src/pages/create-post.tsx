@@ -132,27 +132,41 @@ export default function CreatePostPage() {
       />
 
       {/* 컨텐츠 */}
-      <div className={`flex-1 flex flex-col px-5 pt-[10px] overflow-y-scroll-touch min-h-0 ${keyboardVisible ? 'pb-4' : 'pb-bottom-nav'}`}>
+      <div
+        className={`lscape-form-body flex-1 flex flex-col px-5 pt-[10px] overflow-y-scroll-touch min-h-0 ${keyboardVisible ? "pb-4" : "pb-bottom-nav"}`}
+      >
         <h1 data-testid="text-page-title" className="text-white text-[20px] font-bold text-center pt-4 pb-3 flex-shrink-0">글쓰기</h1>
-        <input
-          type="text"
-          data-testid="input-post-title"
-          placeholder="제목을 입력해주세요."
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          className="w-full bg-transparent text-white text-[20px] font-[600] mb-4 placeholder:text-[#6B6B6B] focus:outline-none border-b border-[#373539] pb-2 flex-shrink-0"
-        />
-        <textarea
-          data-testid="textarea-post-content"
-          placeholder="내용을 입력해 주세요."
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          className="w-full flex-1 bg-transparent text-white text-sm placeholder:text-[#6B6B6B] focus:outline-none resize-none min-h-[200px]"
-        />
+        <div className="lscape-form-field">
+          <label htmlFor="post-title" className="lscape-form-label">
+            제목
+          </label>
+          <input
+            id="post-title"
+            type="text"
+            data-testid="input-post-title"
+            placeholder="제목을 입력해주세요."
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            className="w-full bg-transparent text-white text-[20px] font-[600] placeholder:text-[#6B6B6B] focus:outline-none border-b border-[#373539] pb-2 flex-shrink-0"
+          />
+        </div>
+        <div className="lscape-form-field lscape-form-field--grow">
+          <label htmlFor="post-content" className="lscape-form-label">
+            내용
+          </label>
+          <textarea
+            id="post-content"
+            data-testid="textarea-post-content"
+            placeholder="내용을 입력해 주세요."
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            className="w-full flex-1 bg-transparent text-white text-sm placeholder:text-[#6B6B6B] focus:outline-none resize-none min-h-[200px]"
+          />
+        </div>
         <div className="lscape-form-submit-bar">
           <button
             type="button"
