@@ -7,19 +7,19 @@ import { useToast } from "@/hooks/use-toast";
 import AdminPagination from "./components/AdminPagination";
 import { useResponsivePageSize } from "@/hooks/useResponsivePageSize";
 import { OpsPlatformTabs, type OpsPlatform } from "./ops/opsLoginStatusUi";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 interface InquiryData {
   id: number;
+  userId: string;
   category: string;
   title: string;
   content: string;
   status: string;
   response: string | null;
   createdAt: string;
+  userName: string;
+  userUsername: string;
   dataSource?: string;
 }
 
@@ -35,7 +35,7 @@ interface InquiryListResponse {
   counts: { ppamong: number; badminton9: number };
 }
 
-type SidePanelMode = "add" | "edit" | "detail" | null;
+type StatusTab = "전체" | "답변 대기" | "답변 완료";
 
 function formatDate(dateString: string) {
   const date = new Date(dateString);
@@ -47,110 +47,94 @@ function formatDate(dateString: string) {
   return `${y}.${m}.${d} ${h}:${min}`;
 }
 
+function getStatusDisplay(status: string) {
+  if (status === "pending") {
+    return { text: "대기", className: "bg-[#FFF4E6] text-[#FF9800]" };
+  }
+  if (status === "resolved") {
+    return { text: "완료", className: "bg-[#E8F5E9] text-[#4CAF50]" };
+  }
+  return { text: status, className: "bg-gray-100 text-gray-600" };
+}
+
 export default function CustomerSupportPage() {
   const { toast } = useToast();
   const [platform, setPlatform] = useState<OpsPlatform>("ppamong");
+  const [activeTab, setActiveTab] = useState<StatusTab>("전체");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = useResponsivePageSize();
   const [selectedInquiry, setSelectedInquiry] = useState<InquiryData | null>(null);
-  const [sidePanelMode, setSidePanelMode] = useState<SidePanelMode>(null);
-  const [formCategory, setFormCategory] = useState("일반");
-  const [formTitle, setFormTitle] = useState("");
-  const [formContent, setFormContent] = useState("");
-  const [formResponse, setFormResponse] = useState("");
-
-  const canEdit = platform === "ppamong";
+  const [showSidePanel, setShowSidePanel] = useState(false);
+  const [responseText, setResponseText] = useState("");
+  const [isEditMode, setIsEditMode] = useState(false);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [itemsPerPage, platform]);
+  }, [itemsPerPage, platform, activeTab]);
 
-  const queryKey = `/api/admin/inquiries?platform=${platform}&page=${currentPage}&limit=${itemsPerPage}${
-    platform === "badminton9" ? "&status=전체" : ""
-  }`;
+  const queryKey = `/api/admin/inquiries?platform=${platform}&status=${activeTab}&page=${currentPage}&limit=${itemsPerPage}`;
 
   const { data, isLoading } = useQuery<InquiryListResponse>({
     queryKey: [queryKey],
-    queryFn: async () => {
-      const res = await apiRequest("GET", queryKey);
-      return res.json();
-    },
     placeholderData: (previousData) => previousData,
   });
 
   const inquiries = data?.data ?? [];
   const totalPages = data?.totalPages ?? 1;
+  const pendingCount = data?.pendingCount ?? 0;
+  const resolvedCount = data?.resolvedCount ?? 0;
+  const totalCount = pendingCount + resolvedCount;
   const counts = data?.counts ?? { ppamong: 0, badminton9: 0 };
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/inquiries"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/inquiries"] });
+  const handleTabChange = (tab: StatusTab) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
   };
 
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const payload = {
-        category: formCategory.trim(),
-        title: formTitle.trim(),
-        content: formContent.trim(),
-        response: formResponse.trim(),
-      };
-      if (sidePanelMode === "add") {
-        return apiRequest("POST", "/api/admin/inquiries", payload);
-      }
-      if (sidePanelMode === "edit" && selectedInquiry) {
-        return apiRequest("PATCH", `/api/admin/inquiries/${selectedInquiry.id}`, payload);
-      }
-      throw new Error("invalid mode");
-    },
-    onSuccess: () => {
-      invalidate();
-      handleCloseSidePanel();
-      toast({ description: sidePanelMode === "add" ? "문의 안내가 등록되었습니다." : "문의 안내가 수정되었습니다." });
-    },
-    onError: () => {
-      toast({ variant: "destructive", description: "저장에 실패했습니다." });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => apiRequest("DELETE", `/api/admin/inquiries/${id}`),
-    onSuccess: () => {
-      invalidate();
-      handleCloseSidePanel();
-      toast({ description: "문의 안내가 삭제되었습니다." });
-    },
-    onError: () => {
-      toast({ variant: "destructive", description: "삭제에 실패했습니다." });
-    },
-  });
-
-  const handleOpenAdd = () => {
-    setSelectedInquiry(null);
-    setFormCategory("일반");
-    setFormTitle("");
-    setFormContent("");
-    setFormResponse("");
-    setSidePanelMode("add");
-  };
-
-  const handleOpenEdit = (inquiry: InquiryData) => {
+  const handleRowClick = (inquiry: InquiryData) => {
     setSelectedInquiry(inquiry);
-    setFormCategory(inquiry.category);
-    setFormTitle(inquiry.title);
-    setFormContent(inquiry.content);
-    setFormResponse(inquiry.response ?? "");
-    setSidePanelMode("edit");
-  };
-
-  const handleOpenDetail = (inquiry: InquiryData) => {
-    setSelectedInquiry(inquiry);
-    setSidePanelMode("detail");
+    setShowSidePanel(true);
+    if (inquiry.status === "resolved" && inquiry.response) {
+      setResponseText(inquiry.response);
+      setIsEditMode(false);
+    } else {
+      setResponseText("");
+      setIsEditMode(true);
+    }
   };
 
   const handleCloseSidePanel = () => {
-    setSidePanelMode(null);
+    setShowSidePanel(false);
     setSelectedInquiry(null);
+    setResponseText("");
+    setIsEditMode(false);
+  };
+
+  const invalidateInquiries = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/inquiries"] });
+  };
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, response }: { id: number; response: string }) => {
+      return await apiRequest("PATCH", `/api/inquiries/${id}/status`, {
+        status: "resolved",
+        response,
+      });
+    },
+    onSuccess: () => {
+      invalidateInquiries();
+      handleCloseSidePanel();
+      toast({ description: "답변이 완료되었습니다." });
+    },
+  });
+
+  const handleSubmitResponse = () => {
+    if (!selectedInquiry) return;
+    if (!responseText.trim()) {
+      toast({ variant: "destructive", description: "답변을 입력해주세요." });
+      return;
+    }
+    updateStatusMutation.mutate({ id: selectedInquiry.id, response: responseText });
   };
 
   return (
@@ -160,16 +144,6 @@ export default function CustomerSupportPage() {
           <p className="text-sm font-semibold text-[#201E22]" data-testid="page-title">
             문의 관리
           </p>
-          {canEdit ? (
-            <Button
-              size="sm"
-              className="h-8 text-xs bg-[#E57373] hover:bg-[#EF5350]"
-              onClick={handleOpenAdd}
-              data-testid="button-add-inquiry-faq"
-            >
-              + 문의 안내 추가
-            </Button>
-          ) : null}
         </div>
 
         <div className="px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8 mb-3">
@@ -177,83 +151,132 @@ export default function CustomerSupportPage() {
             platform={platform}
             counts={counts}
             onChange={setPlatform}
-            ppamongSublabel="빠몽 앱 문의 FAQ"
+            ppamongSublabel="빠몽 앱 문의"
             badminton9Sublabel="PG 레거시 (읽기 전용)"
             countLabel="건"
           />
         </div>
 
+        <div className="flex gap-4 md:gap-6 border-b border-[#E9E9E9] mb-3 px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8">
+          {(
+            [
+              { key: "전체" as const, count: totalCount },
+              { key: "답변 대기" as const, count: pendingCount },
+              { key: "답변 완료" as const, count: resolvedCount },
+            ] as const
+          ).map(({ key, count }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => handleTabChange(key)}
+              className={cn(
+                "pb-2 px-1 text-xs md:text-sm font-medium border-b-2 transition-colors",
+                activeTab === key
+                  ? "border-[#E11936] text-[#E11936]"
+                  : "border-transparent text-[#BFBFBF]",
+              )}
+              data-testid={`tab-${key === "전체" ? "all" : key === "답변 대기" ? "pending" : "resolved"}`}
+            >
+              {key} {count}
+            </button>
+          ))}
+        </div>
+
         <div className="flex-1 overflow-auto min-h-0 mx-3 sm:mx-4 md:mx-5 lg:mx-6 xl:mx-8 border border-[#E8E4F3] rounded-lg overflow-x-auto">
           {isLoading ? (
-            <div className="py-12 text-center text-sm text-[#BFBFBF]">불러오는 중...</div>
+            <table className="w-full text-xs min-w-[720px] border-collapse">
+              <thead>
+                <tr className="bg-[#F3F0FF] border-b border-[#E8E4F3] text-left text-[11px] text-[#6B5B95]">
+                  {["No", "등록일", "제목", "이름", "ID", "카테고리", "상태", "관리"].map((col) => (
+                    <th key={col} className="px-2 py-2 font-semibold whitespace-nowrap">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: itemsPerPage }).map((_, index) => (
+                  <tr key={index} className="border-b border-[#F0F0F0] animate-pulse">
+                    {Array.from({ length: 8 }).map((__, col) => (
+                      <td key={col} className="px-2 py-2">
+                        <div className="h-3 bg-[#E9E9E9] rounded" />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : inquiries.length === 0 ? (
             <div className="py-12 text-center text-sm text-[#BFBFBF]">
-              {platform === "ppamong" ? "빠몽 문의 안내가 없습니다." : "빠던9 레거시 문의가 없습니다."}
+              {platform === "ppamong" ? "빠몽 문의가 없습니다." : "빠던9 레거시 문의가 없습니다."}
             </div>
           ) : (
-            <table className="w-full text-xs min-w-[640px] border-collapse">
+            <table className="w-full text-xs min-w-[720px] border-collapse">
               <thead>
                 <tr className="bg-[#F3F0FF] border-b border-[#E8E4F3] text-left text-[11px] text-[#6B5B95]">
                   <th className="px-2 py-2 font-semibold whitespace-nowrap">No</th>
                   <th className="px-2 py-2 font-semibold whitespace-nowrap">등록일</th>
                   <th className="px-2 py-2 font-semibold whitespace-nowrap min-w-[160px]">제목</th>
+                  <th className="px-2 py-2 font-semibold whitespace-nowrap">이름</th>
+                  <th className="px-2 py-2 font-semibold whitespace-nowrap">ID</th>
                   <th className="px-2 py-2 font-semibold whitespace-nowrap">카테고리</th>
-                  <th className="px-2 py-2 font-semibold whitespace-nowrap w-24">관리</th>
+                  <th className="px-2 py-2 font-semibold whitespace-nowrap">상태</th>
+                  <th className="px-2 py-2 font-semibold whitespace-nowrap w-14">관리</th>
                 </tr>
               </thead>
               <tbody>
-                {inquiries.map((inquiry, index) => (
-                  <tr
-                    key={inquiry.id}
-                    className="border-b border-[#EDE9F6]/80 hover:bg-[#FAFAFA] transition-colors"
-                    data-testid={`inquiry-row-${index}`}
-                  >
-                    <td className="px-2 py-1.5 text-[#888] tabular-nums whitespace-nowrap">
-                      #{inquiry.id}
-                    </td>
-                    <td className="px-2 py-1.5 text-[#666] tabular-nums whitespace-nowrap">
-                      {formatDate(inquiry.createdAt)}
-                    </td>
-                    <td
-                      className="px-2 py-1.5 text-[#201E22] max-w-[200px] truncate cursor-pointer"
-                      title={inquiry.title}
-                      onClick={() => handleOpenDetail(inquiry)}
+                {inquiries.map((inquiry, index) => {
+                  const statusInfo = getStatusDisplay(inquiry.status);
+                  return (
+                    <tr
+                      key={inquiry.id}
+                      className="border-b border-[#EDE9F6]/80 hover:bg-[#FAFAFA] transition-colors"
+                      data-testid={`inquiry-row-${index}`}
                     >
-                      {inquiry.title}
-                    </td>
-                    <td className="px-2 py-1.5 text-[#414141] truncate max-w-[80px]" title={inquiry.category}>
-                      {inquiry.category}
-                    </td>
-                    <td className="px-2 py-1.5 whitespace-nowrap">
-                      {canEdit ? (
-                        <div className="flex gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(inquiry)}
-                            className="px-2 py-0.5 text-[10px] font-medium text-white bg-[#4285F4] rounded hover:bg-[#3367D6]"
-                          >
-                            수정
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteMutation.mutate(inquiry.id)}
-                            className="px-2 py-0.5 text-[10px] font-medium text-white bg-[#E57373] rounded hover:bg-[#EF5350]"
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      ) : (
+                      <td className="px-2 py-1.5 text-[#888] tabular-nums whitespace-nowrap">
+                        #{inquiry.id}
+                      </td>
+                      <td className="px-2 py-1.5 text-[#666] tabular-nums whitespace-nowrap">
+                        {formatDate(inquiry.createdAt)}
+                      </td>
+                      <td
+                        className="px-2 py-1.5 text-[#201E22] max-w-[200px] truncate"
+                        title={inquiry.title}
+                      >
+                        {inquiry.title}
+                      </td>
+                      <td className="px-2 py-1.5 text-[#414141] truncate max-w-[72px]" title={inquiry.userName}>
+                        {inquiry.userName}
+                      </td>
+                      <td className="px-2 py-1.5 text-[#414141] truncate max-w-[72px]" title={inquiry.userUsername}>
+                        {inquiry.userUsername}
+                      </td>
+                      <td className="px-2 py-1.5 text-[#414141] truncate max-w-[80px]" title={inquiry.category}>
+                        {inquiry.category}
+                      </td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">
+                        <span
+                          className={cn(
+                            "inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium",
+                            statusInfo.className,
+                          )}
+                        >
+                          {statusInfo.text}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">
                         <button
                           type="button"
-                          onClick={() => handleOpenDetail(inquiry)}
-                          className="px-2 py-0.5 text-[10px] font-medium text-white bg-[#4285F4] rounded hover:bg-[#3367D6]"
+                          onClick={() => handleRowClick(inquiry)}
+                          className="px-2 py-0.5 text-[10px] font-medium text-white bg-[#E11936] rounded hover:bg-[#C71530]"
+                          data-testid={`button-manage-${index}`}
                         >
-                          보기
+                          {platform === "ppamong" ? "답변" : "보기"}
                         </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -268,86 +291,120 @@ export default function CustomerSupportPage() {
         </div>
       </div>
 
-      {sidePanelMode && (
+      {showSidePanel && selectedInquiry && (
         <>
-          <div className="fixed inset-0 bg-black/50 z-[60]" onClick={handleCloseSidePanel} />
-          <div className="fixed right-0 top-0 h-full w-full max-w-[800px] bg-white z-[70] shadow-xl overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black/50 z-[60] animate-in fade-in duration-300"
+            onClick={handleCloseSidePanel}
+          />
+
+          <div className="fixed right-0 top-0 h-full w-full max-w-[800px] bg-white z-[70] shadow-xl overflow-y-auto animate-in slide-in-from-right duration-300">
             <div className="flex items-center justify-between p-4 md:p-6 border-b border-[#E9E9E9]">
-              <h2 className="text-lg md:text-xl font-bold text-[#201E22]">
-                {sidePanelMode === "add"
-                  ? "문의 안내 추가"
-                  : sidePanelMode === "edit"
-                    ? "문의 안내 수정"
-                    : "문의 안내 상세"}
-              </h2>
-              <button type="button" onClick={handleCloseSidePanel} className="text-[#BFBFBF] hover:text-[#201E22]">
+              <h2 className="text-lg md:text-xl font-bold text-[#201E22]">문의 상세</h2>
+              <button
+                type="button"
+                onClick={handleCloseSidePanel}
+                className="text-[#BFBFBF] hover:text-[#201E22]"
+                data-testid="button-close-panel"
+              >
                 <X size={24} />
               </button>
             </div>
 
-            <div className="p-4 md:p-6 space-y-4 text-sm">
-              {sidePanelMode === "detail" && selectedInquiry ? (
-                <>
-                  <div className="grid grid-cols-[72px_1fr] gap-2">
-                    <span className="text-[#AAAAAA] font-semibold">제목</span>
-                    <span>{selectedInquiry.title}</span>
-                  </div>
-                  <div className="grid grid-cols-[72px_1fr] gap-2">
-                    <span className="text-[#AAAAAA] font-semibold">카테고리</span>
-                    <span>{selectedInquiry.category}</span>
-                  </div>
-                  <div className="border-t border-[#E9E9E9] pt-3">
-                    <p className="text-[#AAAAAA] font-semibold mb-2">내용</p>
-                    <p className="whitespace-pre-wrap leading-relaxed">{selectedInquiry.content}</p>
-                  </div>
-                  {selectedInquiry.response ? (
-                    <div className="border-t border-[#E9E9E9] pt-3">
-                      <p className="text-[#AAAAAA] font-semibold mb-2">답변</p>
-                      <p className="whitespace-pre-wrap leading-relaxed">{selectedInquiry.response}</p>
-                    </div>
-                  ) : null}
-                </>
-              ) : canEdit ? (
-                <>
-                  <div>
-                    <label className="text-xs text-[#888] mb-1 block">카테고리</label>
-                    <Input value={formCategory} onChange={(e) => setFormCategory(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-[#888] mb-1 block">제목</label>
-                    <Input value={formTitle} onChange={(e) => setFormTitle(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-[#888] mb-1 block">문의 내용</label>
-                    <Textarea
-                      value={formContent}
-                      onChange={(e) => setFormContent(e.target.value)}
-                      className="min-h-[120px]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-[#888] mb-1 block">답변</label>
-                    <Textarea
-                      value={formResponse}
-                      onChange={(e) => setFormResponse(e.target.value)}
-                      className="min-h-[120px]"
-                    />
-                  </div>
-                  <Button
-                    className={cn("w-full bg-[#201E22] hover:bg-[#3A3A3A]")}
-                    disabled={
-                      saveMutation.isPending ||
-                      !formCategory.trim() ||
-                      !formTitle.trim() ||
-                      !formContent.trim() ||
-                      !formResponse.trim()
-                    }
-                    onClick={() => saveMutation.mutate()}
+            <div className="p-4 md:p-6 space-y-3 text-sm">
+              <div className="grid grid-cols-[72px_1fr] gap-2 items-start">
+                <span className="text-[#AAAAAA] font-semibold">제목</span>
+                <span className="text-[#201E22]">{selectedInquiry.title}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-[72px_1fr] gap-2 items-center">
+                  <span className="text-[#AAAAAA] font-semibold">카테고리</span>
+                  <span className="text-[#201E22]">{selectedInquiry.category}</span>
+                </div>
+                <div className="grid grid-cols-[72px_1fr] gap-2 items-center">
+                  <span className="text-[#AAAAAA] font-semibold">상태</span>
+                  <span
+                    className={cn(
+                      "inline-flex w-fit px-2 py-0.5 rounded text-xs font-medium",
+                      selectedInquiry.status === "pending"
+                        ? "bg-[#FFF3CD] text-[#956424]"
+                        : "bg-[#E8F5E9] text-[#4CAF50]",
+                    )}
                   >
-                    {saveMutation.isPending ? "저장 중..." : "저장하기"}
-                  </Button>
-                </>
-              ) : null}
+                    {selectedInquiry.status === "pending" ? "답변 대기" : "답변 완료"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[72px_1fr] gap-2 items-start">
+                <span className="text-[#AAAAAA] font-semibold">회원</span>
+                <span className="text-[#201E22]">
+                  {selectedInquiry.userName} ({selectedInquiry.userUsername})
+                </span>
+              </div>
+
+              <div className="grid grid-cols-[72px_1fr] gap-2 items-center">
+                <span className="text-[#AAAAAA] font-semibold">작성일</span>
+                <span className="text-[#201E22]">{formatDate(selectedInquiry.createdAt)}</span>
+              </div>
+
+              <div className="border-t border-[#E9E9E9] pt-3">
+                <p className="text-[#AAAAAA] font-semibold mb-2">문의 내용</p>
+                <p className="text-[#201E22] whitespace-pre-wrap leading-relaxed min-h-[120px]">
+                  {selectedInquiry.content}
+                </p>
+              </div>
+
+              <div className="border-t border-[#E9E9E9] pt-3">
+                <p className="text-[#201E22] font-semibold mb-2">답변</p>
+
+                {!isEditMode && selectedInquiry.response && (
+                  <div className="px-4 py-3 bg-[#F5F5F5] rounded min-h-[120px]">
+                    <p className="text-[#201E22] whitespace-pre-wrap leading-relaxed">
+                      {selectedInquiry.response}
+                    </p>
+                  </div>
+                )}
+
+                {platform === "ppamong" && isEditMode && (
+                  <textarea
+                    value={responseText}
+                    onChange={(e) => setResponseText(e.target.value)}
+                    placeholder="답변을 입력하세요..."
+                    className="w-full h-[160px] px-4 py-3 rounded text-sm text-[#201E22] placeholder-[#BFBFBF] border border-[#E9E9E9] focus:outline-none focus:border-[#E11936] resize-none"
+                    data-testid="textarea-response"
+                  />
+                )}
+
+                {platform === "ppamong" ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isEditMode) {
+                        handleSubmitResponse();
+                      } else {
+                        if (selectedInquiry?.response) {
+                          setResponseText(selectedInquiry.response);
+                        }
+                        setIsEditMode(true);
+                      }
+                    }}
+                    disabled={updateStatusMutation.isPending}
+                    className="w-full h-11 mt-3 bg-[#201E22] text-white font-bold rounded hover:bg-[#3A3A3A] disabled:bg-[#BFBFBF] transition text-sm"
+                  >
+                    {updateStatusMutation.isPending
+                      ? "처리 중..."
+                      : isEditMode
+                        ? "저장하기"
+                        : selectedInquiry.status === "resolved"
+                          ? "수정하기"
+                          : "답변하기"}
+                  </button>
+                ) : (
+                  <p className="mt-3 text-xs text-[#888]">빠던9 레거시 문의는 읽기 전용입니다.</p>
+                )}
+              </div>
             </div>
           </div>
         </>

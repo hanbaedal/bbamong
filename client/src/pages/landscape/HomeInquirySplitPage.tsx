@@ -1,35 +1,31 @@
-import { useEffect } from "react";
 import { useLocation, useRoute } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import LandscapeMasterDetailShell, { LandscapeEmptyPane } from "@/components/landscape/LandscapeMasterDetailShell";
 import LandscapeCompactPane from "@/components/landscape/LandscapeCompactPane";
+import LandscapeFormPane from "@/components/landscape/LandscapeFormPane";
 import InquiryCompactList from "@/components/landscape/compact/InquiryCompactList";
 import InquiryCompactDetail from "@/components/landscape/compact/InquiryCompactDetail";
+import InquiryCreatePage from "@/pages/setting/inquiry-create";
 
 export default function HomeInquirySplitPage() {
   const [location, setLocation] = useLocation();
+  const isNew = location === "/home/inquiry/new";
   const [, params] = useRoute("/home/inquiry/:id");
-  const id = params?.id;
+  const id = isNew ? null : params?.id;
 
-  const { data: inquiries = [] } = useQuery<Array<{ id: number }>>({
-    queryKey: ["/api/inquiries"],
-  });
-
-  useEffect(() => {
-    if (id || location !== "/home/inquiry") return;
-    if (inquiries.length > 0) {
-      setLocation(`/home/inquiry/${inquiries[0].id}`);
-    }
-  }, [id, location, inquiries, setLocation]);
-
-  const right =
-    id != null ? (
+  let right;
+  if (isNew) {
+    right = <LandscapeFormPane theme="inquiry" component={InquiryCreatePage} />;
+  } else if (id) {
+    right = (
       <LandscapeCompactPane theme="inquiry">
         <InquiryCompactDetail />
       </LandscapeCompactPane>
-    ) : (
-      <LandscapeEmptyPane message="문의를 선택하세요" hint="왼쪽 목록에서 항목을 눌러주세요" />
     );
+  } else {
+    right = (
+      <LandscapeEmptyPane message="문의를 선택하세요" hint="왼쪽에서 문의를 선택하거나 새로 작성하세요" />
+    );
+  }
 
   return (
     <LandscapeMasterDetailShell
@@ -39,8 +35,9 @@ export default function HomeInquirySplitPage() {
       testId="home-inquiry-split"
       left={
         <InquiryCompactList
-          selectedId={id}
+          selectedId={isNew ? "new" : id}
           onSelect={(inquiryId) => setLocation(`/home/inquiry/${inquiryId}`)}
+          onCreate={() => setLocation("/home/inquiry/new")}
         />
       }
       right={right}

@@ -275,7 +275,7 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
             },
             {
               id: "support-center",
-              label: "문의하기",
+              label: "회원 문의",
               path: "/admin/support",
               iconKey: "adCustomerIcon",
             },

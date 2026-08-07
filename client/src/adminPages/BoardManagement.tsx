@@ -18,17 +18,17 @@ import {
 } from "./components/adminCompactListUi";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 
 interface AdminPost {
   id: number;
   title: string;
   content: string;
+  authorId: string;
   authorName: string;
+  authorUsername: string;
   viewCount: number;
+  commentCount: number;
   createdAt: string;
-  dataSource?: string;
 }
 
 interface AdminPostListResponse {
@@ -41,7 +41,14 @@ interface AdminPostListResponse {
   counts: { ppamong: number; badminton9: number };
 }
 
-type SidePanelMode = "add" | "edit" | "detail" | null;
+interface AdminPostDetail extends AdminPost {
+  comments: Array<{
+    id: number;
+    content: string;
+    authorName: string;
+    createdAt: string;
+  }>;
+}
 
 function formatDate(dateString: string) {
   const date = new Date(dateString);
@@ -60,13 +67,9 @@ export default function BoardManagementPage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const itemsPerPage = useResponsivePageSize();
-  const [selectedPost, setSelectedPost] = useState<AdminPost | null>(null);
-  const [sidePanelMode, setSidePanelMode] = useState<SidePanelMode>(null);
-  const [formTitle, setFormTitle] = useState("");
-  const [formContent, setFormContent] = useState("");
+  const [selectedPost, setSelectedPost] = useState<AdminPostDetail | null>(null);
+  const [showSidePanel, setShowSidePanel] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
-
-  const canEdit = platform === "ppamong";
 
   useEffect(() => {
     setCurrentPage(1);
@@ -81,10 +84,6 @@ export default function BoardManagementPage() {
 
   const { data, isLoading } = useQuery<AdminPostListResponse>({
     queryKey: [listQueryKey],
-    queryFn: async () => {
-      const res = await apiRequest("GET", listQueryKey);
-      return res.json();
-    },
     placeholderData: (previousData) => previousData,
   });
 
@@ -92,17 +91,14 @@ export default function BoardManagementPage() {
   const totalPages = data?.totalPages ?? 1;
   const counts = data?.counts ?? { ppamong: 0, badminton9: 0 };
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/admin/posts"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
-  };
-
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/admin/posts/${id}`),
     onSuccess: () => {
-      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/posts"] });
       setDeleteTargetId(null);
-      handleCloseSidePanel();
+      if (selectedPost?.id === deleteTargetId) {
+        handleCloseSidePanel();
+      }
       toast({ description: "게시물이 삭제되었습니다." });
     },
     onError: () => {
@@ -110,51 +106,20 @@ export default function BoardManagementPage() {
     },
   });
 
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const payload = { title: formTitle.trim(), content: formContent.trim() };
-      if (sidePanelMode === "add") {
-        return apiRequest("POST", "/api/admin/posts", payload);
-      }
-      if (sidePanelMode === "edit" && selectedPost) {
-        return apiRequest("PATCH", `/api/admin/posts/${selectedPost.id}`, payload);
-      }
-      throw new Error("invalid mode");
-    },
-    onSuccess: () => {
-      invalidate();
-      handleCloseSidePanel();
-      toast({ description: sidePanelMode === "add" ? "게시글이 등록되었습니다." : "게시글이 수정되었습니다." });
-    },
-    onError: () => {
-      toast({ variant: "destructive", description: "저장에 실패했습니다." });
-    },
-  });
-
-  const handleOpenAdd = () => {
-    setSelectedPost(null);
-    setFormTitle("");
-    setFormContent("");
-    setSidePanelMode("add");
-  };
-
-  const handleOpenEdit = (post: AdminPost) => {
-    setSelectedPost(post);
-    setFormTitle(post.title);
-    setFormContent(post.content);
-    setSidePanelMode("edit");
-  };
-
-  const handleOpenDetail = (post: AdminPost) => {
-    setSelectedPost(post);
-    setSidePanelMode("detail");
+  const handleOpenDetail = async (post: AdminPost) => {
+    try {
+      const res = await apiRequest("GET", `/api/admin/posts/${post.id}`);
+      const detail = (await res.json()) as AdminPostDetail;
+      setSelectedPost(detail);
+      setShowSidePanel(true);
+    } catch {
+      toast({ variant: "destructive", description: "게시물을 불러오지 못했습니다." });
+    }
   };
 
   const handleCloseSidePanel = () => {
-    setSidePanelMode(null);
+    setShowSidePanel(false);
     setSelectedPost(null);
-    setFormTitle("");
-    setFormContent("");
   };
 
   return (
@@ -165,30 +130,18 @@ export default function BoardManagementPage() {
           platform,
           counts,
           onChange: setPlatform,
-          ppamongSublabel: "빠몽 앱 게시글",
+          ppamongSublabel: "빠몽 앱 회원 게시글",
           badminton9Sublabel: "PG 레거시 (읽기 전용)",
           countLabel: "건",
         }}
         actions={
-          <div className="flex items-center gap-2">
-            <Input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="제목 검색"
-              className="h-8 w-[160px] text-xs border-[#E9E9E9]"
-              data-testid="input-board-search"
-            />
-            {canEdit ? (
-              <Button
-                size="sm"
-                className="h-8 text-xs bg-[#E57373] hover:bg-[#EF5350]"
-                onClick={handleOpenAdd}
-                data-testid="button-add-post"
-              >
-                + 게시글 추가
-              </Button>
-            ) : null}
-          </div>
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="제목 검색"
+            className="h-8 w-[160px] text-xs border-[#E9E9E9]"
+            data-testid="input-board-search"
+          />
         }
         footer={
           <AdminPagination
@@ -199,9 +152,9 @@ export default function BoardManagementPage() {
         }
       >
         <AdminCompactTableShell
-          minWidth={640}
+          minWidth={720}
           isLoading={isLoading}
-          loadingCols={5}
+          loadingCols={7}
           emptyMessage={
             posts.length === 0
               ? platform === "ppamong"
@@ -211,14 +164,16 @@ export default function BoardManagementPage() {
           }
         >
           {posts.length > 0 ? (
-            <AdminCompactTable minWidth={640}>
+            <AdminCompactTable minWidth={720}>
               <thead>
                 <tr className={adminCompactTheadRowClass}>
                   <th className={adminCompactThClass}>No</th>
                   <th className={adminCompactThClass}>등록일</th>
                   <th className={`${adminCompactThClass} min-w-[160px]`}>제목</th>
+                  <th className={adminCompactThClass}>작성자</th>
                   <th className={`${adminCompactThClass} text-center`}>조회</th>
-                  <th className={`${adminCompactThClass} w-28`}>관리</th>
+                  <th className={`${adminCompactThClass} text-center`}>댓글</th>
+                  <th className={`${adminCompactThClass} w-24`}>관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -229,28 +184,32 @@ export default function BoardManagementPage() {
                       {formatDate(post.createdAt)}
                     </td>
                     <td
-                      className={`${adminCompactTdClass} max-w-[200px] truncate cursor-pointer`}
+                      className={`${adminCompactTdClass} max-w-[200px] truncate`}
                       title={post.title}
-                      onClick={() => handleOpenDetail(post)}
                     >
                       {post.title}
+                    </td>
+                    <td className={`${adminCompactTdClass} whitespace-nowrap`}>
+                      <span className="font-medium">{post.authorName}</span>
+                      <span className="block text-[10px] text-[#888]">{post.authorUsername}</span>
                     </td>
                     <td className={`${adminCompactTdClass} text-center tabular-nums`}>
                       {post.viewCount}
                     </td>
+                    <td className={`${adminCompactTdClass} text-center tabular-nums`}>
+                      {post.commentCount}
+                    </td>
                     <td className={adminCompactTdClass}>
                       <div className="flex gap-1">
-                        {canEdit ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(post)}
-                            className="px-2 py-0.5 text-[10px] font-medium text-white bg-[#4285F4] rounded hover:bg-[#3367D6]"
-                            data-testid={`button-edit-${index}`}
-                          >
-                            수정
-                          </button>
-                        ) : null}
-                        {canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleOpenDetail(post)}
+                          className="px-2 py-0.5 text-[10px] font-medium text-white bg-[#4285F4] rounded hover:bg-[#3367D6]"
+                          data-testid={`button-view-${index}`}
+                        >
+                          보기
+                        </button>
+                        {platform === "ppamong" ? (
                           <button
                             type="button"
                             onClick={() => setDeleteTargetId(post.id)}
@@ -259,15 +218,7 @@ export default function BoardManagementPage() {
                           >
                             삭제
                           </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDetail(post)}
-                            className="px-2 py-0.5 text-[10px] font-medium text-white bg-[#4285F4] rounded hover:bg-[#3367D6]"
-                          >
-                            보기
-                          </button>
-                        )}
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -280,7 +231,7 @@ export default function BoardManagementPage() {
 
       {deleteTargetId !== null && (
         <SimpleConfirmPopup
-          message="해당 게시물을 삭제하시겠어요?"
+          message="해당 게시물과 댓글을 모두 삭제하시겠어요?"
           leftButtonText="취소"
           rightButtonText="삭제"
           onLeftClick={() => setDeleteTargetId(null)}
@@ -288,64 +239,67 @@ export default function BoardManagementPage() {
         />
       )}
 
-      {sidePanelMode && (
+      {showSidePanel && selectedPost && (
         <>
-          <div className="fixed inset-0 bg-black/50 z-[60]" onClick={handleCloseSidePanel} />
+          <div
+            className="fixed inset-0 bg-black/50 z-[60]"
+            onClick={handleCloseSidePanel}
+          />
           <div className="fixed right-0 top-0 h-full w-full max-w-[720px] bg-white z-[70] shadow-xl overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-[#E9E9E9]">
-              <h2 className="text-lg font-bold text-[#201E22]">
-                {sidePanelMode === "add"
-                  ? "게시글 추가"
-                  : sidePanelMode === "edit"
-                    ? "게시글 수정"
-                    : "게시글 상세"}
-              </h2>
+              <h2 className="text-lg font-bold text-[#201E22]">게시글 상세</h2>
               <button type="button" onClick={handleCloseSidePanel} className="text-[#BFBFBF] hover:text-[#201E22]">
                 <X size={24} />
               </button>
             </div>
             <div className="p-4 space-y-4 text-sm">
-              {sidePanelMode === "detail" && selectedPost ? (
-                <>
-                  <div>
-                    <p className="text-xs text-[#888] mb-1">제목</p>
-                    <p className="font-semibold text-[#201E22]">{selectedPost.title}</p>
-                  </div>
-                  <div className="text-xs text-[#666]">등록일 {formatDate(selectedPost.createdAt)}</div>
-                  <div className="border-t border-[#E9E9E9] pt-3 whitespace-pre-wrap leading-relaxed">
-                    {selectedPost.content}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-xs text-[#888] mb-1 block">제목</label>
-                    <Input
-                      value={formTitle}
-                      onChange={(e) => setFormTitle(e.target.value)}
-                      className="text-sm"
-                      data-testid="input-post-title"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-[#888] mb-1 block">내용</label>
-                    <Textarea
-                      value={formContent}
-                      onChange={(e) => setFormContent(e.target.value)}
-                      className="min-h-[200px] text-sm"
-                      data-testid="textarea-post-content"
-                    />
-                  </div>
-                  <Button
-                    className="w-full bg-[#201E22] hover:bg-[#3A3A3A]"
-                    disabled={saveMutation.isPending || !formTitle.trim() || !formContent.trim()}
-                    onClick={() => saveMutation.mutate()}
-                    data-testid="button-save-post"
-                  >
-                    {saveMutation.isPending ? "저장 중..." : "저장하기"}
-                  </Button>
-                </>
+              <div>
+                <p className="text-xs text-[#888] mb-1">제목</p>
+                <p className="font-semibold text-[#201E22]">{selectedPost.title}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-[#888]">작성자 </span>
+                  <span>{selectedPost.authorName} ({selectedPost.authorUsername})</span>
+                </div>
+                <div>
+                  <span className="text-[#888]">등록일 </span>
+                  <span>{formatDate(selectedPost.createdAt)}</span>
+                </div>
+                <div>
+                  <span className="text-[#888]">조회 </span>
+                  <span>{selectedPost.viewCount}</span>
+                </div>
+                <div>
+                  <span className="text-[#888]">댓글 </span>
+                  <span>{selectedPost.comments.length}</span>
+                </div>
+              </div>
+              <div className="border-t border-[#E9E9E9] pt-3">
+                <p className="text-xs text-[#888] mb-2">내용</p>
+                <p className="whitespace-pre-wrap leading-relaxed text-[#201E22]">{selectedPost.content}</p>
+              </div>
+              {selectedPost.comments.length > 0 && (
+                <div className="border-t border-[#E9E9E9] pt-3">
+                  <p className="text-xs font-semibold text-[#201E22] mb-2">댓글</p>
+                  <ul className="space-y-2">
+                    {selectedPost.comments.map((comment) => (
+                      <li key={comment.id} className="rounded bg-[#FAFAFA] px-3 py-2 text-xs">
+                        <p className="font-medium text-[#201E22]">{comment.authorName}</p>
+                        <p className="text-[#666] mt-1 whitespace-pre-wrap">{comment.content}</p>
+                        <p className="text-[10px] text-[#AAA] mt-1">{formatDate(comment.createdAt)}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
+              <button
+                type="button"
+                onClick={() => setDeleteTargetId(selectedPost.id)}
+                className="w-full h-10 bg-[#E57373] text-white font-semibold rounded hover:bg-[#EF5350] text-sm"
+              >
+                게시물 삭제
+              </button>
             </div>
           </div>
         </>
