@@ -1,10 +1,9 @@
 import { useLocation, useRoute } from "wouter";
 import LandscapeMasterDetailShell, { LandscapeEmptyPane } from "@/components/landscape/LandscapeMasterDetailShell";
 import LandscapeCompactPane from "@/components/landscape/LandscapeCompactPane";
-import LandscapeFormPane from "@/components/landscape/LandscapeFormPane";
 import InquiryCompactList from "@/components/landscape/compact/InquiryCompactList";
 import InquiryCompactDetail from "@/components/landscape/compact/InquiryCompactDetail";
-import InquiryCreatePage from "@/pages/setting/inquiry-create";
+import InquiryCompactCreate from "@/components/landscape/compact/InquiryCompactCreate";
 
 export default function HomeInquirySplitPage() {
   const [location, setLocation] = useLocation();
@@ -14,7 +13,11 @@ export default function HomeInquirySplitPage() {
 
   let right;
   if (isNew) {
-    right = <LandscapeFormPane theme="inquiry" component={InquiryCreatePage} />;
+    right = (
+      <LandscapeCompactPane theme="inquiry">
+        <InquiryCompactCreate />
+      </LandscapeCompactPane>
+    );
   } else if (id) {
     right = (
       <LandscapeCompactPane theme="inquiry">
