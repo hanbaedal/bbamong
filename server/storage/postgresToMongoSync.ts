@@ -25,7 +25,6 @@ import {
 } from "../mongodb/models";
 import { syncMemberDataSourceTags } from "../utils/memberDataSourceSync";
 import { backfillOfficialSupportContent } from "../utils/officialContentBackfill";
-import { PPAMONG_OFFICIAL_AUTHOR_ID } from "../utils/ppamongOfficialContent";
 
 export type PgMongoSyncMode = "replace" | "merge";
 
@@ -50,6 +49,11 @@ interface SyncTableDef {
   normalizeDoc?: (doc: Record<string, unknown>) => void | Promise<void>;
   /** PG 행을 Mongo에 반영하지 않을 때 true (admin_users: 레거시 일반어드민 제외) */
   skipPgRow?: (doc: Record<string, unknown>) => boolean;
+  /**
+   * merge 시 기존 Mongo 문서 dataSource가 ppamong이면 PG로 덮어쓰지 않음.
+   * replace 삭제도 빠몽 행은 보존 (replaceDeleteFilter와 함께 사용).
+   */
+  skipOverwritePpamong?: boolean;
 }
 
 const SYNC_TABLES: SyncTableDef[] = [
@@ -93,7 +97,14 @@ const SYNC_TABLES: SyncTableDef[] = [
     model: AttendanceRecordModel,
     counterName: "attendanceRecord",
   },
-  { pgTable: "posts", label: "게시글", model: PostModel, counterName: "post", normalizeDoc: normalizeLegacyDataSourceDoc },
+  {
+    pgTable: "posts",
+    label: "게시글",
+    model: PostModel,
+    counterName: "post",
+    normalizeDoc: normalizeLegacyDataSourceDoc,
+    skipOverwritePpamong: true,
+  },
   { pgTable: "ebooks", label: "전자책", model: EbookModel, counterName: "ebook" },
   {
     pgTable: "advertisements",
@@ -110,7 +121,14 @@ const SYNC_TABLES: SyncTableDef[] = [
     counterName: "waitingScreen",
     skipPgRow: () => true,
   },
-  { pgTable: "notices", label: "공지사항", model: NoticeModel, counterName: "notice", normalizeDoc: normalizeLegacyDataSourceDoc },
+  {
+    pgTable: "notices",
+    label: "공지사항",
+    model: NoticeModel,
+    counterName: "notice",
+    normalizeDoc: normalizeLegacyDataSourceDoc,
+    skipOverwritePpamong: true,
+  },
   { pgTable: "terms", label: "약관", model: TermModel, counterName: "term" },
   { pgTable: "faqs", label: "FAQ", model: FaqModel, counterName: "faq" },
   {
@@ -119,8 +137,11 @@ const SYNC_TABLES: SyncTableDef[] = [
     model: InquiryModel,
     counterName: "inquiry",
     normalizeDoc: normalizeLegacyDataSourceDoc,
+    skipOverwritePpamong: true,
   },
   { pgTable: "comments", label: "댓글", model: CommentModel, counterName: "comment" },
+  // comments는 dataSource 없음 — 게시글 id 충돌 시 레거시 댓글이 섞일 수 있으나,
+  // 빠몽 게시글 본문은 skipOverwritePpamong으로 보호됨.
   {
     pgTable: "ebook_purchases",
     label: "전자책 구매",
@@ -393,7 +414,11 @@ async function loadExistingByKey(
   keyValues: unknown[],
 ): Promise<Map<string, Record<string, unknown>>> {
   const preserve = new Set(def.preserveOnUpdate ?? []);
-  const needsExisting = preserve.size > 0 || !!def.insertDefaults || !!def.storePasswordPlain;
+  const needsExisting =
+    preserve.size > 0 ||
+    !!def.insertDefaults ||
+    !!def.storePasswordPlain ||
+    !!def.skipOverwritePpamong;
   const existingByKey = new Map<string, Record<string, unknown>>();
 
   if (!needsExisting || keyValues.length === 0) {
@@ -404,6 +429,7 @@ async function loadExistingByKey(
     upsertKey,
     ...Array.from(preserve),
     ...(def.storePasswordPlain ? ["passwordPlain"] : []),
+    ...(def.skipOverwritePpamong ? ["dataSource"] : []),
   ].join(" ");
 
   const existingDocs = await def.model
@@ -423,7 +449,7 @@ async function loadAllExistingForPreserve(
   upsertKey: string,
 ): Promise<Map<string, Record<string, unknown>>> {
   const preserve = new Set(def.preserveOnUpdate ?? []);
-  if (preserve.size === 0 && !def.storePasswordPlain) {
+  if (preserve.size === 0 && !def.storePasswordPlain && !def.skipOverwritePpamong) {
     return new Map();
   }
 
@@ -431,6 +457,7 @@ async function loadAllExistingForPreserve(
     upsertKey,
     ...Array.from(preserve),
     ...(def.storePasswordPlain ? ["passwordPlain"] : []),
+    ...(def.skipOverwritePpamong ? ["dataSource"] : []),
   ].join(" ");
 
   const existingDocs = await def.model.find({}).select(selectFields).lean();
@@ -467,6 +494,10 @@ async function prepareDocsFromPgRows(
       await def.normalizeDoc(doc);
     }
     const existing = existingByKey.get(String(keyVal));
+    // 빠몽 운영 데이터는 PG(빠던9) 동기화로 덮어쓰지 않음
+    if (def.skipOverwritePpamong && existing?.dataSource === "ppamong") {
+      continue;
+    }
     applyPreserveAndDefaults(doc, def, existing);
     docs.push(finalizeDoc(doc, def.omitNullFields));
   }
@@ -618,17 +649,15 @@ async function syncTableMerge(
 }
 
 function replaceDeleteFilter(def: SyncTableDef): Record<string, unknown> {
-  /** 빠몽 운영자 공식 글 — PG replace 동기화 시 삭제하지 않음 */
-  if (def.pgTable === "posts") {
+  /** 빠몽 운영 행(dataSource=ppamong)은 replace 동기화에서도 삭제하지 않음 */
+  if (def.skipOverwritePpamong) {
     return {
-      isOfficial: { $ne: true },
-      authorId: { $ne: PPAMONG_OFFICIAL_AUTHOR_ID },
-    };
-  }
-  if (def.pgTable === "inquiries") {
-    return {
-      isOfficial: { $ne: true },
-      userId: { $ne: PPAMONG_OFFICIAL_AUTHOR_ID },
+      $or: [
+        { dataSource: "badminton9" },
+        { dataSource: { $exists: false } },
+        { dataSource: null },
+        { dataSource: "" },
+      ],
     };
   }
   return {};

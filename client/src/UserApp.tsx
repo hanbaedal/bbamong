@@ -31,7 +31,7 @@ import HomeBoardSplitPage from "@/pages/landscape/HomeBoardSplitPage";
 import GameStorySplitPage from "@/pages/landscape/GameStorySplitPage";
 import GameInfoSplitPage from "@/pages/landscape/GameInfoSplitPage";
 import UserSessionExpiredPopup from "@/components/UserSessionExpiredPopup";
-import { openMallFromApp, GAME_PATH } from "@/lib/appNavigation";
+import { openMallFromApp, GAME_PATH, HOME_PATH } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
 
 function LegacyMallRedirect({ target }: { target: string }) {
@@ -87,11 +87,11 @@ function Router() {
       </Route>
 
       {/* 가로 split — 구체 경로를 /home 보다 먼저 등록 */}
-      <Route path="/home/board/new">{() => <Redirect to="/home/board" />}</Route>
+      <Route path="/home/board/new">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
       <Route path="/home/board/:id">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
       <Route path="/home/board">{() => <ProtectedRoute component={HomeBoardSplitPage} />}</Route>
 
-      <Route path="/home/inquiry/new">{() => <Redirect to="/home/inquiry" />}</Route>
+      <Route path="/home/inquiry/new">{() => <ProtectedRoute component={HomeInquirySplitPage} />}</Route>
       <Route path="/home/inquiry/:id">{() => <ProtectedRoute component={HomeInquirySplitPage} />}</Route>
       <Route path="/home/inquiry">{() => <ProtectedRoute component={HomeInquirySplitPage} />}</Route>
 
@@ -165,8 +165,8 @@ function AppStateManager({ children }: { children: React.ReactNode }) {
       backHandle = await App.addListener('backButton', () => {
         const path = window.location.pathname;
 
-        // 예측게임 — 실수 종료 방지: 시스템 BACK 무시 (나가기는 좌측 메뉴 「홈」)
-        if (path === GAME_PATH) {
+        // 예측게임·홈 — 실수 종료 방지: 시스템 BACK 무시 (홈은 앱 내 이동으로만 이탈)
+        if (path === GAME_PATH || path === HOME_PATH) {
           return;
         }
 

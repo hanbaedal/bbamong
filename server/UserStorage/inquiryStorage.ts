@@ -8,14 +8,6 @@ import {
   type RevenuePlatform,
 } from "../utils/revenuePlatform";
 
-import {
-  PPAMONG_OFFICIAL_AUTHOR_ID,
-  PPAMONG_OFFICIAL_DISPLAY_NAME,
-  adminInquiryPlatformFilter,
-  countSupportPlatformInquiries,
-  ppamongOfficialInquiryFilter,
-} from "../utils/ppamongOfficialContent";
-
 export interface InquiryListResponse {
   data: Array<
     Inquiry & {
@@ -40,67 +32,13 @@ function statusFilterFromTab(status?: string): Record<string, string> | undefine
 }
 
 export class InquiryStorage {
-  /** 앱 문의 FAQ — 빠몽 운영자 게시글만 */
-  async getOfficialInquiries(): Promise<
-    Array<Inquiry & { category: string; title: string; content: string; response: string | null }>
-  > {
-    const rows = await InquiryModel.find(ppamongOfficialInquiryFilter())
-      .sort({ id: -1 })
-      .lean();
-    return rows as Inquiry[];
-  }
-
-  async isOfficialPpamongInquiry(id: number): Promise<boolean> {
-    const row = await InquiryModel.findOne({ id, ...ppamongOfficialInquiryFilter() })
-      .select("id")
-      .lean();
-    return !!row;
-  }
-
-  async createOfficialInquiry(data: {
-    category: string;
-    title: string;
-    content: string;
-    response: string;
-  }): Promise<Inquiry> {
-    const id = await getNextSequence("inquiry");
-    const doc = await InquiryModel.create({
-      id,
-      userId: PPAMONG_OFFICIAL_AUTHOR_ID,
-      category: data.category,
-      title: data.title,
-      content: data.content,
-      response: data.response,
-      status: "resolved",
-      dataSource: REVENUE_SOURCE_PPAMONG,
-      isOfficial: true,
-    });
-    return doc.toObject() as Inquiry;
-  }
-
-  async updateOfficialInquiry(
-    id: number,
-    data: Partial<{ category: string; title: string; content: string; response: string }>,
-  ): Promise<Inquiry | undefined> {
-    const doc = await InquiryModel.findOneAndUpdate(
-      { id, ...ppamongOfficialInquiryFilter() },
-      data,
-      { new: true },
-    ).lean();
-    return doc ? (doc as Inquiry) : undefined;
-  }
-
-  async deleteOfficialInquiry(id: number): Promise<boolean> {
-    const result = await InquiryModel.deleteOne({ id, ...ppamongOfficialInquiryFilter() });
-    return (result.deletedCount ?? 0) > 0;
-  }
-
   async createInquiry(inquiry: InsertInquiry): Promise<Inquiry> {
     const id = await getNextSequence("inquiry");
     const doc = await InquiryModel.create({
       id,
       ...inquiry,
       dataSource: REVENUE_SOURCE_PPAMONG,
+      isOfficial: false,
     });
     return doc.toObject() as Inquiry;
   }
@@ -109,6 +47,7 @@ export class InquiryStorage {
     const inquiries = await InquiryModel.find({
       userId,
       ...PPAMONG_REVENUE_MONGO_FILTER,
+      isOfficial: { $ne: true },
     })
       .sort({ id: -1 })
       .lean();
@@ -188,52 +127,6 @@ export class InquiryStorage {
     return { success: true, message: "문의가 삭제되었습니다." };
   }
 
-  async getAdminOfficialInquiries(
-    page = 1,
-    limit = 8,
-  ): Promise<InquiryListResponse> {
-    const filter = ppamongOfficialInquiryFilter();
-    const offset = (page - 1) * limit;
-    const [total, inquiries, counts] = await Promise.all([
-      InquiryModel.countDocuments(filter),
-      InquiryModel.find(filter).sort({ id: -1 }).skip(offset).limit(limit).lean(),
-      countSupportPlatformInquiries(),
-    ]);
-
-    const data = await Promise.all(
-      inquiries.map(async (row) => {
-        const isOfficial =
-          (row as Inquiry & { isOfficial?: boolean }).isOfficial ||
-          row.userId === PPAMONG_OFFICIAL_AUTHOR_ID;
-        if (isOfficial) {
-          return {
-            ...(row as Inquiry),
-            userName: PPAMONG_OFFICIAL_DISPLAY_NAME,
-            userUsername: "ppamong-official",
-          };
-        }
-        const user = await UserModel.findOne({ id: row.userId }).select("name username").lean();
-        return {
-          ...(row as Inquiry),
-          userName: user?.name || "Unknown",
-          userUsername: user?.username || "Unknown",
-        };
-      }),
-    );
-
-    return {
-      data,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit) || 1,
-      pendingCount: 0,
-      resolvedCount: total,
-      platform: "ppamong",
-      counts,
-    };
-  }
-
   async getAllInquiries(
     status?: string,
     page: number = 1,
@@ -241,17 +134,25 @@ export class InquiryStorage {
     platform: RevenuePlatform = "ppamong",
   ): Promise<InquiryListResponse> {
     const statusFilter = statusFilterFromTab(status);
-    const platformFilter = adminInquiryPlatformFilter(platform);
+    // 빠몽 탭: 회원 문의만 (운영자 FAQ성 isOfficial 제외). 빠던9: 레거시 미러
+    const platformFilter =
+      platform === "ppamong"
+        ? { ...PPAMONG_REVENUE_MONGO_FILTER, isOfficial: { $ne: true } }
+        : revenuePlatformFilter(platform);
     const filter = statusFilter ? { ...platformFilter, ...statusFilter } : platformFilter;
     const offset = (page - 1) * limit;
 
-    const [total, inquiries, pendingCount, resolvedCount, counts] = await Promise.all([
-      InquiryModel.countDocuments(filter),
-      InquiryModel.find(filter).sort({ id: -1 }).skip(offset).limit(limit).lean(),
-      InquiryModel.countDocuments({ ...platformFilter, status: "pending" }),
-      InquiryModel.countDocuments({ ...platformFilter, status: "resolved" }),
-      countSupportPlatformInquiries(),
-    ]);
+    const ppamongMemberFilter = { ...PPAMONG_REVENUE_MONGO_FILTER, isOfficial: { $ne: true } };
+
+    const [total, inquiries, pendingCount, resolvedCount, ppamongCount, badminton9Count] =
+      await Promise.all([
+        InquiryModel.countDocuments(filter),
+        InquiryModel.find(filter).sort({ id: -1 }).skip(offset).limit(limit).lean(),
+        InquiryModel.countDocuments({ ...platformFilter, status: "pending" }),
+        InquiryModel.countDocuments({ ...platformFilter, status: "resolved" }),
+        InquiryModel.countDocuments(ppamongMemberFilter),
+        InquiryModel.countDocuments(BADMINTON9_REVENUE_MONGO_FILTER),
+      ]);
 
     const totalPages = Math.ceil(total / limit);
 
@@ -275,7 +176,7 @@ export class InquiryStorage {
       pendingCount,
       resolvedCount,
       platform,
-      counts,
+      counts: { ppamong: ppamongCount, badminton9: badminton9Count },
     };
   }
 }
