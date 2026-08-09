@@ -3,6 +3,7 @@ import { ChevronLeft } from "lucide-react";
 import { useLocation } from "wouter";
 import type { LandscapeTheme } from "@/lib/landscapeTheme";
 import { LANDSCAPE_THEME_CLASS } from "@/lib/landscapeTheme";
+import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 import { cn } from "@/lib/utils";
 import "@/styles/landscape-split.css";
 
@@ -43,6 +44,8 @@ export default function LandscapeMasterDetailShell({
 }: LandscapeMasterDetailShellProps) {
   const [, setLocation] = useLocation();
   const themeClass = LANDSCAPE_THEME_CLASS[theme];
+  // 공지·문의·게시판 등 split 페이지 — 시스템 내비/상태바 숨김
+  useAndroidImmersiveMode();
 
   return (
     <div

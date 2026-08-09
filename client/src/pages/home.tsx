@@ -14,10 +14,8 @@ import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import { navigateUserApp } from "@/lib/landscapeSplitRoutes";
 import { USER_GUIDE_OPEN_KEY } from "@/pages/home/user-guide";
 import { getFullUrl } from "@/lib/queryClient";
-import { App } from "@capacitor/app";
-import { Capacitor } from "@capacitor/core";
-import { navigateToMall, HOME_PATH } from "@/lib/appNavigation";
-import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
+import { navigateToMall } from "@/lib/appNavigation";
+import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 import { USER_LOGIN_PATH } from "@/lib/loginSession";
 import { clearGuestSessionArtifacts } from "@/lib/shopRoutes";
 import "@/styles/user-landscape.css";
@@ -56,26 +54,8 @@ export default function HomePage() {
     }
   }, []);
 
-  /** prediction과 동일 — 시스템 BACK/내비 영역 immersive 숨김 */
-  useEffect(() => {
-    void setGameImmersiveMode(true);
-
-    let resumeHandle: { remove: () => void } | null = null;
-    if (Capacitor.isNativePlatform()) {
-      void App.addListener("appStateChange", ({ isActive }) => {
-        if (isActive && window.location.pathname === HOME_PATH) {
-          void setGameImmersiveMode(true);
-        }
-      }).then((handle) => {
-        resumeHandle = handle;
-      });
-    }
-
-    return () => {
-      resumeHandle?.remove();
-      void setGameImmersiveMode(false);
-    };
-  }, []);
+  /** prediction과 동일 — 시스템 내비/상태바 immersive 숨김 */
+  useAndroidImmersiveMode();
 
   const { data: content } = useQuery<HomePageContent>({
     queryKey: ["/api/homepage/content"],
