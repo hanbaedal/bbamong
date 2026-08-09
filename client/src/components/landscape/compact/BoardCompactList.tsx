@@ -48,7 +48,7 @@ export default function BoardCompactList({ selectedId, onSelect, onCreate }: Boa
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery<PostsResponse>({
       queryKey: ["/api/posts", debouncedSearch, searchType],
       queryFn: async ({ pageParam = 1 }) => {
@@ -59,7 +59,15 @@ export default function BoardCompactList({ selectedId, onSelect, onCreate }: Boa
         });
         if (debouncedSearch) params.append("search", debouncedSearch);
         const response = await apiRequest("GET", `/api/posts?${params}`);
-        return response.json();
+        const json = await response.json();
+        // 구버전 API([])와 신버전({posts,hasMore}) 모두 허용
+        if (Array.isArray(json)) {
+          return { posts: json as PostWithAuthor[], hasMore: false };
+        }
+        return {
+          posts: Array.isArray(json?.posts) ? json.posts : [],
+          hasMore: Boolean(json?.hasMore),
+        };
       },
       getNextPageParam: (lastPage, allPages) => (lastPage.hasMore ? allPages.length + 1 : undefined),
       initialPageParam: 1,
@@ -81,7 +89,8 @@ export default function BoardCompactList({ selectedId, onSelect, onCreate }: Boa
     };
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const allPosts = data?.pages.flatMap((page) => page.posts) ?? [];
+  const allPosts =
+    data?.pages.flatMap((page) => (Array.isArray(page?.posts) ? page.posts : [])) ?? [];
 
   const formatDate = (date: Date) => {
     const d = new Date(date);
@@ -150,9 +159,14 @@ export default function BoardCompactList({ selectedId, onSelect, onCreate }: Boa
             <div key={i} className="lscape-list-item lscape-list-item--skeleton" />
           ))}
         </div>
+      ) : isError ? (
+        <div className="lscape-list-empty">
+          <p>게시글을 불러오지 못했습니다</p>
+        </div>
       ) : allPosts.length === 0 ? (
         <div className="lscape-list-empty">
           <p>{searchQuery ? "검색 결과가 없습니다" : "게시글이 없습니다"}</p>
+          <p className="lscape-list-empty__hint">아래 「글쓰기」로 첫 글을 남겨보세요</p>
         </div>
       ) : (
         <ul className="lscape-list lscape-list--compact lscape-list--board">

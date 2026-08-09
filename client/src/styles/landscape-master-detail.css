@@ -176,7 +176,9 @@
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding-bottom: 44px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0 0 8px;
 }
 
 .lscape-list {
@@ -196,10 +198,20 @@
   padding: 20px 10px;
 }
 
+.lscape-list-empty {
+  flex-direction: column;
+  gap: 6px;
+}
+
 .lscape-list-empty p {
   margin: 0;
   color: #6b6b6b;
   font-size: 11px;
+}
+
+.lscape-list-empty__hint {
+  color: #888 !important;
+  font-size: 10px !important;
 }
 
 .lscape-list-item {
@@ -483,16 +495,19 @@
   border-color: var(--lscape-accent-border);
 }
 
-/* FAB */
+/* FAB — sticky so empty/short lists still show the write button */
 .lscape-fab {
-  position: absolute;
-  right: 8px;
+  position: sticky;
   bottom: 8px;
   z-index: 5;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   height: 30px;
+  margin-top: auto;
+  margin-left: auto;
+  margin-right: 8px;
+  flex-shrink: 0;
   padding: 0 12px;
   border-radius: 999px;
   border: none;

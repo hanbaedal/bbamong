@@ -77,6 +77,9 @@ export default function InquiryCompactList({
       ) : inquiries.length === 0 ? (
         <div className="lscape-list-empty">
           <p>{activeTab === "inquiry" ? "문의 내역이 없습니다" : "답변 받은 문의가 없습니다"}</p>
+          {activeTab === "inquiry" ? (
+            <p className="lscape-list-empty__hint">아래 「문의하기」로 새 문의를 남겨보세요</p>
+          ) : null}
         </div>
       ) : (
         <ul className="lscape-list lscape-list--compact">
