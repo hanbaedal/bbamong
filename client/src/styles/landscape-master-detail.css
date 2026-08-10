@@ -43,7 +43,12 @@
 .landscape-master-detail {
   flex: 1;
   min-height: 0;
+  height: 100%;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
   padding-bottom: max(var(--safe-area-inset-bottom, 0px), 4px);
 }
 
@@ -98,10 +103,12 @@
 }
 
 .landscape-master-detail__body {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
+  height: 100%;
   display: grid;
   grid-template-columns: minmax(0, 36%) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 6px;
   padding-top: 6px;
 }
@@ -110,6 +117,7 @@
 .landscape-master-detail__right {
   min-width: 0;
   min-height: 0;
+  height: 100%;
   border-radius: 8px;
   border: 1px solid #2a2a2a;
   overflow: hidden;
@@ -1209,9 +1217,13 @@
 }
 
 .landscape-master-detail--nested {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
+  height: 100%;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding-top: 0;
   padding-left: clamp(4px, 1vw, 8px);
   box-sizing: border-box;
@@ -1362,11 +1374,11 @@
 }
 
 .attendance-compact__calendar {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 8px;
+  padding: 6px 8px 8px;
   border-radius: 8px;
   border: 1px solid #2a2a2a;
   background: #141414;
@@ -1375,7 +1387,7 @@
 
 .attendance-compact__cal-title {
   flex-shrink: 0;
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   font-size: 11px;
   font-weight: 700;
   color: #fff;
@@ -1399,13 +1411,15 @@
   font-size: 9px;
   font-weight: 600;
   color: #6b6b6b;
-  padding: 2px 0;
+  padding: 1px 0;
 }
 
 .attendance-compact__days {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
-  align-content: start;
+  /* 남은 높이를 주 단위 행으로 균등 분배 — 하단 줄 잘림 방지 */
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
 }
 
 .attendance-compact__day {
@@ -1414,14 +1428,14 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 22px;
-  aspect-ratio: 1;
-  max-height: 36px;
+  min-height: 0;
+  height: 100%;
   border-radius: 5px;
-  font-size: 10px;
+  font-size: clamp(8px, 2.1vh, 11px);
   font-weight: 600;
   color: #e9e9e9;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .attendance-compact__day--muted {
@@ -1441,18 +1455,20 @@
 .attendance-compact__check {
   position: absolute;
   bottom: 1px;
-  width: 8px;
-  height: 8px;
+  width: clamp(6px, 1.5vh, 8px);
+  height: clamp(6px, 1.5vh, 8px);
   color: #e11936;
 }
 
 .lscape-pane--game .landscape-game-embed:has(.attendance-compact) {
   overflow: hidden;
   height: 100%;
+  min-height: 0;
 }
 
 .lscape-pane--game .landscape-game-embed:has(.attendance-compact) > .attendance-compact {
   height: 100%;
+  min-height: 100%;
 }
 
 /* --- 회원정보 본인 확인 컴팩트 --- */
