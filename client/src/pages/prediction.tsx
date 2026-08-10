@@ -585,6 +585,7 @@ export default function PredictionPage() {
         sideBetSummary={sideBetSummary}
         onSideBetWinnerClick={() => openSideBetSheet("winner")}
         onSideBetScoreClick={() => openSideBetSheet("score")}
+        noticeSuppressed={matchModalOpen || stadiumModalOpen}
       />
 
       <GameSelectModal
