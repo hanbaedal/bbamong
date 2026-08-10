@@ -11,6 +11,17 @@ import TermsOfServicePage from "@/pages/setting/terms-of-service";
 import VerifyIdentityPage from "@/pages/setting/verify-identity";
 import type { HubMenuItem } from "@/components/landscape/LandscapeHubMenu";
 
+export const GAME_STORY_BASE = "/game/story";
+export const GAME_INFO_BASE = "/game/info";
+
+export function gameStoryPath(sectionId: string): string {
+  return `${GAME_STORY_BASE}/${sectionId}`;
+}
+
+export function gameInfoPath(sectionId: string): string {
+  return `${GAME_INFO_BASE}/${sectionId}`;
+}
+
 export const GAME_STORY_SECTIONS: Array<{
   id: string;
   label: string;
