@@ -1,0 +1,21 @@
+# AGENTS.md
+
+## Cursor Cloud specific instructions
+
+This repo (`bbamong` / PPAMONG, ppamong.com) is a single full-stack app: one Express + `tsx` server on port `5000` that serves the API, a `/ws/match` WebSocket, and all React front-ends. The front-end shown depends on the URL path (see `client/src/main.tsx`): `/admin/*` (admin), `/manager/*` (manager), `/login` + `/home/*` (end-user), and mall paths. Root `/` redirects to `/admin/`.
+
+Standard commands live in `package.json` scripts and `README.md`. Dev run is `npm run dev` (→ http://localhost:5000). Key non-obvious notes for this environment:
+
+### Services / startup
+- **MongoDB is the runtime DB** (Mongoose), not PostgreSQL. `replit.md` / `PPADUN9_소스분석.md` are out of date on this; the Drizzle/Postgres config is legacy migration-only. The server throws and refuses to boot without `MONGODB_URI`.
+- A **local MongoDB** (`mongod`) is used for dev, listening on `127.0.0.1:27017`. The app does **NOT** auto-start MongoDB, so start it before `npm run dev` if it isn't running: `mongod --dbpath /data/db --bind_ip 127.0.0.1 --port 27017 --fork --logpath /var/log/mongodb/mongod.log` (check first with `mongosh --quiet --eval 'db.runCommand({ping:1})'`).
+- **Redis is required and auto-started by the app** (`startRedis()` in `server/index.ts` spawns `redis-server` if `redis-cli ping` fails), so no manual Redis start is normally needed as long as the `redis-server` binary is installed.
+- Config lives in `.env` (gitignored, persists in the VM snapshot). It points at the local MongoDB/Redis and sets `JWT_SECRET` / `JWT_REFRESH_SECRET`. It also sets `PHONE_VERIFICATION_REQUIRED=false` so SOLAPI SMS is not needed (registration codes fall back to in-app display). Recreate from `.env.example` if missing.
+
+### Auth / testing
+- On boot the server auto-seeds a **superadmin**: username `ppamong`, password `ppamong.0323` (see `server/bootstrapSuperAdmin.ts`). Log in at `/admin/login`. This is the quickest way to exercise the full stack (Express + MongoDB + Redis + JWT) end-to-end.
+
+### Lint / typecheck / test / build
+- There is **no ESLint config and no test framework** in this repo. The only "lint" is `npm run check` (`tsc`), which currently reports **many pre-existing type errors** and is **not a clean gate** — dev runs through `tsx` (no typecheck) and is unaffected.
+- Production build is `npm run build` (Vite + esbuild); dev should use `npm run dev`, not the build.
+- External integrations (Kakao/Google/Apple OAuth, SOLAPI SMS, API-SPORTS live scores, Cloudflare R2 / GCS storage, AdMob, legacy Postgres sync) are all optional and disabled/stubbed when their env vars are unset.
