@@ -46,6 +46,10 @@ import { lockGameLandscape } from "@/lib/gameOrientation";
 import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
 import { handleGameMenuSelect } from "@/lib/gameMenuNavigation";
 import { GAME_PATH, navigateToHome } from "@/lib/appNavigation";
+import {
+  readPersistedSelectedMatchId,
+  writePersistedSelectedMatchId,
+} from "@/lib/selectedMatchPersistence";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
@@ -74,7 +78,9 @@ export default function PredictionPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const matchEndedHandledRef = useRef(false);
-  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(() =>
+    readPersistedSelectedMatchId(),
+  );
   const [liveScoreboard, setLiveScoreboard] = useState<LiveScoreboard | null>(null);
   const [currentBatter, setCurrentBatter] = useState<CurrentBatterPreview | null>(null);
   const [gamePhase, setGamePhase] = useState<GamePhasePayload | null>(null);
@@ -89,6 +95,11 @@ export default function PredictionPage() {
   const sideBetAutoForMatchRef = useRef<string | null>(null);
   const matchPickPromptedRef = useRef(false);
   const sideBetStatusPrevRef = useRef<Map<number, string>>(new Map());
+
+  // 홈·쇼핑몰 왕복 후에도 당일 선택 경기 유지
+  useEffect(() => {
+    writePersistedSelectedMatchId(selectedMatchId);
+  }, [selectedMatchId]);
 
   const handleGameTerminalComplete = useCallback(() => {
     navigateToHome();
@@ -302,20 +313,30 @@ export default function PredictionPage() {
 
   useEffect(() => {
     if (!selectedMatchId) return;
+    // 매치 목록 로드 전에는 비어 있어 복원값을 지우면 안 됨
+    if (matchesLoading || matchesData === undefined) return;
     const stillViewable = viewableMatches.some((m) => m.id === selectedMatchId);
     if (!stillViewable) {
       setSelectedMatchId(null);
     }
-  }, [selectedMatchId, viewableMatches]);
+  }, [selectedMatchId, viewableMatches, matchesLoading, matchesData]);
 
   useEffect(() => {
-    if (!selectedMatchId || !selectedMatch) return;
+    if (!selectedMatchId) return;
+    if (matchesLoading || matchesData === undefined) return;
     const found = orderedMatches.find((m) => m.id === selectedMatchId);
     if (found && isMatchSelectableForGame(found, nowMs)) return;
     setSelectedMatchId(null);
     matchPickPromptedRef.current = false;
-    setMatchModalOpen(true);
-  }, [selectedMatchId, selectedMatch, orderedMatches, nowMs]);
+    if (!gameDayOverlayKind) setMatchModalOpen(true);
+  }, [
+    selectedMatchId,
+    orderedMatches,
+    nowMs,
+    matchesLoading,
+    matchesData,
+    gameDayOverlayKind,
+  ]);
 
   useEffect(() => {
     if (matchesLoading || matchPickPromptedRef.current) return;
