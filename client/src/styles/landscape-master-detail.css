@@ -1375,3 +1375,204 @@
 .lscape-pane--game .landscape-game-embed:has(.attendance-compact) > .attendance-compact {
   height: 100%;
 }
+
+/* --- 회원정보 본인 확인 컴팩트 --- */
+.profile-verify-compact {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  box-sizing: border-box;
+  background: #111111;
+}
+
+.profile-verify-compact__head {
+  flex-shrink: 0;
+}
+
+.profile-verify-compact__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.profile-verify-compact__desc {
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: #8a8a8a;
+  line-height: 1.4;
+}
+
+.profile-verify-compact__form {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--lscape-accent, #ffd700) 28%, #2a2a2a);
+  background: #141414;
+  overflow-y: auto;
+}
+
+.profile-verify-compact__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-verify-compact__label {
+  font-size: 10px !important;
+  font-weight: 600;
+  color: #bfbfbf !important;
+}
+
+.profile-verify-compact__input {
+  height: 34px !important;
+  border-radius: 6px !important;
+  border: 1px solid #333 !important;
+  background: #0f0f0f !important;
+  color: #fff !important;
+  font-size: 12px !important;
+  padding: 0 10px !important;
+}
+
+.profile-verify-compact__input:focus-visible {
+  outline: none !important;
+  border-color: color-mix(in srgb, var(--lscape-accent, #ffd700) 70%, #333) !important;
+  box-shadow: none !important;
+}
+
+.profile-verify-compact__password-wrap {
+  position: relative;
+}
+
+.profile-verify-compact__input--password {
+  padding-right: 34px !important;
+}
+
+.profile-verify-compact__eye {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b6b6b;
+  padding: 2px;
+}
+
+.profile-verify-compact__error {
+  margin: 0;
+  font-size: 10px;
+  color: #e11936;
+  line-height: 1.35;
+}
+
+.profile-verify-compact__hint {
+  margin: 0;
+  font-size: 10px;
+  color: #8a8a8a;
+  line-height: 1.4;
+}
+
+.profile-verify-compact__submit {
+  flex-shrink: 0;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: #ccf501;
+  color: #111;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.profile-verify-compact__submit:disabled {
+  background: #414141;
+  color: #d5d5d5;
+  cursor: not-allowed;
+}
+
+.lscape-pane--game .landscape-game-embed:has(.profile-verify-compact) {
+  overflow: hidden;
+  height: 100%;
+}
+
+/* --- 회원정보 수정 컴팩트 (ProfilePage 래핑) --- */
+.profile-edit-compact {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.profile-edit-compact .h-app-screen {
+  flex: 1;
+  min-height: 0 !important;
+  height: 100% !important;
+  padding-top: 0 !important;
+}
+
+.profile-edit-compact [data-testid="page-header"] {
+  display: none !important;
+}
+
+.profile-edit-compact [data-testid="bottom-navigation"] {
+  display: none !important;
+}
+
+.profile-edit-compact [data-testid="text-page-title"] {
+  display: block !important;
+  font-size: 13px !important;
+  padding-top: 4px !important;
+  padding-bottom: 6px !important;
+  text-align: left !important;
+}
+
+.profile-edit-compact .px-5 {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+.profile-edit-compact .pb-bottom-nav-with-bar,
+.profile-edit-compact .pb-bottom-nav {
+  padding-bottom: 12px !important;
+}
+
+.profile-edit-compact .space-y-6 {
+  gap: 0.65rem;
+}
+
+.profile-edit-compact .h-12 {
+  height: 34px !important;
+}
+
+.profile-edit-compact .text-sm {
+  font-size: 10px !important;
+}
+
+.profile-edit-compact .mb-8 {
+  margin-bottom: 0.5rem !important;
+}
+
+.profile-edit-compact .pt-4 {
+  padding-top: 0.35rem !important;
+}
+
+.profile-edit-compact .max-w-\[375px\] {
+  max-width: none;
+}
+
+.lscape-pane--game .landscape-game-embed:has(.profile-edit-compact) {
+  overflow: hidden;
+  height: 100%;
+}
+
+.lscape-pane--game .landscape-game-embed:has(.profile-edit-compact) > .profile-edit-compact {
+  height: 100%;
+}

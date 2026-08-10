@@ -1,14 +1,14 @@
 import type { ComponentType } from "react";
 import AttendanceCompact from "@/components/landscape/compact/AttendanceCompact";
+import ProfileCompact from "@/components/landscape/compact/ProfileCompact";
+import VerifyIdentityCompact from "@/components/landscape/compact/VerifyIdentityCompact";
 import DonationHistoryPage from "@/pages/setting/donation-history";
 import EbookPage from "@/pages/setting/ebook";
 import InvitePage from "@/pages/setting/invite";
 import VictoryHistoryPage from "@/pages/setting/victory-history";
 import FaqPage from "@/pages/setting/faq";
 import PointPage from "@/pages/point";
-import ProfilePage from "@/pages/setting/profile";
 import TermsOfServicePage from "@/pages/setting/terms-of-service";
-import VerifyIdentityPage from "@/pages/setting/verify-identity";
 import type { HubMenuItem } from "@/components/landscape/LandscapeHubMenu";
 
 export const GAME_STORY_BASE = "/game/story";
@@ -41,7 +41,7 @@ export const GAME_INFO_SECTIONS: Array<{
   component: ComponentType;
   testId: string;
 }> = [
-  { id: "profile", label: "회원정보", component: VerifyIdentityPage, testId: "link-profile" },
+  { id: "profile", label: "회원정보", component: VerifyIdentityCompact, testId: "link-profile" },
   { id: "point", label: "추가 참여", component: PointPage, testId: "link-point" },
   { id: "faq", label: "Q&A", component: FaqPage, testId: "link-faq" },
   { id: "terms", label: "서비스 이용약관", component: TermsOfServicePage, testId: "link-terms" },
@@ -73,6 +73,6 @@ export function getGameInfoMenuActiveId(sectionId: string): string {
 export const GAME_INFO_PROFILE_EDIT_SECTION = {
   id: "profile-edit",
   label: "회원정보",
-  component: ProfilePage,
+  component: ProfileCompact,
   testId: "link-profile-edit",
 };
