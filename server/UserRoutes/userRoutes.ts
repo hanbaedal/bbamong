@@ -23,6 +23,7 @@ import { getSocialPendingData, deleteSocialPendingData } from "./socialAuthRoute
 import { getRedisClient } from "../redis";
 import { getKstDayRange } from "../utils/dateUtils";
 import { isPhoneVerificationRequired } from "../utils/solapiSms";
+import { verifyStoredPassword } from "../utils/passwordAscii";
 
 const PHONE_REGEX = /^01[0-9]{8,9}$/;
 const FIND_USERNAME_PREFIX = "find_username:";
@@ -215,8 +216,9 @@ export async function userRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: "아이디 또는 비밀번호가 일치하지 않습니다." });
       }
 
-      const bcrypt = await import("bcrypt");
-      const isValid = await bcrypt.compare(password, currentUser.password);
+      // 로그인과 동일: bcrypt / ASCII 인코딩 / 평문 모두 허용
+      // (회원가입은 ASCII로 저장하므로 bcrypt.compare만 쓰면 항상 실패함)
+      const isValid = await verifyStoredPassword(currentUser.password, password);
       if (!isValid) {
         return res.status(401).json({ error: "아이디 또는 비밀번호가 일치하지 않습니다." });
       }

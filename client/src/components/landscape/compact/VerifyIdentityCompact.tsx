@@ -70,7 +70,13 @@ export default function VerifyIdentityCompact() {
         </p>
       </div>
 
-      <div className="profile-verify-compact__form">
+      <form
+        className="profile-verify-compact__form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void handleVerify();
+        }}
+      >
         <div className="profile-verify-compact__field">
           <Label htmlFor="verify-username-compact" className="profile-verify-compact__label">
             아이디
@@ -103,9 +109,6 @@ export default function VerifyIdentityCompact() {
                 setPassword(e.target.value);
                 setError("");
               }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleVerify();
-              }}
               placeholder="비밀번호"
               data-testid="input-verify-password"
               className="profile-verify-compact__input profile-verify-compact__input--password"
@@ -134,17 +137,16 @@ export default function VerifyIdentityCompact() {
             이 계정은 비밀번호가 없습니다. 일반 회원 로그인 계정만 수정할 수 있습니다.
           </p>
         ) : null}
-      </div>
 
-      <button
-        type="button"
-        onClick={() => void handleVerify()}
-        disabled={isLoading || noPasswordAccount}
-        data-testid="button-verify"
-        className="profile-verify-compact__submit"
-      >
-        {isLoading ? "확인 중…" : "확인"}
-      </button>
+        <button
+          type="submit"
+          disabled={isLoading || noPasswordAccount}
+          data-testid="button-verify"
+          className="profile-verify-compact__submit"
+        >
+          {isLoading ? "확인 중…" : "확인"}
+        </button>
+      </form>
 
       <GuestRestrictionPopup show={showGuestPopup} onClose={() => setShowGuestPopup(false)} />
     </div>
