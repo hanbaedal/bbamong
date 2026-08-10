@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import AttendancePage from "@/pages/attendance";
+import AttendanceCompact from "@/components/landscape/compact/AttendanceCompact";
 import DonationHistoryPage from "@/pages/setting/donation-history";
 import EbookPage from "@/pages/setting/ebook";
 import InvitePage from "@/pages/setting/invite";
@@ -30,7 +30,7 @@ export const GAME_STORY_SECTIONS: Array<{
 }> = [
   { id: "victory", label: "승리현황", component: VictoryHistoryPage, testId: "link-victory-history" },
   { id: "invite", label: "친구 초대", component: InvitePage, testId: "link-invite" },
-  { id: "attendance", label: "출석 체크", component: AttendancePage, testId: "link-attendance" },
+  { id: "attendance", label: "출석 체크", component: AttendanceCompact, testId: "link-attendance" },
   { id: "ebook", label: "나의 콘텐츠", component: EbookPage, testId: "link-ebook" },
   { id: "donation", label: "사회공헌 참여현황", component: DonationHistoryPage, testId: "link-donation" },
 ];
