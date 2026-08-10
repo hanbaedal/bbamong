@@ -458,6 +458,15 @@ export default function PredictionPage() {
     sideBetAutoForMatchRef.current = null;
   };
 
+  /** 경기 미선택 상태에서 닫기/바깥클릭 → 게임 홈. 선택 후 재오픈이면 모달만 닫기 */
+  const handleMatchModalClose = useCallback(() => {
+    if (selectedMatchId && selectedMatch) {
+      setMatchModalOpen(false);
+      return;
+    }
+    navigateToHome();
+  }, [selectedMatchId, selectedMatch]);
+
   const handleStadiumSelect = (stadiumIdStr: string) => {
     const stadiumId = Number.parseInt(stadiumIdStr, 10);
     const nextMatch =
@@ -585,7 +594,7 @@ export default function PredictionPage() {
         selectedId={selectedMatch?.id ?? null}
         emptyMessage="오늘 등록된 경기가 없습니다."
         onSelect={handleMatchSelect}
-        onClose={() => setMatchModalOpen(false)}
+        onClose={handleMatchModalClose}
       />
 
       <GameSelectModal
