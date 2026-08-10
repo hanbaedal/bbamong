@@ -4,9 +4,12 @@ import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { normalizeApiStatusShort } from "@shared/apiSportsStatus";
 import { resolveMatchManagementStatusDisplay } from "@shared/matchManagementStatus";
 
-export type GameDayPhase = "loading" | "all_ended" | "pregame" | "live";
+export type GameDayPhase = "loading" | "no_match" | "all_ended" | "pregame" | "live";
 
 export type GameTerminalKind = "ended" | "cancelled" | "postponed";
+
+/** 종료·취소·연기와 구분되는 당일 미등록 안내 */
+export type GameDayOverlayKind = GameTerminalKind | "no_match";
 
 /** KST 오늘 경기 목록 → 당일 전체 상태 */
 export function resolveGameDayPhase(
@@ -15,6 +18,7 @@ export function resolveGameDayPhase(
   nowMs = Date.now(),
 ): GameDayPhase {
   if (loading) return "loading";
+  if (matches.length === 0) return "no_match";
 
   const today = matches.filter((m) => m.matchStatus !== "cancelled");
   if (today.length === 0) return "all_ended";
@@ -44,6 +48,12 @@ export const GAME_TERMINAL_DISPLAY: Record<
   cancelled: { mainLabel: "취소", mainColor: "#E11937", subtitle: "되었습니다" },
   postponed: { mainLabel: "연기", mainColor: "#C084FC", subtitle: "되었습니다" },
 };
+
+export const GAME_NO_MATCH_DISPLAY = {
+  mainLabel: "없음",
+  mainColor: "#FBBF24",
+  subtitle: "오늘 등록·연결된 경기가 없습니다",
+} as const;
 
 function classifyMatchTerminal(match: GameMatchItem): GameTerminalKind | "playable" {
   if (match.matchStatus === "ongoing") return "playable";
@@ -94,13 +104,14 @@ function aggregateTerminalKind(kinds: GameTerminalKind[]): GameTerminalKind {
   return "ended";
 }
 
-/** 종료·취소·연기 안내 오버레이 — 참여 가능 경기 없을 때만 */
-export function resolveGameTerminalKind(
+/** 당일 경기 안내 오버레이 — 미등록·종료·취소·연기 (참여 가능 경기 없을 때) */
+export function resolveGameDayOverlayKind(
   matches: GameMatchItem[],
   loading: boolean,
   nowMs = Date.now(),
-): GameTerminalKind | null {
+): GameDayOverlayKind | null {
   if (loading) return null;
+  if (matches.length === 0) return "no_match";
 
   const dayPhase = resolveGameDayPhase(matches, false, nowMs);
   if (dayPhase === "live") return null;
@@ -112,8 +123,6 @@ export function resolveGameTerminalKind(
     );
     if (hasUpcoming) return null;
   }
-
-  if (matches.length === 0) return "ended";
 
   const terminalKinds = matches
     .map(classifyMatchTerminal)
@@ -128,4 +137,14 @@ export function resolveGameTerminalKind(
   }
 
   return null;
+}
+
+/** @deprecated resolveGameDayOverlayKind 사용 */
+export function resolveGameTerminalKind(
+  matches: GameMatchItem[],
+  loading: boolean,
+  nowMs = Date.now(),
+): GameTerminalKind | null {
+  const kind = resolveGameDayOverlayKind(matches, loading, nowMs);
+  return kind === "no_match" || kind == null ? null : kind;
 }

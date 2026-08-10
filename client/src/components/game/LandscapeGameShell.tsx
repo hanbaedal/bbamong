@@ -18,7 +18,7 @@ import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customU
 import { useUser } from "@/contexts/UserContext";
 import type { AdSessionState } from "@/hooks/useAdMob";
 import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
-import type { GameDayPhase, GameTerminalKind } from "@/lib/gameDayPhase";
+import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import type { PregameCountdownDisplay } from "./GamePregameCountdown";
 import type { SideBetBottomSummary } from "./GameBottomStatusBar";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
@@ -66,7 +66,7 @@ interface LandscapeGameShellProps {
   stadiumSelectEnabled?: boolean;
   inningHalf?: "top" | "bottom";
   gameDayPhase?: GameDayPhase;
-  gameTerminalKind?: GameTerminalKind | null;
+  gameDayOverlayKind?: GameDayOverlayKind | null;
   onGameTerminalComplete?: () => void;
   pregameCountdown?: PregameCountdownDisplay | null;
   sideBetSummary?: SideBetBottomSummary | null;
@@ -115,7 +115,7 @@ export default function LandscapeGameShell({
   stadiumSelectEnabled,
   inningHalf,
   gameDayPhase = "live",
-  gameTerminalKind = null,
+  gameDayOverlayKind = null,
   onGameTerminalComplete,
   pregameCountdown = null,
   sideBetSummary = null,
@@ -166,8 +166,8 @@ export default function LandscapeGameShell({
               <GamePregameCountdown countdown={pregameCountdown} />
             ) : null}
 
-            {gameTerminalKind && onGameTerminalComplete ? (
-              <GameDayStatusOverlay kind={gameTerminalKind} onComplete={onGameTerminalComplete} />
+            {gameDayOverlayKind && onGameTerminalComplete ? (
+              <GameDayStatusOverlay kind={gameDayOverlayKind} onComplete={onGameTerminalComplete} />
             ) : null}
 
             <GameFieldLabels
@@ -184,7 +184,7 @@ export default function LandscapeGameShell({
             <GameCharacterLayer
               phase={screenPhase}
               gameDayPhase={gameDayPhase}
-              gameTerminalKind={gameTerminalKind}
+              gameDayOverlayKind={gameDayOverlayKind}
               selectedPrediction={selectedPrediction}
               onRunComplete={onRunComplete}
             />
