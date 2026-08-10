@@ -123,6 +123,7 @@ export default function LandscapeGameShell({
   sideBetSummary = null,
   onSideBetWinnerClick,
   onSideBetScoreClick,
+  noticeSuppressed = false,
 }: LandscapeGameShellProps) {
   const { isGuest } = useUser();
   const { showGuestPopup, setShowGuestPopup } = useGuestRestriction(isGuest);
@@ -138,7 +139,7 @@ export default function LandscapeGameShell({
       data-testid="landscape-game-shell"
     >
       <GameFieldViewport>
-        <GameNoticeBanner suppressed={false} />
+        <GameNoticeBanner suppressed={noticeSuppressed} />
         {emptyMessage ? (
           <div className="absolute inset-0 flex items-center justify-center z-10 px-6">
             <p className="text-white text-center text-sm drop-shadow-lg">{emptyMessage}</p>
