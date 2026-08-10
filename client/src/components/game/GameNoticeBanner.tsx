@@ -113,14 +113,13 @@ export default function GameNoticeBanner({ suppressed = false }: { suppressed?: 
       return res.json();
     },
     enabled: Boolean(user?.id),
-    refetchOnMount: "always",
-    staleTime: 30_000,
+    staleTime: 60_000,
     retry: false,
   });
 
   const dismissMutation = useMutation({
     mutationFn: async (noticeId: number) => {
-      await apiRequest("POST", `/api/users/notices/${noticeId}/dismiss`);
+      await apiRequest("POST", `/api/users/notices/${noticeId}/dismiss`, { kind: "game" });
     },
     onSuccess: () => {
       setModalOpen(false);

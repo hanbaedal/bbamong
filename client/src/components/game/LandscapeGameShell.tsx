@@ -33,7 +33,7 @@ interface LandscapeGameShellProps {
   currentBatter?: CurrentBatterPreview | null;
   scoreboard: LiveScoreboard | null;
   scoreLoading?: boolean;
-  matchesLoading?: boolean;
+  matchesInitialLoading?: boolean;
   activePanel: GameMenuAction | null;
   onMenuSelect: (action: GameMenuAction) => void;
   emptyMessage?: string;
@@ -82,7 +82,7 @@ export default function LandscapeGameShell({
   currentBatter = null,
   scoreboard,
   scoreLoading,
-  matchesLoading,
+  matchesInitialLoading = false,
   activePanel,
   onMenuSelect,
   emptyMessage,
@@ -137,11 +137,7 @@ export default function LandscapeGameShell({
     >
       <GameFieldViewport>
         <GameNoticeBanner suppressed={false} />
-        {matchesLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center z-10">
-            <p className="text-white text-sm drop-shadow-lg">경기 정보를 불러오는 중...</p>
-          </div>
-        ) : emptyMessage ? (
+        {emptyMessage ? (
           <div className="absolute inset-0 flex items-center justify-center z-10 px-6">
             <p className="text-white text-center text-sm drop-shadow-lg">{emptyMessage}</p>
           </div>
@@ -154,7 +150,7 @@ export default function LandscapeGameShell({
               headToHeadLine={headToHeadLine}
               currentBatter={currentBatter}
               scoreboard={scoreboard}
-              isLoading={scoreLoading}
+              isLoading={scoreLoading || matchesInitialLoading}
               battingHalf={inningHalf ?? null}
               onMatchTitleClick={onMatchTitleClick}
               onStadiumNameClick={onStadiumNameClick}

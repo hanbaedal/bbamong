@@ -1,5 +1,13 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { getAccessToken, setAccessToken, getRefreshToken, saveRefreshToken, clearTokens, hydrateAccessToken } from "./tokenManager";
+import {
+  clearTokens,
+  getAccessToken,
+  getAccessTokenRemainingMs,
+  getRefreshToken,
+  hydrateAccessToken,
+  saveRefreshToken,
+  setAccessToken,
+} from "./tokenManager";
 import {
   isGameSessionProtected,
   notifyUserSessionExpiredSafe,
@@ -136,8 +144,23 @@ async function refreshUserAccessToken(): Promise<boolean> {
   return refreshPromise;
 }
 
-/** 게임 중 주기적 갱신 — refresh token으로 access token 선제 재발급 */
+/** 게임 중 세션 유지 — access token 만료 임박(5분 이내)일 때만 refresh */
+const KEEPALIVE_REFRESH_THRESHOLD_MS = 5 * 60 * 1000;
+
 export async function keepAliveUserSession(): Promise<boolean> {
+  let token = getAccessToken();
+  if (!token) {
+    token = await hydrateAccessToken();
+  }
+  if (!token) {
+    return refreshUserAccessToken();
+  }
+
+  const remainingMs = getAccessTokenRemainingMs(token);
+  if (remainingMs != null && remainingMs > KEEPALIVE_REFRESH_THRESHOLD_MS) {
+    return true;
+  }
+
   return refreshUserAccessToken();
 }
 
