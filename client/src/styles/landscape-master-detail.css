@@ -1169,3 +1169,40 @@
   font-size: 9px;
   color: #e11936;
 }
+
+/* --- 게임 split (예측 좌측 메뉴 + hub 서브메뉴) --- */
+.game-split-layout {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #111111;
+}
+
+.game-split-layout__main {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  margin-left: 52px;
+  display: flex;
+  flex-direction: column;
+  padding-right: max(var(--safe-area-inset-right, 0px), clamp(8px, 2vw, 16px));
+  padding-bottom: max(var(--safe-area-inset-bottom, 0px), clamp(4px, 1vw, 8px));
+  box-sizing: border-box;
+}
+
+@media (min-width: 640px) {
+  .game-split-layout__main {
+    margin-left: 56px;
+  }
+}
+
+.landscape-master-detail--nested {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  padding-top: var(--safe-area-inset-top, 0px);
+  padding-left: clamp(4px, 1vw, 8px);
+  box-sizing: border-box;
+}

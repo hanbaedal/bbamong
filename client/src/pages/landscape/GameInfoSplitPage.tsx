@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useMutation } from "@tanstack/react-query";
-import LandscapeMasterDetailShell from "@/components/landscape/LandscapeMasterDetailShell";
+import GameSplitLayout from "@/components/game/GameSplitLayout";
 import LandscapeHubMenu from "@/components/landscape/LandscapeHubMenu";
 import LandscapeGameContentPane from "@/components/landscape/LandscapeGameContentPane";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
@@ -9,9 +9,11 @@ import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customU
 import { useUser } from "@/contexts/UserContext";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { clearTokens } from "@/lib/tokenManager";
+import { navigateUserApp } from "@/lib/landscapeSplitRoutes";
 import {
   GAME_INFO_SECTIONS,
   GAME_INFO_WITHDRAW_ITEM,
+  gameInfoPath,
   getGameInfoMenuActiveId,
   getGameInfoSection,
 } from "@/lib/gameSplitConfig";
@@ -24,6 +26,12 @@ export default function GameInfoSplitPage() {
   const { setUser, isGuest } = useUser();
   const { showGuestPopup, setShowGuestPopup, checkGuest } = useGuestRestriction(isGuest);
   const [showDeletePopup, setShowDeletePopup] = useState(false);
+
+  useEffect(() => {
+    if (!sectionId || (section.id !== sectionId && sectionId !== "profile-edit")) {
+      setLocation(gameInfoPath(section.id));
+    }
+  }, [sectionId, section.id, setLocation]);
 
   const deleteAccountMutation = useMutation({
     mutationFn: async () => apiRequest("DELETE", "/api/users/me"),
@@ -50,7 +58,8 @@ export default function GameInfoSplitPage() {
 
   return (
     <>
-      <LandscapeMasterDetailShell
+      <GameSplitLayout
+        activeMenu="info"
         title="내 정보"
         theme="info"
         backTo="/prediction"
@@ -60,7 +69,7 @@ export default function GameInfoSplitPage() {
             theme="info"
             items={menuItems}
             activeId={getGameInfoMenuActiveId(section.id)}
-            onSelect={(id) => setLocation(`/game/info/${id}`)}
+            onSelect={(id) => navigateUserApp(gameInfoPath(id), setLocation)}
             onDangerAction={() => {
               if (checkGuest()) return;
               setShowDeletePopup(true);

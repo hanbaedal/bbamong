@@ -1,10 +1,11 @@
 /** 가로 master-detail 페이지 URL 매핑 */
 
+import { GAME_INFO_BASE, GAME_STORY_BASE } from "@/lib/gameSplitConfig";
+
 export const HOME_NOTICE_BASE = "/home/notice";
 export const HOME_INQUIRY_BASE = "/home/inquiry";
 export const HOME_BOARD_BASE = "/home/board";
-export const GAME_STORY_BASE = "/game/story";
-export const GAME_INFO_BASE = "/game/info";
+export { GAME_STORY_BASE, GAME_INFO_BASE };
 
 const LEGACY_TO_STORY: Record<string, string> = {
   "/victory-history": "victory",

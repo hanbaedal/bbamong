@@ -44,11 +44,10 @@ import { keepAliveUserSession } from "@/lib/queryClient";
 import { flushDeferredSessionEvents, setGameSessionProtected } from "@/lib/sessionGuard";
 import { lockGameLandscape } from "@/lib/gameOrientation";
 import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
-import { navigateUserApp } from "@/lib/landscapeSplitRoutes";
-import { GAME_PATH } from "@/lib/appNavigation";
+import { handleGameMenuSelect } from "@/lib/gameMenuNavigation";
+import { GAME_PATH, navigateToHome } from "@/lib/appNavigation";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
-import { navigateToHome, openMallFromApp } from "@/lib/appNavigation";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
@@ -445,22 +444,7 @@ export default function PredictionPage() {
   );
 
   const handleMenuSelect = (action: GameMenuAction) => {
-    if (action === "home") {
-      navigateToHome();
-      return;
-    }
-    if (action === "mall") {
-      openMallFromApp();
-      return;
-    }
-    if (action === "story") {
-      navigateUserApp("/game/story/victory", setLocation);
-      return;
-    }
-    if (action === "info") {
-      navigateUserApp("/game/info/profile", setLocation);
-      return;
-    }
+    handleGameMenuSelect(action, setLocation);
   };
 
   const handleMatchSelect = (matchId: string) => {

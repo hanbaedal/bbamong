@@ -15,6 +15,8 @@ interface LandscapeMasterDetailShellProps {
   right: ReactNode;
   leftHeader?: ReactNode;
   testId?: string;
+  /** GameSplitLayout 내부 — 바깥 패딩·풀페이지 래퍼 생략 */
+  nested?: boolean;
 }
 
 export function LandscapeEmptyPane({
@@ -41,6 +43,7 @@ export default function LandscapeMasterDetailShell({
   right,
   leftHeader,
   testId = "landscape-master-detail",
+  nested = false,
 }: LandscapeMasterDetailShellProps) {
   const [, setLocation] = useLocation();
   const themeClass = LANDSCAPE_THEME_CLASS[theme];
@@ -49,7 +52,12 @@ export default function LandscapeMasterDetailShell({
 
   return (
     <div
-      className={cn("landscape-master-detail user-landscape-page", themeClass)}
+      className={cn(
+        "landscape-master-detail",
+        !nested && "user-landscape-page",
+        nested && "landscape-master-detail--nested",
+        themeClass,
+      )}
       data-testid={testId}
     >
       <header className="landscape-master-detail__header">
