@@ -1058,6 +1058,7 @@
 @media (max-width: 720px) {
   .landscape-master-detail__body {
     grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     gap: 5px;
   }
 
