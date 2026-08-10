@@ -1184,6 +1184,9 @@
   flex-direction: column;
   overflow: hidden;
   background: #111111;
+  /* immersive 가로 — safe-area는 nested shell 한 곳에서만 적용 (이중 패딩 방지) */
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .game-split-layout__main {
@@ -1193,8 +1196,9 @@
   margin-left: 52px;
   display: flex;
   flex-direction: column;
-  padding-right: max(var(--safe-area-inset-right, 0px), clamp(8px, 2vw, 16px));
-  padding-bottom: max(var(--safe-area-inset-bottom, 0px), clamp(4px, 1vw, 8px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: max(env(safe-area-inset-right, 0px), clamp(6px, 1.5vw, 12px));
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 2px);
   box-sizing: border-box;
 }
 
@@ -1208,9 +1212,84 @@
   flex: 1;
   min-height: 0;
   width: 100%;
-  padding-top: var(--safe-area-inset-top, 0px);
+  padding-top: 0;
   padding-left: clamp(4px, 1vw, 8px);
   box-sizing: border-box;
+}
+
+/* 게임 우측 패널 — 높이 체인 고정 + 본문 스크롤 */
+.lscape-pane--game {
+  height: 100%;
+  min-height: 0;
+}
+
+.lscape-pane--game .lscape-pane__scroll.landscape-game-embed {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.lscape-pane--game .landscape-game-embed .h-app-screen {
+  flex: 1 1 0;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100%;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding-top: 0 !important;
+  background: transparent !important;
+}
+
+.lscape-pane--game .landscape-game-embed .overflow-y-scroll-touch,
+.lscape-pane--game .landscape-game-embed .flex-1.overflow-y-scroll-touch,
+.lscape-pane--game .landscape-game-embed [class*="overflow-y-scroll"] {
+  flex: 1 1 0;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lscape-pane--game .landscape-game-embed .space-y-6 {
+  row-gap: 0.75rem;
+}
+
+.lscape-pane--game .landscape-game-embed .leading-\[160\%\] {
+  line-height: 1.35 !important;
+}
+
+.lscape-pane--game .landscape-game-embed .gap-6 {
+  gap: 0.5rem !important;
+}
+
+.lscape-pane--game .landscape-game-embed .mb-6 {
+  margin-bottom: 0.5rem !important;
+}
+
+.lscape-pane--game .landscape-game-embed .mb-12 {
+  margin-bottom: 0.75rem !important;
+}
+
+.lscape-pane--game .landscape-game-embed .pt-4 {
+  padding-top: 0.25rem !important;
+}
+
+.lscape-pane--game .landscape-game-embed .pb-3 {
+  padding-bottom: 0.35rem !important;
+}
+
+.lscape-pane--game .landscape-game-embed .h-\[65px\] {
+  height: 44px !important;
+}
+
+.lscape-pane--game .landscape-game-embed .text-2xl {
+  font-size: 1rem !important;
+}
+
+.lscape-pane--game .landscape-game-embed .text-4xl {
+  font-size: 1.25rem !important;
 }
 
 /* --- 출석 체크 컴팩트 (게임 split 우측 한 화면) --- */
@@ -1574,5 +1653,486 @@
 }
 
 .lscape-pane--game .landscape-game-embed:has(.profile-edit-compact) > .profile-edit-compact {
+  height: 100%;
+}
+
+/* --- Q&A / 약관 문서 스크롤 컴팩트 --- */
+.doc-scroll-compact {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 10px;
+  box-sizing: border-box;
+  background: #111111;
+}
+
+.doc-scroll-compact__title {
+  flex-shrink: 0;
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.doc-scroll-compact__body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.doc-scroll-compact__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+.doc-scroll-compact__item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+  background: #161616;
+}
+
+.doc-scroll-compact__item-title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e9e9e9;
+  line-height: 1.35;
+}
+
+.doc-scroll-compact__text {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #b0b0b0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.doc-scroll-compact__empty {
+  margin: 12px 0;
+  font-size: 11px;
+  color: #8a8a8a;
+  text-align: center;
+}
+
+.doc-scroll-compact__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.doc-scroll-compact__skeleton-block {
+  height: 56px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #1a1a1a 25%, #242424 50%, #1a1a1a 75%);
+  background-size: 200% 100%;
+  animation: doc-scroll-skel 1.2s ease-in-out infinite;
+}
+
+@keyframes doc-scroll-skel {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.lscape-pane--game .landscape-game-embed:has(.doc-scroll-compact) {
+  overflow: hidden;
+  height: 100%;
+}
+
+.lscape-pane--game .landscape-game-embed:has(.doc-scroll-compact) > .doc-scroll-compact {
+  height: 100%;
+}
+
+/* --- 추가 참여(포인트) 컴팩트 --- */
+.point-compact {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  box-sizing: border-box;
+  background: #111111;
+  position: relative;
+}
+
+.point-compact__head {
+  flex-shrink: 0;
+}
+
+.point-compact__label {
+  margin: 0;
+  font-size: 10px;
+  color: #6b6b6b;
+}
+
+.point-compact__balance {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.point-compact__balance:hover {
+  color: #cdff00;
+}
+
+.point-compact__hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #d5d5d5;
+  line-height: 1.3;
+}
+
+.point-compact__list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+.point-compact__card {
+  position: relative;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #1c1f20;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.point-compact__card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.point-compact__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 72px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: none;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.point-compact__status--done {
+  background: #2d2d2d;
+  color: #888;
+}
+
+.point-compact__status--action {
+  background: #111;
+  color: #e9e9e9;
+  cursor: pointer;
+}
+
+.point-compact__status--locked {
+  background: #2d2d2d;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.point-compact__pts {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fde047;
+  line-height: 1.3;
+}
+
+.point-compact__title {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e9e9e9;
+  line-height: 1.3;
+}
+
+.point-compact__empty {
+  margin: 16px 0;
+  text-align: center;
+  font-size: 11px;
+  color: #8a8a8a;
+}
+
+.point-compact__video-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.point-compact__video-bar {
+  flex-shrink: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+}
+
+.point-compact__video-heading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.point-compact__video-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.point-compact__video-note {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px;
+  text-align: center;
+  font-size: 10px;
+  color: #888;
+}
+
+.lscape-pane--game .landscape-game-embed:has(.point-compact) {
+  overflow: hidden;
+  height: 100%;
+}
+
+.lscape-pane--game .landscape-game-embed:has(.point-compact) > .point-compact {
+  height: 100%;
+}
+
+/* --- 나의 콘텐츠(전자책) 컴팩트 --- */
+.ebook-compact {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  box-sizing: border-box;
+  background: #111111;
+  position: relative;
+}
+
+.ebook-compact__balance {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #1c1f20;
+  border: 1px solid color-mix(in srgb, #cdff00 35%, #2a2a2a);
+}
+
+.ebook-compact__balance-label {
+  font-size: 11px;
+  color: #d5d5d5;
+  font-weight: 500;
+}
+
+.ebook-compact__balance-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ebook-compact__tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.ebook-compact__tab {
+  flex: 1;
+  padding: 6px 4px 8px;
+  border: none;
+  background: transparent;
+  color: #9e9e9e;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.ebook-compact__tab--on {
+  color: #fff;
+  border-bottom-color: #ccf501;
+}
+
+.ebook-compact__list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+}
+
+.ebook-compact__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 2px;
+  border-bottom: 1px solid #1f1f1f;
+}
+
+.ebook-compact__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.ebook-compact__action {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 4px;
+  background: #1c1f20;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ebook-compact__action:hover {
+  background: #2f2f2f;
+}
+
+.ebook-compact__empty-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 8px;
+}
+
+.ebook-compact__empty-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  opacity: 0.85;
+}
+
+.ebook-compact__empty {
+  margin: 0;
+  font-size: 11px;
+  color: #9e9e9e;
+  text-align: center;
+}
+
+.ebook-compact__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.ebook-compact__dialog {
+  position: absolute;
+  z-index: 55;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(92%, 280px);
+  padding: 14px 12px 12px;
+  border-radius: 8px;
+  background: #2f2f2f;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ebook-compact__dialog-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #e9e9e9;
+  text-align: center;
+  white-space: pre-line;
+}
+
+.ebook-compact__dialog-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ebook-compact__dialog-btn {
+  flex: 1;
+  height: 36px;
+  border-radius: 6px;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ebook-compact__dialog-btn--ghost {
+  background: #474747;
+  color: #e9e9e9;
+}
+
+.ebook-compact__dialog-btn--primary {
+  background: #ccf501;
+  border: 1px solid #cdff00;
+  color: #111;
+}
+
+.lscape-pane--game .landscape-game-embed:has(.ebook-compact) {
+  overflow: hidden;
+  height: 100%;
+}
+
+.lscape-pane--game .landscape-game-embed:has(.ebook-compact) > .ebook-compact {
   height: 100%;
 }

@@ -39,7 +39,7 @@ export default function GameSplitLayout({
   );
 
   return (
-    <div className="game-split-layout user-landscape-page" data-testid={testId}>
+    <div className="game-split-layout" data-testid={testId}>
       <GameLeftMenu activePanel={activeMenu} onSelect={onMenuSelect} />
       <div className="game-split-layout__main">
         <LandscapeMasterDetailShell
