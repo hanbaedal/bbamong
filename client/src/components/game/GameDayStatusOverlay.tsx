@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
 import {
   GAME_DAY_END_REDIRECT_MS,
+  GAME_NO_MATCH_DISPLAY,
   GAME_TERMINAL_DISPLAY,
-  type GameTerminalKind,
+  type GameDayOverlayKind,
 } from "@/lib/gameDayPhase";
 
 interface GameDayStatusOverlayProps {
-  kind: GameTerminalKind;
+  kind: GameDayOverlayKind;
   onComplete: () => void;
 }
 
-/** 종료·취소·연기 — 경기 전 카운트다운과 같은 대형 중앙 안내 */
+/** 종료·취소·연기·미등록 — 경기 전 카운트다운과 같은 대형 중앙 안내 */
 export default function GameDayStatusOverlay({ kind, onComplete }: GameDayStatusOverlayProps) {
-  const display = GAME_TERMINAL_DISPLAY[kind];
+  const display =
+    kind === "no_match" ? GAME_NO_MATCH_DISPLAY : GAME_TERMINAL_DISPLAY[kind];
   const totalSeconds = Math.ceil(GAME_DAY_END_REDIRECT_MS / 1000);
   const [secondsLeft, setSecondsLeft] = useState(totalSeconds);
 

@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNowMs } from "@/hooks/useNowMs";
 import { useUser } from "@/contexts/UserContext";
 import { apiRequest } from "@/lib/queryClient";
-import { resolveGameDayPhase, resolveGameTerminalKind } from "@/lib/gameDayPhase";
+import { resolveGameDayOverlayKind, resolveGameDayPhase } from "@/lib/gameDayPhase";
 import {
   formatCountdownMs,
   formatStartTimeKst,
@@ -144,6 +144,7 @@ export default function PredictionPage() {
     refetchInterval: (query) => {
       const list = query.state.data ?? [];
       const dayPhase = resolveGameDayPhase(list, false);
+      if (dayPhase === "no_match") return 30_000;
       if (dayPhase === "pregame") return 15_000;
       const current = list.find((m) => m.id === selectedMatchId) ?? list[0];
       if (!current) return false;
@@ -167,8 +168,8 @@ export default function PredictionPage() {
     [orderedMatches, matchesLoading, nowMs],
   );
 
-  const gameTerminalKind = useMemo(
-    () => resolveGameTerminalKind(orderedMatches, matchesLoading, nowMs),
+  const gameDayOverlayKind = useMemo(
+    () => resolveGameDayOverlayKind(orderedMatches, matchesLoading, nowMs),
     [orderedMatches, matchesLoading, nowMs],
   );
 
@@ -292,11 +293,11 @@ export default function PredictionPage() {
   }, [sideBetModalOpen, displayMatch, nowMs]);
 
   useEffect(() => {
-    if (!gameTerminalKind) return;
+    if (!gameDayOverlayKind) return;
     setMatchModalOpen(false);
     setStadiumModalOpen(false);
     setSelectedMatchId(null);
-  }, [gameTerminalKind]);
+  }, [gameDayOverlayKind]);
 
   useEffect(() => {
     if (!selectedMatchId) return;
@@ -318,10 +319,10 @@ export default function PredictionPage() {
   useEffect(() => {
     if (matchesLoading || matchPickPromptedRef.current) return;
     if (selectedMatchId) return;
-    if (gameTerminalKind) return;
+    if (gameDayOverlayKind) return;
     matchPickPromptedRef.current = true;
     setMatchModalOpen(true);
-  }, [matchesLoading, selectedMatchId, gameTerminalKind]);
+  }, [matchesLoading, selectedMatchId, gameDayOverlayKind]);
 
   useEffect(() => {
     setLiveScoreboard(null);
@@ -337,7 +338,7 @@ export default function PredictionPage() {
     if (matchesData.some((m) => m.id === selectedMatchId)) return;
     if (matchEndedHandledRef.current) return;
     matchEndedHandledRef.current = true;
-    if (resolveGameTerminalKind(matchesData, false, nowMs)) {
+    if (resolveGameDayOverlayKind(matchesData, false, nowMs)) {
       setSelectedMatchId(null);
       return;
     }
@@ -491,7 +492,8 @@ export default function PredictionPage() {
     : { teamNamesLine: null, headToHeadLine: null };
   const canSelectMatch = true;
   const canSelectStadium = stadiumOptions.length > 0;
-  const shellDayPhase = gameDayPhase === "loading" ? "pregame" : gameDayPhase;
+  const shellDayPhase =
+    gameDayPhase === "loading" || gameDayPhase === "no_match" ? "pregame" : gameDayPhase;
   const isLivePlay = gameDayPhase === "live";
 
   const openSideBetSheet = useCallback(
@@ -582,7 +584,7 @@ export default function PredictionPage() {
         stadiumSelectEnabled={canSelectStadium}
         inningHalf={inningHalfForUi}
         gameDayPhase={shellDayPhase}
-        gameTerminalKind={gameTerminalKind}
+        gameDayOverlayKind={gameDayOverlayKind}
         onGameTerminalComplete={handleGameTerminalComplete}
         pregameCountdown={pregameCountdown}
         sideBetSummary={sideBetSummary}

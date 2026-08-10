@@ -5,7 +5,7 @@ import pyamongStandsWaiting from "@assets/game/pyamong-stands-waiting.png";
 import pyamongWaveGoodbye from "@assets/game/pyamong-wave-goodbye.png";
 import batterWaiting from "@assets/game/batter-waiting.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
-import type { GameDayPhase, GameTerminalKind } from "@/lib/gameDayPhase";
+import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
 import { getRunDurationSec } from "./fieldPositions";
 import {
@@ -25,7 +25,7 @@ import "./gameAnimations.css";
 interface GameCharacterLayerProps {
   phase: GameScreenPhase;
   gameDayPhase: GameDayPhase;
-  gameTerminalKind?: GameTerminalKind | null;
+  gameDayOverlayKind?: GameDayOverlayKind | null;
   selectedPrediction: PredictionOption | null;
   onRunComplete?: () => void;
 }
@@ -33,7 +33,7 @@ interface GameCharacterLayerProps {
 export default function GameCharacterLayer({
   phase,
   gameDayPhase,
-  gameTerminalKind = null,
+  gameDayOverlayKind = null,
   selectedPrediction,
   onRunComplete,
 }: GameCharacterLayerProps) {
@@ -65,7 +65,7 @@ export default function GameCharacterLayer({
     <>
       <style>{keyframesCss}</style>
 
-      {gameDayPhase === "pregame" && !gameTerminalKind && (
+      {gameDayPhase === "pregame" && !gameDayOverlayKind && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
           <div
             className="pointer-events-none"
@@ -82,7 +82,24 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {gameTerminalKind === "ended" && (
+      {gameDayOverlayKind === "no_match" && (
+        <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
+          <div
+            className="pointer-events-none"
+            style={{ transform: "translate(-50%, -92%)" }}
+          >
+            <img
+              src={pyamongStandsWaiting}
+              alt=""
+              className="w-[min(16vw,120px)] h-auto game-sprite animate-pyamong-idle shrink-0 drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+              style={{ transformOrigin: "bottom center" }}
+              data-testid="char-pyamong-no-match"
+            />
+          </div>
+        </StadiumFieldMarker>
+      )}
+
+      {gameDayOverlayKind === "ended" && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
           <div
             className="pointer-events-none"
@@ -99,7 +116,7 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {gameTerminalKind === "cancelled" && (
+      {gameDayOverlayKind === "cancelled" && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
           <div
             className="pointer-events-none"
@@ -116,7 +133,7 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {gameTerminalKind === "postponed" && (
+      {gameDayOverlayKind === "postponed" && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
           <div
             className="pointer-events-none"
