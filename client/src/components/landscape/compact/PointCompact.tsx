@@ -134,7 +134,7 @@ export default function PointCompact() {
         {rewards.map((reward) => (
           <div key={reward.id} className="point-compact__card" data-testid={`reward-card-${reward.id}`}>
             <div className="point-compact__card-top">
-              <img src={assets.coinImg} className="w-6 h-6 object-contain" alt="" />
+              <img src={assets.coinImg} className="w-7 h-7 object-contain relative z-[1]" alt="" />
               {reward.isWatched ? (
                 <div
                   data-testid={`status-watched-${reward.id}`}
