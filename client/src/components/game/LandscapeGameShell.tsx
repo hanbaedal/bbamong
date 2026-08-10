@@ -72,6 +72,8 @@ interface LandscapeGameShellProps {
   sideBetSummary?: SideBetBottomSummary | null;
   onSideBetWinnerClick?: () => void;
   onSideBetScoreClick?: () => void;
+  /** 경기/경기장 선택 모달 등 — 뒤 레이어 공지 배지 숨김 */
+  noticeSuppressed?: boolean;
 }
 
 export default function LandscapeGameShell({

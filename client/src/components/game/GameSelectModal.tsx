@@ -15,6 +15,10 @@ interface GameSelectModalProps {
   onClose: () => void;
 }
 
+/**
+ * 전체 화면 오버레이로 뒤 UI 클릭을 차단한다.
+ * (좌측 메뉴·공지 배지·하단 바 등 z-index보다 위에 둔다)
+ */
 export default function GameSelectModal({
   open,
   title,
@@ -28,13 +32,21 @@ export default function GameSelectModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4"
       onClick={onClose}
+      onPointerDown={(e) => {
+        // 오버레이에서 포인터를 소비해 뒤 레이어로 전달되지 않게 함
+        if (e.target === e.currentTarget) e.preventDefault();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
       data-testid="game-select-modal"
     >
       <div
         className="w-[min(360px,92vw)] max-h-[min(420px,80dvh)] flex flex-col bg-[#1E1E1E] border border-[#444] rounded-xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="px-5 pt-5 pb-3 border-b border-[#333]">
           <h3 className="text-white text-lg font-bold text-center">{title}</h3>
