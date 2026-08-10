@@ -1560,6 +1560,7 @@
 
 .profile-verify-compact__submit {
   flex-shrink: 0;
+  margin-top: auto;
   height: 36px;
   border: none;
   border-radius: 8px;
