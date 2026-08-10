@@ -140,7 +140,7 @@ export default function PredictionPage() {
 
   const { data: matchesData, isLoading: matchesLoading } = useQuery<GameMatchItem[]>({
     queryKey: ["/api/matches"],
-    refetchOnMount: "always",
+    staleTime: 30_000,
     refetchInterval: (query) => {
       const list = query.state.data ?? [];
       const dayPhase = resolveGameDayPhase(list, false);
@@ -151,6 +151,8 @@ export default function PredictionPage() {
     },
     refetchIntervalInBackground: false,
   });
+
+  const matchesInitialLoading = matchesLoading && matchesData === undefined;
 
   const orderedMatches = useMemo(
     () => sortMatchesByOrder(matchesData ?? []),
@@ -547,7 +549,7 @@ export default function PredictionPage() {
         currentBatter={isLivePlay ? currentBatter : null}
         scoreboard={liveScoreboard}
         scoreLoading={scoreLoading && Boolean(selectedMatch)}
-        matchesLoading={matchesLoading}
+        matchesInitialLoading={matchesInitialLoading}
         activePanel={null}
         onMenuSelect={handleMenuSelect}
         screenPhase={isLivePlay ? flow.screenPhase : "wait_start"}
@@ -613,7 +615,7 @@ export default function PredictionPage() {
       <TodayMatchesSideBetModal
         open={sideBetModalOpen}
         matches={orderedMatches}
-        loading={matchesLoading}
+        loading={matchesInitialLoading}
         initialAction={sideBetAction}
         onClose={() => {
           setSideBetModalOpen(false);

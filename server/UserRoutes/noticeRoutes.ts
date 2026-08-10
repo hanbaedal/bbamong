@@ -34,11 +34,12 @@ export async function noticeRoutes(app: Express): Promise<void> {
       if (isNaN(id)) {
         return res.status(400).json({ error: "잘못된 ID 형식입니다." });
       }
+      const kind = req.body?.kind === "read" ? "read" : "game";
       const notice = await storage.getNotice(id);
       if (!notice) {
         return res.status(404).json({ error: "공지사항을 찾을 수 없습니다." });
       }
-      await noticeReadStorage.dismissNotice(userId, id);
+      await noticeReadStorage.dismissNotice(userId, id, kind);
       return res.json({ success: true });
     } catch (error) {
       console.error("Dismiss notice error:", error);

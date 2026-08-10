@@ -62,6 +62,29 @@ export function getAccessToken(): string | null {
   return null;
 }
 
+/** JWT exp (ms) — 서명 검증 없이 payload만 디코드 */
+export function getAccessTokenExpiresAtMs(token: string): number | null {
+  try {
+    const segment = token.split(".")[1];
+    if (!segment) return null;
+    const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(base64)) as { exp?: number };
+    if (typeof payload.exp !== "number") return null;
+    return payload.exp * 1000;
+  } catch {
+    return null;
+  }
+}
+
+/** access token 만료까지 남은 시간(ms). 토큰 없/파싱 실패 시 null */
+export function getAccessTokenRemainingMs(token?: string | null): number | null {
+  const value = token ?? getAccessToken();
+  if (!value) return null;
+  const expMs = getAccessTokenExpiresAtMs(value);
+  if (expMs == null) return null;
+  return expMs - Date.now();
+}
+
 export function setAccessToken(token: string | null): void {
   accessToken = token;
   writeStoredAccessToken(token);

@@ -38,7 +38,7 @@ export default function NoticeDetailPage() {
 
   useEffect(() => {
     if (!noticeId) return;
-    void apiRequest("POST", `/api/users/notices/${noticeId}/dismiss`)
+    void apiRequest("POST", `/api/users/notices/${noticeId}/dismiss`, { kind: "read" })
       .then(() => {
         queryClient.invalidateQueries({ queryKey: ["/api/users/notices/banner"] });
       })

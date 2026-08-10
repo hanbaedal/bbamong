@@ -209,7 +209,10 @@ const noticeReadSchema = new Schema(
   {
     userId: { type: String, required: true },
     noticeId: { type: Number, required: true },
-    dismissedAt: { type: Date, default: Date.now },
+    /** @deprecated gameBannerDismissedAt 사용 — 하위 호환 */
+    dismissedAt: { type: Date, default: null },
+    readAt: { type: Date, default: null },
+    gameBannerDismissedAt: { type: Date, default: null },
   },
   { versionKey: false },
 );
