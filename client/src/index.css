@@ -564,11 +564,15 @@ body {
   }
 }
 
-/* 게임 메뉴 iframe 임베드 — 가로 모드 컴팩트 레이아웃 */
-:is(html.game-embed, .panel-embed) [data-testid="bottom-navigation"],
+/* 게임 메뉴 iframe/패널 임베드 — 가로 모드 컴팩트 레이아웃 */
+:is(html.game-embed, .panel-embed) [data-testid="bottom-navigation"] {
+  display: none !important;
+}
+
+/* pb-bottom-nav* 는 본문 컨테이너에 붙는 padding 유틸 — display:none 하면 콘텐츠 전체가 사라짐 */
 :is(html.game-embed, .panel-embed) .pb-bottom-nav,
 :is(html.game-embed, .panel-embed) .pb-bottom-nav-with-bar {
-  display: none !important;
+  padding-bottom: 12px !important;
 }
 
 :is(html.game-embed, .panel-embed) [data-testid="button-header-logo"],
