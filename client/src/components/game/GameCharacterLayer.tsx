@@ -9,6 +9,7 @@ import pyamongRunning3 from "@assets/game/pyamong-running-3.png";
 import pyamongStandsWaiting from "@assets/game/pyamong-stands-waiting.png";
 import pyamongWaveGoodbye from "@assets/game/pyamong-wave-goodbye.png";
 import batterWaiting from "@assets/game/batter-waiting.png";
+import pyamongBatterReady from "@assets/game/pyamong-batter-ready.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
@@ -25,7 +26,7 @@ import {
 } from "./stadiumFieldCoords";
 import { StadiumFieldMarker, useStadiumFieldSize } from "./StadiumFieldContext";
 import GameThoughtBubble from "./GameThoughtBubble";
-import { PYAMONG_BATTER_WIDTH } from "./gameLayoutSizes";
+import { PYAMONG_BATTER_WIDTH, PYAMONG_WAIT_RESULT_WIDTH } from "./gameLayoutSizes";
 import "./gameAnimations.css";
 
 /** 주루 달리기 스프라이트 프레임 (우측을 바라보는 포즈) */
@@ -228,11 +229,15 @@ export default function GameCharacterLayer({
 
       {phase === "wait_result" && (
         <StadiumFieldMarker point={HOME_PLATE_IMAGE} center={false}>
-          <div style={{ transform: "translate(-50%, -100%)" }}>
+          <div
+            className="relative pointer-events-none"
+            style={{ transform: "translate(-50%, -100%)" }}
+          >
             <img
-              src={batterWaiting}
+              src={pyamongBatterReady}
               alt=""
-              className="w-[min(5vw,48px)] h-auto game-sprite"
+              className="h-auto game-sprite animate-pyamong-idle"
+              style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center" }}
               data-testid="char-batter-waiting"
             />
             <div
