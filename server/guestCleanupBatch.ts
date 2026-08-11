@@ -93,7 +93,9 @@ export function startGuestCleanupBatch(): void {
   cancelSchedule = scheduleDailyKst(
     GUEST_CLEANUP_HOUR_KST,
     GUEST_CLEANUP_MINUTE_KST,
-    () => cleanupGuestUsers(),
+    () => {
+      void cleanupGuestUsers();
+    },
   );
 
   console.log(
