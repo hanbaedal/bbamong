@@ -42,6 +42,8 @@ function apiSportsTeamsUpdate(game: ApiSportsGameResponse, scoreboard: LiveScore
   return {
     apiSportsHomeTeam: formatKboTeamShortName(scoreboard.homeTeamName),
     apiSportsAwayTeam: formatKboTeamShortName(scoreboard.awayTeamName),
+    apiSportsHomeTeamLogo: game.teams.home.logo ?? scoreboard.homeTeamLogo ?? null,
+    apiSportsAwayTeamLogo: game.teams.away.logo ?? scoreboard.awayTeamLogo ?? null,
     ...apiSportsTeamIdsFromGame(game),
   };
 }
@@ -1077,6 +1079,14 @@ export async function patchMatchLiveScoreboard(matchId: string, patch: LiveScore
   const merged: LiveScoreboard = {
     homeTeamName: homeName,
     awayTeamName: awayName,
+    homeTeamLogo:
+      existing?.homeTeamLogo ??
+      (match as { apiSportsHomeTeamLogo?: string | null }).apiSportsHomeTeamLogo ??
+      null,
+    awayTeamLogo:
+      existing?.awayTeamLogo ??
+      (match as { apiSportsAwayTeamLogo?: string | null }).apiSportsAwayTeamLogo ??
+      null,
     homeScore: patch.homeScore ?? existing?.homeScore ?? 0,
     awayScore: patch.awayScore ?? existing?.awayScore ?? 0,
     homeHits: patch.homeHits ?? existing?.homeHits ?? 0,

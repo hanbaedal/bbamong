@@ -23,6 +23,9 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 ### Delivery preference (owner)
 - When a change set is done: **push to GitHub, open/update the PR, mark ready, and squash-merge to `main`** in the same turn unless the user asks to keep it draft or hold merge. Do not leave finished work as unmerged open PRs by default.
 
+### Admin schedule team logos
+- Admin 경기관리 리스트는 API-SPORTS `teams.*.logo` URL을 원형으로 표시한다 (실패 시 약칭 이니셜 폴백). 관리자 전용 UI용이며, 사용자 앱에 공식 엠블럼을 확대 배포하기 전에는 별도 권리 검토가 필요하다.
+
 ### Live scoreboard (API vs operator)
 - During `matchStatus === "ongoing"`, API-SPORTS polls **do not overwrite** `liveScoreboard` scores/inning tables (status/team names still refresh). Final FT while `controlMode === "auto"` applies the API final board; `manual` keeps operator/admin corrections.
 - Display for “N회 초/말” prefers operator `gameInning` / `inningHalf` over API (`shared/matchPhaseDisplay.ts`).

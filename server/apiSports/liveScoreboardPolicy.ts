@@ -28,6 +28,8 @@ export function mergePreservingLiveScoreFields(
     ...existing,
     homeTeamName: incoming.homeTeamName || existing.homeTeamName,
     awayTeamName: incoming.awayTeamName || existing.awayTeamName,
+    homeTeamLogo: incoming.homeTeamLogo || existing.homeTeamLogo,
+    awayTeamLogo: incoming.awayTeamLogo || existing.awayTeamLogo,
     statusShort: incoming.statusShort,
     statusLong: incoming.statusLong,
     syncedAt: incoming.syncedAt,

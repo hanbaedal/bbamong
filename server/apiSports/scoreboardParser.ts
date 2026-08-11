@@ -114,6 +114,8 @@ export function parseLiveScoreboard(game: ApiSportsGameResponse): LiveScoreboard
   return {
     homeTeamName: formatKboTeamShortName(game.teams.home.name),
     awayTeamName: formatKboTeamShortName(game.teams.away.name),
+    homeTeamLogo: game.teams.home.logo ?? null,
+    awayTeamLogo: game.teams.away.logo ?? null,
     homeScore: homeTotal,
     awayScore: awayTotal,
     homeHits: game.scores?.home?.hits ?? 0,

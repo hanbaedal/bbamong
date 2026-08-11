@@ -8,6 +8,9 @@ export type InningRunsMap = Record<string, number | null>;
 export interface LiveScoreboard {
   homeTeamName: string;
   awayTeamName: string;
+  /** API-SPORTS teams.*.logo (관리자 일정 등) */
+  homeTeamLogo?: string | null;
+  awayTeamLogo?: string | null;
   homeScore: number;
   awayScore: number;
   homeHits: number;
