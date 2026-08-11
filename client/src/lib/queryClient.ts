@@ -10,9 +10,29 @@ import {
 } from "./tokenManager";
 import {
   isGameSessionProtected,
+  notifyUserDuplicateLoginSafe,
   notifyUserSessionExpiredSafe,
 } from "./sessionGuard";
 import { Capacitor } from "@capacitor/core";
+
+const SESSION_REPLACED_CODE = "SESSION_REPLACED";
+
+async function readSessionReplaced(res: Response): Promise<boolean> {
+  try {
+    const payload = (await res.clone().json()) as { code?: string } | null;
+    return payload?.code === SESSION_REPLACED_CODE;
+  } catch {
+    return false;
+  }
+}
+
+function notifyAuthFailure(sessionReplaced: boolean): void {
+  if (sessionReplaced) {
+    notifyUserDuplicateLoginSafe();
+  } else {
+    notifyUserSessionExpiredSafe();
+  }
+}
 
 // API Base URL - 모바일 앱용 (실제 도메인)
 const PRODUCTION_API_URL = 'https://ppamong.com';
@@ -114,12 +134,17 @@ async function refreshUserAccessToken(): Promise<boolean> {
 
       if (!res.ok) {
         if (isRefreshAuthFailure(res.status)) {
-          console.log("[Token] Refresh token rejected (auth)");
+          const sessionReplaced = await readSessionReplaced(res);
+          console.log(
+            sessionReplaced
+              ? "[Token] Refresh rejected — session replaced by another device"
+              : "[Token] Refresh token rejected (auth)",
+          );
           refreshFailedAt = Date.now();
           if (!isGameSessionProtected()) {
             await clearTokens();
           }
-          notifyUserSessionExpiredSafe();
+          notifyAuthFailure(sessionReplaced);
         } else {
           console.log(`[Token] Refresh failed (${res.status}) — keeping tokens for retry`);
         }
@@ -205,8 +230,20 @@ export async function apiRequest(
     return res;
   }
 
-  // 401 에러 시 토큰 재발급 시도
+  // 401 에러 시 토큰 재발급 시도 (다른 기기 로그인으로 교체된 경우 재발급 생략)
   if (res.status === 401) {
+    const sessionReplaced = await readSessionReplaced(res);
+    if (sessionReplaced) {
+      if (!isGameSessionProtected()) {
+        await clearTokens();
+      }
+      notifyAuthFailure(true);
+      if (isGameSessionProtected()) {
+        throw new Error("일시적으로 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+      }
+      throw new Error("다른 기기에서 로그인하여 현재 세션이 종료되었습니다.");
+    }
+
     const refreshed = await refreshUserAccessToken();
     if (refreshed) {
       // 재발급 성공 시 원래 요청 재시도
@@ -242,12 +279,22 @@ export const getQueryFn: <T>(options: {
       return null;
     }
 
-    // 401 에러 시 토큰 재발급 시도
+    // 401 에러 시 토큰 재발급 시도 (다른 기기 로그인으로 교체된 경우 재발급 생략)
     if (res.status === 401) {
       if (unauthorizedBehavior === "returnNull") {
         return null;
       }
-      
+
+      const sessionReplaced = await readSessionReplaced(res);
+      if (sessionReplaced) {
+        if (!isGameSessionProtected()) {
+          await clearTokens();
+        }
+        notifyAuthFailure(true);
+        console.log("[Query] Session replaced by another device, returning null");
+        return null;
+      }
+
       const refreshed = await refreshUserAccessToken();
       if (refreshed) {
         // 재발급 성공 시 원래 요청 재시도

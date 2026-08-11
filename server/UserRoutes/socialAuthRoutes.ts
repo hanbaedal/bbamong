@@ -1,10 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { userStorage } from "../UserStorage/userStorage";
-import { 
-  generateUserAccessToken, 
-  generateUserRefreshToken 
-} from "../utils/jwt";
-import { createSession, hasActiveSession, deleteSession } from "../sessionManager";
+import { issueUserAuthTokens } from "../userAuthSession";
+import { hasActiveSession } from "../sessionManager";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { UserModel } from "../UserStorage/db";
@@ -429,20 +426,13 @@ export function registerSocialAuthRoutes(app: Express) {
       const hasSession = await hasActiveSession("user", user.id);
       if (hasSession) {
         console.log(`[카카오] 기존 세션 강제 교체: ${user.id}`);
-        await deleteSession("user", user.id);
       }
 
-      const tokenPayload = {
-        userId: user.id,
-        username: user.username,
-      };
-
-      const jwtAccessToken = generateUserAccessToken(tokenPayload);
-      const jwtRefreshToken = generateUserRefreshToken(tokenPayload);
-
-      await createSession("user", user.id, {
-        username: user.username,
-      });
+      const { accessToken: jwtAccessToken, refreshToken: jwtRefreshToken } =
+        await issueUserAuthTokens({
+          id: user.id,
+          username: user.username,
+        });
 
       const now = new Date();
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
@@ -591,20 +581,13 @@ export function registerSocialAuthRoutes(app: Express) {
       const hasSession = await hasActiveSession("user", user.id);
       if (hasSession) {
         console.log(`[구글] 기존 세션 강제 교체: ${user.id}`);
-        await deleteSession("user", user.id);
       }
 
-      const tokenPayload = {
-        userId: user.id,
-        username: user.username,
-      };
-
-      const jwtAccessToken = generateUserAccessToken(tokenPayload);
-      const jwtRefreshToken = generateUserRefreshToken(tokenPayload);
-
-      await createSession("user", user.id, {
-        username: user.username,
-      });
+      const { accessToken: jwtAccessToken, refreshToken: jwtRefreshToken } =
+        await issueUserAuthTokens({
+          id: user.id,
+          username: user.username,
+        });
 
       const now = new Date();
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
@@ -723,20 +706,13 @@ export function registerSocialAuthRoutes(app: Express) {
       const hasSession = await hasActiveSession("user", user.id);
       if (hasSession) {
         console.log(`[애플] 기존 세션 강제 교체: ${user.id}`);
-        await deleteSession("user", user.id);
       }
 
-      const tokenPayload = {
-        userId: user.id,
-        username: user.username,
-      };
-
-      const jwtAccessToken = generateUserAccessToken(tokenPayload);
-      const jwtRefreshToken = generateUserRefreshToken(tokenPayload);
-
-      await createSession("user", user.id, {
-        username: user.username,
-      });
+      const { accessToken: jwtAccessToken, refreshToken: jwtRefreshToken } =
+        await issueUserAuthTokens({
+          id: user.id,
+          username: user.username,
+        });
 
       const now = new Date();
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });

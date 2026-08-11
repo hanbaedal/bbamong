@@ -22,6 +22,8 @@ export interface TokenPayload {
 export interface UserTokenPayload {
   userId: string;
   username: string;
+  /** 단일 기기 세션 — 다른 기기 로그인 시 불일치로 즉시 무효화 (구 토큰에는 없을 수 있음) */
+  sessionId?: string;
 }
 
 export function generateAccessToken(payload: TokenPayload): string {
