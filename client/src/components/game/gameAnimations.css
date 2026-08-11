@@ -26,10 +26,26 @@
 @keyframes batter-run-bob {
   0%,
   100% {
-    transform: translate(-50%, -100%) translateY(0);
+    transform: translate(-50%, -100%) translateY(0) rotate(-2deg);
   }
   50% {
-    transform: translate(-50%, -100%) translateY(-3px);
+    transform: translate(-50%, -100%) translateY(-5px) rotate(2deg);
+  }
+}
+
+@keyframes pyamong-run-stride {
+  0%,
+  100% {
+    transform: translate(-50%, -100%) translateY(0) scaleX(1) rotate(-4deg);
+  }
+  25% {
+    transform: translate(-50%, -100%) translateY(-6px) scaleX(1) rotate(0deg);
+  }
+  50% {
+    transform: translate(-50%, -100%) translateY(0) scaleX(1) rotate(4deg);
+  }
+  75% {
+    transform: translate(-50%, -100%) translateY(-6px) scaleX(1) rotate(0deg);
   }
 }
 
@@ -84,6 +100,11 @@
 
 .animate-batter-run {
   animation: batter-run-bob 0.35s ease-in-out infinite;
+}
+
+.animate-pyamong-run {
+  animation: pyamong-run-stride 0.28s ease-in-out infinite;
+  transform-origin: bottom center;
 }
 
 .animate-label-blink {

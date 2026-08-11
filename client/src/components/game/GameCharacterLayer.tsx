@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import pyamongWaiting from "@assets/game/pyamong-waiting.png";
 import pyamongSuccess from "@assets/game/pyamong-success.png";
+import pyamongRunning from "@assets/game/pyamong-running.png";
 import pyamongStandsWaiting from "@assets/game/pyamong-stands-waiting.png";
 import pyamongWaveGoodbye from "@assets/game/pyamong-wave-goodbye.png";
 import batterWaiting from "@assets/game/batter-waiting.png";
@@ -204,9 +205,9 @@ export default function GameCharacterLayer({
           data-testid="char-batter-running"
         >
           <img
-            src={batterWaiting}
+            src={pyamongRunning}
             alt=""
-            className="w-[min(4.5vw,42px)] h-auto game-sprite animate-batter-run"
+            className="w-[min(7vw,64px)] h-auto game-sprite animate-pyamong-run"
             style={{ transform: "translate(-50%, -100%)" }}
           />
         </div>
