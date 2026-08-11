@@ -40,6 +40,10 @@ async function createPointTransaction(
   await PointTransactionModel.create([{ id, ...data }], { session });
 }
 
+function roundStatsQuery(matchId: string, roundNumber: number) {
+  return { matchId, roundNumber };
+}
+
 export async function createPredictionWithPointDeduction(
   predictionData: InsertPrediction,
 ): Promise<Prediction> {
@@ -322,8 +326,18 @@ export async function startRound(matchId: string): Promise<Match> {
       .lean();
 
     if (existing && existing.isPredictionStarted && !existing.isPredictionStopped) {
+      if (match.predictionEnabled) {
+        await session.commitTransaction();
+        return match as Match;
+      }
+      const syncedMatch = await MatchModel.findOneAndUpdate(
+        { id: matchId },
+        { predictionEnabled: true, sideBetsLocked: true, matchStatus: "ongoing" },
+        { new: true, session },
+      ).lean();
       await session.commitTransaction();
-      return match as Match;
+      if (!syncedMatch) throw new Error("경기를 찾을 수 없습니다.");
+      return syncedMatch as Match;
     }
 
     if (existing && existing.isResultSent) {
@@ -370,9 +384,10 @@ export async function startRound(matchId: string): Promise<Match> {
       }
 
       await RoundStatisticsModel.updateOne(
-        { id: existing.id },
+        roundStatsQuery(matchId, currentRound),
         {
           predictionStartTime: new Date(),
+          isPredictionStarted: true,
           isPredictionStopped: false,
           totalParticipants: 0,
           totalPoints: 0,
@@ -382,8 +397,12 @@ export async function startRound(matchId: string): Promise<Match> {
       );
     } else if (existing) {
       await RoundStatisticsModel.updateOne(
-        { id: existing.id },
-        { predictionStartTime: new Date(), isPredictionStarted: true },
+        roundStatsQuery(matchId, currentRound),
+        {
+          predictionStartTime: new Date(),
+          isPredictionStarted: true,
+          isPredictionStopped: false,
+        },
         { session },
       );
     } else {
@@ -408,6 +427,7 @@ export async function startRound(matchId: string): Promise<Match> {
     }
 
     await session.commitTransaction();
+    if (!updatedMatch) throw new Error("경기를 찾을 수 없습니다.");
     return updatedMatch as Match;
   } catch (error) {
     await session.abortTransaction();
@@ -426,18 +446,63 @@ export async function stopRound(matchId: string): Promise<Match> {
     if (!match) throw new Error("경기를 찾을 수 없습니다.");
 
     const currentRound = match.currentRound;
-    const existing = await RoundStatisticsModel.findOne({
-      matchId,
-      roundNumber: currentRound,
-    })
+    const statsFilter = roundStatsQuery(matchId, currentRound);
+    let existing = await RoundStatisticsModel.findOne(statsFilter)
       .session(session)
       .lean();
 
+    if (existing?.isPredictionStopped) {
+      if (!match.predictionEnabled) {
+        await session.commitTransaction();
+        return match as Match;
+      }
+      const syncedMatch = await MatchModel.findOneAndUpdate(
+        { id: matchId },
+        { predictionEnabled: false },
+        { new: true, session },
+      ).lean();
+      await session.commitTransaction();
+      if (!syncedMatch) throw new Error("경기를 찾을 수 없습니다.");
+      return syncedMatch as Match;
+    }
+
+    if (match.predictionEnabled && (!existing || !existing.isPredictionStarted)) {
+      const now = new Date();
+      if (existing) {
+        await RoundStatisticsModel.updateOne(
+          statsFilter,
+          {
+            predictionStartTime: existing.predictionStartTime ?? now,
+            isPredictionStarted: true,
+            isPredictionStopped: false,
+          },
+          { session },
+        );
+      } else {
+        const statsId = await getNextSequence("roundStatistics");
+        await RoundStatisticsModel.create(
+          [
+            {
+              id: statsId,
+              matchId,
+              roundNumber: currentRound,
+              totalParticipants: 0,
+              totalPoints: 0,
+              totalWinners: 0,
+              predictionStartTime: now,
+              isPredictionStarted: true,
+              isPredictionStopped: false,
+              isResultSent: false,
+            },
+          ],
+          { session },
+        );
+      }
+      existing = await RoundStatisticsModel.findOne(statsFilter).session(session).lean();
+    }
+
     if (!existing || !existing.isPredictionStarted) {
       throw new Error(`라운드 ${currentRound}의 예측이 아직 시작되지 않았습니다.`);
-    }
-    if (existing.isPredictionStopped) {
-      throw new Error(`라운드 ${currentRound}의 예측이 이미 중지되었습니다.`);
     }
 
     const updatedMatch = await MatchModel.findOneAndUpdate(
@@ -446,8 +511,10 @@ export async function stopRound(matchId: string): Promise<Match> {
       { new: true, session },
     ).lean();
 
+    if (!updatedMatch) throw new Error("경기를 찾을 수 없습니다.");
+
     await RoundStatisticsModel.updateOne(
-      { id: existing.id },
+      statsFilter,
       { predictionStopTime: new Date(), isPredictionStopped: true },
       { session },
     );
@@ -491,7 +558,7 @@ export async function cancelStartRound(matchId: string): Promise<Match> {
     }
 
     await refundPendingPredictionsForRound(session, matchId, currentRound);
-    await RoundStatisticsModel.deleteOne({ id: existing.id }, { session });
+    await RoundStatisticsModel.deleteOne(roundStatsQuery(matchId, currentRound), { session });
 
     const updatedMatch = await MatchModel.findOneAndUpdate(
       { id: matchId },
@@ -548,7 +615,7 @@ export async function cancelStopRound(matchId: string): Promise<Match> {
     ).lean();
 
     await RoundStatisticsModel.updateOne(
-      { id: existing.id },
+      roundStatsQuery(matchId, currentRound),
       { isPredictionStopped: false, predictionStopTime: null },
       { session },
     );
@@ -684,7 +751,7 @@ export async function advancePitcherChange(
         existing.isPredictionStarted && !existing.isPredictionStopped,
       );
       await refundPendingPredictionsForRound(session, matchId, currentRound);
-      await RoundStatisticsModel.deleteOne({ id: existing.id }, { session });
+      await RoundStatisticsModel.deleteOne(roundStatsQuery(matchId, currentRound), { session });
     }
 
     const updated = await MatchModel.findOneAndUpdate(
@@ -791,7 +858,11 @@ export async function updateRoundPredictionResult(
       .lean();
 
     if (roundPredictions.length === 0) {
-      await RoundStatisticsModel.updateOne({ id: existingStats.id }, { isResultSent: true }, { session });
+      await RoundStatisticsModel.updateOne(
+        roundStatsQuery(matchId, roundNumber),
+        { isResultSent: true },
+        { session },
+      );
       await session.commitTransaction();
       return new Map<string, number>();
     }
@@ -843,7 +914,7 @@ export async function updateRoundPredictionResult(
 
     const totalPool = roundPredictions.reduce((sum, p) => sum + p.amount, 0);
     await RoundStatisticsModel.updateOne(
-      { id: existingStats.id },
+      roundStatsQuery(matchId, roundNumber),
       {
         totalParticipants: roundPredictions.length,
         totalPoints: totalPool,
@@ -923,7 +994,7 @@ export async function createOrUpdateRoundStatistics(
 
   if (existing) {
     const doc = await RoundStatisticsModel.findOneAndUpdate(
-      { id: existing.id },
+      roundStatsQuery(matchId, roundNumber),
       { totalParticipants, totalPoints, totalWinners },
       { new: true },
     ).lean();

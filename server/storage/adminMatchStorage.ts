@@ -418,8 +418,18 @@ export class AdminMatchStorage implements IAdminMatchStorage {
 
     if (existingStats) {
       await RoundStatisticsModel.updateOne(
-        { id: existingStats.id },
-        enabled ? { predictionStartTime: now } : { predictionStopTime: now },
+        { matchId: id, roundNumber: match.currentRound },
+        enabled
+          ? {
+              predictionStartTime: now,
+              predictionStopTime: null,
+              isPredictionStarted: true,
+              isPredictionStopped: false,
+            }
+          : {
+              predictionStopTime: now,
+              isPredictionStopped: true,
+            },
       );
     } else {
       const statsId = await getNextSequence("roundStatistics");
@@ -432,6 +442,9 @@ export class AdminMatchStorage implements IAdminMatchStorage {
         totalWinners: 0,
         predictionStartTime: enabled ? now : null,
         predictionStopTime: enabled ? null : now,
+        isPredictionStarted: enabled,
+        isPredictionStopped: !enabled,
+        isResultSent: false,
       });
     }
   }
