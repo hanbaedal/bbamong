@@ -552,6 +552,33 @@ class WSManager {
   }
 
   /**
+   * 특정 유저의 모든 경기 WS 연결에 이벤트 전송 (세션 끊지 않음)
+   */
+  notifyUser(userId: string, eventType: string, data: any): number {
+    const clientId = `user:${userId}`;
+    let sent = 0;
+    const payload = JSON.stringify({ type: eventType, data });
+
+    this.clients.forEach((clients) => {
+      clients.forEach((client) => {
+        if (client.clientId !== clientId) return;
+        if (client.ws.readyState !== WebSocket.OPEN) return;
+        try {
+          client.ws.send(payload);
+          sent++;
+        } catch (error) {
+          console.error(`[WS] Error notifying ${clientId}:`, error);
+        }
+      });
+    });
+
+    if (sent > 0) {
+      console.log(`[WS] Notified ${sent} connection(s) for ${clientId}: ${eventType}`);
+    }
+    return sent;
+  }
+
+  /**
    * 특정 역할/사용자의 모든 WebSocket 연결 강제 종료
    * 세션 삭제 시 호출하여 기존 WebSocket 연결 정리
    */

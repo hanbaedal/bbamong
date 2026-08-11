@@ -5,6 +5,7 @@ import { isUserAuthPublicPath } from "@/lib/loginSession";
 let gameSessionProtected = false;
 let pendingSessionExpired = false;
 let pendingDuplicateLogin = false;
+let pendingLoginAttempt = false;
 
 export function setGameSessionProtected(active: boolean): void {
   gameSessionProtected = active;
@@ -18,7 +19,7 @@ export function isGameSessionProtected(): boolean {
 }
 
 export function hasPendingSessionEvent(): boolean {
-  return pendingSessionExpired || pendingDuplicateLogin;
+  return pendingSessionExpired || pendingDuplicateLogin || pendingLoginAttempt;
 }
 
 export function queueSessionExpiredWhileInGame(): void {
@@ -39,12 +40,17 @@ function dispatchDuplicateLogin(): void {
   window.dispatchEvent(new CustomEvent("user-duplicate-login"));
 }
 
+function dispatchLoginAttempt(): void {
+  window.dispatchEvent(new CustomEvent("user-login-attempt"));
+}
+
 /** 게임 화면 이탈 시 보류된 세션 알림 처리 */
 export function flushDeferredSessionEvents(): void {
   if (gameSessionProtected) return;
   if (isUserAuthPublicPath()) {
     pendingDuplicateLogin = false;
     pendingSessionExpired = false;
+    pendingLoginAttempt = false;
     return;
   }
   if (pendingDuplicateLogin) {
@@ -55,6 +61,10 @@ export function flushDeferredSessionEvents(): void {
   if (pendingSessionExpired) {
     pendingSessionExpired = false;
     dispatchSessionExpired();
+  }
+  if (pendingLoginAttempt) {
+    pendingLoginAttempt = false;
+    dispatchLoginAttempt();
   }
 }
 
@@ -76,4 +86,12 @@ export function notifyUserDuplicateLoginSafe(): void {
     return;
   }
   dispatchDuplicateLogin();
+}
+
+/** 다른 기기에서 로그인 시도 — 게임 중에도 즉시 알림(세션은 유지) */
+export function notifyUserLoginAttemptSafe(): void {
+  if (typeof window === "undefined") return;
+  if (isUserAuthPublicPath()) return;
+  // 게임 보호 중이어도 플레이는 유지하고 알림만 즉시 표시
+  dispatchLoginAttempt();
 }

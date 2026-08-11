@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { getOrRefreshAccessToken } from "@/lib/queryClient";
-import { notifyUserDuplicateLoginSafe } from "@/lib/sessionGuard";
+import { notifyUserDuplicateLoginSafe, notifyUserLoginAttemptSafe } from "@/lib/sessionGuard";
 import { clearTokens } from "@/lib/tokenManager";
 
 export type WSConnectionState = "connecting" | "connected" | "disconnected" | "reconnecting";
@@ -242,6 +242,9 @@ export function useMatchWebSocket({
               break;
             case "banner_ad_hide":
               handlersRef.current.onBannerAdHide?.(message.data);
+              break;
+            case "login_attempt":
+              notifyUserLoginAttemptSafe();
               break;
             case "match_ended":
               handlersRef.current.onMatchEnd?.(message.data);

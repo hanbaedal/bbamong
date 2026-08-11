@@ -21,8 +21,13 @@ import { userAuthMiddleware, type AuthenticatedUserRequest } from "../middleware
 import { hasActiveSession, deleteSession } from "../sessionManager";
 import {
   assertUserSession,
+  gateUserLogin,
   issueUserAuthTokens,
+  peekLoginAttempt,
+  clearLoginAttempt,
   renewUserAuthTokens,
+  SESSION_ACTIVE_CODE,
+  SESSION_ACTIVE_MESSAGE,
   SESSION_REPLACED_CODE,
   SESSION_REPLACED_MESSAGE,
 } from "../userAuthSession";
@@ -258,9 +263,24 @@ export async function userRoutes(app: Express): Promise<void> {
         return res.status(403).json({ error: "suspended", message: "삭제된 계정입니다. 관리자한테 문의 주세요." });
       }
 
+      const forceLogin = req.body?.forceLogin === true;
+
       const hasSession = await hasActiveSession("user", user.id);
       if (hasSession) {
-        console.log(`[User Login] 기존 세션 강제 교체: ${user.id}`);
+        const gate = await gateUserLogin(user.id, { force: forceLogin });
+        if (!gate.ok) {
+          console.log(`[User Login] 활성 세션 존재 — 로그인 거부: ${user.id}`);
+          return res.status(409).json({
+            error: SESSION_ACTIVE_CODE,
+            code: SESSION_ACTIVE_CODE,
+            message: SESSION_ACTIVE_MESSAGE,
+            sessionActive: true,
+            canForceLogin: true,
+          });
+        }
+        if (forceLogin) {
+          console.log(`[User Login] 강제 로그인으로 기존 세션 교체: ${user.id}`);
+        }
       }
 
       // lastLogin, lastActive 동시 업데이트
@@ -591,9 +611,16 @@ export async function userRoutes(app: Express): Promise<void> {
 
       await storage.updatePasswordByPhone(cleanPhone, newPassword);
 
+      // 비밀번호 재설정 시 모든 기기 세션 무효화 (탈취 대응)
+      try {
+        await deleteSession("user", user.id);
+      } catch (sessionError) {
+        console.error("비밀번호 재설정 후 세션 삭제 실패:", sessionError);
+      }
+
       return res.json({ 
         success: true, 
-        message: "비밀번호가 재설정되었습니다."
+        message: "비밀번호가 재설정되었습니다. 다시 로그인해 주세요."
       });
     } catch (error) {
       console.error("Reset password error:", error);
@@ -916,6 +943,12 @@ export async function userRoutes(app: Express): Promise<void> {
       // 출석 기록 조회
       const attendanceRecords = await attendanceStorage.getUserAttendanceRecords(userId);
 
+      const loginAttemptAt = await peekLoginAttempt(userId);
+      const recentLoginAttempt = Boolean(loginAttemptAt);
+      if (recentLoginAttempt) {
+        await clearLoginAttempt(userId);
+      }
+
       // 비밀번호는 응답에서 제외
       const { password: _, ...userWithoutPassword } = user;
 
@@ -926,6 +959,8 @@ export async function userRoutes(app: Express): Promise<void> {
           hasPassword: !!user.password,
         },
         attendanceRecords,
+        recentLoginAttempt,
+        loginAttemptAt: loginAttemptAt || undefined,
       });
     } catch (error) {
       console.error("Get current user error:", error);
