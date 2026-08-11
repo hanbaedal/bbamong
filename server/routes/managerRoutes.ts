@@ -838,11 +838,7 @@ export async function managerRoutes(app: Express): Promise<void> {
           gamePhase,
           message: `라운드 ${updatedMatch.currentRound}으로 이동했습니다.`,
         });
-
-        broadcastManager.sendToMatch(id, "banner_ad_show", {
-          matchId: id,
-          message: "타자 교체 배너 광고를 표시합니다.",
-        });
+        // 결과→다음 타자 자동 이동 시 배너 미전송 (매 타석마다 연속 노출 방지)
       } catch (nextRoundError) {
         console.error("Auto next round failed after result:", nextRoundError);
       }
@@ -917,10 +913,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: `다음 타자(라운드 ${updatedMatch.currentRound})`,
       });
 
-      broadcastManager.sendToMatch(id, "banner_ad_show", {
-        matchId: id,
-        message: "타자 교체 배너 광고를 표시합니다.",
-      });
+      // 다음 타자마다 배너 미전송 — 연속 노출 방지 (투수교체·공수교대만 배너)
 
       return res.json({
         success: true,
@@ -1057,10 +1050,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: `공수교대 — ${gamePhase.displayLabel}`,
       });
 
-      broadcastManager.sendToMatch(id, "banner_ad_show", {
-        matchId: id,
-        message: "공수교대 배너 광고를 표시합니다.",
-      });
+      // 공수교대는 전면·보상 광고 구간 — 하단 배너 미전송 (연속·중첩 노출 방지)
 
       return res.json({
         success: true,

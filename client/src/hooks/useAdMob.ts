@@ -166,6 +166,11 @@ function getBannerAdId(): string {
 
 export type AdSessionState = "idle" | "preparing" | "showing" | "overlay";
 
+/** 배너 표시 후 자동 숨김 */
+const BANNER_AUTO_HIDE_MS = 8_000;
+/** 연속 banner_ad_show 무시 간격 */
+const BANNER_SHOW_COOLDOWN_MS = 60_000;
+
 interface UseAdMobResult {
   isAdReady: boolean;
   isAdShowing: boolean;
@@ -195,6 +200,9 @@ export function useAdMob(): UseAdMobResult {
   const rewardedGrantedRef = useRef(false);
   // Set to true when FailedToLoad fires so waitForAdReady can return immediately
   const lastLoadFailedRef = useRef(false);
+  const bannerHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastBannerShownAtRef = useRef(0);
+  const isBannerVisibleRef = useRef(false);
 
   // Pending resolvers for waitForAdReady()
   const adReadyResolversRef = useRef<Array<(ready: boolean) => void>>([]);
@@ -332,6 +340,7 @@ export function useAdMob(): UseAdMobResult {
     interstitialShowedAtRef.current = null;
 
     // 전면 광고 전 배너 제거 — 일부 기기에서 배너+전면 동시 시 WebView/AdMob 크래시
+    clearBannerHideTimer();
     try {
       await AdMob.hideBanner();
     } catch {
@@ -342,6 +351,7 @@ export function useAdMob(): UseAdMobResult {
     } catch {
       /* ignore */
     }
+    isBannerVisibleRef.current = false;
     setIsBannerVisible(false);
 
     if (!isInitialized.current) {
@@ -394,7 +404,20 @@ export function useAdMob(): UseAdMobResult {
       setAdSessionState("overlay");
     }
     return { dismissedEarly: false };
-  }, [isNativePlatform, initializeAdMob, prepareInterstitialAd, showInterstitialAd, waitForAdReady]);
+  }, [
+    isNativePlatform,
+    initializeAdMob,
+    prepareInterstitialAd,
+    showInterstitialAd,
+    waitForAdReady,
+    clearBannerHideTimer,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      clearBannerHideTimer();
+    };
+  }, [clearBannerHideTimer]);
 
   const handleAdDismissed = useCallback(async () => {
     console.log("[AdMob] Interstitial ad dismissed");
@@ -487,16 +510,52 @@ export function useAdMob(): UseAdMobResult {
     };
   }, [prepareInterstitialAd, handleAdDismissed, resolveAdReady]);
 
+  const clearBannerHideTimer = useCallback(() => {
+    if (bannerHideTimerRef.current) {
+      clearTimeout(bannerHideTimerRef.current);
+      bannerHideTimerRef.current = null;
+    }
+  }, []);
+
+  const hideBannerAd = useCallback(async () => {
+    clearBannerHideTimer();
+    if (isNativePlatform) {
+      try {
+        await AdMob.hideBanner();
+      } catch (error) {
+        console.warn("[AdMob] hideBanner failed:", error);
+      }
+      try {
+        await AdMob.removeBanner();
+      } catch {
+        /* ignore */
+      }
+    }
+    isBannerVisibleRef.current = false;
+    setIsBannerVisible(false);
+  }, [isNativePlatform, clearBannerHideTimer]);
+
   const showBannerAd = useCallback(async () => {
     if (!isNativePlatform) {
-      setIsBannerVisible(true);
+      // 웹에는 실제 배너 없음 — 상태만 잠깐 표시하지 않음
       return;
     }
-    // 전면·보상 광고 세션 중에는 배너 표시하지 않음 (AdMob/SystemUI 충돌·크래시 완화)
+    // 전면·보상 광고 세션 중에는 배너 표시하지 않음
     if (adSessionState !== "idle" || isAdShowing) {
       console.log("[AdMob] skip banner — ad session active:", adSessionState);
       return;
     }
+    // 이미 보이거나 쿨다운 중이면 재표시하지 않음 (연속 노출 방지)
+    const now = Date.now();
+    if (isBannerVisibleRef.current) {
+      console.log("[AdMob] skip banner — already visible");
+      return;
+    }
+    if (now - lastBannerShownAtRef.current < BANNER_SHOW_COOLDOWN_MS) {
+      console.log("[AdMob] skip banner — cooldown");
+      return;
+    }
+
     const adId = getBannerAdId();
     if (!adId) {
       console.warn("[AdMob] 배너 ID 없음 — 배너를 표시하지 않습니다.");
@@ -523,28 +582,28 @@ export function useAdMob(): UseAdMobResult {
         isTesting: IS_TESTING,
       };
       await AdMob.showBanner(options);
+      lastBannerShownAtRef.current = Date.now();
+      isBannerVisibleRef.current = true;
       setIsBannerVisible(true);
+
+      clearBannerHideTimer();
+      bannerHideTimerRef.current = setTimeout(() => {
+        bannerHideTimerRef.current = null;
+        void hideBannerAd();
+      }, BANNER_AUTO_HIDE_MS);
     } catch (error) {
       console.warn("[AdMob] showBanner failed:", error);
+      isBannerVisibleRef.current = false;
       setIsBannerVisible(false);
     }
-  }, [isNativePlatform, initializeAdMob, adSessionState, isAdShowing]);
-
-  const hideBannerAd = useCallback(async () => {
-    if (isNativePlatform) {
-      try {
-        await AdMob.hideBanner();
-      } catch (error) {
-        console.warn("[AdMob] hideBanner failed:", error);
-      }
-      try {
-        await AdMob.removeBanner();
-      } catch {
-        /* ignore */
-      }
-    }
-    setIsBannerVisible(false);
-  }, [isNativePlatform]);
+  }, [
+    isNativePlatform,
+    initializeAdMob,
+    adSessionState,
+    isAdShowing,
+    clearBannerHideTimer,
+    hideBannerAd,
+  ]);
 
   const showRewardedAd = useCallback(async (): Promise<boolean> => {
     if (!isNativePlatform) {

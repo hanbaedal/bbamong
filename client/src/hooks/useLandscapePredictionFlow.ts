@@ -187,8 +187,9 @@ export function useLandscapePredictionFlow(
       if (matchEndedTimerRef.current) {
         clearTimeout(matchEndedTimerRef.current);
       }
+      void hideBannerAd();
     },
-    [],
+    [hideBannerAd],
   );
 
   const finishAdAndWaitStart = useCallback(() => {

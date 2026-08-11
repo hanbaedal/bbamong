@@ -83,15 +83,17 @@ function GameNoticeModal({
               type="button"
               onClick={onDismiss}
               disabled={dismissing}
-              className="shrink-0 rounded-md p-1 text-[#aaa] hover:bg-white/10 hover:text-white disabled:opacity-50"
+              className="shrink-0 p-0.5 text-white/70 hover:text-white disabled:opacity-50"
               aria-label="닫기"
               data-testid="game-notice-modal-close"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#ddd]">{notice.content}</p>
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#D5D5D5] sm:text-sm">
+              {notice.content}
+            </p>
           </div>
         </div>
       </div>
