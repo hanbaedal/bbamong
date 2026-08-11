@@ -139,6 +139,7 @@ export class UserStorage {
       referralCode: validReferralCode,
       isSuspended: 0,
       provider: user.provider ?? "local",
+      providerId: user.providerId || id,
       dataSource: MEMBER_SOURCE_PPAMONG,
     });
     const newUser = doc.toObject() as User;
