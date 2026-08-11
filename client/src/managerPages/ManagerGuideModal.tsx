@@ -76,7 +76,7 @@ export const MANAGER_GUIDE_STEPS: ManagerGuideStep[] = [
     title: "광고 · 종료 · 비상",
     summary: "이닝 전환·종료·수동 모드를 처리합니다.",
     bullets: [
-      "공수교대 시 광고 시작·중지 가능",
+      "공수교대·투수교체 시 전면 광고(배너 없음)",
       "API 경기 종료(FT) 시 자동 완료",
       "API 불안정 시 관리자 수동 제어 전환",
     ],
