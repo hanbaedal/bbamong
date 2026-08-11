@@ -8,6 +8,7 @@ import FindPasswordForm from "@/components/user/FindPasswordForm";
 import "@/styles/user-landscape.css";
 import { useUser } from "@/contexts/UserContext";
 import { useUserAssets } from "@/contexts/UserAssetContext";
+import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 import { getFullUrl } from "@/lib/queryClient";
 import { isGuestLoginAllowed } from "@/lib/shopRoutes";
 import { finalizeUserSessionLogin, tryRestoreUserSession } from "@/lib/userLoginAuth";
@@ -45,6 +46,7 @@ export default function LoginPage() {
   const [location, setLocation] = useLocation();
   const { setUser } = useUser();
   const { assets } = useUserAssets();
+  useAndroidImmersiveMode();
   const guestLoginAllowed = isGuestLoginAllowed(location);
   const skipInitialBootstrap = peekSkipLoginBootstrap();
   const [bootstrapPhase, setBootstrapPhase] = useState<LoginBootstrapPhase>(

@@ -15,8 +15,10 @@ import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
 import { resetRefreshCooldown } from "@/lib/queryClient";
 import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import PageHeader from "@/components/PageHeader";
+import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 
 export default function SocialOnboardingPage() {
+  useAndroidImmersiveMode();
   const [, setLocation] = useLocation();
   const search = useSearch();
   const pendingCode = new URLSearchParams(search).get("code");
