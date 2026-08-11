@@ -172,8 +172,6 @@ export async function userRoutes(app: Express): Promise<void> {
         if (!isPhoneVerified) {
           return res.status(400).json({ error: "전화번호 인증을 완료해주세요." });
         }
-
-        await redis.del(verifiedKey);
       }
 
       // 아이디 중복 확인
@@ -195,6 +193,16 @@ export async function userRoutes(app: Express): Promise<void> {
       }
 
       const user = await storage.createUser({ ...result.data, phone: cleanPhone || result.data.phone });
+
+      // 회원가입 성공 후에만 phone_verified 키 삭제 (실패 시 재시도 가능하도록)
+      if (cleanPhone && isPhoneVerificationRequired()) {
+        try {
+          const redis = getRedisClient();
+          await redis.del(`phone_verified:${cleanPhone}`);
+        } catch (delErr) {
+          console.error("phone_verified 키 삭제 실패:", delErr);
+        }
+      }
 
       // 비밀번호는 응답에서 제외
       const { password, ...userWithoutPassword } = user;
@@ -677,8 +685,6 @@ export async function userRoutes(app: Express): Promise<void> {
         if (existingByPhone && existingByPhone.id !== userId) {
           return res.status(400).json({ error: "이미 사용 중인 전화번호입니다." });
         }
-
-        await redis.del(verifiedKey);
       }
 
       if (email) {
@@ -696,6 +702,20 @@ export async function userRoutes(app: Express): Promise<void> {
       if (password) updates.password = password;
 
       const updatedUser = await storage.updateUser(userId, updates);
+
+      if (!updatedUser) {
+        return res.status(404).json({ error: "사용자를 찾을 수 없습니다." });
+      }
+
+      // 수정 성공 후에만 phone_verified 키 삭제
+      if (phone) {
+        try {
+          const redis = getRedisClient();
+          await redis.del(`phone_verified:${normalizePhone(phone)}`);
+        } catch (delErr) {
+          console.error("phone_verified 키 삭제 실패:", delErr);
+        }
+      }
 
       if (!updatedUser) {
         return res.status(404).json({ error: "사용자를 찾을 수 없습니다." });
@@ -791,8 +811,6 @@ export async function userRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "이미 사용 중인 전화번호입니다." });
       }
 
-      await redis.del(verifiedKey);
-
       const existingByProvider = await storage.getUserByProvider(socialData.provider, socialData.providerId);
       if (existingByProvider) {
         await deleteSocialPendingData(pendingCode);
@@ -812,6 +830,13 @@ export async function userRoutes(app: Express): Promise<void> {
         hashedPassword,
         referralCode: referralCode?.trim() || undefined,
       });
+
+      // 가입 성공 후에만 phone_verified 키 삭제
+      try {
+        await redis.del(verifiedKey);
+      } catch (delErr) {
+        console.error("phone_verified 키 삭제 실패:", delErr);
+      }
 
       await deleteSocialPendingData(pendingCode);
 
