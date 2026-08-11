@@ -39,9 +39,36 @@ export default function GameCharacterLayer({
 }: GameCharacterLayerProps) {
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
   const fieldSize = useStadiumFieldSize();
-  const runTarget = selectedPrediction ?? "1루";
-  const runPath = useMemo(() => getRunPathImagePoints(runTarget), [runTarget]);
-  const runDurationSec = useMemo(() => getRunDurationSec(runTarget), [runTarget]);
+  const runTarget: PredictionOption =
+    selectedPrediction && selectedPrediction !== "아웃" ? selectedPrediction : "1루";
+
+  const [runLock, setRunLock] = useState<{
+    target: PredictionOption;
+    durationSec: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (phase === "success_running") {
+      setRunLock((prev) => {
+        if (prev) return prev;
+        const target =
+          selectedPrediction && selectedPrediction !== "아웃" ? selectedPrediction : "1루";
+        return { target, durationSec: getRunDurationSec(target) };
+      });
+      return;
+    }
+    if (phase !== "success_celebrate") {
+      setRunLock(null);
+    }
+  }, [phase, selectedPrediction]);
+
+  const activeRunTarget = runLock?.target ?? runTarget;
+  const runDurationSec = runLock?.durationSec ?? getRunDurationSec(runTarget);
+
+  const runPath = useMemo(
+    () => getRunPathImagePoints(activeRunTarget),
+    [activeRunTarget],
+  );
 
   const keyframesCss = useMemo(
     () =>
@@ -56,10 +83,11 @@ export default function GameCharacterLayer({
 
   useEffect(() => {
     if (phase !== "success_running") return;
-    const ms = runDurationSec * 1000 + 100;
+    if (fieldSize.width <= 0 || !runLock) return;
+    const ms = runLock.durationSec * 1000 + 150;
     const t = setTimeout(() => onRunComplete?.(), ms);
     return () => clearTimeout(t);
-  }, [phase, runDurationSec, onRunComplete]);
+  }, [phase, runLock, onRunComplete, fieldSize.width]);
 
   return (
     <>
@@ -201,19 +229,19 @@ export default function GameCharacterLayer({
             top: homePx.top,
             animation: `${runStyleId} ${runDurationSec}s ease-in-out forwards`,
           }}
-          data-testid="char-batter-running"
+          data-testid="char-pyamong-running"
         >
           <img
-            src={batterWaiting}
+            src={pyamongSuccess}
             alt=""
-            className="w-[min(4.5vw,42px)] h-auto game-sprite animate-batter-run"
+            className="w-[min(10vw,78px)] h-auto game-sprite animate-batter-run"
             style={{ transform: "translate(-50%, -100%)" }}
           />
         </div>
       )}
 
       {phase === "success_celebrate" && (
-        <StadiumFieldMarker point={BASE_IMAGE_POINTS[runTarget]}>
+        <StadiumFieldMarker point={BASE_IMAGE_POINTS[activeRunTarget]}>
           <img
             src={pyamongSuccess}
             alt=""

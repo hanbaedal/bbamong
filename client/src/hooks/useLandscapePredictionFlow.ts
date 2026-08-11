@@ -37,8 +37,10 @@ interface ActiveBet {
   amount: number;
 }
 
-/** 성공·실패 결과 배너 자동 종료 (동일 시간 — 메시지 인지에 충분하고 반복 플레이 시 지루함 적음) */
+/** 성공·실패 결과 배너 자동 종료 */
 const RESULT_AUTO_MS = 5000;
+/** 타자 교체 배너 — 결과 연출 후 표시, 일정 시간 뒤 자동 숨김 */
+const BANNER_AUTO_HIDE_MS = 12_000;
 
 export function useLandscapePredictionFlow(
   selectedMatch: MatchFlowData | null,
@@ -70,6 +72,8 @@ export function useLandscapePredictionFlow(
   const [showAdOverlay, setShowAdOverlay] = useState(false);
 
   const activeBetRef = useRef<ActiveBet | null>(null);
+  /** round_next 레이스로 activeBet이 지워져도 결과 연출용 */
+  const betSnapshotRef = useRef<ActiveBet | null>(null);
   const waitingResultRef = useRef(false);
   const resultShownRef = useRef(false);
   const lastResultPredictionIdRef = useRef<number | null>(null);
@@ -79,6 +83,8 @@ export function useLandscapePredictionFlow(
   const eventTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const eventCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingRewardKeyRef = useRef<string | null>(null);
+  const pendingBannerRef = useRef(false);
+  const bannerHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const adSessionActiveRef = useRef(false);
   const matchEndedRef = useRef(false);
   const matchEndedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -97,6 +103,43 @@ export function useLandscapePredictionFlow(
     isNativePlatform,
   } = useAdMob();
 
+  const clearBannerHideTimer = useCallback(() => {
+    if (bannerHideTimerRef.current) {
+      clearTimeout(bannerHideTimerRef.current);
+      bannerHideTimerRef.current = null;
+    }
+  }, []);
+
+  const showBannerWithAutoHide = useCallback(async () => {
+    clearBannerHideTimer();
+    await showBannerAd();
+    bannerHideTimerRef.current = setTimeout(() => {
+      bannerHideTimerRef.current = null;
+      void hideBannerAd();
+    }, BANNER_AUTO_HIDE_MS);
+  }, [clearBannerHideTimer, showBannerAd, hideBannerAd]);
+
+  const hideBannerAndCancel = useCallback(async () => {
+    pendingBannerRef.current = false;
+    clearBannerHideTimer();
+    await hideBannerAd();
+  }, [clearBannerHideTimer, hideBannerAd]);
+
+  const flushPendingBanner = useCallback(() => {
+    if (!pendingBannerRef.current) return;
+    pendingBannerRef.current = false;
+    void showBannerWithAutoHide();
+  }, [showBannerWithAutoHide]);
+
+  const isResultFlowPhase = useCallback((phase: GameScreenPhase) => {
+    return (
+      phase === "wait_result" ||
+      phase === "success_running" ||
+      phase === "success_celebrate" ||
+      phase === "fail"
+    );
+  }, []);
+
   useEffect(() => {
     predictionEnabledRef.current = predictionEnabled;
   }, [predictionEnabled]);
@@ -104,6 +147,12 @@ export function useLandscapePredictionFlow(
   useEffect(() => {
     screenPhaseRef.current = screenPhase;
   }, [screenPhase]);
+
+  useEffect(() => {
+    return () => {
+      clearBannerHideTimer();
+    };
+  }, [clearBannerHideTimer]);
 
   const clearResultTimers = useCallback(() => {
     if (resultTimerRef.current) {
@@ -158,6 +207,7 @@ export function useLandscapePredictionFlow(
       phase === "fail";
 
     const exitGame = () => {
+      void hideBannerAndCancel();
       toast({ description: "경기가 종료되었습니다." });
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
       onMatchEndedRef.current?.();
@@ -390,6 +440,7 @@ export function useLandscapePredictionFlow(
         resultShownRef.current = false;
         waitingResultRef.current = false;
         activeBetRef.current = null;
+        betSnapshotRef.current = null;
         setSelectedPrediction(null);
         setPredictionResult("pending");
         setShowBetModal(false);
@@ -397,12 +448,15 @@ export function useLandscapePredictionFlow(
         setLastWonAmount(0);
         setLastBetAmount(0);
         setScreenPhase(predictionEnabledRef.current ? "picking" : "wait_start");
+        // 주루·축하 연출이 끝난 뒤에만 배너 표시
+        flushPendingBanner();
       }, ms);
     },
-    [clearResultTimers],
+    [clearResultTimers, flushPendingBanner],
   );
 
   const handleRunComplete = useCallback(() => {
+    if (screenPhaseRef.current !== "success_running") return;
     setScreenPhase("success_celebrate");
   }, []);
 
@@ -419,7 +473,7 @@ export function useLandscapePredictionFlow(
   const handleRoundResult = useCallback(
     (data: { result?: string; wonAmount?: number }) => {
       if (resultShownRef.current) return;
-      const bet = activeBetRef.current;
+      const bet = activeBetRef.current ?? betSnapshotRef.current;
       if (!bet) return;
 
       const isSuccess = data.result === bet.prediction;
@@ -436,6 +490,8 @@ export function useLandscapePredictionFlow(
         const won = data.wonAmount ?? calculateFixedOddsPayout(bet.amount, bet.prediction);
         setLastWonAmount(won);
         if (won > 0) setUser({ ...user, points: (user.points ?? 0) + won });
+        setScreenPhase("success_running");
+      } else if (isSuccess) {
         setScreenPhase("success_running");
       } else {
         setScreenPhase("fail");
@@ -457,7 +513,7 @@ export function useLandscapePredictionFlow(
 
     onPredictionStarted: useCallback(() => {
       void speakGameVoice(USER_GAME_VOICE.predictionStarted);
-      void hideBannerAd();
+      void hideBannerAndCancel();
       if (waitingResultRef.current || activeBetRef.current) {
         setScreenPhase("wait_result");
         return;
@@ -467,7 +523,7 @@ export function useLandscapePredictionFlow(
       setSelectedPrediction(null);
       setScreenPhase("picking");
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, [hideBannerAd]),
+    }, [hideBannerAndCancel]),
 
     onPredictionEnded: useCallback(() => {
       void speakGameVoice(USER_GAME_VOICE.predictionStopped);
@@ -533,19 +589,14 @@ export function useLandscapePredictionFlow(
     }) => {
       if (data.gamePhase) onGamePhaseRef.current?.(data.gamePhase);
 
-      const showingResult =
+      const inResultFlow =
         resultShownRef.current ||
-        screenPhaseRef.current === "success_running" ||
-        screenPhaseRef.current === "success_celebrate" ||
-        screenPhaseRef.current === "fail";
-
-      const hadPendingBet =
         waitingResultRef.current ||
         activeBetRef.current != null ||
-        screenPhaseRef.current === "wait_result" ||
-        showingResult;
+        betSnapshotRef.current != null ||
+        isResultFlowPhase(screenPhaseRef.current);
 
-      if (data.skippedResult && hadPendingBet && !showingResult) {
+      if (data.skippedResult && inResultFlow && !resultShownRef.current) {
         toast({
           description: "이번 라운드 결과가 생략되었습니다.",
           duration: 4000,
@@ -555,8 +606,11 @@ export function useLandscapePredictionFlow(
       setPredictionEnabled(false);
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
 
-      // 결과 UI 표시 중이면 자동 dismiss가 끝날 때까지 유지 (유령 성공/실패·화면 깜빡임 방지)
-      if (showingResult) {
+      // 결과 대기·주루·축하 중이면 연출이 끝날 때까지 상태 유지
+      if (inResultFlow && !data.skippedResult) {
+        return;
+      }
+      if (inResultFlow && data.skippedResult && resultShownRef.current) {
         return;
       }
 
@@ -568,6 +622,7 @@ export function useLandscapePredictionFlow(
       resultShownRef.current = false;
       waitingResultRef.current = false;
       activeBetRef.current = null;
+      betSnapshotRef.current = null;
       setSelectedPrediction(null);
       setPredictionResult("pending");
       setShowBetModal(false);
@@ -590,24 +645,41 @@ export function useLandscapePredictionFlow(
       }
       setEventSubtitle("");
       setScreenPhase("wait_start");
-    }, [clearResultTimers, clearEventTimers, scheduleEventDismiss, toast]),
+      flushPendingBanner();
+    }, [
+      clearResultTimers,
+      clearEventTimers,
+      scheduleEventDismiss,
+      toast,
+      isResultFlowPhase,
+      flushPendingBanner,
+    ]),
 
     onRewardedAdOffer: useCallback((data: { rewardKey?: string; matchId?: string }) => {
       pendingRewardKeyRef.current = data?.rewardKey ?? `${data?.matchId ?? "match"}:${Date.now()}`;
     }, []),
 
     onBannerAdShow: useCallback(async () => {
-      await showBannerAd();
-    }, [showBannerAd]),
+      // 주루·결과 연출 중에는 배너를 미뤘다가 연출 종료 후 표시
+      if (
+        resultShownRef.current ||
+        waitingResultRef.current ||
+        isResultFlowPhase(screenPhaseRef.current)
+      ) {
+        pendingBannerRef.current = true;
+        return;
+      }
+      await showBannerWithAutoHide();
+    }, [showBannerWithAutoHide, isResultFlowPhase]),
 
     onBannerAdHide: useCallback(async () => {
-      await hideBannerAd();
-    }, [hideBannerAd]),
+      await hideBannerAndCancel();
+    }, [hideBannerAndCancel]),
 
     onAdStarted: useCallback(async (data: { matchId?: string }) => {
       if (resultShownRef.current) return;
 
-      void hideBannerAd();
+      void hideBannerAndCancel();
       adSessionActiveRef.current = true;
       setShowBetModal(false);
       setShowConfirmModal(false);
@@ -652,7 +724,7 @@ export function useLandscapePredictionFlow(
       startAdSession,
       showRewardedAd,
       finishAdAndWaitStart,
-      hideBannerAd,
+      hideBannerAndCancel,
       user,
       setUser,
       toast,
@@ -732,18 +804,21 @@ export function useLandscapePredictionFlow(
         amount: selectedBetAmount,
       });
       const data = await res.json();
-      activeBetRef.current = {
+      const bet: ActiveBet = {
         round: data.roundNumber,
         prediction: selectedPrediction,
         predictionId: data.id,
         amount: selectedBetAmount,
       };
+      activeBetRef.current = bet;
+      betSnapshotRef.current = bet;
       lastResultPredictionIdRef.current = data.id;
       setLastBetAmount(selectedBetAmount);
       setUser({ ...user, points: (user.points ?? 0) - selectedBetAmount });
     } catch (error: unknown) {
       waitingResultRef.current = false;
       activeBetRef.current = null;
+      betSnapshotRef.current = null;
       setScreenPhase(predictionEnabled ? "picking" : "wait_start");
       setSelectedPrediction(null);
       toast({
