@@ -113,7 +113,13 @@ async function refreshUserAccessToken(): Promise<boolean> {
       if (!refreshToken) {
         console.log("[Token] No refresh token found");
         refreshFailedAt = Date.now();
-        await clearTokens();
+        // access 가 아직 유효하면 지우지 않음 (게임 keepAlive·embed access-only 등)
+        const access = getAccessToken() ?? (await hydrateAccessToken());
+        const remainingMs = access ? getAccessTokenRemainingMs(access) : null;
+        const accessStillValid = remainingMs != null && remainingMs > 0;
+        if (!accessStillValid && !isGameSessionProtected()) {
+          await clearTokens();
+        }
         return false;
       }
 
@@ -186,7 +192,13 @@ export async function keepAliveUserSession(): Promise<boolean> {
     return true;
   }
 
-  return refreshUserAccessToken();
+  const refreshed = await refreshUserAccessToken();
+  if (refreshed) return true;
+
+  // refresh 실패해도 access 가 남아 있으면 게임 세션 유지
+  const still = getAccessToken();
+  const stillMs = still ? getAccessTokenRemainingMs(still) : null;
+  return stillMs != null && stillMs > 0;
 }
 
 export async function getOrRefreshAccessToken(): Promise<string | null> {
