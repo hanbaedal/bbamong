@@ -77,6 +77,8 @@ export function useLandscapePredictionFlow(
   const [showAdOverlay, setShowAdOverlay] = useState(false);
 
   const activeBetRef = useRef<ActiveBet | null>(null);
+  /** activeBet이 비워져도 round_result 연출용으로 유지 */
+  const betSnapshotRef = useRef<ActiveBet | null>(null);
   const waitingResultRef = useRef(false);
   const resultShownRef = useRef(false);
   const lastResultPredictionIdRef = useRef<number | null>(null);
@@ -150,6 +152,7 @@ export function useLandscapePredictionFlow(
     resultShownRef.current = false;
     waitingResultRef.current = false;
     activeBetRef.current = null;
+    betSnapshotRef.current = null;
     setSelectedPrediction(null);
     setPredictionResult("pending");
     setShowBetModal(false);
@@ -242,10 +245,25 @@ export function useLandscapePredictionFlow(
     );
   }, []);
 
+  /** 결과 대기 중 — round_next로 대기 UI를 지우지 않음 (결과 생략·환불은 제외) */
+  const isWaitingForResult = useCallback(() => {
+    return (
+      waitingResultRef.current ||
+      activeBetRef.current != null ||
+      screenPhaseRef.current === "wait_result"
+    );
+  }, []);
+
+  const rememberActiveBet = useCallback((bet: ActiveBet) => {
+    activeBetRef.current = bet;
+    betSnapshotRef.current = bet;
+  }, []);
+
   const clearResultPresentationState = useCallback(() => {
     resultShownRef.current = false;
     waitingResultRef.current = false;
     activeBetRef.current = null;
+    betSnapshotRef.current = null;
     setSelectedPrediction(null);
     setPredictionResult("pending");
     setShowBetModal(false);
@@ -364,6 +382,7 @@ export function useLandscapePredictionFlow(
           resolvedId === acknowledgedResultIdRef.current
         ) {
           activeBetRef.current = null;
+          betSnapshotRef.current = null;
           waitingResultRef.current = false;
           resultShownRef.current = false;
           setSelectedPrediction(null);
@@ -395,18 +414,19 @@ export function useLandscapePredictionFlow(
           activeBetRef.current = null;
         } else {
           if (resolvedId != null) lastResultPredictionIdRef.current = resolvedId;
-          activeBetRef.current = {
+          rememberActiveBet({
             round: data.roundNumber ?? 0,
             prediction: data.prediction as PredictionOption,
             predictionId: resolvedId ?? 0,
             amount: data.amount ?? DEFAULT_BET_AMOUNT,
-          };
+          });
           setScreenPhase("wait_result");
         }
         return;
       }
 
       activeBetRef.current = null;
+      betSnapshotRef.current = null;
       waitingResultRef.current = false;
       if (enabled) {
         setScreenPhase("picking");
@@ -414,7 +434,7 @@ export function useLandscapePredictionFlow(
         setScreenPhase("wait_start");
       }
     },
-    [],
+    [rememberActiveBet],
   );
 
   const checkPredictionStatus = useCallback(async () => {
@@ -534,8 +554,14 @@ export function useLandscapePredictionFlow(
   const handleRoundResult = useCallback(
     (data: { result?: string; wonAmount?: number }) => {
       if (resultShownRef.current) return;
-      const bet = activeBetRef.current;
-      if (!bet) return;
+      const bet = activeBetRef.current ?? betSnapshotRef.current;
+      if (!bet) {
+        // activeBet이 비었어도 대기 중이면 /check 로 연출 복구
+        if (isWaitingForResult()) {
+          void checkPredictionStatus();
+        }
+        return;
+      }
 
       const isSuccess = data.result === bet.prediction;
       if (bet.predictionId) lastResultPredictionIdRef.current = bet.predictionId;
@@ -558,7 +584,7 @@ export function useLandscapePredictionFlow(
 
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
     },
-    [user, setUser],
+    [user, setUser, isWaitingForResult, checkPredictionStatus],
   );
 
   const wsHandlers: WSEventHandlers = {
@@ -654,14 +680,43 @@ export function useLandscapePredictionFlow(
         return;
       }
 
-      activeBetRef.current = {
+      rememberActiveBet({
         round: data.round ?? 0,
         prediction: data.prediction as PredictionOption,
         predictionId: data.predictionId ?? 0,
         amount: data.amount ?? DEFAULT_BET_AMOUNT,
-      };
+      });
       setScreenPhase("wait_result");
-    }, []),
+    }, [rememberActiveBet]),
+
+    onPredictionCancelled: useCallback(
+      (data: { message?: string }) => {
+        // 시작 취소(1초) — 환불됨. 대기/연출 중이면 끊지 않고 안내만 (연출 보호)
+        if (isInResultPresentation()) {
+          setPredictionEnabled(false);
+          wantPickingAfterResultRef.current = false;
+          toast({
+            description: data.message ?? "예측 시작이 취소되었습니다.",
+            duration: 3500,
+          });
+          return;
+        }
+        const hadBet = isWaitingForResult();
+        clearResultPresentationState();
+        pendingRoundNextRef.current = null;
+        setPredictionEnabled(false);
+        setScreenPhase("wait_start");
+        toast({
+          description: hadBet
+            ? "예측이 취소되어 포인트가 환불되었습니다."
+            : (data.message ?? "예측 시작이 취소되었습니다."),
+          duration: 4000,
+        });
+        queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/users/me"] });
+      },
+      [clearResultPresentationState, isInResultPresentation, isWaitingForResult, toast],
+    ),
 
     onRoundResult: useCallback((data: { result?: string; wonAmount?: number }) => {
       handleRoundResult(data);
@@ -678,6 +733,7 @@ export function useLandscapePredictionFlow(
       const hadPendingBet =
         waitingResultRef.current ||
         activeBetRef.current != null ||
+        betSnapshotRef.current != null ||
         screenPhaseRef.current === "wait_result" ||
         screenPhaseRef.current === "success_running" ||
         screenPhaseRef.current === "success_celebrate" ||
@@ -685,8 +741,11 @@ export function useLandscapePredictionFlow(
 
       if (data.skippedResult && hadPendingBet) {
         toast({
-          description: "이번 라운드 결과가 생략되었습니다.",
-          duration: 4000,
+          description:
+            data.advanceType === "pitcher_change"
+              ? "투수 교체로 이번 예측이 취소되어 포인트가 환불되었습니다."
+              : "이번 라운드 결과가 생략되었습니다. 포인트는 환불됩니다.",
+          duration: 4500,
         });
       }
 
@@ -699,7 +758,19 @@ export function useLandscapePredictionFlow(
       // 성공 주루 → 축하 / 실패 배너 중이면 round_next로 끊지 않음
       if (isInResultPresentation()) {
         pendingRoundNextRef.current = pendingPayload;
-        // 투수교체·공수교대 배너는 연출 종료 후 flush (WS banner가 연출 중 보류됐을 수 있음)
+        if (
+          pendingPayload.advanceType === "pitcher_change" ||
+          pendingPayload.advanceType === "switch_half"
+        ) {
+          pendingBannerAdRef.current = true;
+        }
+        queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
+        return;
+      }
+
+      // 결과 대기 중 — 결과 생략(환불)이 아니면 대기 UI 유지 후 결과 연출 → 이어서 적용
+      if (isWaitingForResult() && !data.skippedResult) {
+        pendingRoundNextRef.current = pendingPayload;
         if (
           pendingPayload.advanceType === "pitcher_change" ||
           pendingPayload.advanceType === "switch_half"
@@ -716,7 +787,7 @@ export function useLandscapePredictionFlow(
       resultDismissScheduledRef.current = false;
       applyRoundNextAdvance(pendingPayload);
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, [applyRoundNextAdvance, isInResultPresentation, toast]),
+    }, [applyRoundNextAdvance, isInResultPresentation, isWaitingForResult, toast]),
 
     onRewardedAdOffer: useCallback((data: { rewardKey?: string; matchId?: string }) => {
       pendingRewardKeyRef.current = data?.rewardKey ?? `${data?.matchId ?? "match"}:${Date.now()}`;
@@ -748,7 +819,8 @@ export function useLandscapePredictionFlow(
     }, [hideBannerAd]),
 
     onAdStarted: useCallback(async (data: { matchId?: string }) => {
-      if (resultShownRef.current) return;
+      // 결과 연출·결과 대기 중에는 전면광고로 덮지 않음
+      if (resultShownRef.current || isWaitingForResult() || isInResultPresentation()) return;
 
       adSessionActiveRef.current = true;
       setShowBetModal(false);
@@ -797,6 +869,8 @@ export function useLandscapePredictionFlow(
       user,
       setUser,
       toast,
+      isWaitingForResult,
+      isInResultPresentation,
     ]),
 
     onAdStopped: useCallback(() => {
@@ -805,7 +879,14 @@ export function useLandscapePredictionFlow(
 
     onAdStatus: useCallback(async (data: { isPlaying?: boolean }) => {
       if (data.isPlaying) {
-        if (resultShownRef.current || adSessionActiveRef.current) return;
+        if (
+          resultShownRef.current ||
+          adSessionActiveRef.current ||
+          isWaitingForResult() ||
+          isInResultPresentation()
+        ) {
+          return;
+        }
         adSessionActiveRef.current = true;
         setScreenPhase("ad_playing");
         if (isNativePlatform) {
@@ -819,7 +900,7 @@ export function useLandscapePredictionFlow(
       if (adSessionActiveRef.current) {
         finishAdAndWaitStart();
       }
-    }, [isNativePlatform, startAdSession, finishAdAndWaitStart]),
+    }, [isNativePlatform, startAdSession, finishAdAndWaitStart, isWaitingForResult, isInResultPresentation]),
 
     onScoreboardUpdate: useCallback((data: { scoreboard?: LiveScoreboard }) => {
       if (data?.scoreboard) onScoreboardRef.current?.(data.scoreboard);
@@ -873,18 +954,19 @@ export function useLandscapePredictionFlow(
         amount: selectedBetAmount,
       });
       const data = await res.json();
-      activeBetRef.current = {
+      rememberActiveBet({
         round: data.roundNumber,
         prediction: selectedPrediction,
         predictionId: data.id,
         amount: selectedBetAmount,
-      };
+      });
       lastResultPredictionIdRef.current = data.id;
       setLastBetAmount(selectedBetAmount);
       setUser({ ...user, points: (user.points ?? 0) - selectedBetAmount });
     } catch (error: unknown) {
       waitingResultRef.current = false;
       activeBetRef.current = null;
+      betSnapshotRef.current = null;
       setScreenPhase(predictionEnabled ? "picking" : "wait_start");
       setSelectedPrediction(null);
       toast({
@@ -892,7 +974,7 @@ export function useLandscapePredictionFlow(
         variant: "destructive",
       });
     }
-  }, [user, selectedMatch, selectedPrediction, selectedBetAmount, setUser, predictionEnabled, toast]);
+  }, [user, selectedMatch, selectedPrediction, selectedBetAmount, setUser, predictionEnabled, toast, rememberActiveBet]);
 
   const labelsVisible =
     screenPhase === "picking" ||

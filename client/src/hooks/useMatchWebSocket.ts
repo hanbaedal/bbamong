@@ -14,6 +14,8 @@ export interface WSEventHandlers {
   onConnected?: (data: any) => void;
   onPredictionStarted?: (data: any) => void;
   onPredictionEnded?: (data: any) => void;
+  /** 예측 시작 취소(1초 내) — 환불 포함 */
+  onPredictionCancelled?: (data: any) => void;
   onRoundResult?: (data: any) => void;
   onStatsUpdate?: (data: any) => void;
   onUserAlreadyPredicted?: (data: any) => void;
@@ -206,6 +208,9 @@ export function useMatchWebSocket({
             case "prediction_ended":
             case "prediction_stopped":
               handlersRef.current.onPredictionEnded?.(message.data);
+              break;
+            case "prediction_cancelled":
+              handlersRef.current.onPredictionCancelled?.(message.data);
               break;
             case "round_result":
               handlersRef.current.onRoundResult?.(message.data);

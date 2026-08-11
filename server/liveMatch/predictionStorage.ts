@@ -731,7 +731,7 @@ export async function advanceToNextBatter(
 /** 투수 교체 — 공수교대 외 언제든(진행 중 라운드는 환불 후 라운드 증가) */
 export async function advancePitcherChange(
   matchId: string,
-): Promise<{ match: Match; predictionAutoStopped: boolean }> {
+): Promise<{ match: Match; predictionAutoStopped: boolean; skippedResult: boolean }> {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -748,8 +748,10 @@ export async function advancePitcherChange(
       .lean();
 
     let predictionAutoStopped = false;
+    let skippedResult = false;
 
     if (existing && !existing.isResultSent) {
+      skippedResult = true;
       predictionAutoStopped = Boolean(
         existing.isPredictionStarted && !existing.isPredictionStopped,
       );
@@ -765,7 +767,7 @@ export async function advancePitcherChange(
 
     await session.commitTransaction();
     if (!updated) throw new Error("경기를 찾을 수 없습니다.");
-    return { match: updated as Match, predictionAutoStopped };
+    return { match: updated as Match, predictionAutoStopped, skippedResult };
   } catch (error) {
     await session.abortTransaction();
     throw error;
