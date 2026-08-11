@@ -94,7 +94,8 @@ export function useLandscapePredictionFlow(
   const predictionEnabledRef = useRef(false);
   const screenPhaseRef = useRef<GameScreenPhase>("wait_start");
   const pendingRoundNextRef = useRef<PendingRoundNext | null>(null);
-  const pendingBannerAdRef = useRef(false);
+  /** 결과 연출 중 도착한 전면광고 — 연출/교체 이벤트 후 재생 */
+  const pendingInterstitialRef = useRef(false);
   /** 결과 연출 중에 prediction_started가 온 경우, 연출 종료 후 picking으로 */
   const wantPickingAfterResultRef = useRef(false);
   const resultDismissScheduledRef = useRef(false);
@@ -105,7 +106,6 @@ export function useLandscapePredictionFlow(
     startAdSession,
     stopAdSession,
     showRewardedAd,
-    hideBannerAd,
     adSessionState,
     isNativePlatform,
   } = useAdMob();
@@ -146,7 +146,7 @@ export function useLandscapePredictionFlow(
     clearResultTimers();
     clearEventTimers();
     pendingRoundNextRef.current = null;
-    pendingBannerAdRef.current = false;
+    pendingInterstitialRef.current = false;
     wantPickingAfterResultRef.current = false;
     resultShownRef.current = false;
     waitingResultRef.current = false;
@@ -217,7 +217,7 @@ export function useLandscapePredictionFlow(
   }, [stopAdSession, goToWaitStart]);
 
   const scheduleEventDismiss = useCallback(
-    (ms: number) => {
+    (ms: number, onDone?: () => void) => {
       clearEventTimers();
       const sec = Math.ceil(ms / 1000);
       setEventCountdown(sec);
@@ -229,6 +229,7 @@ export function useLandscapePredictionFlow(
         setEventSubtitle("");
         setScreenPhase(wantPickingAfterResultRef.current || predictionEnabledRef.current ? "picking" : "wait_start");
         wantPickingAfterResultRef.current = false;
+        onDone?.();
       }, ms);
     },
     [clearEventTimers],
@@ -271,15 +272,57 @@ export function useLandscapePredictionFlow(
     setLastBetAmount(0);
   }, []);
 
-  const flushPendingBannerAd = useCallback(async () => {
-    // 예측 게임 중 배너 미표시 — 보류분도 버리지 않고 숨김만
-    pendingBannerAdRef.current = false;
-    try {
-      await hideBannerAd();
-    } catch {
-      /* ignore */
-    }
-  }, [hideBannerAd]);
+  const runInterstitialSession = useCallback(
+    async (matchId?: string) => {
+      if (adSessionActiveRef.current || screenPhaseRef.current === "ad_playing") return;
+      adSessionActiveRef.current = true;
+      setShowBetModal(false);
+      setShowConfirmModal(false);
+      setScreenPhase("ad_playing");
+
+      if (isNativePlatform) {
+        const { dismissedEarly } = await startAdSession();
+        if (dismissedEarly || !adSessionActiveRef.current) {
+          finishAdAndWaitStart();
+          return;
+        }
+
+        if (pendingRewardKeyRef.current && matchId) {
+          const rewarded = await showRewardedAd();
+          if (!rewarded || !adSessionActiveRef.current) {
+            finishAdAndWaitStart();
+            return;
+          }
+          try {
+            const res = await apiRequest("POST", "/api/live-match/ad-reward", {
+              matchId,
+              rewardKey: pendingRewardKeyRef.current,
+            });
+            if (res.ok) {
+              const rewardData = await res.json();
+              if (user && typeof rewardData.balance === "number") {
+                setUser({ ...user, points: rewardData.balance });
+              }
+              toast({ description: "광고 시청 보상 500P가 지급되었습니다." });
+            }
+          } catch {
+            /* ignore */
+          }
+          pendingRewardKeyRef.current = null;
+        }
+        return;
+      }
+
+      setShowAdOverlay(true);
+    },
+    [isNativePlatform, startAdSession, showRewardedAd, finishAdAndWaitStart, user, setUser, toast],
+  );
+
+  const flushPendingInterstitial = useCallback(async () => {
+    if (!pendingInterstitialRef.current) return;
+    pendingInterstitialRef.current = false;
+    await runInterstitialSession(selectedMatch?.id);
+  }, [runInterstitialSession, selectedMatch?.id]);
 
   const applyRoundNextAdvance = useCallback(
     (pending: PendingRoundNext) => {
@@ -296,19 +339,21 @@ export function useLandscapePredictionFlow(
       const advanceType = pending.advanceType;
       if (advanceType === "pitcher_change") {
         setScreenPhase("pitcher_change_event");
-        scheduleEventDismiss(GAME_EVENT_SHOW_MS);
-        void flushPendingBannerAd();
+        scheduleEventDismiss(GAME_EVENT_SHOW_MS, () => {
+          void flushPendingInterstitial();
+        });
         return;
       }
       if (advanceType === "switch_half") {
         setEventSubtitle(pending.gamePhaseDisplayLabel ?? "");
         setScreenPhase("inning_switch_event");
-        scheduleEventDismiss(GAME_EVENT_SHOW_MS);
-        void flushPendingBannerAd();
+        scheduleEventDismiss(GAME_EVENT_SHOW_MS, () => {
+          void flushPendingInterstitial();
+        });
         return;
       }
 
-      pendingBannerAdRef.current = false;
+      pendingInterstitialRef.current = false;
       wantPickingAfterResultRef.current = false;
       setScreenPhase(enabled ? "picking" : "wait_start");
     },
@@ -317,7 +362,7 @@ export function useLandscapePredictionFlow(
       clearEventTimers,
       clearResultPresentationState,
       scheduleEventDismiss,
-      flushPendingBannerAd,
+      flushPendingInterstitial,
     ],
   );
 
@@ -453,7 +498,7 @@ export function useLandscapePredictionFlow(
     lastResultPredictionIdRef.current = null;
     resultDismissScheduledRef.current = false;
     pendingRoundNextRef.current = null;
-    pendingBannerAdRef.current = false;
+    pendingInterstitialRef.current = false;
     wantPickingAfterResultRef.current = false;
     void checkPredictionStatus();
   }, [selectedMatch?.id, checkPredictionStatus]);
@@ -596,7 +641,6 @@ export function useLandscapePredictionFlow(
 
     onPredictionStarted: useCallback(() => {
       void speakGameVoice(USER_GAME_VOICE.predictionStarted);
-      void hideBannerAd();
       // 결과 연출 중이면 끊지 않고, 끝난 뒤 picking으로 이어감
       if (isInResultPresentation()) {
         setPredictionEnabled(true);
@@ -618,7 +662,7 @@ export function useLandscapePredictionFlow(
       setSelectedPrediction(null);
       setScreenPhase("picking");
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, [hideBannerAd, isInResultPresentation]),
+    }, [isInResultPresentation]),
 
     onPredictionEnded: useCallback(() => {
       void speakGameVoice(USER_GAME_VOICE.predictionStopped);
@@ -760,7 +804,7 @@ export function useLandscapePredictionFlow(
           pendingPayload.advanceType === "pitcher_change" ||
           pendingPayload.advanceType === "switch_half"
         ) {
-          pendingBannerAdRef.current = true;
+          pendingInterstitialRef.current = true;
         }
         queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
         return;
@@ -773,7 +817,7 @@ export function useLandscapePredictionFlow(
           pendingPayload.advanceType === "pitcher_change" ||
           pendingPayload.advanceType === "switch_half"
         ) {
-          pendingBannerAdRef.current = true;
+          pendingInterstitialRef.current = true;
         }
         queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
         return;
@@ -791,108 +835,53 @@ export function useLandscapePredictionFlow(
       pendingRewardKeyRef.current = data?.rewardKey ?? `${data?.matchId ?? "match"}:${Date.now()}`;
     }, []),
 
-    onBannerAdShow: useCallback(async () => {
-      // 예측 게임 화면에서는 배너 광고를 표시하지 않음
-      pendingBannerAdRef.current = false;
-      try {
-        await hideBannerAd();
-      } catch {
-        /* ignore */
-      }
-    }, [hideBannerAd]),
+    // 게임에서 배너 광고는 사용하지 않음 (하위 호환 이벤트만 무시)
+    onBannerAdShow: useCallback(() => {}, []),
+    onBannerAdHide: useCallback(() => {}, []),
 
-    onBannerAdHide: useCallback(async () => {
-      pendingBannerAdRef.current = false;
-      try {
-        await hideBannerAd();
-      } catch {
-        /* ignore */
-      }
-    }, [hideBannerAd]),
-
-    onAdStarted: useCallback(async (data: { matchId?: string }) => {
-      // 결과 연출·결과 대기 중에는 전면광고로 덮지 않음
-      if (resultShownRef.current || isWaitingForResult() || isInResultPresentation()) return;
-
-      adSessionActiveRef.current = true;
-      setShowBetModal(false);
-      setShowConfirmModal(false);
-      setScreenPhase("ad_playing");
-
-      if (isNativePlatform) {
-        const { dismissedEarly } = await startAdSession();
-        if (dismissedEarly || !adSessionActiveRef.current) {
-          finishAdAndWaitStart();
+    onAdStarted: useCallback(
+      async (data: { matchId?: string }) => {
+        // 결과 연출·대기 중이면 전면광고 보류 → 교체/공수 이벤트 적용 시 재생
+        if (resultShownRef.current || isWaitingForResult() || isInResultPresentation()) {
+          pendingInterstitialRef.current = true;
           return;
         }
-
-        if (pendingRewardKeyRef.current && data?.matchId) {
-          const rewarded = await showRewardedAd();
-          if (!rewarded || !adSessionActiveRef.current) {
-            finishAdAndWaitStart();
-            return;
-          }
-          try {
-            const res = await apiRequest("POST", "/api/live-match/ad-reward", {
-              matchId: data.matchId,
-              rewardKey: pendingRewardKeyRef.current,
-            });
-            if (res.ok) {
-              const rewardData = await res.json();
-              if (user && typeof rewardData.balance === "number") {
-                setUser({ ...user, points: rewardData.balance });
-              }
-              toast({ description: "광고 시청 보상 500P가 지급되었습니다." });
-            }
-          } catch {
-            /* ignore */
-          }
-          pendingRewardKeyRef.current = null;
-        }
-        return;
-      }
-
-      setShowAdOverlay(true);
-    }, [
-      isNativePlatform,
-      startAdSession,
-      showRewardedAd,
-      finishAdAndWaitStart,
-      user,
-      setUser,
-      toast,
-      isWaitingForResult,
-      isInResultPresentation,
-    ]),
+        await runInterstitialSession(data?.matchId);
+      },
+      [isWaitingForResult, isInResultPresentation, runInterstitialSession],
+    ),
 
     onAdStopped: useCallback(() => {
       finishAdAndWaitStart();
     }, [finishAdAndWaitStart]),
 
-    onAdStatus: useCallback(async (data: { isPlaying?: boolean }) => {
-      if (data.isPlaying) {
-        if (
-          resultShownRef.current ||
-          adSessionActiveRef.current ||
-          isWaitingForResult() ||
-          isInResultPresentation()
-        ) {
+    onAdStatus: useCallback(
+      async (data: { isPlaying?: boolean }) => {
+        if (data.isPlaying) {
+          if (
+            resultShownRef.current ||
+            adSessionActiveRef.current ||
+            isWaitingForResult() ||
+            isInResultPresentation()
+          ) {
+            pendingInterstitialRef.current = true;
+            return;
+          }
+          await runInterstitialSession(selectedMatch?.id);
           return;
         }
-        adSessionActiveRef.current = true;
-        setScreenPhase("ad_playing");
-        if (isNativePlatform) {
-          const { dismissedEarly } = await startAdSession();
-          if (dismissedEarly) finishAdAndWaitStart();
-        } else {
-          setShowAdOverlay(true);
+        if (adSessionActiveRef.current) {
+          finishAdAndWaitStart();
         }
-        return;
-      }
-      if (adSessionActiveRef.current) {
-        finishAdAndWaitStart();
-      }
-    }, [isNativePlatform, startAdSession, finishAdAndWaitStart, isWaitingForResult, isInResultPresentation]),
+      },
+      [
+        isWaitingForResult,
+        isInResultPresentation,
+        runInterstitialSession,
+        selectedMatch?.id,
+        finishAdAndWaitStart,
+      ],
+    ),
 
     onScoreboardUpdate: useCallback((data: { scoreboard?: LiveScoreboard }) => {
       if (data?.scoreboard) onScoreboardRef.current?.(data.scoreboard);

@@ -648,13 +648,9 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
 
-      // 대기 중인 광고 타이머 취소 및 광고 무조건 중지
+      // 대기 중인 광고 타이머 취소 및 전면광고 중지
       broadcastManager.clearAdTimer(id);
       broadcastManager.setAdPlaying(id, false);
-      broadcastManager.sendToMatch(id, "banner_ad_hide", {
-        matchId: id,
-        message: "배너 광고를 숨깁니다.",
-      });
       broadcastManager.sendToMatch(id, "ad_stopped", {
         matchId: id,
         message: "광고가 중지되었습니다."
@@ -997,7 +993,13 @@ export async function managerRoutes(app: Express): Promise<void> {
           : `투수 교체 — ${gamePhase.displayLabel}`,
       });
 
-      // 예측 게임 중 배너 광고 미표시 (정책)
+      // 전면·보상 광고 (배너 없음) — 교체 안내 연출 후 재생
+      const pitcherRewardKey = `${id}:pitcher:${Date.now()}`;
+      broadcastManager.sendToMatch(id, "rewarded_ad_offer", {
+        matchId: id,
+        rewardKey: pitcherRewardKey,
+      });
+      broadcastManager.scheduleAdStart(id, 5_000);
 
       return res.json({
         success: true,
@@ -1008,6 +1010,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         gamePhase,
         predictionAutoStopped,
         skippedResult,
+        adStarted: true,
       });
     } catch (error: unknown) {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
@@ -1120,7 +1123,13 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: `공수교대 — ${gamePhase.displayLabel}`,
       });
 
-      // 예측 게임 중 배너 광고 미표시 (정책)
+      // 전면·보상 광고 (배너 없음) — 공수교대 안내 연출 후 재생
+      const halfRewardKey = `${id}:switch-half:${Date.now()}`;
+      broadcastManager.sendToMatch(id, "rewarded_ad_offer", {
+        matchId: id,
+        rewardKey: halfRewardKey,
+      });
+      broadcastManager.scheduleAdStart(id, 5_000);
 
       return res.json({
         success: true,
