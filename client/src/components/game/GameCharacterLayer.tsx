@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import pyamongWaiting from "@assets/game/pyamong-waiting.png";
 import pyamongSuccess from "@assets/game/pyamong-success.png";
-import pyamongRunning from "@assets/game/pyamong-running.png";
+import pyamongRunning1 from "@assets/game/pyamong-running-1.png";
+import pyamongRunning2 from "@assets/game/pyamong-running-2.png";
+import pyamongRunning3 from "@assets/game/pyamong-running-3.png";
 import pyamongStandsWaiting from "@assets/game/pyamong-stands-waiting.png";
 import pyamongWaveGoodbye from "@assets/game/pyamong-wave-goodbye.png";
 import batterWaiting from "@assets/game/batter-waiting.png";
@@ -11,6 +13,7 @@ import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
 import { getRunDurationSec } from "./fieldPositions";
 import {
   BASE_IMAGE_POINTS,
+  getRunFacingRight,
   getRunPathImagePoints,
   HOME_PLATE_IMAGE,
   pathToCssKeyframesPx,
@@ -22,6 +25,10 @@ import { StadiumFieldMarker, useStadiumFieldSize } from "./StadiumFieldContext";
 import GameThoughtBubble from "./GameThoughtBubble";
 import { PYAMONG_BATTER_WIDTH } from "./gameLayoutSizes";
 import "./gameAnimations.css";
+
+/** 주루 달리기 스프라이트 프레임 (우측을 바라보는 포즈) */
+const PYAMONG_RUN_FRAMES = [pyamongRunning1, pyamongRunning2, pyamongRunning3, pyamongRunning2] as const;
+const RUN_FRAME_MS = 120;
 
 interface GameCharacterLayerProps {
   phase: GameScreenPhase;
@@ -39,6 +46,8 @@ export default function GameCharacterLayer({
   onRunComplete,
 }: GameCharacterLayerProps) {
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
+  const [runFrameIdx, setRunFrameIdx] = useState(0);
+  const [runFaceRight, setRunFaceRight] = useState(true);
   const fieldSize = useStadiumFieldSize();
   const runTarget = selectedPrediction ?? "1루";
   const runPath = useMemo(() => getRunPathImagePoints(runTarget), [runTarget]);
@@ -61,6 +70,28 @@ export default function GameCharacterLayer({
     const t = setTimeout(() => onRunComplete?.(), ms);
     return () => clearTimeout(t);
   }, [phase, runDurationSec, onRunComplete]);
+
+  useEffect(() => {
+    if (phase !== "success_running") {
+      setRunFrameIdx(0);
+      setRunFaceRight(true);
+      return;
+    }
+
+    const startedAt = performance.now();
+    const durationMs = Math.max(1, runDurationSec * 1000);
+    setRunFaceRight(getRunFacingRight(runPath, 0));
+
+    let rafId = 0;
+    const tick = (now: number) => {
+      const elapsed = now - startedAt;
+      setRunFrameIdx(Math.floor(elapsed / RUN_FRAME_MS) % PYAMONG_RUN_FRAMES.length);
+      setRunFaceRight(getRunFacingRight(runPath, Math.min(1, elapsed / durationMs)));
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [phase, runDurationSec, runPath]);
 
   return (
     <>
@@ -204,12 +235,19 @@ export default function GameCharacterLayer({
           }}
           data-testid="char-batter-running"
         >
-          <img
-            src={pyamongRunning}
-            alt=""
-            className="w-[min(7vw,64px)] h-auto game-sprite animate-pyamong-run"
-            style={{ transform: "translate(-50%, -100%)" }}
-          />
+          <div
+            className="origin-bottom"
+            style={{
+              transform: `translate(-50%, -100%) scaleX(${runFaceRight ? 1 : -1})`,
+            }}
+          >
+            <img
+              src={PYAMONG_RUN_FRAMES[runFrameIdx]}
+              alt=""
+              className="w-[min(7vw,64px)] h-auto game-sprite animate-pyamong-run"
+              data-testid="char-pyamong-running-sprite"
+            />
+          </div>
         </div>
       )}
 
