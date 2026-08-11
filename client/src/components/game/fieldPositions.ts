@@ -67,6 +67,9 @@ export const FIELD_LABEL_TEXT: Record<PredictionOption, string> = {
 /** 베이스 간 주루 시간(초). 실제 타구 후 1루 도달 약 4초 — UI는 3.5초/베이스 */
 export const RUN_SECONDS_PER_BASE = 3.5;
 
+/** 홈런 성공 시 배트 토스 연출 시간(ms) — 주루 시작 전 */
+export const HOME_RUN_BAT_TOSS_MS = 1200;
+
 /** 예측 결과(1루·2루·3루·홈런)에 따른 주루 애니메이션 총 시간(초) */
 export function getRunDurationSec(target: PredictionOption): number {
   const segments = Math.max(1, getRunPathImagePoints(target).length - 1);
