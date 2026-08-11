@@ -58,8 +58,12 @@ interface LandscapeGameShellProps {
   eventCountdown?: number | null;
   eventSubtitle?: string;
   showAdOverlay?: boolean;
+  /** 오버레이 끝까지 시청 시 보상까지 대기 초 (웹·폴백) */
+  adOverlayCompleteSeconds?: number;
   adSessionState?: AdSessionState;
   isNativePlatform?: boolean;
+  onAdOverlayDismiss?: () => void;
+  onAdOverlayComplete?: () => void;
   onMatchTitleClick?: () => void;
   onStadiumNameClick?: () => void;
   matchSelectEnabled?: boolean;
@@ -109,8 +113,11 @@ export default function LandscapeGameShell({
   eventCountdown,
   eventSubtitle,
   showAdOverlay,
+  adOverlayCompleteSeconds,
   adSessionState,
   isNativePlatform,
+  onAdOverlayDismiss,
+  onAdOverlayComplete,
   onMatchTitleClick,
   onStadiumNameClick,
   matchSelectEnabled,
@@ -234,6 +241,15 @@ export default function LandscapeGameShell({
             isNativePlatform && adSessionState === "preparing"
               ? "광고 준비 중입니다..."
               : "광고가 재생 중입니다..."
+          }
+          onDismiss={onAdOverlayDismiss}
+          onComplete={
+            showAdOverlay || adSessionState === "overlay" ? onAdOverlayComplete : undefined
+          }
+          completeAfterSeconds={
+            showAdOverlay || adSessionState === "overlay"
+              ? adOverlayCompleteSeconds
+              : undefined
           }
         />
       )}

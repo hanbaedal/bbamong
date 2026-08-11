@@ -8,6 +8,7 @@ import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import {
   DEFAULT_BET_AMOUNT,
   calculateFixedOddsPayout,
+  AD_OVERLAY_COMPLETE_SECONDS,
   type BetAmountOption,
 } from "@shared/predictionOdds";
 import type {
@@ -216,6 +217,42 @@ export function useLandscapePredictionFlow(
     goToWaitStart();
   }, [stopAdSession, goToWaitStart]);
 
+  const claimAdRewardIfPending = useCallback(
+    async (matchId?: string) => {
+      const rewardKey = pendingRewardKeyRef.current;
+      if (!rewardKey || !matchId) return;
+      pendingRewardKeyRef.current = null;
+      try {
+        const res = await apiRequest("POST", "/api/live-match/ad-reward", {
+          matchId,
+          rewardKey,
+        });
+        if (res.ok) {
+          const rewardData = await res.json();
+          if (user && typeof rewardData.balance === "number") {
+            setUser({ ...user, points: rewardData.balance });
+          }
+          toast({ description: "광고 시청 보상 500P가 지급되었습니다." });
+        }
+      } catch {
+        /* ignore */
+      }
+    },
+    [user, setUser, toast],
+  );
+
+  /** 사용자 X(5초 후) — 보상 없음. 운영자 예측시작/광고종료도 finishAdAndWaitStart */
+  const handleAdOverlayDismiss = useCallback(() => {
+    finishAdAndWaitStart();
+  }, [finishAdAndWaitStart]);
+
+  /** 웹·오버레이 폴백: 끝까지 시청 → 보상 후 종료 */
+  const handleAdOverlayComplete = useCallback(async () => {
+    if (!adSessionActiveRef.current) return;
+    await claimAdRewardIfPending(selectedMatch?.id);
+    finishAdAndWaitStart();
+  }, [claimAdRewardIfPending, finishAdAndWaitStart, selectedMatch?.id]);
+
   const scheduleEventDismiss = useCallback(
     (ms: number, onDone?: () => void) => {
       clearEventTimers();
@@ -281,41 +318,47 @@ export function useLandscapePredictionFlow(
       setScreenPhase("ad_playing");
 
       if (isNativePlatform) {
-        const { dismissedEarly } = await startAdSession();
-        if (dismissedEarly || !adSessionActiveRef.current) {
+        const { dismissedEarly, mode } = await startAdSession();
+        if (!adSessionActiveRef.current) {
           finishAdAndWaitStart();
           return;
         }
 
+        // 로드 실패 등 오버레이 폴백 — X(5초 후) 또는 끝까지 시청(보상) / 운영자 중지
+        if (mode === "overlay") {
+          setShowAdOverlay(true);
+          return;
+        }
+
+        // 5초 미만 종료·운영자 중지 → 보상 없음
+        if (dismissedEarly) {
+          finishAdAndWaitStart();
+          return;
+        }
+
+        // 전면 끝까지 시청 → 보상형 → 500P
         if (pendingRewardKeyRef.current && matchId) {
           const rewarded = await showRewardedAd();
           if (!rewarded || !adSessionActiveRef.current) {
             finishAdAndWaitStart();
             return;
           }
-          try {
-            const res = await apiRequest("POST", "/api/live-match/ad-reward", {
-              matchId,
-              rewardKey: pendingRewardKeyRef.current,
-            });
-            if (res.ok) {
-              const rewardData = await res.json();
-              if (user && typeof rewardData.balance === "number") {
-                setUser({ ...user, points: rewardData.balance });
-              }
-              toast({ description: "광고 시청 보상 500P가 지급되었습니다." });
-            }
-          } catch {
-            /* ignore */
-          }
-          pendingRewardKeyRef.current = null;
+          await claimAdRewardIfPending(matchId);
         }
+        finishAdAndWaitStart();
         return;
       }
 
+      // 웹: 가짜 오버레이 — 5초 후 X(무보상), 15초 시청 완료 시 보상
       setShowAdOverlay(true);
     },
-    [isNativePlatform, startAdSession, showRewardedAd, finishAdAndWaitStart, user, setUser, toast],
+    [
+      isNativePlatform,
+      startAdSession,
+      showRewardedAd,
+      finishAdAndWaitStart,
+      claimAdRewardIfPending,
+    ],
   );
 
   const flushPendingInterstitial = useCallback(async () => {
@@ -968,6 +1011,7 @@ export function useLandscapePredictionFlow(
     eventCountdown,
     eventSubtitle,
     showAdOverlay,
+    adOverlayCompleteSeconds: AD_OVERLAY_COMPLETE_SECONDS,
     adSessionState,
     isNativePlatform,
     labelsVisible,
@@ -978,5 +1022,7 @@ export function useLandscapePredictionFlow(
     handleConfirmCancel,
     handleConfirmSubmit,
     handleRunComplete,
+    handleAdOverlayDismiss,
+    handleAdOverlayComplete,
   };
 }
