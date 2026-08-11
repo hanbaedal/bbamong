@@ -1062,10 +1062,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: `공수교대 — ${gamePhase.displayLabel}`,
       });
 
-      broadcastManager.sendToMatch(id, "banner_ad_show", {
-        matchId: id,
-        message: "공수교대 배너 광고를 표시합니다.",
-      });
+      // 공수교대는 전면·보상 광고 구간 — 하단 배너 미전송 (연속·중첩 노출 방지)
 
       return res.json({
         success: true,
