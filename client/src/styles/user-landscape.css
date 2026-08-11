@@ -3099,3 +3099,225 @@
   font-weight: 700;
 }
 
+.user-sim-demo-stage-hint {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.85em;
+  color: #8a8a8a;
+}
+
+.user-sim-demo-step--clickable {
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  padding: 0;
+  color: inherit;
+}
+
+.user-sim-demo-step--clickable:hover {
+  color: #cdff00;
+}
+
+.user-sim-demo-screen--fill {
+  padding: 0;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.user-sim-demo-game-ui {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 6px;
+  width: 100%;
+  min-height: 210px;
+  height: 100%;
+  background: #0a0a0a;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #2a2a2a;
+}
+
+.user-sim-demo-game-ui__left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 4px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.user-sim-demo-game-ui__nav {
+  font-size: 9px;
+  color: #ffd700;
+  text-align: center;
+  line-height: 1.2;
+  opacity: 0.85;
+}
+
+.user-sim-demo-game-ui__nav--on {
+  opacity: 1;
+  color: #ffe566;
+  font-weight: 700;
+}
+
+.user-sim-demo-game-ui__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 8px 10px 6px;
+  gap: 6px;
+}
+
+.user-sim-demo-game-ui__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.user-sim-demo-game-ui__match {
+  font-size: 11px;
+  color: #e8e8e8;
+  font-weight: 600;
+}
+
+.user-sim-demo-game-ui__score {
+  font-size: 11px;
+  color: #cdff00;
+  font-weight: 700;
+}
+
+.user-sim-demo-game-ui__field {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+  border-radius: 8px;
+  background: radial-gradient(ellipse at center, #1a3a1a 0%, #0d1f0d 70%);
+}
+
+.user-sim-demo-game-ui__diamond {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: min(100%, 220px);
+}
+
+.user-sim-demo-game-ui__base {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #111;
+  background: #cdff00;
+  border-radius: 6px;
+  padding: 6px 4px;
+}
+
+.user-sim-demo-game-ui__base:nth-child(1) {
+  grid-column: 2;
+}
+
+.user-sim-demo-game-ui__base:nth-child(2) {
+  grid-column: 1;
+}
+
+.user-sim-demo-game-ui__base:nth-child(3) {
+  grid-column: 2;
+}
+
+.user-sim-demo-game-ui__base:nth-child(4) {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.user-sim-demo-game-ui__base:nth-child(5) {
+  grid-column: 2;
+}
+
+.user-sim-demo-game-ui__bottom {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 10px;
+  color: #bfbfbf;
+}
+
+.user-sim-demo-game-ui__ad {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.88);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 2;
+}
+
+.user-sim-demo-game-ui__ad-x {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 18px;
+}
+
+.user-sim-demo-menu-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.user-sim-demo-menu-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+}
+
+.user-sim-demo-menu-row--on,
+.user-sim-demo-menu-row.user-sim-demo-block--hot,
+.user-sim-demo-menu-row.user-sim-demo-block--pulse {
+  border-color: #cdff00;
+  background: rgba(205, 255, 0, 0.1);
+}
+
+.user-sim-demo-menu-row__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f0f0f0;
+}
+
+.user-sim-demo-menu-blurb {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #cdff00;
+}
+

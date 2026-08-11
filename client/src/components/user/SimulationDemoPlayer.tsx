@@ -4,11 +4,15 @@ import { ChevronLeft, Pause, Play, SkipForward } from "lucide-react";
 import {
   DEMO_SCENES,
   DEMO_STEPS,
+  DEMO_STORY_ITEMS,
+  DEMO_INFO_ITEMS,
   DEMO_TOTAL_MS,
   MATCH_ROWS,
   formatDemoTime,
   formatDemoDurationLabel,
   getElapsedBeforeScene,
+  getFirstSceneIndexForStep,
+  resolveNavStepId,
   type DemoStepId,
   type DemoVisualState,
 } from "@/lib/simulationDemoScript";
@@ -16,6 +20,13 @@ import { PREDICTION_ODDS as ODDS_MAP } from "@shared/predictionOdds";
 import { USER_GUIDE_OPEN_KEY } from "@/pages/home/user-guide";
 
 const AT_BAT_OPTIONS = Object.keys(ODDS_MAP);
+const LEFT_MENU = [
+  { id: "home", label: "홈" },
+  { id: "story", label: "내이야기" },
+  { id: "mall", label: "기념품" },
+  { id: "info", label: "내정보" },
+] as const;
+const FIELD_OPTS = ["아웃", "1루", "2루", "3루", "홈런"] as const;
 
 function highlightClass(id: string | null, target: string, pulse?: string | null): string {
   if (id !== target) return "user-sim-demo-block";
@@ -43,7 +54,7 @@ function DemoChrome({ state }: { state: DemoVisualState }) {
           <span className="user-sim-demo-badge user-sim-demo-badge--warn">사이드 마감</span>
         )}
       </div>
-      {showScore && (
+      {showScore && state.view !== "game-ui" && (
         <div className="user-sim-demo-scoreboard user-sim-demo-scoreboard--compact">
           <div>
             <span className="user-sim-demo-score-label">홈</span>
@@ -60,22 +71,42 @@ function DemoChrome({ state }: { state: DemoVisualState }) {
   );
 }
 
-function DemoStepsNav({ activeStep }: { activeStep: DemoStepId }) {
+function DemoStepsNav({
+  activeStep,
+  onSelectStep,
+  started,
+}: {
+  activeStep: DemoStepId;
+  onSelectStep?: (stepId: DemoStepId) => void;
+  started: boolean;
+}) {
+  const activeIdx = DEMO_STEPS.findIndex((s) => s.id === activeStep);
   return (
     <nav className="user-sim-demo-steps user-sim-demo-steps--stack" aria-label="데모 단계">
-      {DEMO_STEPS.map((step) => (
-        <span
-          key={step.id}
-          className={`user-sim-demo-step ${activeStep === step.id ? "user-sim-demo-step--active" : ""} ${
-            DEMO_STEPS.findIndex((s) => s.id === step.id) <
-            DEMO_STEPS.findIndex((s) => s.id === activeStep)
-              ? "user-sim-demo-step--done"
-              : ""
-          }`}
-        >
-          {step.label}
-        </span>
-      ))}
+      {DEMO_STEPS.map((step, idx) => {
+        const isActive = activeStep === step.id;
+        const isDone = idx < activeIdx;
+        const className = `user-sim-demo-step ${isActive ? "user-sim-demo-step--active" : ""} ${
+          isDone ? "user-sim-demo-step--done" : ""
+        } ${started && onSelectStep ? "user-sim-demo-step--clickable" : ""}`;
+        if (started && onSelectStep) {
+          return (
+            <button
+              key={step.id}
+              type="button"
+              className={className}
+              onClick={() => onSelectStep(step.id)}
+            >
+              {step.label}
+            </button>
+          );
+        }
+        return (
+          <span key={step.id} className={className}>
+            {step.label}
+          </span>
+        );
+      })}
     </nav>
   );
 }
@@ -86,6 +117,7 @@ function DemoGuidePanel({
   caption,
   started,
   onStart,
+  onSelectStep,
   showOutroActions,
   outroActions,
 }: {
@@ -94,20 +126,23 @@ function DemoGuidePanel({
   caption: string;
   started: boolean;
   onStart: () => void;
+  onSelectStep: (stepId: DemoStepId) => void;
   showOutroActions: boolean;
   outroActions: ReactNode;
 }) {
   return (
     <div className="user-sim-demo-guide">
-      <DemoStepsNav activeStep={activeStep} />
+      <DemoStepsNav activeStep={activeStep} onSelectStep={onSelectStep} started={started} />
       {started ? <DemoChrome state={state} /> : null}
       {!started ? (
         <div className="user-sim-demo-guide-intro">
           <p className="user-sim-demo-stage-kicker">{formatDemoDurationLabel(DEMO_TOTAL_MS)} · 자동 재생</p>
           <p className="user-sim-demo-stage-lead">
-            왼쪽에서 단계와 안내를 읽고,
+            화면·메뉴 안내 후
             <br />
-            오른쪽에서 게임 화면을 보세요.
+            사이드·타석·정산을 연습합니다.
+            <br />
+            <span className="user-sim-demo-stage-hint">왼쪽 단계 탭으로 건너뛸 수 있습니다.</span>
           </p>
           <button type="button" className="user-sim-demo-start-btn" onClick={onStart}>
             데모 시작
@@ -123,6 +158,98 @@ function DemoGuidePanel({
   );
 }
 
+function DemoGameUi({ state }: { state: DemoVisualState }) {
+  const { uiFocus, highlightId, pulseId } = state;
+  const hot = (zone: NonNullable<DemoVisualState["uiFocus"]>) =>
+    uiFocus === zone || uiFocus === "overview"
+      ? highlightClass(highlightId, `demo-ui-${zone === "overview" ? "shell" : zone}`, pulseId)
+      : "user-sim-demo-block";
+
+  return (
+    <div
+      id="demo-ui-shell"
+      className={`user-sim-demo-game-ui ${highlightClass(highlightId, "demo-ui-shell", pulseId)}`}
+    >
+      <aside
+        id="demo-ui-left"
+        className={`user-sim-demo-game-ui__left ${hot("left-menu")}`}
+      >
+        {LEFT_MENU.map((item) => (
+          <span
+            key={item.id}
+            className={`user-sim-demo-game-ui__nav ${
+              uiFocus === "left-menu" && (item.id === "story" || item.id === "info")
+                ? "user-sim-demo-game-ui__nav--on"
+                : ""
+            }`}
+          >
+            {item.label}
+          </span>
+        ))}
+      </aside>
+      <div className="user-sim-demo-game-ui__main">
+        <div
+          id="demo-ui-scoreboard"
+          className={`user-sim-demo-game-ui__top ${hot("scoreboard")}`}
+        >
+          <span className="user-sim-demo-game-ui__match">제 1경기 · 잠실</span>
+          <span className="user-sim-demo-game-ui__score">홈 0 : 0 원정</span>
+        </div>
+        <div id="demo-ui-field" className={`user-sim-demo-game-ui__field ${hot("field")}`}>
+          <div className="user-sim-demo-game-ui__diamond">
+            {FIELD_OPTS.map((opt) => (
+              <span key={opt} className="user-sim-demo-game-ui__base">
+                {opt}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div id="demo-ui-bottom" className={`user-sim-demo-game-ui__bottom ${hot("bottom")}`}>
+          <span>우승팀 배팅 —</span>
+          <span>스코어 배팅 —</span>
+        </div>
+      </div>
+      {uiFocus === "ad" && (
+        <div id="demo-ui-ad" className={`user-sim-demo-game-ui__ad ${hot("ad")}`}>
+          <span className="user-sim-demo-game-ui__ad-x">×</span>
+          <p>광고 재생 중…</p>
+          <p className="user-sim-demo-panel-sub">5초 후 끄기 · 끝까지 보면 보상</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DemoMenuHub({ state }: { state: DemoVisualState }) {
+  const items = state.menuKind === "info" ? DEMO_INFO_ITEMS : DEMO_STORY_ITEMS;
+  const title = state.menuKind === "info" ? "내정보" : "내이야기";
+  const { highlightId, pulseId, menuFocusId } = state;
+  const focused = items.find((item) => item.id === menuFocusId);
+
+  return (
+    <div id="demo-menu-hub" className={highlightClass(highlightId, "demo-menu-hub", pulseId)}>
+      <p className="user-sim-demo-panel-title">{title}</p>
+      <p className="user-sim-demo-panel-sub">왼쪽 메뉴에서 여는 서브메뉴</p>
+      <ul className="user-sim-demo-menu-list">
+        {items.map((item) => (
+          <li
+            key={item.id}
+            id={`demo-menu-${item.id}`}
+            className={`user-sim-demo-menu-row ${highlightClass(
+              highlightId,
+              `demo-menu-${item.id}`,
+              pulseId,
+            )} ${menuFocusId === item.id ? "user-sim-demo-menu-row--on" : ""}`}
+          >
+            <span className="user-sim-demo-menu-row__label">{item.label}</span>
+          </li>
+        ))}
+      </ul>
+      {focused ? <p className="user-sim-demo-menu-blurb">{focused.blurb}</p> : null}
+    </div>
+  );
+}
+
 function DemoScreen({ state, sceneId }: { state: DemoVisualState; sceneId: string }) {
   const { view, highlightId, pulseId } = state;
 
@@ -131,9 +258,9 @@ function DemoScreen({ state, sceneId }: { state: DemoVisualState; sceneId: strin
       <div className="user-sim-demo-screen user-sim-demo-screen--center">
         <p className="user-sim-demo-stage-kicker">자동 데모</p>
         <p className="user-sim-demo-stage-lead">
-          오늘의 경기 → 경기 시작
+          화면 안내 → 내이야기 → 내정보
           <br />
-          → 타석 예측 → 정산
+          → 오늘의 경기 → 타석 → 정산
         </p>
       </div>
     );
@@ -149,6 +276,22 @@ function DemoScreen({ state, sceneId }: { state: DemoVisualState; sceneId: strin
           </p>
         )}
         <p className="user-sim-demo-outro-score">연습 {state.practicePoints}P</p>
+      </div>
+    );
+  }
+
+  if (view === "game-ui") {
+    return (
+      <div key={sceneId} className="user-sim-demo-screen user-sim-demo-screen--fill">
+        <DemoGameUi state={state} />
+      </div>
+    );
+  }
+
+  if (view === "menu-hub") {
+    return (
+      <div key={sceneId} className="user-sim-demo-screen">
+        <DemoMenuHub state={state} />
       </div>
     );
   }
@@ -364,11 +507,11 @@ function DemoPreStartVisual() {
     <div className="user-sim-demo-screen user-sim-demo-screen--center">
       <p className="user-sim-demo-stage-kicker">게임 화면</p>
       <p className="user-sim-demo-stage-lead">
-        오늘의 경기
+        화면·메뉴 안내
         <br />
         ↓
         <br />
-        경기 시작 → 타석 예측
+        오늘의 경기 → 타석 예측
         <br />
         ↓
         <br />
@@ -449,12 +592,19 @@ export default function SimulationDemoPlayer() {
     advanceScene();
   };
 
+  const handleSelectStep = (stepId: DemoStepId) => {
+    const idx = getFirstSceneIndexForStep(stepId);
+    setSceneIndex(idx);
+    setSceneElapsed(0);
+    setPlaying(true);
+  };
+
   const openUserGuide = () => {
     sessionStorage.setItem(USER_GUIDE_OPEN_KEY, "1");
     setLocation("/home");
   };
 
-  const activeStep = scene.stepId === "outro" ? "settle" : scene.stepId;
+  const activeStep = resolveNavStepId(scene.stepId);
   const showOutroActions = started && scene.stepId === "outro" && !playing;
 
   const outroActions = (
@@ -467,7 +617,7 @@ export default function SimulationDemoPlayer() {
         예측 게임 하러가기
       </button>
       <button type="button" className="user-sim-demo-outro-btn" onClick={openUserGuide}>
-        사용 설명서
+        사용설명서
       </button>
       <button type="button" className="user-sim-demo-outro-btn" onClick={() => setLocation("/home")}>
         홈
@@ -499,6 +649,7 @@ export default function SimulationDemoPlayer() {
             caption={started ? scene.caption : "재생을 시작하면 자막이 표시됩니다."}
             started={started}
             onStart={handleStart}
+            onSelectStep={handleSelectStep}
             showOutroActions={showOutroActions}
             outroActions={outroActions}
           />
