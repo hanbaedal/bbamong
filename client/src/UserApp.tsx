@@ -31,6 +31,7 @@ import HomeBoardSplitPage from "@/pages/landscape/HomeBoardSplitPage";
 import GameStorySplitPage from "@/pages/landscape/GameStorySplitPage";
 import GameInfoSplitPage from "@/pages/landscape/GameInfoSplitPage";
 import UserSessionExpiredPopup from "@/components/UserSessionExpiredPopup";
+import UserLoginAttemptNotice from "@/components/UserLoginAttemptNotice";
 import { openMallFromApp, GAME_PATH, HOME_PATH } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
 
@@ -255,6 +256,7 @@ function UserApp() {
               <GameEmbedBootstrap />
               <Toaster />
               <UserSessionExpiredPopup />
+              <UserLoginAttemptNotice />
               <Router />
             </AppStateManager>
           </TooltipProvider>

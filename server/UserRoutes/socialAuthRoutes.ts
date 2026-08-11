@@ -1,7 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { userStorage } from "../UserStorage/userStorage";
-import { issueUserAuthTokens } from "../userAuthSession";
-import { hasActiveSession } from "../sessionManager";
+import { issueUserAuthTokens, gateUserLogin } from "../userAuthSession";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { UserModel } from "../UserStorage/db";
@@ -423,9 +422,10 @@ export function registerSocialAuthRoutes(app: Express) {
         return sendAuthResponse(res, 'ppamong://auth?error=suspended', 'kakao', isCapacitor, isIOS);
       }
 
-      const hasSession = await hasActiveSession("user", user.id);
-      if (hasSession) {
-        console.log(`[카카오] 기존 세션 강제 교체: ${user.id}`);
+      const gate = await gateUserLogin(user.id);
+      if (!gate.ok) {
+        console.log(`[카카오] 활성 세션 존재 — 로그인 거부: ${user.id}`);
+        return sendAuthResponse(res, `ppamong://auth?error=already_logged_in`, 'kakao', isCapacitor, isIOS);
       }
 
       const { accessToken: jwtAccessToken, refreshToken: jwtRefreshToken } =
@@ -578,9 +578,10 @@ export function registerSocialAuthRoutes(app: Express) {
         return sendAuthResponse(res, 'ppamong://auth?error=suspended', 'google', isCapacitor, isIOS);
       }
 
-      const hasSession = await hasActiveSession("user", user.id);
-      if (hasSession) {
-        console.log(`[구글] 기존 세션 강제 교체: ${user.id}`);
+      const gate = await gateUserLogin(user.id);
+      if (!gate.ok) {
+        console.log(`[구글] 활성 세션 존재 — 로그인 거부: ${user.id}`);
+        return sendAuthResponse(res, `ppamong://auth?error=already_logged_in`, 'google', isCapacitor, isIOS);
       }
 
       const { accessToken: jwtAccessToken, refreshToken: jwtRefreshToken } =
@@ -703,9 +704,10 @@ export function registerSocialAuthRoutes(app: Express) {
         return sendAuthResponse(res, 'ppamong://auth?error=suspended', 'apple', isCapacitor, isIOS);
       }
 
-      const hasSession = await hasActiveSession("user", user.id);
-      if (hasSession) {
-        console.log(`[애플] 기존 세션 강제 교체: ${user.id}`);
+      const gate = await gateUserLogin(user.id);
+      if (!gate.ok) {
+        console.log(`[애플] 활성 세션 존재 — 로그인 거부: ${user.id}`);
+        return sendAuthResponse(res, `ppamong://auth?error=already_logged_in`, 'apple', isCapacitor, isIOS);
       }
 
       const { accessToken: jwtAccessToken, refreshToken: jwtRefreshToken } =

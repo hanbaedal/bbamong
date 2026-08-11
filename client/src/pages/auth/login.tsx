@@ -61,6 +61,10 @@ export default function LoginPage() {
     general: "",
   });
   const [showSuspendedPopup, setShowSuspendedPopup] = useState(false);
+  const [sessionActivePopup, setSessionActivePopup] = useState<{
+    canForceLogin: boolean;
+    message: string;
+  } | null>(null);
   const socialLoginProcessingRef = useRef(false);
   const deepLinkHandledRef = useRef(false);
   const processSocialLoginRef = useRef<(searchParams: string) => Promise<void>>();
@@ -191,13 +195,19 @@ export default function LoginPage() {
         setShowSuspendedPopup(true);
         return;
       }
+      if (error === "already_logged_in" || error === "duplicate_login") {
+        setSessionActivePopup({
+          canForceLogin: false,
+          message:
+            "이미 다른 기기에서 로그인되어 있습니다.\n다른 기기에서 로그아웃하거나,\n본인이 아니면 비밀번호를 변경해 주세요.",
+        });
+        return;
+      }
       const errorMessages: Record<string, string> = {
         no_code: "인증 코드가 없습니다.",
         no_token: "인증 토큰이 없습니다.",
         token_exchange_failed: "인증에 실패했습니다.",
         user_info_failed: "사용자 정보를 가져올 수 없습니다.",
-        duplicate_login: "이미 다른 곳에서 로그인된 계정입니다.",
-        already_logged_in: "이미 다른 기기에서 로그인 중입니다.",
         login_failed: "로그인 처리 중 오류가 발생했습니다.",
         oauth_not_configured:
           urlParams.get("provider") === "google"
@@ -422,11 +432,7 @@ export default function LoginPage() {
     return !newErrors.email && !newErrors.password;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validate()) return;
-
+  const submitPasswordLogin = async (forceLogin: boolean) => {
     setIsLoading(true);
     setAwaitingLoginAfterSignup(false);
     setErrors({ email: "", password: "", general: "" });
@@ -438,6 +444,7 @@ export default function LoginPage() {
         body: JSON.stringify({
           username: email,
           password,
+          forceLogin: forceLogin || undefined,
         }),
       });
 
@@ -447,6 +454,7 @@ export default function LoginPage() {
         : { error: "로그인에 실패했습니다." };
 
       if (response.ok) {
+        setSessionActivePopup(null);
         const ok = await finalizeUserSessionLogin(
           data.accessToken,
           data.refreshToken,
@@ -461,16 +469,25 @@ export default function LoginPage() {
             general: "로그인 후 사용자 정보를 불러오지 못했습니다.",
           });
         }
+      } else if (
+        response.status === 409 ||
+        data.code === "SESSION_ACTIVE" ||
+        data.error === "SESSION_ACTIVE"
+      ) {
+        setSessionActivePopup({
+          canForceLogin: data.canForceLogin !== false,
+          message:
+            data.message ||
+            "이미 다른 기기에서 로그인되어 있습니다.\n본인이 아닌 경우 비밀번호를 변경해 주세요.",
+        });
+      } else if (data.error === "suspended") {
+        setShowSuspendedPopup(true);
       } else {
-        if (data.error === "suspended") {
-          setShowSuspendedPopup(true);
-        } else {
-          setErrors({
-            email: "",
-            password: "",
-            general: data.message || data.error || "로그인에 실패했습니다.",
-          });
-        }
+        setErrors({
+          email: "",
+          password: "",
+          general: data.message || data.error || "로그인에 실패했습니다.",
+        });
       }
     } catch (error) {
       console.error("Login error:", error);
@@ -482,6 +499,14 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validate()) return;
+
+    await submitPasswordLogin(false);
   };
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -722,6 +747,54 @@ export default function LoginPage() {
           message="삭제된 계정입니다. 관리자한테 문의 주세요."
           onClose={() => setShowSuspendedPopup(false)}
         />
+      )}
+
+      {sessionActivePopup && (
+        <>
+          <div className="fixed inset-0 bg-[#000000CC] z-[70]" />
+          <div
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[280px] bg-[#2F2F2F] shadow-[0_8px_36px_rgba(0,0,0,0.16)] rounded-[8px] flex flex-col items-center p-[20px_20px_16px] gap-3 z-[75]"
+            data-testid="popup-session-active"
+          >
+            <p className="w-full text-center text-[#E9E9E9] font-[Pretendard] font-normal text-[15px] leading-[140%] tracking-[-0.025em] whitespace-pre-line">
+              {sessionActivePopup.message}
+            </p>
+            <div className="w-full flex flex-col gap-2">
+              <button
+                type="button"
+                data-testid="button-session-active-password"
+                className="w-full h-[40px] bg-[#CCF501] active:bg-[#C8D48D] border border-[#CDFF00] rounded-[6px] font-[Pretendard] font-semibold text-[14px] text-[#111111]"
+                onClick={() => {
+                  setSessionActivePopup(null);
+                  setLeftPanel("find-password");
+                }}
+              >
+                비밀번호 변경
+              </button>
+              {sessionActivePopup.canForceLogin ? (
+                <button
+                  type="button"
+                  data-testid="button-session-active-force"
+                  disabled={isLoading}
+                  className="w-full h-[40px] bg-[#3A3A3A] active:bg-[#4A4A4A] border border-[#555] rounded-[6px] font-[Pretendard] font-semibold text-[14px] text-[#E9E9E9] disabled:opacity-60"
+                  onClick={() => {
+                    void submitPasswordLogin(true);
+                  }}
+                >
+                  {isLoading ? "로그인 중..." : "이 기기로 강제 로그인"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                data-testid="button-session-active-close"
+                className="w-full h-[36px] font-[Pretendard] font-medium text-[13px] text-[#AAAAAA]"
+                onClick={() => setSessionActivePopup(null)}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </>
   );
