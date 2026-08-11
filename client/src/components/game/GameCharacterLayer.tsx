@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import pyamongWaiting from "@assets/game/pyamong-waiting.png";
 import pyamongSuccess from "@assets/game/pyamong-success.png";
+import pyamongBatToss from "@assets/game/pyamong-bat-toss.png";
+import baseballBat from "@assets/game/baseball-bat.png";
 import pyamongRunning1 from "@assets/game/pyamong-running-1.png";
 import pyamongRunning2 from "@assets/game/pyamong-running-2.png";
 import pyamongRunning3 from "@assets/game/pyamong-running-3.png";
@@ -10,7 +12,7 @@ import batterWaiting from "@assets/game/batter-waiting.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
-import { getRunDurationSec } from "./fieldPositions";
+import { getRunDurationSec, HOME_RUN_BAT_TOSS_MS } from "./fieldPositions";
 import {
   BASE_IMAGE_POINTS,
   getRunFacingRight,
@@ -48,10 +50,13 @@ export default function GameCharacterLayer({
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
   const [runFrameIdx, setRunFrameIdx] = useState(0);
   const [runFaceRight, setRunFaceRight] = useState(true);
+  const [homeRunTossing, setHomeRunTossing] = useState(false);
   const fieldSize = useStadiumFieldSize();
   const runTarget = selectedPrediction ?? "1루";
+  const isHomeRun = runTarget === "홈런";
   const runPath = useMemo(() => getRunPathImagePoints(runTarget), [runTarget]);
   const runDurationSec = useMemo(() => getRunDurationSec(runTarget), [runTarget]);
+  const batTossMs = isHomeRun ? HOME_RUN_BAT_TOSS_MS : 0;
 
   const keyframesCss = useMemo(
     () =>
@@ -65,16 +70,32 @@ export default function GameCharacterLayer({
   );
 
   useEffect(() => {
-    if (phase !== "success_running") return;
-    const ms = runDurationSec * 1000 + 100;
-    const t = setTimeout(() => onRunComplete?.(), ms);
+    if (phase !== "success_running") {
+      setHomeRunTossing(false);
+      return;
+    }
+
+    if (!isHomeRun) {
+      setHomeRunTossing(false);
+      return;
+    }
+
+    setHomeRunTossing(true);
+    const t = setTimeout(() => setHomeRunTossing(false), HOME_RUN_BAT_TOSS_MS);
     return () => clearTimeout(t);
-  }, [phase, runDurationSec, onRunComplete]);
+  }, [phase, isHomeRun, runTarget]);
 
   useEffect(() => {
-    if (phase !== "success_running") {
+    if (phase !== "success_running") return;
+    const ms = batTossMs + runDurationSec * 1000 + 100;
+    const t = setTimeout(() => onRunComplete?.(), ms);
+    return () => clearTimeout(t);
+  }, [phase, runDurationSec, batTossMs, onRunComplete]);
+
+  useEffect(() => {
+    if (phase !== "success_running" || homeRunTossing) {
       setRunFrameIdx(0);
-      setRunFaceRight(true);
+      if (phase !== "success_running") setRunFaceRight(true);
       return;
     }
 
@@ -91,7 +112,7 @@ export default function GameCharacterLayer({
     };
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [phase, runDurationSec, runPath]);
+  }, [phase, runDurationSec, runPath, homeRunTossing]);
 
   return (
     <>
@@ -225,7 +246,34 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {phase === "success_running" && fieldSize.width > 0 && (
+      {phase === "success_running" && fieldSize.width > 0 && homeRunTossing && (
+        <div
+          className="absolute z-[21] pointer-events-none"
+          style={{
+            left: homePx.left,
+            top: homePx.top,
+            transform: "translate(-50%, -100%)",
+          }}
+          data-testid="char-home-run-bat-toss"
+        >
+          <div className="relative">
+            <img
+              src={pyamongBatToss}
+              alt=""
+              className="w-[min(9vw,72px)] h-auto game-sprite animate-home-run-toss-pose"
+              data-testid="char-pyamong-bat-toss"
+            />
+            <img
+              src={baseballBat}
+              alt=""
+              className="absolute left-[55%] top-[8%] w-[min(5.5vw,44px)] h-auto game-sprite animate-home-run-bat-toss"
+              data-testid="prop-home-run-bat"
+            />
+          </div>
+        </div>
+      )}
+
+      {phase === "success_running" && fieldSize.width > 0 && !homeRunTossing && (
         <div
           className="absolute z-[20] pointer-events-none"
           style={{
