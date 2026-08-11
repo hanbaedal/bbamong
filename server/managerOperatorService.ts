@@ -34,7 +34,7 @@ const PASSWORD_CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const API_SYNC_POLICY_VERSION = 2;
 
-/** API 폴링 기본 ON: 1경기(op1)만 */
+/** API 폴링 기본 ON: 1경기(op1)만 — 관리자가 op2~op5를 ON 하면 동일하게 전체 기능 동작 */
 function defaultApiSyncEnabledForSlot(slot: number): boolean {
   return slot === 1;
 }
@@ -879,9 +879,11 @@ export async function setOperatorApiSyncEnabled(operatorId: string, enabled: boo
   await AdminUserModel.updateOne({ id: operatorId }, { apiSyncEnabled: enabled });
 
   const { scheduleLiveScoreSync, stopLiveScoreSync } = await import("./apiSports/liveScoreSync");
-  const { scheduleHourlyPregameSync, stopHourlyPregameSync } = await import(
-    "./apiSports/matchManagementSchedule"
-  );
+  const {
+    scheduleHourlyPregameSync,
+    stopHourlyPregameSync,
+    rescheduleTodayMatchTimers,
+  } = await import("./apiSports/matchManagementSchedule");
   if (!(await isAnyOperatorApiSyncEnabled())) {
     stopLiveScoreSync();
     stopHourlyPregameSync();
@@ -890,4 +892,5 @@ export async function setOperatorApiSyncEnabled(operatorId: string, enabled: boo
   }
   await scheduleLiveScoreSync();
   await scheduleHourlyPregameSync();
+  await rescheduleTodayMatchTimers();
 }

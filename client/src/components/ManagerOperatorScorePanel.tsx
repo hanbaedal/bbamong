@@ -68,9 +68,9 @@ export default function ManagerOperatorScorePanel({
         </div>
 
         <div className="manager-operator-score-totals" data-testid="manager-score-totals">
-          <span>{scoreboard.awayScore}</span>
+          <span>{scoreboard.awayScore ?? 0}</span>
           <span className="manager-operator-score-colon">:</span>
-          <span>{scoreboard.homeScore}</span>
+          <span>{scoreboard.homeScore ?? 0}</span>
         </div>
 
         <div className="manager-operator-score-team manager-operator-score-team--home">

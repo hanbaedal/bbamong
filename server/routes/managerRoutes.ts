@@ -649,6 +649,10 @@ export async function managerRoutes(app: Express): Promise<void> {
       // 대기 중인 광고 타이머 취소 및 광고 무조건 중지
       broadcastManager.clearAdTimer(id);
       broadcastManager.setAdPlaying(id, false);
+      broadcastManager.sendToMatch(id, "banner_ad_hide", {
+        matchId: id,
+        message: "배너 광고를 숨깁니다.",
+      });
       broadcastManager.sendToMatch(id, "ad_stopped", {
         matchId: id,
         message: "광고가 중지되었습니다."
@@ -692,24 +696,33 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
 
-      // stopRound 호출로 predictionEnabled false 설정
       const updatedMatch = await stopRound(id);
+      if (!updatedMatch) {
+        return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
+      }
 
-      // SSE로 예측 중지 이벤트 전송
       broadcastManager.sendToMatch(id, "prediction_stopped", {
         matchId: id,
         currentRound: updatedMatch.currentRound,
-        message: "예측이 중지되었습니다."
+        message: "예측이 중지되었습니다.",
       });
 
-      return res.json({ success: true, message: "예측이 중지되었습니다." });
+      return res.json({
+        success: true,
+        message: "예측이 중지되었습니다.",
+        currentRound: updatedMatch.currentRound,
+      });
     } catch (error: any) {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
         return res.status(401).json({ error: "인증이 만료되었습니다." });
       }
       console.error("Stop prediction error:", error);
       const message = error?.message || "";
-      if (message.includes("시작되지 않았습니다") || message.includes("이미 중지되었습니다")) {
+      if (
+        message.includes("시작되지 않았습니다") ||
+        message.includes("이미 중지되었습니다") ||
+        message.includes("경기를 찾을 수 없습니다")
+      ) {
         return res.status(400).json({ error: message });
       }
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
@@ -838,7 +851,7 @@ export async function managerRoutes(app: Express): Promise<void> {
           gamePhase,
           message: `라운드 ${updatedMatch.currentRound}으로 이동했습니다.`,
         });
-        // 결과→다음 타자 자동 이동 시 배너 미전송 (매 타석마다 연속 노출 방지)
+        // 타석(다음 타자) 전환에는 배너 미전송 — 투수교체·공수교대만 배너
       } catch (nextRoundError) {
         console.error("Auto next round failed after result:", nextRoundError);
       }
@@ -912,8 +925,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         gamePhase,
         message: `다음 타자(라운드 ${updatedMatch.currentRound})`,
       });
-
-      // 다음 타자마다 배너 미전송 — 연속 노출 방지 (투수교체·공수교대만 배너)
+      // 다음 타자마다 배너 미전송 — 투수교체·공수교대만 배너
 
       return res.json({
         success: true,

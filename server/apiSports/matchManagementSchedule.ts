@@ -258,7 +258,7 @@ export function startMatchManagementSchedule(): void {
   });
 
   console.log(
-    `[MatchMgmtSchedule] daily KST ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} · hourly pregame until first start · start=status · end=score · live=1경기`,
+    `[MatchMgmtSchedule] daily KST ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} · hourly pregame until first start · start=status · end=score · live=API-ON matches`,
   );
 }
 

@@ -94,13 +94,19 @@ export class UserStorage {
       passwordMatch = await bcrypt.compare(password, stored);
     } else if (isAsciiEncodedPassword(stored)) {
       passwordMatch = decodePasswordAscii(stored) === password;
+      // 레거시 ASCII → 입력값 그대로 저장으로 마이그레이션
+      if (passwordMatch) {
+        await UserModel.updateOne(
+          { id: user.id },
+          { password, passwordPlain: password },
+        );
+      }
     } else {
       passwordMatch = password === stored;
       if (passwordMatch) {
-        const asciiPassword = encodePasswordAscii(password);
         await UserModel.updateOne(
           { id: user.id },
-          { password: asciiPassword, passwordPlain: asciiPassword },
+          { password, passwordPlain: password },
         );
       }
     }

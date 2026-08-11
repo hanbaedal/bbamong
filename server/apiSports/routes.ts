@@ -11,6 +11,7 @@ import {
   importSeasonMatchesFromApiSports,
   linkMatchToApiSports,
   mapTodayGames,
+  refreshMatchLiveScoreFromApi,
   setMatchControlMode,
   syncTodayGamesFromApiSports,
 } from "./syncService";
@@ -138,6 +139,29 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
       const apiPollingEnabled = await isMatchApiSportsPollingEnabled(
         (match as { registrationOrder?: number | null }).registrationOrder,
       );
+
+      const board = match.liveScoreboard as
+        | { homeScore?: number; awayScore?: number }
+        | null
+        | undefined;
+      const scoresMissing =
+        !board ||
+        typeof board.homeScore !== "number" ||
+        typeof board.awayScore !== "number";
+
+      if (apiPollingEnabled && scoresMissing && match.apiSportsGameId) {
+        try {
+          await refreshMatchLiveScoreFromApi(matchId);
+          const healed = await MatchModel.findOne({ id: matchId })
+            .select(
+              "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
+            )
+            .lean();
+          if (healed) match = healed;
+        } catch (err) {
+          console.warn(`[Scoreboard] live score heal ${matchId}:`, err);
+        }
+      }
 
       const lineupMissing =
         !match.matchLineup?.syncedAt ||
