@@ -6,8 +6,10 @@ import { ChevronLeft, Eye, EyeOff } from "lucide-react";
 import { useUserAssets } from "@/contexts/UserAssetContext";
 import InfoPopup from "@/components/customUi/infoPopup";
 import { getFullUrl } from "@/lib/queryClient";
+import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 
 export default function ForgotPasswordPage() {
+  useAndroidImmersiveMode();
   const [, setLocation] = useLocation();
   const { assets } = useUserAssets();
   const [step, setStep] = useState<"phone" | "reset">("phone");

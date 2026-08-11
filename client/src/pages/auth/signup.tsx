@@ -9,6 +9,7 @@ import SignupPanelModal from "@/components/user/SignupPanelModal";
 import { Term } from "@shared/schema";
 import { getFullUrl } from "@/lib/queryClient";
 import { stashSignupLoginPrefill } from "@/lib/loginSession";
+import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
 
 type SignupPanelModalType = "service" | "privacy" | "disclaimer";
@@ -16,6 +17,7 @@ type SignupPanelModalType = "service" | "privacy" | "disclaimer";
 export default function SignupPage() {
   const [, setLocation] = useLocation();
   const { assets } = useUserAssets();
+  useAndroidImmersiveMode();
   const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
