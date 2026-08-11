@@ -20,6 +20,9 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - Production build is `npm run build` (Vite + esbuild); dev should use `npm run dev`, not the build.
 - External integrations (Kakao/Google/Apple OAuth, SOLAPI SMS, API-SPORTS live scores, Cloudflare R2 / GCS storage, AdMob, legacy Postgres sync) are all optional and disabled/stubbed when their env vars are unset.
 
+### Delivery preference (owner)
+- When a change set is done: **push to GitHub, open/update the PR, mark ready, and squash-merge to `main`** in the same turn unless the user asks to keep it draft or hold merge. Do not leave finished work as unmerged open PRs by default.
+
 ### Live scoreboard (API vs operator)
 - During `matchStatus === "ongoing"`, API-SPORTS polls **do not overwrite** `liveScoreboard` scores/inning tables (status/team names still refresh). Final FT while `controlMode === "auto"` applies the API final board; `manual` keeps operator/admin corrections.
 - Display for “N회 초/말” prefers operator `gameInning` / `inningHalf` over API (`shared/matchPhaseDisplay.ts`).
