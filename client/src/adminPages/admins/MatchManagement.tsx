@@ -39,6 +39,8 @@ interface MatchRow {
   apiSportsGameId?: number | null;
   apiSportsHomeTeam?: string | null;
   apiSportsAwayTeam?: string | null;
+  apiSportsHomeTeamLogo?: string | null;
+  apiSportsAwayTeamLogo?: string | null;
   liveScoreboard?: {
     homeScore?: number;
     awayScore?: number;
@@ -46,6 +48,8 @@ interface MatchRow {
     statusLong?: string;
     inningLabel?: string;
     inning?: number | null;
+    homeTeamLogo?: string | null;
+    awayTeamLogo?: string | null;
   } | null;
 }
 
@@ -121,14 +125,28 @@ function teamAvatarLabel(name: string): string {
   return trimmed.slice(0, 2);
 }
 
-function TeamMark({ name }: { name: string }) {
+function TeamMark({ name, logoUrl }: { name: string; logoUrl?: string | null }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImg = Boolean(logoUrl) && !imgFailed;
+
   return (
     <span
-      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm"
-      style={{ backgroundColor: teamAvatarColor(name) }}
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm overflow-hidden bg-white border border-[#E5E7EB]"
+      style={showImg ? undefined : { backgroundColor: teamAvatarColor(name), borderColor: "transparent" }}
       aria-hidden
     >
-      {teamAvatarLabel(name)}
+      {showImg ? (
+        <img
+          src={logoUrl!}
+          alt=""
+          className="h-full w-full object-contain p-0.5"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setImgFailed(true)}
+        />
+      ) : (
+        teamAvatarLabel(name)
+      )}
     </span>
   );
 }
@@ -456,6 +474,10 @@ export default function MatchManagement() {
                   });
                   const away = teams.awayTeamName || "원정팀";
                   const home = teams.homeTeamName || "홈팀";
+                  const awayLogo =
+                    match.liveScoreboard?.awayTeamLogo || match.apiSportsAwayTeamLogo || null;
+                  const homeLogo =
+                    match.liveScoreboard?.homeTeamLogo || match.apiSportsHomeTeamLogo || null;
                   const stadium =
                     getDisplayStadiumName(
                       stadiumNameById.get(match.stadiumId),
@@ -484,7 +506,7 @@ export default function MatchManagement() {
                         <div className="flex items-center justify-between gap-2 min-w-0 lg:justify-end">
                           <div className="flex items-center gap-2 min-w-0">
                             {awayWon && <WinBadge />}
-                            <TeamMark name={away} />
+                            <TeamMark name={away} logoUrl={awayLogo} />
                             <div className="min-w-0">
                               <div className="font-semibold text-[#201E22] truncate">{away}</div>
                               <div className="text-[11px] text-[#9CA3AF] truncate">{match.name}</div>
@@ -514,7 +536,7 @@ export default function MatchManagement() {
                             {hasScore ? homeScore : "-"}
                           </div>
                           <div className="flex items-center gap-2 min-w-0">
-                            <TeamMark name={home} />
+                            <TeamMark name={home} logoUrl={homeLogo} />
                             <div className="min-w-0">
                               <div className="font-semibold text-[#201E22] truncate">{home}</div>
                               <div className="text-[11px] text-[#9CA3AF]">홈</div>

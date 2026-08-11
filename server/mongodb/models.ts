@@ -68,6 +68,9 @@ const matchSchema = new Schema(
     apiSportsAwayTeam: { type: String, default: null },
     apiSportsHomeTeamId: { type: Number, default: null },
     apiSportsAwayTeamId: { type: Number, default: null },
+    /** API-SPORTS teams.*.logo URL */
+    apiSportsHomeTeamLogo: { type: String, default: null },
+    apiSportsAwayTeamLogo: { type: String, default: null },
     liveScoreboard: { type: Schema.Types.Mixed, default: null },
     lastInningKey: { type: String, default: null },
     controlMode: { type: String, default: "auto" },
