@@ -868,7 +868,7 @@ export default function MatchDetailPage() {
   });
   const blockAdvance = Boolean(match.needsResultBeforeAdvance);
   const showThreeOutsHint = Boolean(match.showThreeOutsHint);
-  const matchStarted = match.matchStatus === "ongoing";
+  const matchStarted = match.matchStatus === "ongoing" || match.matchStatus === "scheduled";
   const predictionRunning = Boolean(match.predictionEnabled);
   const withinStartCancel =
     predictionRunning &&
