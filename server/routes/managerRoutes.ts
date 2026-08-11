@@ -997,10 +997,7 @@ export async function managerRoutes(app: Express): Promise<void> {
           : `투수 교체 — ${gamePhase.displayLabel}`,
       });
 
-      broadcastManager.sendToMatch(id, "banner_ad_show", {
-        matchId: id,
-        message: "투수 교체 배너 광고를 표시합니다.",
-      });
+      // 예측 게임 중 배너 광고 미표시 (정책)
 
       return res.json({
         success: true,
@@ -1123,10 +1120,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: `공수교대 — ${gamePhase.displayLabel}`,
       });
 
-      broadcastManager.sendToMatch(id, "banner_ad_show", {
-        matchId: id,
-        message: "공수교대 배너 광고를 표시합니다.",
-      });
+      // 예측 게임 중 배너 광고 미표시 (정책)
 
       return res.json({
         success: true,
