@@ -800,12 +800,6 @@ export function useLandscapePredictionFlow(
       // 성공 주루 → 축하 / 실패 배너 중이면 round_next로 끊지 않음
       if (isInResultPresentation()) {
         pendingRoundNextRef.current = pendingPayload;
-        if (
-          pendingPayload.advanceType === "pitcher_change" ||
-          pendingPayload.advanceType === "switch_half"
-        ) {
-          pendingInterstitialRef.current = true;
-        }
         queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
         return;
       }
@@ -813,12 +807,6 @@ export function useLandscapePredictionFlow(
       // 결과 대기 중 — 결과 생략(환불)이 아니면 대기 UI 유지 후 결과 연출 → 이어서 적용
       if (isWaitingForResult() && !data.skippedResult) {
         pendingRoundNextRef.current = pendingPayload;
-        if (
-          pendingPayload.advanceType === "pitcher_change" ||
-          pendingPayload.advanceType === "switch_half"
-        ) {
-          pendingInterstitialRef.current = true;
-        }
         queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
         return;
       }
