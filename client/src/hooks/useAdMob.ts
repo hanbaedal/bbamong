@@ -331,6 +331,19 @@ export function useAdMob(): UseAdMobResult {
     setAdSessionState("preparing");
     interstitialShowedAtRef.current = null;
 
+    // 전면 광고 전 배너 제거 — 일부 기기에서 배너+전면 동시 시 WebView/AdMob 크래시
+    try {
+      await AdMob.hideBanner();
+    } catch {
+      /* ignore */
+    }
+    try {
+      await AdMob.removeBanner();
+    } catch {
+      /* ignore */
+    }
+    setIsBannerVisible(false);
+
     if (!isInitialized.current) {
       await initializeAdMob();
     }
@@ -479,21 +492,43 @@ export function useAdMob(): UseAdMobResult {
       setIsBannerVisible(true);
       return;
     }
+    // 전면·보상 광고 세션 중에는 배너 표시하지 않음 (AdMob/SystemUI 충돌·크래시 완화)
+    if (adSessionState !== "idle" || isAdShowing) {
+      console.log("[AdMob] skip banner — ad session active:", adSessionState);
+      return;
+    }
     const adId = getBannerAdId();
     if (!adId) {
       console.warn("[AdMob] 배너 ID 없음 — 배너를 표시하지 않습니다.");
       return;
     }
     if (!isInitialized.current) await initializeAdMob();
-    const options: BannerAdOptions = {
-      adId,
-      adSize: BannerAdSize.ADAPTIVE_BANNER,
-      position: BannerAdPosition.BOTTOM_CENTER,
-      isTesting: IS_TESTING,
-    };
-    await AdMob.showBanner(options);
-    setIsBannerVisible(true);
-  }, [isNativePlatform, initializeAdMob]);
+
+    try {
+      try {
+        await AdMob.hideBanner();
+      } catch {
+        /* ignore */
+      }
+      try {
+        await AdMob.removeBanner();
+      } catch {
+        /* ignore */
+      }
+
+      const options: BannerAdOptions = {
+        adId,
+        adSize: BannerAdSize.ADAPTIVE_BANNER,
+        position: BannerAdPosition.BOTTOM_CENTER,
+        isTesting: IS_TESTING,
+      };
+      await AdMob.showBanner(options);
+      setIsBannerVisible(true);
+    } catch (error) {
+      console.warn("[AdMob] showBanner failed:", error);
+      setIsBannerVisible(false);
+    }
+  }, [isNativePlatform, initializeAdMob, adSessionState, isAdShowing]);
 
   const hideBannerAd = useCallback(async () => {
     if (isNativePlatform) {
@@ -501,6 +536,11 @@ export function useAdMob(): UseAdMobResult {
         await AdMob.hideBanner();
       } catch (error) {
         console.warn("[AdMob] hideBanner failed:", error);
+      }
+      try {
+        await AdMob.removeBanner();
+      } catch {
+        /* ignore */
       }
     }
     setIsBannerVisible(false);

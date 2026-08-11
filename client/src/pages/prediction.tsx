@@ -606,7 +606,14 @@ export default function PredictionPage() {
         sideBetSummary={sideBetSummary}
         onSideBetWinnerClick={() => openSideBetSheet("winner")}
         onSideBetScoreClick={() => openSideBetSheet("score")}
-        noticeSuppressed={matchModalOpen || stadiumModalOpen}
+        noticeSuppressed={
+          matchModalOpen ||
+          stadiumModalOpen ||
+          sideBetModalOpen ||
+          flow.screenPhase === "ad_playing" ||
+          flow.adSessionState !== "idle" ||
+          flow.showAdOverlay
+        }
       />
 
       <GameSelectModal

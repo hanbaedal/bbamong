@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -83,17 +83,15 @@ function GameNoticeModal({
               type="button"
               onClick={onDismiss}
               disabled={dismissing}
-              className="shrink-0 p-0.5 text-white/70 hover:text-white disabled:opacity-50"
+              className="shrink-0 rounded-md p-1 text-[#aaa] hover:bg-white/10 hover:text-white disabled:opacity-50"
               aria-label="닫기"
               data-testid="game-notice-modal-close"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3">
-            <p className="whitespace-pre-wrap text-xs leading-relaxed text-[#D5D5D5] sm:text-sm">
-              {notice.content}
-            </p>
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#ddd]">{notice.content}</p>
           </div>
         </div>
       </div>
@@ -105,6 +103,8 @@ export default function GameNoticeBanner({ suppressed = false }: { suppressed?: 
   const queryClient = useQueryClient();
   const { user } = useUser();
   const [modalOpen, setModalOpen] = useState(false);
+  /** 이번 게임 세션에서 닫은 공지 — 우선 공지가 API에서 다시 와도 배지 재노출 방지(광고 중 탭 충돌 완화) */
+  const sessionDismissedRef = useRef<Set<number>>(new Set());
 
   const { data, isLoading } = useQuery<{ notice: GameNotice | null }>({
     queryKey: ["/api/users/notices/banner"],
@@ -114,26 +114,53 @@ export default function GameNoticeBanner({ suppressed = false }: { suppressed?: 
     },
     enabled: Boolean(user?.id),
     staleTime: 60_000,
-    retry: false,
+    retry: 1,
   });
 
   const dismissMutation = useMutation({
     mutationFn: async (noticeId: number) => {
       await apiRequest("POST", `/api/users/notices/${noticeId}/dismiss`, { kind: "game" });
     },
-    onSuccess: () => {
+    onSuccess: (_data, noticeId) => {
+      sessionDismissedRef.current.add(noticeId);
       setModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/users/notices/banner"] });
     },
+    onError: () => {
+      // 네트워크 실패해도 세션 동안은 닫아 광고와 겹치지 않게
+      setModalOpen(false);
+    },
   });
 
+  // 광고·선택 모달 등으로 suppress 되면 공지 모달도 즉시 닫기 (전면광고와 z-index 충돌·다운 방지)
+  useEffect(() => {
+    if (suppressed) {
+      setModalOpen(false);
+    }
+  }, [suppressed]);
+
+  useEffect(() => {
+    setModalOpen(false);
+    sessionDismissedRef.current.clear();
+  }, [user?.id]);
+
   const notice = data?.notice ?? null;
-  if (isLoading || !notice || suppressed) return null;
+  const sessionHidden = notice != null && sessionDismissedRef.current.has(notice.id);
+
+  if (isLoading || !notice || sessionHidden) {
+    return null;
+  }
+
+  // suppress 중에는 배지/모달 모두 숨김 (이미 열린 모달은 위 effect에서 닫음)
+  if (suppressed) {
+    return null;
+  }
 
   const label = getBannerLabel(notice.tag);
   const { pill, badge } = getBannerStyles(notice.tag);
 
   const handleDismiss = () => {
+    sessionDismissedRef.current.add(notice.id);
     dismissMutation.mutate(notice.id);
   };
 

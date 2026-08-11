@@ -457,6 +457,7 @@ export function useLandscapePredictionFlow(
 
     onPredictionStarted: useCallback(() => {
       void speakGameVoice(USER_GAME_VOICE.predictionStarted);
+      void hideBannerAd();
       if (waitingResultRef.current || activeBetRef.current) {
         setScreenPhase("wait_result");
         return;
@@ -466,7 +467,7 @@ export function useLandscapePredictionFlow(
       setSelectedPrediction(null);
       setScreenPhase("picking");
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, []),
+    }, [hideBannerAd]),
 
     onPredictionEnded: useCallback(() => {
       void speakGameVoice(USER_GAME_VOICE.predictionStopped);
@@ -582,20 +583,45 @@ export function useLandscapePredictionFlow(
     }, []),
 
     onBannerAdShow: useCallback(async () => {
-      await showBannerAd();
+      // 전면 광고·결과 연출 중에는 배너 보류 (공지/AdMob 충돌 방지)
+      if (
+        adSessionActiveRef.current ||
+        resultShownRef.current ||
+        screenPhaseRef.current === "ad_playing"
+      ) {
+        return;
+      }
+      try {
+        await showBannerAd();
+      } catch (error) {
+        console.warn("[Game] banner show failed:", error);
+      }
     }, [showBannerAd]),
 
     onBannerAdHide: useCallback(async () => {
-      await hideBannerAd();
+      try {
+        await hideBannerAd();
+      } catch {
+        /* ignore */
+      }
     }, [hideBannerAd]),
 
     onAdStarted: useCallback(async (data: { matchId?: string }) => {
       if (resultShownRef.current) return;
+      // 중복 ad_started / ad_status 레이스 방지
+      if (adSessionActiveRef.current && screenPhaseRef.current === "ad_playing") {
+        return;
+      }
 
       adSessionActiveRef.current = true;
       setShowBetModal(false);
       setShowConfirmModal(false);
       setScreenPhase("ad_playing");
+      try {
+        await hideBannerAd();
+      } catch {
+        /* ignore */
+      }
 
       if (isNativePlatform) {
         const { dismissedEarly } = await startAdSession();
@@ -636,6 +662,7 @@ export function useLandscapePredictionFlow(
       startAdSession,
       showRewardedAd,
       finishAdAndWaitStart,
+      hideBannerAd,
       user,
       setUser,
       toast,
