@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -10,13 +10,10 @@ import {
   addMonths,
   eachDayOfInterval,
   endOfMonth,
-  endOfWeek,
   format,
   isSameDay,
-  isSameMonth,
   isToday,
   startOfMonth,
-  startOfWeek,
 } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
@@ -52,6 +49,17 @@ interface MatchRow {
   } | null;
 }
 
+const TEAM_AVATAR_COLORS = [
+  "#E11936",
+  "#1A6DFF",
+  "#0F766E",
+  "#7C3AED",
+  "#C2410C",
+  "#0369A1",
+  "#BE185D",
+  "#4B5563",
+];
+
 function kstDateKeyFromDate(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
@@ -65,7 +73,7 @@ function kstDateKeyFromIso(iso: string): string {
   return kstDateKeyFromDate(new Date(iso));
 }
 
-/** 달력·목록 — KST 실제 개시 시각(startTime) 기준 (matchDate 오표기 보정) */
+/** 목록 — KST 실제 개시 시각(startTime) 기준 (matchDate 오표기 보정) */
 function matchKstDateKey(match: MatchRow): string {
   if (match.startTime) return kstDateKeyFromIso(match.startTime);
   if (match.matchDate) return match.matchDate;
@@ -98,14 +106,52 @@ function statusBadgeClass(display: string): string {
   return matchManagementStatusBadgeClass(display);
 }
 
+function teamAvatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  return TEAM_AVATAR_COLORS[hash % TEAM_AVATAR_COLORS.length];
+}
+
+function teamAvatarLabel(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "?";
+  if (/^[A-Za-z]/.test(trimmed)) return trimmed.slice(0, 3).toUpperCase();
+  return trimmed.slice(0, 2);
+}
+
+function TeamMark({ name }: { name: string }) {
+  return (
+    <span
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm"
+      style={{ backgroundColor: teamAvatarColor(name) }}
+      aria-hidden
+    >
+      {teamAvatarLabel(name)}
+    </span>
+  );
+}
+
+function WinBadge() {
+  return (
+    <span
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#3B82F6] text-[10px] font-bold text-white"
+      title="승리"
+    >
+      승
+    </span>
+  );
+}
+
 export default function MatchManagement() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { assets } = useAdminAssets();
+  const dayStripRef = useRef<HTMLDivElement | null>(null);
 
   const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
-  const [selectedDay, setSelectedDay] = useState<Date | undefined>();
-  const [dayModalOpen, setDayModalOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<Date>(() => new Date());
   const [syncingDate, setSyncingDate] = useState<string | null>(null);
   const [lastSyncMeta, setLastSyncMeta] = useState<{
     date: string;
@@ -116,6 +162,7 @@ export default function MatchManagement() {
     cleared?: number;
     source?: "cache" | "api";
   } | null>(null);
+
   const { data: stadiums } = useQuery<Stadium[]>({
     queryKey: ["/api/admin/stadiums"],
   });
@@ -149,26 +196,35 @@ export default function MatchManagement() {
     return map;
   }, [stadiums]);
 
-  const calendarDays = useMemo(() => {
-    const monthStart = startOfMonth(calendarMonth);
-    const monthEnd = endOfMonth(calendarMonth);
-    const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
-    const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
-    return eachDayOfInterval({ start: gridStart, end: gridEnd });
+  const monthDays = useMemo(() => {
+    return eachDayOfInterval({
+      start: startOfMonth(calendarMonth),
+      end: endOfMonth(calendarMonth),
+    });
   }, [calendarMonth]);
 
-  const selectedDateKey = selectedDay ? kstDateKeyFromDate(selectedDay) : null;
+  const selectedDateKey = kstDateKeyFromDate(selectedDay);
 
   const dayMatches = useMemo(() => {
-    if (!selectedDateKey || !matchesData) return [];
+    if (!matchesData) return [];
     return matchesData
       .filter((m) => matchKstDateKey(m) === selectedDateKey)
       .sort((a, b) => {
+        const ta = new Date(a.startTime).getTime();
+        const tb = new Date(b.startTime).getTime();
+        if (ta !== tb) return ta - tb;
         const an = parseInt(a.name.replace(/\D/g, ""), 10) || 0;
         const bn = parseInt(b.name.replace(/\D/g, ""), 10) || 0;
         return an - bn;
       });
   }, [matchesData, selectedDateKey]);
+
+  useEffect(() => {
+    const el = dayStripRef.current?.querySelector<HTMLElement>(
+      `[data-date-key="${selectedDateKey}"]`,
+    );
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [selectedDateKey, calendarMonth]);
 
   const syncDate = async (
     dateKey: string,
@@ -227,13 +283,14 @@ export default function MatchManagement() {
     }
   };
 
-  const openDay = async (day: Date | undefined, options?: { forceApi?: boolean; sync?: boolean }) => {
-    if (!day) return;
+  const selectDay = (day: Date) => {
     setSelectedDay(day);
-    setDayModalOpen(true);
-    if (options?.sync === false) return;
-    const dateKey = kstDateKeyFromDate(day);
-    await syncDate(dateKey, { silentEmpty: true, forceApi: options?.forceApi ?? false });
+    setCalendarMonth(startOfMonth(day));
+  };
+
+  const goToday = () => {
+    const today = new Date();
+    selectDay(today);
   };
 
   return (
@@ -250,244 +307,239 @@ export default function MatchManagement() {
           <div className="flex flex-wrap gap-2 shrink-0">
             <button
               type="button"
+              className="px-3 py-1.5 text-xs rounded-md border border-[#E0E0E0] bg-white text-[#201E22] hover:border-[#E11936] hover:text-[#E11936] disabled:opacity-50"
+              disabled={Boolean(syncingDate)}
+              onClick={() => void syncDate(selectedDateKey, { forceApi: true })}
+              data-testid="button-force-resync"
+            >
+              {syncingDate === selectedDateKey ? "불러오는 중..." : "API에서 갱신"}
+            </button>
+            <button
+              type="button"
               className="px-3 py-1.5 text-xs rounded-md bg-[#201E22] text-white disabled:opacity-50"
               disabled={Boolean(syncingDate)}
-              onClick={() => void openDay(new Date(), { sync: false })}
+              onClick={goToday}
               data-testid="button-open-today"
             >
-              {syncingDate === getKstTodayKey() ? "불러오는 중..." : "오늘"}
+              오늘
             </button>
           </div>
         </div>
 
         <div className="flex flex-col flex-1 min-h-0 border border-[#D0D0D0] rounded-lg bg-white overflow-hidden shadow-sm">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-[#E9E9E9] bg-[#FAFAFA] shrink-0">
+          <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#E9E9E9] bg-[#FAFAFA] shrink-0">
             <button
               type="button"
               className="w-8 h-8 rounded-md border border-[#E0E0E0] bg-white flex items-center justify-center hover:border-[#E11936]"
-              onClick={() => setCalendarMonth((m) => addMonths(m, -1))}
+              onClick={() => {
+                const prev = addMonths(calendarMonth, -1);
+                setCalendarMonth(prev);
+                setSelectedDay(startOfMonth(prev));
+              }}
               aria-label="이전 달"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <h2 className="text-base lg:text-lg font-bold text-[#201E22] tracking-tight">
-              {format(calendarMonth, "yyyy년 M월", { locale: ko })}
+              {format(calendarMonth, "yyyy.MM")}
             </h2>
             <button
               type="button"
               className="w-8 h-8 rounded-md border border-[#E0E0E0] bg-white flex items-center justify-center hover:border-[#E11936]"
-              onClick={() => setCalendarMonth((m) => addMonths(m, 1))}
+              onClick={() => {
+                const next = addMonths(calendarMonth, 1);
+                setCalendarMonth(next);
+                setSelectedDay(startOfMonth(next));
+              }}
               aria-label="다음 달"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          {matchesLoading ? (
-            <div className="flex-1 min-h-[240px] animate-pulse bg-[#F3F3F3]" />
-          ) : (
-            <div
-              className="flex-1 min-h-0 p-2 lg:p-3 grid grid-cols-7 border-t border-[#E9E9E9]"
-              style={{
-                gridTemplateRows: `auto repeat(${Math.ceil(calendarDays.length / 7)}, minmax(0, 1fr))`,
-              }}
-            >
-              {["일", "월", "화", "수", "목", "금", "토"].map((label, i) => (
-                <div
-                  key={label}
-                  className={`py-1 text-center text-[11px] lg:text-xs font-semibold border-b border-[#E9E9E9] bg-[#F5F5F5] ${
-                    i < 6 ? "border-r border-[#E9E9E9]" : ""
-                  } ${i === 0 ? "text-[#E11936]" : i === 6 ? "text-[#2563EB]" : "text-[#4D4B4E]"}`}
-                >
-                  {label}
-                </div>
-              ))}
-              {calendarDays.map((day, idx) => {
-                const key = kstDateKeyFromDate(day);
-                const inMonth = isSameMonth(day, calendarMonth);
-                const count = matchCountByDate.get(key) ?? 0;
-                const has = datesWithMatches.has(key);
-                const selected = selectedDay ? isSameDay(day, selectedDay) : false;
-                const today = isToday(day);
-                const col = idx % 7;
-                return (
-                  <button
-                    key={key + String(idx)}
-                    type="button"
-                    onClick={() => void openDay(day, { sync: false })}
-                    className={`min-h-0 h-full p-1 lg:p-1.5 text-left border-b border-[#E9E9E9] transition-colors ${
-                      col < 6 ? "border-r border-[#E9E9E9]" : ""
-                    } ${
-                      selected
-                        ? "bg-[#FFF1F3] ring-2 ring-inset ring-[#E11936]"
-                        : today
-                          ? "bg-[#FFFBEB]"
-                          : inMonth
-                            ? "bg-white hover:bg-[#F9F9F9]"
-                            : "bg-[#F7F7F7] hover:bg-[#F0F0F0]"
-                    }`}
-                    data-testid={`calendar-day-${key}`}
-                  >
-                    <div className="flex items-start justify-between gap-0.5">
-                      <span
-                        className={`inline-flex items-center justify-center w-6 h-6 lg:w-7 lg:h-7 rounded text-[11px] lg:text-xs font-semibold ${
-                          today
-                            ? "bg-[#E11936] text-white"
-                            : !inMonth
-                              ? "text-[#BFBFBF]"
-                              : col === 0
-                                ? "text-[#E11936]"
-                                : col === 6
-                                  ? "text-[#2563EB]"
-                                  : "text-[#201E22]"
-                        }`}
-                      >
-                        {format(day, "d")}
-                      </span>
-                      {has && (
-                        <span className="text-[9px] lg:text-[10px] font-semibold px-1 py-0.5 rounded bg-[#201E22] text-white leading-none">
-                          {count}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {dayModalOpen && selectedDay && selectedDateKey && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
-          onClick={() => setDayModalOpen(false)}
-          data-testid="modal-day-matches"
-        >
           <div
-            className="bg-white rounded-[12px] w-full max-w-[960px] max-h-[85vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
+            ref={dayStripRef}
+            className="shrink-0 flex gap-1 overflow-x-auto px-2 py-2 border-b border-[#E9E9E9] bg-white scrollbar-thin"
+            data-testid="schedule-day-strip"
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E9E9E9]">
-              <div>
-                <h2 className="text-lg font-semibold text-[#201E22]">
-                  {format(selectedDay, "yyyy년 M월 d일 (EEE)", { locale: ko })} 경기
-                </h2>
-                <p className="text-xs text-[#888] mt-1">
-                  {syncingDate === selectedDateKey
-                    ? dayMatches.length > 0
-                      ? "API 갱신 중..."
-                      : "일정 불러오는 중..."
-                    : lastSyncMeta?.date === selectedDateKey
-                      ? `${lastSyncMeta.source === "api" ? "API 반영" : "DB 캐시 반영"} · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}${(lastSyncMeta.deduped ?? 0) > 0 ? ` · 중복 제거 ${lastSyncMeta.deduped}` : ""}`
-                      : "DB 저장 일정 표시 · API 갱신은 「API에서 갱신」 · 오늘은 09:00 자동 sync"}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
+            {monthDays.map((day) => {
+              const key = kstDateKeyFromDate(day);
+              const selected = isSameDay(day, selectedDay);
+              const today = isToday(day);
+              const count = matchCountByDate.get(key) ?? 0;
+              const has = datesWithMatches.has(key);
+              const dow = format(day, "EEE", { locale: ko }).replace("요일", "");
+              return (
                 <button
+                  key={key}
                   type="button"
-                  disabled={syncingDate === selectedDateKey}
-                  onClick={() => selectedDateKey && void syncDate(selectedDateKey, { forceApi: true })}
-                  className="px-3 py-1.5 text-xs rounded-md border border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936] disabled:opacity-50"
-                  data-testid="button-force-resync"
+                  data-date-key={key}
+                  data-testid={`calendar-day-${key}`}
+                  onClick={() => selectDay(day)}
+                  className={`relative flex min-w-[52px] flex-col items-center gap-0.5 rounded-xl px-2 py-2 transition-colors ${
+                    selected
+                      ? "bg-[#E8F1FF] text-[#1A6DFF]"
+                      : today
+                        ? "bg-[#FFF7ED] text-[#C2410C] hover:bg-[#FFEDD5]"
+                        : "text-[#6B7280] hover:bg-[#F5F5F5]"
+                  }`}
                 >
-                  {syncingDate === selectedDateKey ? "불러오는 중..." : "API에서 갱신"}
+                  <span className="text-[11px] font-medium leading-none">{dow}</span>
+                  <span
+                    className={`text-base font-bold leading-none ${
+                      selected ? "text-[#1A6DFF]" : today ? "text-[#C2410C]" : "text-[#201E22]"
+                    }`}
+                  >
+                    {format(day, "d")}
+                  </span>
+                  {has ? (
+                    <span
+                      className={`mt-0.5 h-1.5 w-1.5 rounded-full ${
+                        selected ? "bg-[#1A6DFF]" : "bg-[#9CA3AF]"
+                      }`}
+                      title={`${count}경기`}
+                    />
+                  ) : (
+                    <span className="mt-0.5 h-1.5 w-1.5" />
+                  )}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setDayModalOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center text-[#201E22]"
-                  aria-label="닫기"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+              );
+            })}
+          </div>
 
-            <div className="overflow-auto px-4 py-3">
-              {syncingDate === selectedDateKey && dayMatches.length === 0 ? (
-                <div className="py-16 text-center text-[#888] text-sm">일정을 불러오는 중...</div>
-              ) : dayMatches.length === 0 ? (
-                <div className="py-16 text-center text-[#888] text-sm">
-                  이 날짜에 등록·연결된 경기가 없습니다.
-                </div>
-              ) : (
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-[#F9F9F9] text-[#4D4B4E] text-left">
-                      <th className="px-3 py-2 font-medium">시간</th>
-                      <th className="px-3 py-2 font-medium">경기</th>
-                      <th className="px-3 py-2 font-medium">구장</th>
-                      <th className="px-3 py-2 font-medium">원정</th>
-                      <th className="px-3 py-2 font-medium text-center">스코어</th>
-                      <th className="px-3 py-2 font-medium">홈</th>
-                      <th className="px-3 py-2 font-medium">상태</th>
-                      <th className="px-3 py-2 font-medium">API</th>
-                      <th className="px-3 py-2 font-medium">관리</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dayMatches.map((match, index) => {
-                      const teams = resolveMatchTeamNames({
-                        apiSportsAwayTeam: match.apiSportsAwayTeam,
-                        apiSportsHomeTeam: match.apiSportsHomeTeam,
-                        liveScoreboard: match.liveScoreboard,
-                      });
-                      const away = teams.awayTeamName || "원정팀";
-                      const home = teams.homeTeamName || "홈팀";
-                      const stadium =
-                        getDisplayStadiumName(
-                          stadiumNameById.get(match.stadiumId),
-                          match.apiSportsHomeTeam,
-                        ) || "-";
-                      const awayScore = match.liveScoreboard?.awayScore;
-                      const homeScore = match.liveScoreboard?.homeScore;
-                      const scoreText =
-                        awayScore != null && homeScore != null
-                          ? `${awayScore} : ${homeScore}`
-                          : "-";
-                      return (
-                        <tr key={match.id} className="border-b border-[#F0F0F0] hover:bg-[#FAFAFA]">
-                          <td className="px-3 py-3 whitespace-nowrap">{formatTimeKst(match.startTime)}</td>
-                          <td className="px-3 py-3 font-medium text-[#201E22]">{match.name}</td>
-                          <td className="px-3 py-3 text-[#4D4B4E] max-w-[120px] truncate" title={stadium}>
-                            {stadium}
-                          </td>
-                          <td className="px-3 py-3">{away}</td>
-                          <td className="px-3 py-3 text-center font-semibold">{scoreText}</td>
-                          <td className="px-3 py-3">{home}</td>
-                          <td className="px-3 py-3">
-                            <span
-                              className={`inline-flex px-2 py-0.5 rounded text-xs ${statusBadgeClass(matchStatusDisplay(match))}`}
-                            >
-                              {matchStatusDisplay(match)}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3">
-                            {match.apiSportsGameId ? (
-                              <span className="text-green-600 text-xs font-medium">연결</span>
-                            ) : (
-                              <span className="text-[#BFBFBF] text-xs">미연결</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-3">
-                            <Link
-                              href={`/admin/match-monitoring/${encodeURIComponent(selectedDateKey)}?matchIndex=${index}`}
-                              className="text-[#E11936] text-xs font-medium hover:underline"
-                            >
-                              모니터링
-                            </Link>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
+          <div className="px-4 py-2 border-b border-[#F0F0F0] shrink-0 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-[#201E22]">
+                {format(selectedDay, "yyyy년 M월 d일 (EEE)", { locale: ko })}
+              </p>
+              <p className="text-[11px] text-[#888] mt-0.5">
+                {syncingDate === selectedDateKey
+                  ? dayMatches.length > 0
+                    ? "API 갱신 중..."
+                    : "일정 불러오는 중..."
+                  : lastSyncMeta?.date === selectedDateKey
+                    ? `${lastSyncMeta.source === "api" ? "API 반영" : "DB 캐시 반영"} · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}${(lastSyncMeta.deduped ?? 0) > 0 ? ` · 중복 제거 ${lastSyncMeta.deduped}` : ""}`
+                    : "DB 저장 일정 표시 · API 갱신은 「API에서 갱신」 · 오늘은 09:00 자동 sync"}
+              </p>
             </div>
+            <span className="text-xs text-[#6B7280] tabular-nums">
+              {dayMatches.length}경기
+            </span>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-auto" data-testid="schedule-match-list">
+            {matchesLoading || (syncingDate === selectedDateKey && dayMatches.length === 0) ? (
+              <div className="py-16 text-center text-[#888] text-sm">
+                {matchesLoading ? "불러오는 중..." : "일정을 불러오는 중..."}
+              </div>
+            ) : dayMatches.length === 0 ? (
+              <div className="py-16 text-center text-[#888] text-sm">
+                이 날짜에 등록·연결된 경기가 없습니다.
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    disabled={Boolean(syncingDate)}
+                    onClick={() => void syncDate(selectedDateKey, { forceApi: true })}
+                    className="px-3 py-1.5 text-xs rounded-md border border-[#E0E0E0] hover:border-[#E11936] hover:text-[#E11936] disabled:opacity-50"
+                  >
+                    API에서 불러오기
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <ul className="divide-y divide-[#EFEFEF]">
+                {dayMatches.map((match, index) => {
+                  const teams = resolveMatchTeamNames({
+                    apiSportsAwayTeam: match.apiSportsAwayTeam,
+                    apiSportsHomeTeam: match.apiSportsHomeTeam,
+                    liveScoreboard: match.liveScoreboard,
+                  });
+                  const away = teams.awayTeamName || "원정팀";
+                  const home = teams.homeTeamName || "홈팀";
+                  const stadium =
+                    getDisplayStadiumName(
+                      stadiumNameById.get(match.stadiumId),
+                      match.apiSportsHomeTeam,
+                    ) || "-";
+                  const awayScore = match.liveScoreboard?.awayScore;
+                  const homeScore = match.liveScoreboard?.homeScore;
+                  const hasScore = awayScore != null && homeScore != null;
+                  const status = matchStatusDisplay(match);
+                  const finished =
+                    status.includes("종료") || match.matchStatus === "completed";
+                  const awayWon = finished && hasScore && (awayScore as number) > (homeScore as number);
+                  const homeWon = finished && hasScore && (homeScore as number) > (awayScore as number);
+
+                  return (
+                    <li
+                      key={match.id}
+                      className="px-3 sm:px-5 py-3.5 hover:bg-[#FAFAFA] transition-colors"
+                      data-testid={`schedule-match-row-${match.id}`}
+                    >
+                      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[64px_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)_auto] lg:items-center lg:gap-4">
+                        <div className="text-sm font-semibold text-[#201E22] tabular-nums lg:text-center">
+                          {formatTimeKst(match.startTime)}
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 min-w-0 lg:justify-end">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {awayWon && <WinBadge />}
+                            <TeamMark name={away} />
+                            <div className="min-w-0">
+                              <div className="font-semibold text-[#201E22] truncate">{away}</div>
+                              <div className="text-[11px] text-[#9CA3AF] truncate">{match.name}</div>
+                            </div>
+                          </div>
+                          <div className="text-xl font-bold tabular-nums text-[#201E22] w-8 text-right shrink-0">
+                            {hasScore ? awayScore : "-"}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-center justify-center text-center gap-1 px-2">
+                          <span
+                            className={`inline-flex px-2 py-0.5 rounded text-[11px] font-medium ${statusBadgeClass(status)}`}
+                          >
+                            {status}
+                          </span>
+                          <span className="text-xs text-[#4D4B4E] truncate max-w-full" title={stadium}>
+                            {stadium}
+                          </span>
+                          <span className="text-[10px] text-[#9CA3AF]">
+                            {match.apiSportsGameId ? "API 연결" : "API 미연결"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 min-w-0 lg:justify-start">
+                          <div className="text-xl font-bold tabular-nums text-[#201E22] w-8 shrink-0">
+                            {hasScore ? homeScore : "-"}
+                          </div>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <TeamMark name={home} />
+                            <div className="min-w-0">
+                              <div className="font-semibold text-[#201E22] truncate">{home}</div>
+                              <div className="text-[11px] text-[#9CA3AF]">홈</div>
+                            </div>
+                            {homeWon && <WinBadge />}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end">
+                          <Link
+                            href={`/admin/match-monitoring/${encodeURIComponent(selectedDateKey)}?matchIndex=${index}`}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md border border-[#FECACA] text-[#E11936] hover:bg-[#FFF1F3]"
+                          >
+                            모니터링
+                          </Link>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </AdminLayout>
   );
 }
