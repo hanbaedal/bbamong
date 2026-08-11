@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import LineScoreTable from "@/components/LineScoreTable";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import { parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
@@ -10,6 +11,9 @@ interface ManagerOperatorScorePanelProps {
   gameInning?: number | null;
   inningHalf?: string | InningHalf | null;
   matchStatus?: string;
+  controlMode?: string | null;
+  /** 점수 보정 저장 — 성공 시 호출측에서 쿼리 갱신 */
+  onSaveScores?: (scores: { awayScore: number; homeScore: number }) => Promise<void>;
 }
 
 function resolveBattingHalf(
@@ -37,8 +41,33 @@ export default function ManagerOperatorScorePanel({
   gameInning,
   inningHalf,
   matchStatus,
+  controlMode,
+  onSaveScores,
 }: ManagerOperatorScorePanelProps) {
-  if (!scoreboard) {
+  const [awayScore, setAwayScore] = useState(0);
+  const [homeScore, setHomeScore] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setAwayScore(scoreboard?.awayScore ?? 0);
+    setHomeScore(scoreboard?.homeScore ?? 0);
+  }, [scoreboard?.awayScore, scoreboard?.homeScore, scoreboard?.syncedAt]);
+
+  const dirty =
+    Boolean(onSaveScores) &&
+    (awayScore !== (scoreboard?.awayScore ?? 0) || homeScore !== (scoreboard?.homeScore ?? 0));
+
+  const handleSave = async () => {
+    if (!onSaveScores || saving) return;
+    setSaving(true);
+    try {
+      await onSaveScores({ awayScore, homeScore });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!scoreboard && !onSaveScores) {
     return (
       <div className="manager-operator-score manager-operator-score--empty" data-testid="manager-score-panel">
         <p className="manager-operator-score-placeholder">스코어 연동 대기 중</p>
@@ -68,9 +97,39 @@ export default function ManagerOperatorScorePanel({
         </div>
 
         <div className="manager-operator-score-totals" data-testid="manager-score-totals">
-          <span>{scoreboard.awayScore ?? 0}</span>
-          <span className="manager-operator-score-colon">:</span>
-          <span>{scoreboard.homeScore ?? 0}</span>
+          {onSaveScores ? (
+            <>
+              <input
+                type="number"
+                min={0}
+                max={99}
+                inputMode="numeric"
+                className="manager-operator-score-input"
+                value={awayScore}
+                onChange={(e) => setAwayScore(Math.max(0, Math.min(99, Number(e.target.value) || 0)))}
+                aria-label="원정 점수"
+                data-testid="input-away-score"
+              />
+              <span className="manager-operator-score-colon">:</span>
+              <input
+                type="number"
+                min={0}
+                max={99}
+                inputMode="numeric"
+                className="manager-operator-score-input"
+                value={homeScore}
+                onChange={(e) => setHomeScore(Math.max(0, Math.min(99, Number(e.target.value) || 0)))}
+                aria-label="홈 점수"
+                data-testid="input-home-score"
+              />
+            </>
+          ) : (
+            <>
+              <span>{scoreboard?.awayScore ?? 0}</span>
+              <span className="manager-operator-score-colon">:</span>
+              <span>{scoreboard?.homeScore ?? 0}</span>
+            </>
+          )}
         </div>
 
         <div className="manager-operator-score-team manager-operator-score-team--home">
@@ -83,12 +142,36 @@ export default function ManagerOperatorScorePanel({
         </div>
       </div>
 
-      <LineScoreTable
-        scoreboard={scoreboard}
-        fixedInningColumns
-        battingHalf={battingHalf}
-        className="manager-operator-line-score"
-      />
+      {scoreboard && (
+        <LineScoreTable
+          scoreboard={scoreboard}
+          fixedInningColumns
+          battingHalf={battingHalf}
+          className="manager-operator-line-score"
+        />
+      )}
+
+      {onSaveScores && (
+        <div className="manager-operator-score-actions">
+          <button
+            type="button"
+            className="manager-operator-score-save"
+            disabled={!dirty || saving}
+            onClick={() => void handleSave()}
+            data-testid="button-save-scoreboard"
+          >
+            {saving ? "저장 중…" : "점수 보정 (TV 기준)"}
+          </button>
+          {controlMode === "manual" && (
+            <span className="manager-operator-score-manual-hint">수동 잠금 — API 점수 미반영</span>
+          )}
+          {matchStatus === "ongoing" && controlMode !== "manual" && (
+            <span className="manager-operator-score-live-hint">
+              경기 중 API 점수는 자동 덮어쓰지 않습니다. TV와 다르면 보정하세요.
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

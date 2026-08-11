@@ -36,7 +36,7 @@ export function inferInningHalfFromRuns(
 
 /**
  * 스코어보드·운영자 DB를 합쳐 실제 표시용 회/초말 결정.
- * status 파싱 회가 1에 고착되어도 이닝별 점수(9회 등)를 우선 반영.
+ * 운영자 gameInning/inningHalf 를 최우선 (TV·현장 기준). 없을 때만 API status·이닝표.
  */
 export function resolveScoreboardInningPhase(input: {
   gameInning?: number | null;
@@ -47,9 +47,17 @@ export function resolveScoreboardInningPhase(input: {
   > | null;
 }): { inning: number; half: InningHalf } | null {
   const sb = input.scoreboard;
+  const fromOperator = input.gameInning ?? null;
+  const halfFromOperator = input.inningHalf
+    ? parseInningHalf(typeof input.inningHalf === "string" ? input.inningHalf : input.inningHalf)
+    : null;
+
+  if (fromOperator != null && fromOperator > 0 && halfFromOperator) {
+    return { inning: fromOperator, half: halfFromOperator };
+  }
+
   const inferred = inferCurrentInningFromRuns(sb?.awayInnings, sb?.homeInnings);
   const fromStatus = sb?.inning ?? null;
-  const fromOperator = input.gameInning ?? null;
 
   let inning: number | null = null;
   if (inferred != null && fromStatus != null) {
@@ -61,11 +69,7 @@ export function resolveScoreboardInningPhase(input: {
 
   const halfFromStatus = sb?.inningHalf ? parseInningHalf(sb.inningHalf) : null;
   const halfFromRuns = inferInningHalfFromRuns(inning, sb?.awayInnings, sb?.homeInnings);
-  const halfFromOperator = input.inningHalf
-    ? parseInningHalf(typeof input.inningHalf === "string" ? input.inningHalf : input.inningHalf)
-    : null;
-
-  const half = halfFromStatus ?? halfFromRuns ?? halfFromOperator;
+  const half = halfFromOperator ?? halfFromStatus ?? halfFromRuns;
   if (!half) return null;
 
   return { inning, half };
@@ -88,7 +92,7 @@ export function formatMatchInningPhase(input: {
 }
 
 /**
- * API 스코어보드(이닝 점수·status) 우선, 없으면 운영자 DB gameInning/inningHalf
+ * 운영자 DB gameInning/inningHalf 우선, 없으면 API 스코어보드(이닝 점수·status)
  */
 export function resolveLiveInningPhaseLabel(input: {
   matchStatus?: string;

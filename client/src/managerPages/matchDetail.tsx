@@ -15,6 +15,7 @@ import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWi
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import { resolveLiveInningPhaseLabel } from "@shared/matchPhaseDisplay";
 import { speakGameVoice, OPERATOR_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
+import { useQueryClient } from "@tanstack/react-query";
 import "./managerMatchDetail.css";
 
 const WS_BASE_URL = 'wss://ppamong.com';
@@ -49,6 +50,7 @@ export default function MatchDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { assets } = useManagerAssets();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [match, setMatch] = useState<Match | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedResult, setSelectedResult] = useState<string | null>(null);
@@ -938,10 +940,49 @@ export default function MatchDetailPage() {
             gameInning={match.gameInning}
             inningHalf={match.inningHalf}
             matchStatus={match.matchStatus}
+            controlMode={scoreboardPayload?.controlMode}
+            onSaveScores={async ({ awayScore, homeScore }) => {
+              if (!id) return;
+              try {
+                const res = await managerFetch(`/api/manager/matches/${id}/scoreboard`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    awayScore,
+                    homeScore,
+                    lockManual: true,
+                    syncOperatorPhase: false,
+                    inning: match.gameInning ?? undefined,
+                    inningHalf:
+                      match.inningHalf === "bottom" || match.inningHalf === "top"
+                        ? match.inningHalf
+                        : undefined,
+                  }),
+                });
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}));
+                  throw new Error(
+                    typeof err?.error === "string" ? err.error : "스코어보드 보정에 실패했습니다.",
+                  );
+                }
+                await queryClient.invalidateQueries({
+                  queryKey: ["/api/matches", id, "scoreboard"],
+                });
+                toast({
+                  description: "점수를 보정했습니다. API 덮어쓰기가 잠금됩니다.",
+                });
+              } catch (err: unknown) {
+                toast({
+                  variant: "destructive",
+                  description: err instanceof Error ? err.message : "스코어보드 보정에 실패했습니다.",
+                });
+                throw err;
+              }
+            }}
           />
           {scoreboardPayload?.controlMode === "manual" && (
             <p className="mt-1 text-[clamp(9px,2.2vw,11px)] text-red-600 font-medium leading-snug">
-              비상 수동 제어
+              비상 수동 제어 (점수 API 잠금)
             </p>
           )}
         </div>

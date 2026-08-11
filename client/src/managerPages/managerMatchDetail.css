@@ -141,6 +141,55 @@
   color: #6b7280;
 }
 
+.manager-operator-score-input {
+  width: clamp(36px, 9vw, 48px);
+  text-align: center;
+  font-size: inherit;
+  font-weight: 700;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 2px 4px;
+  background: #fff;
+  color: #111827;
+}
+
+.manager-operator-score-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.manager-operator-score-save {
+  font-size: clamp(10px, 2.4vw, 12px);
+  font-weight: 600;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #e11936;
+  background: #fff5f5;
+  color: #e11936;
+}
+
+.manager-operator-score-save:disabled {
+  opacity: 0.45;
+  border-color: #d1d5db;
+  background: #f9fafb;
+  color: #9ca3af;
+}
+
+.manager-operator-score-manual-hint,
+.manager-operator-score-live-hint {
+  font-size: clamp(9px, 2.1vw, 11px);
+  line-height: 1.35;
+  color: #6b7280;
+}
+
+.manager-operator-score-manual-hint {
+  color: #dc2626;
+  font-weight: 600;
+}
+
 .manager-operator-line-score {
   font-size: clamp(8px, 2.1vw, 13px);
   line-height: 1.4;

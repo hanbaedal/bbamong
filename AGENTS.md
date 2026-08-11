@@ -19,3 +19,8 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - There is **no ESLint config and no test framework** in this repo. The only "lint" is `npm run check` (`tsc`), which currently reports **many pre-existing type errors** and is **not a clean gate** — dev runs through `tsx` (no typecheck) and is unaffected.
 - Production build is `npm run build` (Vite + esbuild); dev should use `npm run dev`, not the build.
 - External integrations (Kakao/Google/Apple OAuth, SOLAPI SMS, API-SPORTS live scores, Cloudflare R2 / GCS storage, AdMob, legacy Postgres sync) are all optional and disabled/stubbed when their env vars are unset.
+
+### Live scoreboard (API vs operator)
+- During `matchStatus === "ongoing"`, API-SPORTS polls **do not overwrite** `liveScoreboard` scores/inning tables (status/team names still refresh). Final FT while `controlMode === "auto"` applies the API final board; `manual` keeps operator/admin corrections.
+- Display for “N회 초/말” prefers operator `gameInning` / `inningHalf` over API (`shared/matchPhaseDisplay.ts`).
+- Operators/admins can PATCH scores (`/api/manager/matches/:id/scoreboard`, `/api/admin/matches/:id/scoreboard`) which sets `controlMode: "manual"`. Toggle admin “수동” off to return to auto (end sync can apply again).
