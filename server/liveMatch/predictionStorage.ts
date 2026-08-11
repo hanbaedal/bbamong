@@ -20,6 +20,9 @@ import {
   type MemberPlatform,
   buildUserPlatformMatchForAgg,
 } from "../utils/memberPlatform";
+import { overlayOperatorInningOnScoreboard } from "../apiSports/liveScoreboardPolicy";
+import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import { parseInningHalf } from "@shared/gamePhaseTypes";
 
 export async function getUserBalance(userId: string): Promise<number> {
   const user = await UserModel.findOne({ id: userId }).select("points").lean();
@@ -782,9 +785,20 @@ export async function advanceInningHalf(
   const nextPhase = computeInningHalfSwitch(phase);
 
   const { predictionAutoStopped } = await nextRound(matchId);
+
+  const overlay = overlayOperatorInningOnScoreboard(
+    (before as { liveScoreboard?: LiveScoreboard | null }).liveScoreboard,
+    nextPhase.gameInning,
+    parseInningHalf(nextPhase.inningHalf),
+  );
+
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },
-    { ...nextPhase, outsInHalf: 0 },
+    {
+      ...nextPhase,
+      outsInHalf: 0,
+      ...(overlay ? { liveScoreboard: overlay } : {}),
+    },
     { new: true },
   ).lean();
 

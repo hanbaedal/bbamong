@@ -6,6 +6,8 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAc
 import { broadcastManager } from "../liveMatch/broadcastManager";
 import { startRound, stopRound, cancelStartRound, cancelStopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
+import { patchMatchLiveScoreboard } from "../apiSports/syncService";
+import { z } from "zod";
 import { hasActiveSession, createSession, deleteSession, refreshSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
 import { ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken, isOperatorCredentialsActive } from "../managerOperatorService";
 import { resolveClientLoginGeo } from "../utils/clientGeo";
@@ -1013,6 +1015,58 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: message });
       }
       return res.status(500).json({ error: message });
+    }
+  });
+
+  // 스코어보드 수동 보정 (매니저) — TV 기준으로 점수 맞춤, API 덮어쓰기 잠금
+  app.patch("/api/manager/matches/:id/scoreboard", async (req, res) => {
+    try {
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
+
+      const { id } = req.params;
+      const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
+      if (!match) {
+        return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
+      }
+
+      const body = z
+        .object({
+          homeScore: z.number().int().min(0).max(99).optional(),
+          awayScore: z.number().int().min(0).max(99).optional(),
+          homeHits: z.number().int().min(0).max(99).optional(),
+          awayHits: z.number().int().min(0).max(99).optional(),
+          homeErrors: z.number().int().min(0).max(99).optional(),
+          awayErrors: z.number().int().min(0).max(99).optional(),
+          inning: z.number().int().min(1).max(20).nullable().optional(),
+          inningHalf: z.enum(["top", "bottom"]).nullable().optional(),
+          lockManual: z.boolean().optional(),
+          syncOperatorPhase: z.boolean().optional(),
+        })
+        .parse(req.body ?? {});
+
+      const updated = await patchMatchLiveScoreboard(id, {
+        ...body,
+        lockManual: body.lockManual !== false,
+        syncOperatorPhase: body.syncOperatorPhase === true,
+      });
+
+      return res.json({
+        success: true,
+        message: "스코어보드를 보정했습니다. (수동 모드 — API 점수 덮어쓰기 잠금)",
+        controlMode: (updated as { controlMode?: string }).controlMode ?? "manual",
+        scoreboard: (updated as { liveScoreboard?: unknown }).liveScoreboard ?? null,
+      });
+    } catch (error: unknown) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: "인증이 만료되었습니다." });
+      }
+      console.error("Manager scoreboard patch error:", error);
+      const message = error instanceof Error ? error.message : "스코어보드 보정에 실패했습니다.";
+      return res.status(400).json({ error: message });
     }
   });
 

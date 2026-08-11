@@ -5,7 +5,15 @@ import { broadcastManager } from "../liveMatch/broadcastManager";
 import { addKstDays, getKstDateString, getKstDayRange } from "../utils/dateUtils";
 import { fetchGameById, apiSportsTeamIdsFromGame, type ApiSportsGameResponse } from "./client";
 import { markApiSportsError } from "./healthState";
-import type { ApiSportsTodayGame, LiveScoreboard, MatchHeadToHeadSnapshot, MatchLineupSnapshot, MatchPlayerStatsEntry } from "@shared/apiSportsTypes";
+import type {
+  ApiSportsTodayGame,
+  InningRunsMap,
+  LiveScoreboard,
+  MatchControlMode,
+  MatchHeadToHeadSnapshot,
+  MatchLineupSnapshot,
+  MatchPlayerStatsEntry,
+} from "@shared/apiSportsTypes";
 import {
   buildInningKey,
   isGameFinished,
@@ -15,7 +23,7 @@ import {
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
-import { isConfirmedPostponedMatch, isGameLiveStatus, isGameNotStarted } from "@shared/apiSportsStatus";
+import { isConfirmedPostponedMatch, isGameNotStarted } from "@shared/apiSportsStatus";
 import { LIVE_SCORE_NS_GATE_POLL_MS, LIVE_SCORE_SYNC_START_BEFORE_MS } from "./constants";
 import { isStaleFinishedScoreboard, isStalePostponedScoreboard, isMisclassifiedTerminalStatus } from "@shared/matchManagementStatus";
 import { refreshMatchLineupIfDue } from "./lineupService";
@@ -25,6 +33,8 @@ import {
   formatKboTeamShortName,
   resolveVenueNameFromApiSportsGame,
 } from "@shared/kboHomeStadium";
+import { resolveScoreboardForApiWrite } from "./liveScoreboardPolicy";
+import { formatInningWithHalf, parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
 
 const MAX_DAILY_MATCHES = 5;
 
@@ -640,20 +650,23 @@ async function updateMatchStatusFromApiGame(
     matchStatus?: string;
     startTime?: Date | null;
     liveScoreboard?: LiveScoreboard | null;
+    controlMode?: string | null;
   },
   game: ApiSportsGameResponse,
 ): Promise<string> {
-  const scoreboard = parseLiveScoreboard(game);
+  const incoming = parseLiveScoreboard(game);
+  const scoreboard = resolveScoreboardForApiWrite(match, incoming);
   const previousStatus = match.matchStatus ?? "scheduled";
-  const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, scoreboard, match.startTime);
+  const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, incoming, match.startTime);
 
   await MatchModel.updateOne(
     { id: match.id },
     {
       matchStatus: nextStatus,
       // 상태만 갱신해도 점수·이닝은 반드시 포함 (부분 merge 시 총점이 비는 문제 방지)
+      // 단, 라이브 중·수동 모드에서는 기존 점수/이닝 표를 유지
       liveScoreboard: scoreboard,
-      ...apiSportsTeamsUpdate(game, scoreboard),
+      ...apiSportsTeamsUpdate(game, incoming),
       lastInningKey: buildInningKey(scoreboard),
     },
   );
@@ -663,18 +676,25 @@ async function updateMatchStatusFromApiGame(
 }
 
 async function updateMatchScoreFromApiGame(
-  match: { id: string; matchStatus?: string; sideBetsLocked?: boolean },
+  match: {
+    id: string;
+    matchStatus?: string;
+    sideBetsLocked?: boolean;
+    liveScoreboard?: LiveScoreboard | null;
+    controlMode?: string | null;
+  },
   game: ApiSportsGameResponse,
 ): Promise<string> {
-  const scoreboard = parseLiveScoreboard(game);
+  const incoming = parseLiveScoreboard(game);
+  const scoreboard = resolveScoreboardForApiWrite(match, incoming);
   const nextStatus = isConfirmedPostponedMatch({
     matchStatus: match.matchStatus,
-    statusShort: scoreboard.statusShort,
-    statusLong: scoreboard.statusLong,
-    inningLabel: scoreboard.inningLabel,
+    statusShort: incoming.statusShort,
+    statusLong: incoming.statusLong,
+    inningLabel: incoming.inningLabel,
   })
     ? "cancelled"
-    : isGameFinished(scoreboard.statusShort)
+    : isGameFinished(incoming.statusShort)
       ? "completed"
       : (match.matchStatus ?? "ongoing");
 
@@ -683,13 +703,13 @@ async function updateMatchScoreFromApiGame(
     {
       matchStatus: nextStatus,
       liveScoreboard: scoreboard,
-      ...apiSportsTeamsUpdate(game, scoreboard),
+      ...apiSportsTeamsUpdate(game, incoming),
       lastInningKey: buildInningKey(scoreboard),
       sideBetsLocked:
         match.sideBetsLocked ||
         nextStatus === "ongoing" ||
-        scoreboard.inning !== null ||
-        isGameFinished(scoreboard.statusShort),
+        incoming.inning !== null ||
+        isGameFinished(incoming.statusShort),
     },
   );
 
@@ -879,23 +899,31 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
     const game = await fetchGameById(match.apiSportsGameId);
     if (!game) return false;
 
-    const scoreboard = parseLiveScoreboard(game);
+    const incoming = parseLiveScoreboard(game);
+    const scoreboard = resolveScoreboardForApiWrite(
+      {
+        controlMode: (match as { controlMode?: string | null }).controlMode,
+        matchStatus: match.matchStatus,
+        liveScoreboard: match.liveScoreboard as LiveScoreboard | null | undefined,
+      },
+      incoming,
+    );
     const previousStatus = match.matchStatus ?? "scheduled";
-    const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, scoreboard, match.startTime);
-    const apiNotStarted = isGameNotStarted(scoreboard.statusShort);
+    const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, incoming, match.startTime);
+    const apiNotStarted = isGameNotStarted(incoming.statusShort);
 
     await MatchModel.updateOne(
       { id: matchId },
       {
         matchStatus: nextStatus,
         liveScoreboard: scoreboard,
-        ...apiSportsTeamsUpdate(game, scoreboard),
+        ...apiSportsTeamsUpdate(game, incoming),
         lastInningKey: buildInningKey(scoreboard),
         sideBetsLocked:
           match.sideBetsLocked ||
           nextStatus === "ongoing" ||
-          scoreboard.inning !== null ||
-          isGameFinished(scoreboard.statusShort),
+          incoming.inning !== null ||
+          isGameFinished(incoming.statusShort),
       },
     );
 
@@ -981,12 +1009,107 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
   }
 }
 
-export async function setMatchControlMode(matchId: string, mode: "auto" | "manual") {
+export async function setMatchControlMode(matchId: string, mode: MatchControlMode) {
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },
     { controlMode: mode },
     { new: true },
   ).lean();
+  if (!updated) throw new Error("경기를 찾을 수 없습니다.");
+
+  // auto 복귀 시 즉시 1회 동기화 시도 (ongoing 이면 점수 보존 정책은 그대로 적용)
+  if (mode === "auto" && updated.apiSportsGameId) {
+    try {
+      await refreshMatchLiveScoreFromApi(matchId);
+    } catch (err) {
+      console.warn(`[ControlMode] auto refresh ${matchId}:`, err);
+    }
+  }
+
+  return await MatchModel.findOne({ id: matchId }).lean() ?? updated;
+}
+
+export type LiveScoreboardPatchInput = {
+  homeScore?: number;
+  awayScore?: number;
+  homeHits?: number;
+  awayHits?: number;
+  homeErrors?: number;
+  awayErrors?: number;
+  homeInnings?: InningRunsMap;
+  awayInnings?: InningRunsMap;
+  inning?: number | null;
+  inningHalf?: InningHalf | null;
+  /** 기본 true — 보정 후 API가 점수를 다시 덮지 않도록 수동 잠금 */
+  lockManual?: boolean;
+  /** true면 운영자 gameInning/inningHalf 도 함께 맞춤 */
+  syncOperatorPhase?: boolean;
+};
+
+/**
+ * 운영자/관리자 스코어보드 수동 보정.
+ * 기본적으로 controlMode=manual 로 잠가 이후 API 덮어쓰기를 막음.
+ */
+export async function patchMatchLiveScoreboard(matchId: string, patch: LiveScoreboardPatchInput) {
+  const match = await MatchModel.findOne({ id: matchId }).lean();
+  if (!match) throw new Error("경기를 찾을 수 없습니다.");
+
+  const existing = (match.liveScoreboard as LiveScoreboard | null | undefined) ?? null;
+  const awayName =
+    existing?.awayTeamName ||
+    (match as { apiSportsAwayTeam?: string }).apiSportsAwayTeam ||
+    "원정팀";
+  const homeName =
+    existing?.homeTeamName ||
+    (match as { apiSportsHomeTeam?: string }).apiSportsHomeTeam ||
+    "홈팀";
+
+  const nextInning =
+    patch.inning !== undefined
+      ? patch.inning
+      : (existing?.inning ?? (match as { gameInning?: number }).gameInning ?? null);
+  const nextHalfRaw =
+    patch.inningHalf !== undefined
+      ? patch.inningHalf
+      : (existing?.inningHalf ?? (match as { inningHalf?: string }).inningHalf ?? null);
+  const nextHalf = nextHalfRaw ? parseInningHalf(nextHalfRaw) : null;
+
+  const merged: LiveScoreboard = {
+    homeTeamName: homeName,
+    awayTeamName: awayName,
+    homeScore: patch.homeScore ?? existing?.homeScore ?? 0,
+    awayScore: patch.awayScore ?? existing?.awayScore ?? 0,
+    homeHits: patch.homeHits ?? existing?.homeHits ?? 0,
+    awayHits: patch.awayHits ?? existing?.awayHits ?? 0,
+    homeErrors: patch.homeErrors ?? existing?.homeErrors ?? 0,
+    awayErrors: patch.awayErrors ?? existing?.awayErrors ?? 0,
+    homeInnings: patch.homeInnings ?? existing?.homeInnings,
+    awayInnings: patch.awayInnings ?? existing?.awayInnings,
+    inning: nextInning,
+    inningHalf: nextHalf,
+    inningLabel:
+      nextInning != null && nextHalf
+        ? formatInningWithHalf(nextInning, nextHalf)
+        : (existing?.inningLabel ?? ""),
+    statusShort: existing?.statusShort ?? "IN",
+    statusLong: existing?.statusLong ?? "In Progress",
+    syncedAt: new Date().toISOString(),
+  };
+
+  const lockManual = patch.lockManual !== false;
+  const update: Record<string, unknown> = {
+    liveScoreboard: merged,
+    lastInningKey: buildInningKey(merged),
+  };
+  if (lockManual) {
+    update.controlMode = "manual" satisfies MatchControlMode;
+  }
+  if (patch.syncOperatorPhase && nextInning != null && nextHalf) {
+    update.gameInning = nextInning;
+    update.inningHalf = nextHalf;
+  }
+
+  const updated = await MatchModel.findOneAndUpdate({ id: matchId }, update, { new: true }).lean();
   if (!updated) throw new Error("경기를 찾을 수 없습니다.");
   return updated;
 }

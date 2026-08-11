@@ -14,6 +14,7 @@ import {
   refreshMatchLiveScoreFromApi,
   setMatchControlMode,
   syncTodayGamesFromApiSports,
+  patchMatchLiveScoreboard,
 } from "./syncService";
 import { syncOperatorMatchAssignments, isMatchApiSportsPollingEnabled } from "../managerOperatorService";
 import { rescheduleTodayMatchTimers } from "./matchManagementSchedule";
@@ -122,6 +123,33 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: error.errors });
       }
       const message = error instanceof Error ? error.message : "모드 변경 실패";
+      res.status(400).json({ error: message });
+    }
+  });
+
+  app.patch("/api/admin/matches/:id/scoreboard", adminAuthMiddleware, async (req, res) => {
+    try {
+      const body = z
+        .object({
+          homeScore: z.number().int().min(0).max(99).optional(),
+          awayScore: z.number().int().min(0).max(99).optional(),
+          homeHits: z.number().int().min(0).max(99).optional(),
+          awayHits: z.number().int().min(0).max(99).optional(),
+          homeErrors: z.number().int().min(0).max(99).optional(),
+          awayErrors: z.number().int().min(0).max(99).optional(),
+          inning: z.number().int().min(1).max(20).nullable().optional(),
+          inningHalf: z.enum(["top", "bottom"]).nullable().optional(),
+          lockManual: z.boolean().optional(),
+          syncOperatorPhase: z.boolean().optional(),
+        })
+        .parse(req.body ?? {});
+      const match = await patchMatchLiveScoreboard(req.params.id, body);
+      res.json({ success: true, match, scoreboard: match.liveScoreboard ?? null });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      const message = error instanceof Error ? error.message : "스코어보드 보정 실패";
       res.status(400).json({ error: message });
     }
   });

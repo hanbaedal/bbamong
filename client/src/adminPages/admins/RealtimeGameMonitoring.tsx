@@ -214,6 +214,9 @@ export default function RealtimeGameMonitoring() {
   });
   const [controlMode, setControlMode] = useState<"auto" | "manual">("auto");
   const [isSyncingApi, setIsSyncingApi] = useState(false);
+  const [editAwayScore, setEditAwayScore] = useState(0);
+  const [editHomeScore, setEditHomeScore] = useState(0);
+  const [isSavingScoreboard, setIsSavingScoreboard] = useState(false);
 
   useEffect(() => {
     const mode = (selectedMatch as Match & { controlMode?: string })?.controlMode;
@@ -224,6 +227,16 @@ export default function RealtimeGameMonitoring() {
     }
   }, [selectedMatch?.id, scoreboardPayload?.controlMode, selectedMatch]);
 
+  useEffect(() => {
+    setEditAwayScore(scoreboardPayload?.scoreboard?.awayScore ?? 0);
+    setEditHomeScore(scoreboardPayload?.scoreboard?.homeScore ?? 0);
+  }, [
+    selectedMatch?.id,
+    scoreboardPayload?.scoreboard?.awayScore,
+    scoreboardPayload?.scoreboard?.homeScore,
+    scoreboardPayload?.scoreboard?.syncedAt,
+  ]);
+
   const handleToggleControlMode = async () => {
     if (!selectedMatch) return;
     const nextMode = controlMode === "auto" ? "manual" : "auto";
@@ -232,14 +245,38 @@ export default function RealtimeGameMonitoring() {
         mode: nextMode,
       });
       setControlMode(nextMode);
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/matches", selectedMatch.id, "scoreboard"],
+      });
       toast({
         description:
           nextMode === "manual"
-            ? "비상 수동 제어 모드로 전환했습니다."
-            : "자동 API 동기화 모드로 복귀했습니다.",
+            ? "비상 수동 제어 모드로 전환했습니다. (API 점수 덮어쓰기 잠금)"
+            : "자동 API 동기화 모드로 복귀했습니다. (경기 중 점수는 여전히 보존)",
       });
     } catch {
       toast({ variant: "destructive", description: "제어 모드 변경에 실패했습니다." });
+    }
+  };
+
+  const handleSaveScoreboard = async () => {
+    if (!selectedMatch) return;
+    setIsSavingScoreboard(true);
+    try {
+      await apiRequest("PATCH", `/api/admin/matches/${selectedMatch.id}/scoreboard`, {
+        awayScore: editAwayScore,
+        homeScore: editHomeScore,
+        lockManual: true,
+      });
+      setControlMode("manual");
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/matches", selectedMatch.id, "scoreboard"],
+      });
+      toast({ description: "스코어보드를 보정했습니다. (수동 잠금)" });
+    } catch {
+      toast({ variant: "destructive", description: "스코어보드 보정에 실패했습니다." });
+    } finally {
+      setIsSavingScoreboard(false);
     }
   };
 
@@ -858,8 +895,48 @@ export default function RealtimeGameMonitoring() {
 
         {selectedMatch && (
           <div className="flex flex-col flex-1 min-h-0 space-y-2">
-            <div className="px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8">
+            <div className="px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8 space-y-1.5">
               <LiveScoreboard scoreboard={scoreboardPayload?.scoreboard ?? null} dense />
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="text-[#666] shrink-0">점수 보정</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  className="w-12 rounded border border-[#E9E9E9] px-1 py-0.5 text-center tabular-nums"
+                  value={editAwayScore}
+                  onChange={(e) =>
+                    setEditAwayScore(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
+                  }
+                  aria-label="원정 점수"
+                  data-testid="admin-input-away-score"
+                />
+                <span className="text-[#888]">:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  className="w-12 rounded border border-[#E9E9E9] px-1 py-0.5 text-center tabular-nums"
+                  value={editHomeScore}
+                  onChange={(e) =>
+                    setEditHomeScore(Math.max(0, Math.min(99, Number(e.target.value) || 0)))
+                  }
+                  aria-label="홈 점수"
+                  data-testid="admin-input-home-score"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleSaveScoreboard()}
+                  disabled={isSavingScoreboard}
+                  className="px-2 py-1 rounded border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50"
+                  data-testid="admin-button-save-scoreboard"
+                >
+                  {isSavingScoreboard ? "저장…" : "저장·수동잠금"}
+                </button>
+                <span className="text-[10px] text-[#888]">
+                  경기 중 API는 점수를 덮지 않음 · TV와 다르면 보정
+                </span>
+              </div>
             </div>
 
             <div
