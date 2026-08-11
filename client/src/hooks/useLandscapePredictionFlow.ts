@@ -273,15 +273,14 @@ export function useLandscapePredictionFlow(
   }, []);
 
   const flushPendingBannerAd = useCallback(async () => {
-    if (!pendingBannerAdRef.current) return;
+    // 예측 게임 중 배너 미표시 — 보류분도 버리지 않고 숨김만
     pendingBannerAdRef.current = false;
-    if (adSessionActiveRef.current || screenPhaseRef.current === "ad_playing") return;
     try {
-      await showBannerAd();
-    } catch (error) {
-      console.warn("[Game] banner show failed:", error);
+      await hideBannerAd();
+    } catch {
+      /* ignore */
     }
-  }, [showBannerAd]);
+  }, [hideBannerAd]);
 
   const applyRoundNextAdvance = useCallback(
     (pending: PendingRoundNext) => {
@@ -794,20 +793,14 @@ export function useLandscapePredictionFlow(
     }, []),
 
     onBannerAdShow: useCallback(async () => {
-      if (adSessionActiveRef.current || screenPhaseRef.current === "ad_playing") {
-        return;
-      }
-      // 결과 연출 중 배너는 보류 → 투수교체/공수교대 연출 적용 시 표시
-      if (isInResultPresentation()) {
-        pendingBannerAdRef.current = true;
-        return;
-      }
+      // 예측 게임 화면에서는 배너 광고를 표시하지 않음
+      pendingBannerAdRef.current = false;
       try {
-        await showBannerAd();
-      } catch (error) {
-        console.warn("[Game] banner show failed:", error);
+        await hideBannerAd();
+      } catch {
+        /* ignore */
       }
-    }, [showBannerAd, isInResultPresentation]),
+    }, [hideBannerAd]),
 
     onBannerAdHide: useCallback(async () => {
       pendingBannerAdRef.current = false;

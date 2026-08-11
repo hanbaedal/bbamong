@@ -27,6 +27,7 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - `wait_result` 중 `round_next`는 결과 생략(`skippedResult`)이 아니면 보류한다. 투수교체 환불 시 서버가 `skippedResult: true`를 보낸다.
 - `betSnapshotRef`로 `activeBet`이 비어도 `round_result` 연출이 가능하고, 없으면 `/check`로 복구한다.
 - 유저 WS는 `prediction_cancelled`를 처리한다. 결과/대기 중 전면광고는 덮지 않는다.
+- **예측 게임 중 배너 광고 비표시**: 서버가 `banner_ad_show`를 보내지 않고, 클라이언트도 배너를 띄우지 않는다 (전면·보상 광고는 유지).
 
 ### Admin schedule team logos
 - Admin 경기관리 리스트는 API-SPORTS `teams.*.logo` URL을 원형으로 표시한다 (실패 시 약칭 이니셜 폴백). 관리자 전용 UI용이며, 사용자 앱에 공식 엠블럼을 확대 배포하기 전에는 별도 권리 검토가 필요하다.
