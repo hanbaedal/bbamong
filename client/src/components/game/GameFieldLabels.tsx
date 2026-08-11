@@ -30,6 +30,9 @@ export default function GameFieldLabels({
       aria-hidden={!interactive}
     >
       {OPTIONS.map((key) => {
+        // 결과 대기 중에는 예측한 라벨만 표시 (빨간 깜빡임)
+        if (blinkPrediction != null && key !== blinkPrediction) return null;
+
         const isSelected = selectedPrediction === key || highlightPrediction === key;
         const isBlink = blinkPrediction === key;
         return (
