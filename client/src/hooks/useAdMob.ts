@@ -327,6 +327,13 @@ export function useAdMob(): UseAdMobResult {
     resolveAdReady(false);
   }, [resolveAdReady]);
 
+  const clearBannerHideTimer = useCallback(() => {
+    if (bannerHideTimerRef.current) {
+      clearTimeout(bannerHideTimerRef.current);
+      bannerHideTimerRef.current = null;
+    }
+  }, []);
+
   const startAdSession = useCallback(async (): Promise<{ dismissedEarly: boolean }> => {
     if (!isNativePlatform) {
       console.log("[AdMob] Not native platform, overlay mode");
@@ -509,13 +516,6 @@ export function useAdMob(): UseAdMobResult {
       failedToShowListener.then((l) => l.remove());
     };
   }, [prepareInterstitialAd, handleAdDismissed, resolveAdReady]);
-
-  const clearBannerHideTimer = useCallback(() => {
-    if (bannerHideTimerRef.current) {
-      clearTimeout(bannerHideTimerRef.current);
-      bannerHideTimerRef.current = null;
-    }
-  }, []);
 
   const hideBannerAd = useCallback(async () => {
     clearBannerHideTimer();
