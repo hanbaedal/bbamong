@@ -19,10 +19,10 @@ export const LIVE_SCORE_SYNC_START_BEFORE_MS = Math.max(
   0,
   parseInt(process.env.LIVE_SCORE_SYNC_START_BEFORE_MS || "60000", 10) || 60_000,
 );
-/** live sync 대상 registrationOrder 상한 (기본 1 = 1경기만) */
+/** live sync 대상 registrationOrder 상한 (기본 5 = op1~op5 전부) */
 export const LIVE_SCORE_MAX_REGISTRATION_ORDER = Math.max(
   1,
-  parseInt(process.env.LIVE_SCORE_MAX_REGISTRATION_ORDER || "1", 10) || 1,
+  parseInt(process.env.LIVE_SCORE_MAX_REGISTRATION_ORDER || "5", 10) || 5,
 );
 /** API NS/TBD(시작 전)일 때 live sync API 재호출 최소 간격 — 2.5초 폭주 방지 */
 export const LIVE_SCORE_NS_GATE_POLL_MS = Math.max(

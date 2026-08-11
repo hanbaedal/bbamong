@@ -376,6 +376,8 @@ export async function syncTodayGamesFromApiSports(
       isGameFinished(scoreboard.statusShort) ||
       isGamePostponedOrCancelled(scoreboard.statusShort) ||
       !existing?.liveScoreboard ||
+      typeof existing.liveScoreboard.homeScore !== "number" ||
+      typeof existing.liveScoreboard.awayScore !== "number" ||
       existing.matchStatus !== "ongoing";
 
     const payload = {
@@ -644,22 +646,15 @@ async function updateMatchStatusFromApiGame(
   const scoreboard = parseLiveScoreboard(game);
   const previousStatus = match.matchStatus ?? "scheduled";
   const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, scoreboard, match.startTime);
-  const prevBoard = (match.liveScoreboard ?? {}) as LiveScoreboard;
 
   await MatchModel.updateOne(
     { id: match.id },
     {
       matchStatus: nextStatus,
-      liveScoreboard: {
-        ...prevBoard,
-        statusShort: scoreboard.statusShort,
-        statusLong: scoreboard.statusLong,
-        inning: scoreboard.inning,
-        inningHalf: scoreboard.inningHalf,
-        inningLabel: scoreboard.inningLabel,
-        syncedAt: scoreboard.syncedAt,
-      },
+      // 상태만 갱신해도 점수·이닝은 반드시 포함 (부분 merge 시 총점이 비는 문제 방지)
+      liveScoreboard: scoreboard,
       ...apiSportsTeamsUpdate(game, scoreboard),
+      lastInningKey: buildInningKey(scoreboard),
     },
   );
 
