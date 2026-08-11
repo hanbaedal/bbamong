@@ -214,6 +214,14 @@ export async function userRoutes(app: Express): Promise<void> {
       });
     } catch (error) {
       console.error("Signup error:", error);
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code?: number }).code === 11000
+      ) {
+        return res.status(400).json({ error: "이미 가입된 정보가 있습니다. 아이디 또는 전화번호를 확인해 주세요." });
+      }
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   });
