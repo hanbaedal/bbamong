@@ -1,4 +1,4 @@
-package com.ppamong.app;
+package com.ppamong.manager;
 
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
