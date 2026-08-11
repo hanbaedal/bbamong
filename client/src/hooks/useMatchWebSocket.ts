@@ -2,6 +2,8 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { getOrRefreshAccessToken } from "@/lib/queryClient";
+import { notifyUserDuplicateLoginSafe } from "@/lib/sessionGuard";
+import { clearTokens } from "@/lib/tokenManager";
 
 export type WSConnectionState = "connecting" | "connected" | "disconnected" | "reconnecting";
 
@@ -269,11 +271,14 @@ export function useMatchWebSocket({
         clearTimers();
         wsRef.current = null;
 
-        const noReconnectCodes = [4002, 4006, 4007, 4010];
+        const noReconnectCodes = [4002, 4006, 4007, 4008, 4010];
         if (noReconnectCodes.includes(event.code)) {
           console.log(`[WS] Close code ${event.code} - not reconnecting`);
           setConnectionState("disconnected");
-          if (event.code === 4007) {
+          if (event.code === 4008) {
+            void clearTokens();
+            notifyUserDuplicateLoginSafe();
+          } else if (event.code === 4007) {
             handlersRef.current.onError?.(new Error("비활성화된 계정입니다."));
           } else if (event.code === 4006) {
             handlersRef.current.onError?.(new Error("세션이 만료되었습니다."));
@@ -282,6 +287,8 @@ export function useMatchWebSocket({
         }
 
         if (event.code === 4005) {
+          // 다른 기기 로그인으로 세션이 교체된 경우가 많음 — 토큰 갱신 후 재연결 시도.
+          // 갱신 실패(SESSION_REPLACED) 시 queryClient가 중복 로그인 팝업을 띄움.
           console.log("[WS] Session terminated (4005) - attempting reconnect with fresh token");
           scheduleReconnect();
           return;

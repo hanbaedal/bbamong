@@ -16,9 +16,16 @@ import { PPAMONG_REVENUE_MONGO_FILTER } from "../utils/revenuePlatform";
 
 import { insertUserSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
-import { generateUserAccessToken, generateUserRefreshToken, verifyUserRefreshToken } from "../utils/jwt";
+import { verifyUserRefreshToken } from "../utils/jwt";
 import { userAuthMiddleware, type AuthenticatedUserRequest } from "../middleware/userAuth";
-import { hasActiveSession, createSession, deleteSession } from "../sessionManager";
+import { hasActiveSession, deleteSession } from "../sessionManager";
+import {
+  assertUserSession,
+  issueUserAuthTokens,
+  renewUserAuthTokens,
+  SESSION_REPLACED_CODE,
+  SESSION_REPLACED_MESSAGE,
+} from "../userAuthSession";
 import { getSocialPendingData, deleteSocialPendingData } from "./socialAuthRoutes";
 import { getRedisClient } from "../redis";
 import { getKstDayRange } from "../utils/dateUtils";
@@ -31,7 +38,9 @@ const FIND_USERNAME_TTL = 180;
 
 const FIND_USERNAME_NOT_FOUND = "입력하신 정보와 일치하는 회원을 찾을 수 없습니다.";
 
-async function ensureGuestProviderId(user: { id: string; provider?: string; providerId?: string | null }) {
+async function ensureGuestProviderId<T extends { id: string; provider?: string; providerId?: string | null }>(
+  user: T,
+): Promise<T> {
   if (user.provider !== "guest" || user.providerId) {
     return user;
   }
@@ -252,24 +261,14 @@ export async function userRoutes(app: Express): Promise<void> {
       const hasSession = await hasActiveSession("user", user.id);
       if (hasSession) {
         console.log(`[User Login] 기존 세션 강제 교체: ${user.id}`);
-        await deleteSession("user", user.id);
       }
-
-      // JWT 토큰 생성
-      const tokenPayload = {
-        userId: user.id,
-        username: user.username,
-      };
-
-      const accessToken = generateUserAccessToken(tokenPayload);
-      const refreshToken = generateUserRefreshToken(tokenPayload);
 
       // lastLogin, lastActive 동시 업데이트
       const now = new Date();
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
-      // Redis 세션 생성
-      await createSession("user", user.id, {
+      const { accessToken, refreshToken } = await issueUserAuthTokens({
+        id: user.id,
         username: user.username,
       });
 
@@ -337,18 +336,11 @@ export async function userRoutes(app: Express): Promise<void> {
         }
       }
 
-      const tokenPayload = {
-        userId: user.id,
-        username: user.username,
-      };
-
-      const accessToken = generateUserAccessToken(tokenPayload);
-      const refreshToken = generateUserRefreshToken(tokenPayload);
-
       const now = new Date();
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
-      await createSession("user", user.id, {
+      const { accessToken, refreshToken } = await issueUserAuthTokens({
+        id: user.id,
         username: user.username,
       });
 
@@ -796,20 +788,14 @@ export async function userRoutes(app: Express): Promise<void> {
 
       await deleteSocialPendingData(pendingCode);
 
-      const tokenPayload = {
-        userId: user.id,
-        username: username.trim(),
-      };
-
-      const jwtAccessToken = generateUserAccessToken(tokenPayload);
-      const jwtRefreshToken = generateUserRefreshToken(tokenPayload);
-
-      await createSession("user", user.id, {
-        username: username.trim(),
-      });
-
       const now = new Date();
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
+
+      const { accessToken: jwtAccessToken, refreshToken: jwtRefreshToken } =
+        await issueUserAuthTokens({
+          id: user.id,
+          username: username.trim(),
+        });
 
       const updatedUser = await storage.getUser(user.id);
       const { password: _, ...userWithoutPassword } = updatedUser || user;
@@ -876,6 +862,14 @@ export async function userRoutes(app: Express): Promise<void> {
 
       const decoded = verifyUserRefreshToken(refreshToken);
 
+      const sessionCheck = await assertUserSession(decoded.userId, decoded.sessionId);
+      if (sessionCheck === "replaced" || !decoded.sessionId) {
+        return res.status(401).json({
+          error: SESSION_REPLACED_MESSAGE,
+          code: SESSION_REPLACED_CODE,
+        });
+      }
+
       const user = await storage.getUserByUsername(decoded.username);
       if (!user) {
         return res.status(401).json({ error: "유효하지 않은 사용자입니다." });
@@ -885,17 +879,11 @@ export async function userRoutes(app: Express): Promise<void> {
       const now = new Date();
       await UserModel.updateOne({ id: user.id }, { lastLogin: now, lastActive: now });
 
-      const tokenPayload = {
-        userId: user.id,
-        username: user.username,
-      };
-
-      const newAccessToken = generateUserAccessToken(tokenPayload);
-      const newRefreshToken = generateUserRefreshToken(tokenPayload);
-
-      await createSession("user", user.id, {
-        username: user.username,
-      });
+      const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+        await renewUserAuthTokens(
+          { id: user.id, username: user.username },
+          decoded.sessionId,
+        );
 
       // 모바일 앱용: JSON으로 토큰 반환 (쿠키 사용 안함)
       return res.json({

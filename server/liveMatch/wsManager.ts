@@ -4,6 +4,7 @@ import { verifyUserAccessToken, verifyAccessToken } from "../utils/jwt";
 import { parse as parseCookie } from "cookie";
 import { getMatchInfo } from "./predictionStorage";
 import { createSession, hasActiveSession, refreshSession } from "../sessionManager";
+import { assertUserSession } from "../userAuthSession";
 import type { UserType } from "../sessionValidator";
 
 interface WSClient {
@@ -105,6 +106,12 @@ class WSManager {
             const decoded = verifyUserAccessToken(token);
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             if (decoded.userId && typeof decoded.userId === "string" && uuidRegex.test(decoded.userId)) {
+              const sessionCheck = await assertUserSession(decoded.userId, decoded.sessionId);
+              if (sessionCheck === "replaced") {
+                console.log(`[WS] User session replaced — rejecting ${decoded.userId}`);
+                ws.close(4008, "Session replaced");
+                return;
+              }
               role = "user";
               subjectId = decoded.userId;
               authenticated = true;
@@ -299,12 +306,20 @@ class WSManager {
     const exists = await hasActiveSession(sessionRole, subjectId);
     if (exists) {
       await refreshSession(sessionRole, subjectId);
-    } else {
-      await createSession(sessionRole, subjectId, {
-        restoredByWs: true,
-      });
-      console.log(`[WS] Redis 세션 복구 (${role}:${subjectId})`);
+      return;
     }
+
+    // 유저 세션은 로그인 시 sessionId와 함께 발급됨.
+    // WS에서 sessionId 없이 복구하면 단일 기기 세션이 깨지므로 매니저만 복구.
+    if (sessionRole === "user") {
+      console.log(`[WS] 유저 Redis 세션 없음 — WS 복구 생략 (${subjectId})`);
+      return;
+    }
+
+    await createSession(sessionRole, subjectId, {
+      restoredByWs: true,
+    });
+    console.log(`[WS] Redis 세션 복구 (${role}:${subjectId})`);
   }
 
   private sessionRefreshTimestamps: Map<string, number> = new Map();
