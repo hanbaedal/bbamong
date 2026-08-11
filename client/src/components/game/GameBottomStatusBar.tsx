@@ -36,6 +36,8 @@ export default function GameBottomStatusBar({
   }, []);
 
   const displayName = greetingName(isGuest, user?.name);
+  const points = user?.points ?? 0;
+  const pointsText = points.toLocaleString("ko-KR");
   const showSideBet = sideBetSummary != null;
   const canEdit = Boolean(sideBetSummary?.canEdit);
 
@@ -84,12 +86,13 @@ export default function GameBottomStatusBar({
         ) : null}
       </div>
 
-      <p
-        className="shrink-0 text-[10px] sm:text-xs text-white font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]"
-        data-testid="game-bottom-greeting"
+      <div
+        className="flex shrink-0 flex-col items-center text-[10px] sm:text-xs text-white font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]"
+        data-testid="game-bottom-user-block"
       >
-        안녕하세요. {displayName}님
-      </p>
+        <p data-testid="game-bottom-greeting">안녕하세요. {displayName}님</p>
+        <p data-testid="game-bottom-points">보유포인트 : {pointsText}</p>
+      </div>
     </div>
   );
 }

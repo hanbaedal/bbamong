@@ -44,6 +44,7 @@ import { keepAliveUserSession } from "@/lib/queryClient";
 import { flushDeferredSessionEvents, setGameSessionProtected } from "@/lib/sessionGuard";
 import { lockGameLandscape } from "@/lib/gameOrientation";
 import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
+import { refreshGameKeepAwake, setGameKeepAwake } from "@/lib/screenWakeLock";
 import { handleGameMenuSelect } from "@/lib/gameMenuNavigation";
 import { GAME_PATH, navigateToHome } from "@/lib/appNavigation";
 import {
@@ -127,12 +128,14 @@ export default function PredictionPage() {
 
   useEffect(() => {
     void setGameImmersiveMode(true);
+    void setGameKeepAwake(true);
 
     let resumeHandle: { remove: () => void } | null = null;
     if (Capacitor.isNativePlatform()) {
       void App.addListener("appStateChange", ({ isActive }) => {
         if (isActive && window.location.pathname === GAME_PATH) {
           void setGameImmersiveMode(true);
+          void refreshGameKeepAwake();
           void keepAliveUserSession();
         }
       }).then((handle) => {
@@ -143,6 +146,7 @@ export default function PredictionPage() {
     return () => {
       resumeHandle?.remove();
       void setGameImmersiveMode(false);
+      void setGameKeepAwake(false);
     };
   }, []);
 

@@ -122,6 +122,38 @@ export function getRunPathImagePoints(target: PredictionOption): ImagePoint[] {
   }
 }
 
+/**
+ * 주루 진행률(0~1)에서 현재 구간이 오른쪽으로 가는지.
+ * 스프라이트 기본 방향이 우측이므로 true면 scaleX(1), false면 scaleX(-1).
+ */
+export function getRunFacingRight(points: ImagePoint[], progress01: number): boolean {
+  if (points.length < 2) return true;
+  const segments = points.length - 1;
+  const t = Math.min(0.999, Math.max(0, progress01)) * segments;
+  let i = Math.min(segments - 1, Math.floor(t));
+  let dx = points[i + 1].x - points[i].x;
+  // 거의 수직 구간이면 앞/뒤 수평 구간을 참고
+  if (Math.abs(dx) < 0.02) {
+    for (let j = i + 1; j < segments; j++) {
+      const ndx = points[j + 1].x - points[j].x;
+      if (Math.abs(ndx) >= 0.02) {
+        dx = ndx;
+        break;
+      }
+    }
+    if (Math.abs(dx) < 0.02) {
+      for (let j = i - 1; j >= 0; j--) {
+        const pdx = points[j + 1].x - points[j].x;
+        if (Math.abs(pdx) >= 0.02) {
+          dx = pdx;
+          break;
+        }
+      }
+    }
+  }
+  return dx >= 0;
+}
+
 export function pathToCssKeyframesPx(
   name: string,
   points: ImagePoint[],
