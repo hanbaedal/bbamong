@@ -162,24 +162,8 @@ router.get("/predictions/:matchId/check", userAuthMiddleware, async (req: any, r
       });
     }
 
-    // No prediction found for the current round — find the latest resolved prediction
-    // across all rounds in case multiple rounds advanced while the user was away.
-    const { getLatestResolvedPredictionForMatch } = await import("./predictionStorage");
-    const resolvedPrediction = await getLatestResolvedPredictionForMatch(userId, matchId);
-    if (resolvedPrediction) {
-      return res.json({
-        hasPrediction: true,
-        predictionId: resolvedPrediction.id,
-        prediction: resolvedPrediction.prediction,
-        amount: resolvedPrediction.amount,
-        roundNumber: resolvedPrediction.roundNumber,
-        status: resolvedPrediction.status,
-        wonAmount: resolvedPrediction.wonAmount ?? 0,
-        predictionEnabled: match.predictionEnabled,
-        fromPreviousRound: true,
-      });
-    }
-
+    // No prediction for current round — do not replay previous-round success/fail
+    // (that caused phantom result UI after reconnect / round_next).
     return res.json({
       hasPrediction: false,
       roundNumber: currentRound,

@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { MatchModel, StadiumModel, PredictionModel, getNextSequence } from "../UserStorage/db";
+import { MatchModel, StadiumModel, PredictionModel, RoundStatisticsModel, getNextSequence } from "../UserStorage/db";
 import { finalizeMatchEnd } from "../liveMatch/sideBetStorage";
 import { broadcastManager } from "../liveMatch/broadcastManager";
 import { addKstDays, getKstDateString, getKstDayRange } from "../utils/dateUtils";
@@ -376,6 +376,8 @@ export async function syncTodayGamesFromApiSports(
       isGameFinished(scoreboard.statusShort) ||
       isGamePostponedOrCancelled(scoreboard.statusShort) ||
       !existing?.liveScoreboard ||
+      typeof existing.liveScoreboard.homeScore !== "number" ||
+      typeof existing.liveScoreboard.awayScore !== "number" ||
       existing.matchStatus !== "ongoing";
 
     const payload = {
@@ -644,22 +646,15 @@ async function updateMatchStatusFromApiGame(
   const scoreboard = parseLiveScoreboard(game);
   const previousStatus = match.matchStatus ?? "scheduled";
   const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, scoreboard, match.startTime);
-  const prevBoard = (match.liveScoreboard ?? {}) as LiveScoreboard;
 
   await MatchModel.updateOne(
     { id: match.id },
     {
       matchStatus: nextStatus,
-      liveScoreboard: {
-        ...prevBoard,
-        statusShort: scoreboard.statusShort,
-        statusLong: scoreboard.statusLong,
-        inning: scoreboard.inning,
-        inningHalf: scoreboard.inningHalf,
-        inningLabel: scoreboard.inningLabel,
-        syncedAt: scoreboard.syncedAt,
-      },
+      // 상태만 갱신해도 점수·이닝은 반드시 포함 (부분 merge 시 총점이 비는 문제 방지)
+      liveScoreboard: scoreboard,
       ...apiSportsTeamsUpdate(game, scoreboard),
+      lastInningKey: buildInningKey(scoreboard),
     },
   );
 
@@ -726,6 +721,7 @@ export async function refreshMatchFromApiAtStart(matchId: string): Promise<void>
       matchId,
       {
         id: matchId,
+        registrationOrder: match.registrationOrder,
         apiSportsGameId: match.apiSportsGameId,
         startTime: match.startTime,
         gameInning: match.gameInning,
@@ -739,6 +735,7 @@ export async function refreshMatchFromApiAtStart(matchId: string): Promise<void>
 
     await refreshMatchHeadToHeadIfDue(matchId, {
       id: matchId,
+      registrationOrder: match.registrationOrder,
       startTime: match.startTime,
       apiSportsAwayTeamId: game.teams.away.id,
       apiSportsHomeTeamId: game.teams.home.id,
@@ -772,13 +769,33 @@ export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
     const nextStatus = await updateMatchScoreFromApiGame(match, game);
 
     if (nextStatus === "completed" && previousStatus !== "completed") {
-      const { match } = await finalizeMatchEnd(matchId);
+      if (match.predictionEnabled) {
+        console.log(
+          `[MatchMgmtSchedule] defer end complete ${match.name} (${matchId}) — prediction still open`,
+        );
+        return;
+      }
+      const openRound = await RoundStatisticsModel.findOne({
+        matchId,
+        roundNumber: match.currentRound,
+        isPredictionStarted: true,
+        isResultSent: false,
+      })
+        .select("id")
+        .lean();
+      if (openRound) {
+        console.log(
+          `[MatchMgmtSchedule] defer end complete ${match.name} (${matchId}) — round result not sent`,
+        );
+        return;
+      }
+      const { match: ended } = await finalizeMatchEnd(matchId);
       broadcastManager.sendToMatch(matchId, "end", {
         matchId,
         message: "경기가 종료되었습니다.",
-        matchStatus: match.matchStatus,
+        matchStatus: ended.matchStatus,
       });
-      console.log(`[MatchMgmtSchedule] end ${match.name} (${matchId}) → completed (score updated)`);
+      console.log(`[MatchMgmtSchedule] end ${ended.name} (${matchId}) → completed (score updated)`);
       return;
     }
 
@@ -892,6 +909,7 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
       matchId,
       {
         id: matchId,
+        registrationOrder: match.registrationOrder,
         apiSportsGameId: match.apiSportsGameId,
         startTime: match.startTime,
         gameInning: match.gameInning,
@@ -907,6 +925,7 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
 
     void refreshMatchHeadToHeadIfDue(matchId, {
       id: matchId,
+      registrationOrder: match.registrationOrder,
       startTime: match.startTime,
       apiSportsAwayTeamId: game.teams.away.id,
       apiSportsHomeTeamId: game.teams.home.id,
@@ -916,13 +935,35 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
     });
 
     if (nextStatus === "completed" && previousStatus !== "completed") {
-      const { match } = await finalizeMatchEnd(matchId);
+      // 운영자 예측 라운드가 열려 있으면 종료를 미룸 (점수만 갱신된 상태 유지)
+      if (match.predictionEnabled) {
+        console.log(
+          `[LiveScoreSync] defer complete ${match.name} (${matchId}) — prediction still open`,
+        );
+        return false;
+      }
+      const openRound = await RoundStatisticsModel.findOne({
+        matchId,
+        roundNumber: match.currentRound,
+        isPredictionStarted: true,
+        isResultSent: false,
+      })
+        .select("id")
+        .lean();
+      if (openRound) {
+        console.log(
+          `[LiveScoreSync] defer complete ${match.name} (${matchId}) — round result not sent`,
+        );
+        return false;
+      }
+
+      const { match: ended } = await finalizeMatchEnd(matchId);
       broadcastManager.sendToMatch(matchId, "end", {
         matchId,
         message: "경기가 종료되었습니다.",
-        matchStatus: match.matchStatus,
+        matchStatus: ended.matchStatus,
       });
-      console.log(`[LiveScoreSync] ${match.name} (${matchId}) → completed`);
+      console.log(`[LiveScoreSync] ${ended.name} (${matchId}) → completed`);
       return true;
     }
 

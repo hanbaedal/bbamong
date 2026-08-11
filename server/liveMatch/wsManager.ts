@@ -191,28 +191,8 @@ class WSManager {
                 },
               }));
             } else if (!existingPrediction) {
-              // 현재 라운드에 예측이 없는 경우 — 바로 직전 라운드(currentRound-1)이고
-              // 아직 새 예측이 시작되지 않은 상황일 때만 이전 결과 복원 (앱 재시작 시)
-              const { getLatestResolvedPredictionForMatch } = await import("./predictionStorage");
-              const resolvedPrediction = await getLatestResolvedPredictionForMatch(subjectId, matchId);
-              if (
-                resolvedPrediction &&
-                resolvedPrediction.roundNumber === currentRound - 1 &&
-                !predictionEnabled
-              ) {
-                ws.send(JSON.stringify({
-                  type: "user_already_predicted",
-                  data: {
-                    prediction: resolvedPrediction.prediction,
-                    predictionId: resolvedPrediction.id,
-                    round: resolvedPrediction.roundNumber,
-                    status: resolvedPrediction.status,
-                    wonAmount: resolvedPrediction.wonAmount ?? 0,
-                    amount: resolvedPrediction.amount ?? 0,
-                    fromPreviousRound: true,
-                  },
-                }));
-              }
+              // 이전 라운드 성공/실패는 재전송하지 않음 — round_next 이후 유령 결과 UI 방지
+              // (현재 라운드 pending만 복원)
             }
           } catch (e) {
             console.error("[WS] Error checking user prediction:", e);
