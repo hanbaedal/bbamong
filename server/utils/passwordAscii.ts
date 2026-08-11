@@ -1,10 +1,15 @@
 import bcrypt from "bcrypt";
 
-/** 비밀번호를 MongoDB 저장용 ASCII 코드 문자열로 변환 (예: "ab" → "97,98") */
+/**
+ * 비밀번호 저장값 정규화.
+ * 입력한 비밀번호를 그대로 저장한다 (ASCII 코드 변환 없음).
+ * 레거시 ASCII 코드 문자열은 verify/decode 경로에서만 처리한다.
+ */
 export function encodePasswordAscii(plain: string): string {
-  return [...plain].map((ch) => ch.charCodeAt(0)).join(",");
+  return plain;
 }
 
+/** 레거시: "97,98" 형태인지 여부 */
 export function isAsciiEncodedPassword(value: string): boolean {
   const trimmed = value.trim();
   return trimmed.length > 0 && /^\d+(,\d+)*$/.test(trimmed);
@@ -20,7 +25,7 @@ export function decodePasswordAscii(value: string): string {
     .join("");
 }
 
-/** 저장된 비밀번호(bcrypt / ASCII 코드 / 평문)와 입력값 비교 — 로그인·본인확인 공통 */
+/** 저장된 비밀번호(bcrypt / 레거시 ASCII 코드 / 평문)와 입력값 비교 — 로그인·본인확인 공통 */
 export async function verifyStoredPassword(stored: string, input: string): Promise<boolean> {
   if (
     stored.startsWith("$2b$") ||

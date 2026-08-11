@@ -14,6 +14,7 @@ import path from "path";
 import { startInactiveLogoutBatch } from "./inactiveLogoutBatch";
 import { startMatchAutoCloseBatch } from "./matchAutoCloseBatch";
 import { startSuspendedUserCleanupBatch } from "./suspendedUserCleanupBatch";
+import { startGuestCleanupBatch } from "./guestCleanupBatch";
 import { getRedisClient } from "./redis";
 import { connectMongoDB } from "./UserStorage/db";
 import { ensureSuperAdmin } from "./bootstrapSuperAdmin";
@@ -252,6 +253,7 @@ app.use((req, res, next) => {
     startInactiveLogoutBatch();
     startMatchAutoCloseBatch();
     startSuspendedUserCleanupBatch();
+    startGuestCleanupBatch();
     startManagerDailyPasswordBatch();
     startMatchManagementSchedule();
     
