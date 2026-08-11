@@ -105,7 +105,6 @@ export function useLandscapePredictionFlow(
     startAdSession,
     stopAdSession,
     showRewardedAd,
-    showBannerAd,
     hideBannerAd,
     adSessionState,
     isNativePlatform,
