@@ -596,8 +596,11 @@ export default function PredictionPage() {
         eventCountdown={isLivePlay ? flow.eventCountdown : null}
         eventSubtitle={isLivePlay ? flow.eventSubtitle : undefined}
         showAdOverlay={isLivePlay && flow.showAdOverlay}
+        adOverlayCompleteSeconds={flow.adOverlayCompleteSeconds}
         adSessionState={flow.adSessionState}
         isNativePlatform={flow.isNativePlatform}
+        onAdOverlayDismiss={flow.handleAdOverlayDismiss}
+        onAdOverlayComplete={() => void flow.handleAdOverlayComplete()}
         onMatchTitleClick={() => setMatchModalOpen(true)}
         onStadiumNameClick={() => setStadiumModalOpen(true)}
         matchSelectEnabled={canSelectMatch}

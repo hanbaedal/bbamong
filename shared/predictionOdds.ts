@@ -13,7 +13,10 @@ export type BetAmountOption = (typeof BET_AMOUNT_OPTIONS)[number];
 
 export const DEFAULT_BET_AMOUNT: BetAmountOption = 100;
 export const AD_REWARD_POINTS = 500;
+/** 전면/오버레이 광고: 이 시간 이후 사용자가 X로 끌 수 있음 (보상 없음) */
 export const AD_EARLY_DISMISS_SECONDS = 5;
+/** 웹·오버레이 폴백: 이 시간까지 X 없이 시청하면 보상 대상 (초) */
+export const AD_OVERLAY_COMPLETE_SECONDS = 15;
 
 export function isValidBetAmount(amount: number): amount is BetAmountOption {
   return (BET_AMOUNT_OPTIONS as readonly number[]).includes(amount);

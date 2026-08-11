@@ -171,12 +171,18 @@ const BANNER_AUTO_HIDE_MS = 8_000;
 /** 연속 banner_ad_show 무시 간격 */
 const BANNER_SHOW_COOLDOWN_MS = 60_000;
 
+export type AdSessionResult = {
+  dismissedEarly: boolean;
+  /** interstitial: AdMob 전면 시청 후 종료 / overlay: 웹·로드실패 폴백 */
+  mode: "interstitial" | "overlay";
+};
+
 interface UseAdMobResult {
   isAdReady: boolean;
   isAdShowing: boolean;
   adSessionState: AdSessionState;
   isBannerVisible: boolean;
-  startAdSession: () => Promise<{ dismissedEarly: boolean }>;
+  startAdSession: () => Promise<AdSessionResult>;
   stopAdSession: () => void;
   preloadAd: () => Promise<void>;
   showBannerAd: () => Promise<void>;
@@ -203,6 +209,11 @@ export function useAdMob(): UseAdMobResult {
   const bannerHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastBannerShownAtRef = useRef(0);
   const isBannerVisibleRef = useRef(false);
+  const interstitialDismissResolverRef = useRef<((result: { dismissedEarly: boolean }) => void) | null>(
+    null,
+  );
+  /** showInterstitial 이후 FailedToShow 등으로 오버레이 폴백이 된 경우 */
+  const interstitialBecameOverlayRef = useRef(false);
 
   // Pending resolvers for waitForAdReady()
   const adReadyResolversRef = useRef<Array<(ready: boolean) => void>>([]);
@@ -213,6 +224,18 @@ export function useAdMob(): UseAdMobResult {
     for (const resolve of resolvers) {
       resolve(ready);
     }
+  }, []);
+
+  const resolveInterstitialDismiss = useCallback((result: { dismissedEarly: boolean }) => {
+    const resolve = interstitialDismissResolverRef.current;
+    interstitialDismissResolverRef.current = null;
+    resolve?.(result);
+  }, []);
+
+  const waitForInterstitialDismiss = useCallback((): Promise<{ dismissedEarly: boolean }> => {
+    return new Promise((resolve) => {
+      interstitialDismissResolverRef.current = resolve;
+    });
   }, []);
 
   const initializeAdMob = useCallback(async () => {
@@ -325,7 +348,9 @@ export function useAdMob(): UseAdMobResult {
     setAdSessionState("idle");
     setIsAdShowing(false);
     resolveAdReady(false);
-  }, [resolveAdReady]);
+    // 전면 대기 중이면 조기 종료로 풀어 보상 경로를 막음
+    resolveInterstitialDismiss({ dismissedEarly: true });
+  }, [resolveAdReady, resolveInterstitialDismiss]);
 
   const clearBannerHideTimer = useCallback(() => {
     if (bannerHideTimerRef.current) {
@@ -334,11 +359,11 @@ export function useAdMob(): UseAdMobResult {
     }
   }, []);
 
-  const startAdSession = useCallback(async (): Promise<{ dismissedEarly: boolean }> => {
+  const startAdSession = useCallback(async (): Promise<AdSessionResult> => {
     if (!isNativePlatform) {
       console.log("[AdMob] Not native platform, overlay mode");
       setAdSessionState("overlay");
-      return { dismissedEarly: false };
+      return { dismissedEarly: false, mode: "overlay" };
     }
 
     console.log("[AdMob] Starting ad session");
@@ -367,26 +392,40 @@ export function useAdMob(): UseAdMobResult {
 
     if (!shouldContinueAds.current) {
       console.log("[AdMob] Session cancelled before prepare");
-      return { dismissedEarly: true };
+      return { dismissedEarly: true, mode: "interstitial" };
     }
 
-    if (isAdReadyRef.current) {
-      console.log("[AdMob] Ad already ready, showing immediately");
+    const showAndWaitDismiss = async (): Promise<AdSessionResult> => {
+      interstitialBecameOverlayRef.current = false;
       setAdSessionState("showing");
       interstitialShowedAtRef.current = Date.now();
       const adShown = await showInterstitialAd();
-      if (!adShown && shouldContinueAds.current) {
-        console.log("[AdMob] Failed to show pre-loaded ad, switching to overlay");
-        setAdSessionState("overlay");
+      if (!shouldContinueAds.current) {
+        return { dismissedEarly: true, mode: "interstitial" };
       }
-      return { dismissedEarly: false };
+      if (!adShown || interstitialBecameOverlayRef.current) {
+        console.log("[AdMob] Failed to show ad, switching to overlay");
+        setAdSessionState("overlay");
+        return { dismissedEarly: false, mode: "overlay" };
+      }
+      const dismissResult = await waitForInterstitialDismiss();
+      if (interstitialBecameOverlayRef.current) {
+        setAdSessionState("overlay");
+        return { dismissedEarly: false, mode: "overlay" };
+      }
+      return { ...dismissResult, mode: "interstitial" };
+    };
+
+    if (isAdReadyRef.current) {
+      console.log("[AdMob] Ad already ready, showing immediately");
+      return showAndWaitDismiss();
     }
 
     await prepareInterstitialAd();
 
     if (!shouldContinueAds.current) {
       console.log("[AdMob] Session cancelled during preparation");
-      return { dismissedEarly: true };
+      return { dismissedEarly: true, mode: "interstitial" };
     }
 
     console.log("[AdMob] Waiting for ad to load (max 8s)...");
@@ -394,29 +433,23 @@ export function useAdMob(): UseAdMobResult {
 
     if (!shouldContinueAds.current) {
       console.log("[AdMob] Session cancelled while waiting for load");
-      return { dismissedEarly: true };
+      return { dismissedEarly: true, mode: "interstitial" };
     }
 
     if (!ready) {
       console.log("[AdMob] Ad not ready after timeout, switching to overlay");
       setAdSessionState("overlay");
-      return { dismissedEarly: false };
+      return { dismissedEarly: false, mode: "overlay" };
     }
 
-    setAdSessionState("showing");
-    interstitialShowedAtRef.current = Date.now();
-    const adShown = await showInterstitialAd();
-    if (!adShown && shouldContinueAds.current) {
-      console.log("[AdMob] Failed to show ad, switching to overlay");
-      setAdSessionState("overlay");
-    }
-    return { dismissedEarly: false };
+    return showAndWaitDismiss();
   }, [
     isNativePlatform,
     initializeAdMob,
     prepareInterstitialAd,
     showInterstitialAd,
     waitForAdReady,
+    waitForInterstitialDismiss,
     clearBannerHideTimer,
   ]);
 
@@ -426,7 +459,7 @@ export function useAdMob(): UseAdMobResult {
     };
   }, [clearBannerHideTimer]);
 
-  const handleAdDismissed = useCallback(async () => {
+  const handleAdDismissed = useCallback(() => {
     console.log("[AdMob] Interstitial ad dismissed");
     setIsAdShowing(false);
     isAdReadyRef.current = false;
@@ -440,11 +473,14 @@ export function useAdMob(): UseAdMobResult {
 
     if (!shouldContinueAds.current) {
       setAdSessionState("idle");
+      resolveInterstitialDismiss({ dismissedEarly: true });
       return;
     }
 
-    setAdSessionState("overlay");
-  }, []);
+    // 보상형 광고로 이어질 수 있으므로 오버레이로 붙잡지 않음
+    setAdSessionState("idle");
+    resolveInterstitialDismiss({ dismissedEarly });
+  }, [resolveInterstitialDismiss]);
 
   useEffect(() => {
     if (!isNativePlatform) return;
@@ -497,9 +533,11 @@ export function useAdMob(): UseAdMobResult {
       (error) => {
         console.error("[AdMob] Failed to show interstitial:", error);
         setIsAdShowing(false);
+        interstitialBecameOverlayRef.current = true;
         if (shouldContinueAds.current) {
           setAdSessionState("overlay");
         }
+        resolveInterstitialDismiss({ dismissedEarly: false });
       }
     );
 
@@ -515,7 +553,7 @@ export function useAdMob(): UseAdMobResult {
       dismissedListener.then((l) => l.remove());
       failedToShowListener.then((l) => l.remove());
     };
-  }, [prepareInterstitialAd, handleAdDismissed, resolveAdReady]);
+  }, [prepareInterstitialAd, handleAdDismissed, resolveAdReady, resolveInterstitialDismiss]);
 
   const hideBannerAd = useCallback(async () => {
     clearBannerHideTimer();
