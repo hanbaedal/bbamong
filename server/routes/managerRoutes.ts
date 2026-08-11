@@ -961,7 +961,8 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
 
-      const { match: updatedMatch, predictionAutoStopped } = await advancePitcherChange(id);
+      const { match: updatedMatch, predictionAutoStopped, skippedResult } =
+        await advancePitcherChange(id);
       const overallStats = await getMatchOverallStatistics(id);
       const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
@@ -989,8 +990,11 @@ export async function managerRoutes(app: Express): Promise<void> {
         predictionEnabled: updatedMatch.predictionEnabled,
         overallStats,
         advanceType: "pitcher_change",
+        skippedResult,
         gamePhase,
-        message: `투수 교체 — ${gamePhase.displayLabel}`,
+        message: skippedResult
+          ? `투수 교체(결과 생략·환불) — ${gamePhase.displayLabel}`
+          : `투수 교체 — ${gamePhase.displayLabel}`,
       });
 
       broadcastManager.sendToMatch(id, "banner_ad_show", {
@@ -1000,10 +1004,13 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       return res.json({
         success: true,
-        message: "투수 교체가 반영되었습니다.",
+        message: skippedResult
+          ? "투수 교체가 반영되었습니다. (미정산 예측은 환불)"
+          : "투수 교체가 반영되었습니다.",
         currentRound: updatedMatch.currentRound,
         gamePhase,
         predictionAutoStopped,
+        skippedResult,
       });
     } catch (error: unknown) {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
