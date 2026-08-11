@@ -479,20 +479,53 @@ export function useAdMob(): UseAdMobResult {
       setIsBannerVisible(true);
       return;
     }
+    await loadRuntimeAdConfig();
     const adId = getBannerAdId();
     if (!adId) {
       console.warn("[AdMob] 배너 ID 없음 — 배너를 표시하지 않습니다.");
+      setIsBannerVisible(false);
       return;
     }
     if (!isInitialized.current) await initializeAdMob();
-    const options: BannerAdOptions = {
-      adId,
-      adSize: BannerAdSize.ADAPTIVE_BANNER,
-      position: BannerAdPosition.BOTTOM_CENTER,
-      isTesting: IS_TESTING,
-    };
-    await AdMob.showBanner(options);
-    setIsBannerVisible(true);
+
+    try {
+      // 이전 배너/immersive 잔여 상태 정리 후 재표시 (기기별 미표시 완화)
+      try {
+        await AdMob.hideBanner();
+      } catch {
+        /* ignore */
+      }
+      try {
+        await AdMob.removeBanner();
+      } catch {
+        /* ignore */
+      }
+
+      const failedListener = AdMob.addListener(BannerAdPluginEvents.FailedToLoad, (info) => {
+        console.warn("[AdMob] Banner FailedToLoad:", info);
+        setIsBannerVisible(false);
+        void failedListener.then((l) => l.remove());
+      });
+      const loadedListener = AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
+        setIsBannerVisible(true);
+        void loadedListener.then((l) => l.remove());
+        void failedListener.then((l) => l.remove());
+      });
+
+      const options: BannerAdOptions = {
+        adId,
+        adSize: BannerAdSize.ADAPTIVE_BANNER,
+        position: BannerAdPosition.BOTTOM_CENTER,
+        // immersive 기기에서 하단 inset 차이로 배너가 잘리는 경우 완화
+        margin: 0,
+        isTesting: IS_TESTING,
+      };
+      await AdMob.showBanner(options);
+      setIsBannerVisible(true);
+    } catch (error) {
+      console.warn("[AdMob] showBanner failed:", error);
+      setIsBannerVisible(false);
+    }
   }, [isNativePlatform, initializeAdMob]);
 
   const hideBannerAd = useCallback(async () => {
@@ -501,6 +534,11 @@ export function useAdMob(): UseAdMobResult {
         await AdMob.hideBanner();
       } catch (error) {
         console.warn("[AdMob] hideBanner failed:", error);
+      }
+      try {
+        await AdMob.removeBanner();
+      } catch {
+        /* ignore */
       }
     }
     setIsBannerVisible(false);

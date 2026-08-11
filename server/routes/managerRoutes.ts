@@ -649,6 +649,10 @@ export async function managerRoutes(app: Express): Promise<void> {
       // 대기 중인 광고 타이머 취소 및 광고 무조건 중지
       broadcastManager.clearAdTimer(id);
       broadcastManager.setAdPlaying(id, false);
+      broadcastManager.sendToMatch(id, "banner_ad_hide", {
+        matchId: id,
+        message: "배너 광고를 숨깁니다.",
+      });
       broadcastManager.sendToMatch(id, "ad_stopped", {
         matchId: id,
         message: "광고가 중지되었습니다."

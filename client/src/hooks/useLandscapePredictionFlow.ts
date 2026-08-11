@@ -457,6 +457,7 @@ export function useLandscapePredictionFlow(
 
     onPredictionStarted: useCallback(() => {
       void speakGameVoice(USER_GAME_VOICE.predictionStarted);
+      void hideBannerAd();
       if (waitingResultRef.current || activeBetRef.current) {
         setScreenPhase("wait_result");
         return;
@@ -466,7 +467,7 @@ export function useLandscapePredictionFlow(
       setSelectedPrediction(null);
       setScreenPhase("picking");
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, []),
+    }, [hideBannerAd]),
 
     onPredictionEnded: useCallback(() => {
       void speakGameVoice(USER_GAME_VOICE.predictionStopped);
@@ -488,19 +489,22 @@ export function useLandscapePredictionFlow(
       amount?: number;
       status?: string;
       wonAmount?: number;
+      fromPreviousRound?: boolean;
     }) => {
+      // 이전 라운드·이미 확인한 결과는 다시 띄우지 않음
+      if (
+        data.fromPreviousRound ||
+        (data.predictionId != null && data.predictionId === acknowledgedResultIdRef.current)
+      ) {
+        return;
+      }
+
       waitingResultRef.current = true;
       setSelectedPrediction(data.prediction as PredictionOption);
       setLastBetAmount(data.amount ?? DEFAULT_BET_AMOUNT);
 
       if (data.status === "success" || data.status === "fail") {
         if (data.predictionId != null) lastResultPredictionIdRef.current = data.predictionId;
-        if (
-          data.predictionId != null &&
-          data.predictionId === acknowledgedResultIdRef.current
-        ) {
-          return;
-        }
         resultShownRef.current = true;
         setPredictionResult(data.status);
         setLastWonAmount(data.wonAmount ?? 0);
@@ -529,18 +533,31 @@ export function useLandscapePredictionFlow(
     }) => {
       if (data.gamePhase) onGamePhaseRef.current?.(data.gamePhase);
 
+      const showingResult =
+        resultShownRef.current ||
+        screenPhaseRef.current === "success_running" ||
+        screenPhaseRef.current === "success_celebrate" ||
+        screenPhaseRef.current === "fail";
+
       const hadPendingBet =
         waitingResultRef.current ||
         activeBetRef.current != null ||
         screenPhaseRef.current === "wait_result" ||
-        screenPhaseRef.current === "success_running" ||
-        screenPhaseRef.current === "success_celebrate";
+        showingResult;
 
-      if (data.skippedResult && hadPendingBet) {
+      if (data.skippedResult && hadPendingBet && !showingResult) {
         toast({
           description: "이번 라운드 결과가 생략되었습니다.",
           duration: 4000,
         });
+      }
+
+      setPredictionEnabled(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
+
+      // 결과 UI 표시 중이면 자동 dismiss가 끝날 때까지 유지 (유령 성공/실패·화면 깜빡임 방지)
+      if (showingResult) {
+        return;
       }
 
       acknowledgedResultIdRef.current = null;
@@ -557,8 +574,6 @@ export function useLandscapePredictionFlow(
       setShowConfirmModal(false);
       setLastWonAmount(0);
       setLastBetAmount(0);
-      setPredictionEnabled(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
 
       const advanceType = data.advanceType ?? "next_batter";
       if (advanceType === "pitcher_change") {
@@ -592,6 +607,7 @@ export function useLandscapePredictionFlow(
     onAdStarted: useCallback(async (data: { matchId?: string }) => {
       if (resultShownRef.current) return;
 
+      void hideBannerAd();
       adSessionActiveRef.current = true;
       setShowBetModal(false);
       setShowConfirmModal(false);
@@ -636,6 +652,7 @@ export function useLandscapePredictionFlow(
       startAdSession,
       showRewardedAd,
       finishAdAndWaitStart,
+      hideBannerAd,
       user,
       setUser,
       toast,
