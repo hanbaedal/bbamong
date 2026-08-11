@@ -5,12 +5,14 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
     private boolean immersiveMode = false;
+    private boolean keepScreenOn = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -25,6 +27,7 @@ public class MainActivity extends BridgeActivity {
         if (immersiveMode) {
             applyImmersiveMode();
         }
+        applyKeepScreenOn();
     }
 
     @Override
@@ -38,6 +41,22 @@ public class MainActivity extends BridgeActivity {
     public void setImmersiveMode(boolean enabled) {
         immersiveMode = enabled;
         runOnUiThread(this::applyImmersiveMode);
+    }
+
+    public void setKeepScreenOn(boolean enabled) {
+        keepScreenOn = enabled;
+        runOnUiThread(this::applyKeepScreenOn);
+    }
+
+    private void applyKeepScreenOn() {
+        if (getWindow() == null) {
+            return;
+        }
+        if (keepScreenOn) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
     }
 
     private void applyImmersiveMode() {

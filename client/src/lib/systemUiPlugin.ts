@@ -2,6 +2,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 
 interface SystemUiPlugin {
   setImmersive(options: { enabled: boolean }): Promise<void>;
+  setKeepScreenOn(options: { enabled: boolean }): Promise<void>;
 }
 
 const SystemUi = registerPlugin<SystemUiPlugin>("SystemUi", {
@@ -9,6 +10,9 @@ const SystemUi = registerPlugin<SystemUiPlugin>("SystemUi", {
     Promise.resolve({
       setImmersive: async () => {
         /* 웹 — OS 내비게이션 바 없음 */
+      },
+      setKeepScreenOn: async () => {
+        /* 웹 — Screen Wake Lock API는 screenWakeLock.ts에서 처리 */
       },
     }),
 });
@@ -22,5 +26,17 @@ export async function setGameImmersiveMode(enabled: boolean): Promise<void> {
     await SystemUi.setImmersive({ enabled });
   } catch (error) {
     console.warn("[SystemUi] setImmersive failed:", error);
+  }
+}
+
+/** Android FLAG_KEEP_SCREEN_ON */
+export async function setNativeKeepScreenOn(enabled: boolean): Promise<void> {
+  if (!Capacitor.isNativePlatform()) {
+    return;
+  }
+  try {
+    await SystemUi.setKeepScreenOn({ enabled });
+  } catch (error) {
+    console.warn("[SystemUi] setKeepScreenOn failed:", error);
   }
 }
