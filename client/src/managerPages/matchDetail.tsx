@@ -1097,7 +1097,10 @@ export default function MatchDetailPage() {
               className="manager-match-time-box text-[#1A6DFF]"
               data-testid="text-prediction-start-time"
             >
-              {match?.predictionStartTime ? formatTime(match.predictionStartTime) : "-"}
+              {/* 경기전(scheduled)에는 잔여 RoundStatistics 시각을 숨김 */}
+              {isMatchLive && match?.predictionStartTime
+                ? formatTime(match.predictionStartTime)
+                : "-"}
             </div>
           </div>
 
@@ -1129,7 +1132,9 @@ export default function MatchDetailPage() {
               className="manager-match-time-box text-[#E11936]"
               data-testid="text-prediction-stop-time"
             >
-              {match?.predictionStopTime ? formatTime(match.predictionStopTime) : "-"}
+              {isMatchLive && match?.predictionStopTime
+                ? formatTime(match.predictionStopTime)
+                : "-"}
             </div>
           </div>
         </div>
