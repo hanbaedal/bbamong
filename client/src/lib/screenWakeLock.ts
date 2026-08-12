@@ -33,13 +33,26 @@ async function releaseWebWakeLock(): Promise<void> {
   webWakeLock = null;
 }
 
+let visibilityListenerBound = false;
+
+function ensureVisibilityRefreshListener(): void {
+  if (visibilityListenerBound || typeof document === "undefined") return;
+  visibilityListenerBound = true;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || !wantKeepAwake) return;
+    void refreshGameKeepAwake();
+  });
+}
+
 /**
- * 예측 게임·운영자 경기 화면 — OS 절전으로 화면이 꺼지지 않도록 유지.
- * (Android FLAG_KEEP_SCREEN_ON + Screen Wake Lock API)
+ * 예측 게임·운영자 경기 화면 — OS 화면 보호기/절전으로 화면이 꺼지지 않도록 유지.
+ * Android: Window FLAG_KEEP_SCREEN_ON
+ * Web: Screen Wake Lock API
  */
 export async function setGameKeepAwake(enabled: boolean): Promise<void> {
   wantKeepAwake = enabled;
   if (enabled) {
+    ensureVisibilityRefreshListener();
     await setNativeKeepScreenOn(true);
     await requestWebWakeLock();
     return;
