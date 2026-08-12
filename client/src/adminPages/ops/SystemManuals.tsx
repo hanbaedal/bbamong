@@ -378,7 +378,7 @@ export default function SystemManualsPage() {
         <ManualPdfViewerModal
           item={readingItem}
           onClose={() => setReadingItem(null)}
-          onRefetch={() => void refetch()}
+          onRefetch={refetch}
         />
       ) : null}
     </AdminLayout>
