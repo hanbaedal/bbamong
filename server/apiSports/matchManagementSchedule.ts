@@ -9,6 +9,7 @@ import {
 import {
   backfillSeasonMatchesBeforeToday,
   reconcileStuckPregameOngoingStatuses,
+  reconcileStuckPregameSideBetLocks,
   refreshMatchFromApiAtEnd,
   refreshMatchFromApiAtStart,
   refreshStalePastMatchScores,
@@ -233,6 +234,7 @@ async function maybeRunMissedDailySync(): Promise<void> {
   }
 
   await reconcileStuckPregameOngoingStatuses(kstToday);
+  await reconcileStuckPregameSideBetLocks(kstToday);
   await rescheduleTodayMatchTimers();
 }
 
