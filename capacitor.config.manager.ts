@@ -24,6 +24,7 @@ const config: CapacitorConfig = {
   },
   android: {
     allowMixedContent: true,
+    backgroundColor: "#FFFFFF",
     path: "android-manager",
   },
   ios: {

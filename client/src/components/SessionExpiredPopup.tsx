@@ -6,11 +6,14 @@ import { managerQueryClient, getFullUrl } from "@/lib/managerQueryClient";
 import { adminQueryClient } from "@/lib/adminQueryClient";
 import { Capacitor } from "@capacitor/core";
 
-type PopupType = "session-expired" | "duplicate-login" | null;
+type PopupType = "session-expired" | "duplicate-login" | "match-ended" | null;
 
 export function SessionExpiredPopup() {
   const [popupType, setPopupType] = useState<PopupType>(null);
   const [redirectPath, setRedirectPath] = useState("/admin/login");
+  const [matchEndedMessage, setMatchEndedMessage] = useState(
+    "담당 경기가 종료되어 로그아웃되었습니다.",
+  );
   const [, setLocation] = useLocation();
   const isProcessingRef = useRef(false);
 
@@ -39,8 +42,9 @@ export function SessionExpiredPopup() {
       if (!Capacitor.isNativePlatform()) {
         fetch(getFullUrl("/api/manager/clear-session"), { method: "POST", credentials: "include" }).catch(() => {});
       }
-      isProcessingRef.current = false;
-      setLocation("/manager/login");
+      // 검은 로그인 스플래시로 조용히 이동하지 않고, 확인 팝업을 먼저 표시
+      setRedirectPath("/manager/login");
+      setPopupType("session-expired");
     };
 
     const handleManagerMatchEnded = async (event: Event) => {
@@ -59,8 +63,9 @@ export function SessionExpiredPopup() {
       if (!Capacitor.isNativePlatform()) {
         fetch(getFullUrl("/api/manager/clear-session"), { method: "POST", credentials: "include" }).catch(() => {});
       }
-      isProcessingRef.current = false;
-      setLocation("/manager/login");
+      setMatchEndedMessage(message);
+      setRedirectPath("/manager/login");
+      setPopupType("match-ended");
     };
 
     const handleAdminDuplicateLogin = () => {
@@ -101,7 +106,7 @@ export function SessionExpiredPopup() {
   const handleConfirm = async () => {
     setPopupType(null);
     isProcessingRef.current = false;
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     setLocation(redirectPath);
   };
 
@@ -109,9 +114,12 @@ export function SessionExpiredPopup() {
     return null;
   }
 
-  const message = popupType === "duplicate-login"
-    ? "다른 기기에서 로그인하여 현재 세션이 종료되었습니다."
-    : "세션이 만료되었습니다. 다시 로그인해주세요.";
+  const message =
+    popupType === "duplicate-login"
+      ? "다른 기기에서 로그인하여 현재 세션이 종료되었습니다."
+      : popupType === "match-ended"
+        ? matchEndedMessage
+        : "세션이 만료되었습니다. 다시 로그인해주세요.";
 
   return (
     <InfoPopup
