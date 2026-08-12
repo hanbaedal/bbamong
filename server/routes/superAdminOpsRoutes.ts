@@ -164,17 +164,18 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
   });
 
   /**
-   * 매뉴얼 다운로드
+   * 매뉴얼 다운로드 (DOCX)
    * - 기본: 서버 docs/ (배포본 = GitHub main)
    * - ?source=github : GitHub raw에서 가져와 저장 후 다운로드
    */
   app.get("/api/admin/ops/system-manuals/:id/download", superAdminAuthMiddleware, async (req, res) => {
     try {
       const forceGithub = req.query.source === "github";
-      const { entry, buffer, source } = await resolveSystemManualFile(req.params.id, {
+      const { fileName, buffer, source } = await resolveSystemManualFile(req.params.id, {
         forceGithub,
+        format: "docx",
       });
-      const encoded = encodeURIComponent(entry.fileName);
+      const encoded = encodeURIComponent(fileName);
       res.setHeader(
         "Content-Type",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -188,6 +189,33 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "다운로드에 실패했습니다.";
       console.error("[Ops] system-manuals download error:", error);
+      res.status(400).json({ error: message });
+    }
+  });
+
+  /**
+   * 매뉴얼 PDF 인라인 보기 (다운로드 없이 모달 읽기)
+   * - ?source=github : GitHub raw PDF를 가져와 캐시 후 반환
+   */
+  app.get("/api/admin/ops/system-manuals/:id/view", superAdminAuthMiddleware, async (req, res) => {
+    try {
+      const forceGithub = req.query.source === "github";
+      const { fileName, buffer, source } = await resolveSystemManualFile(req.params.id, {
+        forceGithub,
+        format: "pdf",
+      });
+      const encoded = encodeURIComponent(fileName);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename*=UTF-8''${encoded}`,
+      );
+      res.setHeader("X-Manual-Source", source);
+      res.setHeader("Cache-Control", "private, max-age=60");
+      res.send(buffer);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "PDF를 불러오지 못했습니다.";
+      console.error("[Ops] system-manuals view error:", error);
       res.status(400).json({ error: message });
     }
   });

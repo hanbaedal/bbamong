@@ -9,7 +9,7 @@ export interface SystemManualEntry {
   audience: SystemManualAudience;
   title: string;
   description: string;
-  /** docs/ 아래 파일명 (GitHub main 기준) */
+  /** docs/ 아래 DOCX 파일명 (GitHub main 기준) */
   fileName: string;
 }
 
@@ -58,6 +58,11 @@ export const SYSTEM_MANUALS: SystemManualEntry[] = [
 
 export function getSystemManualById(id: string): SystemManualEntry | undefined {
   return SYSTEM_MANUALS.find((m) => m.id === id);
+}
+
+/** DOCX 파일명 → 같은 이름의 PDF (모달 읽기용) */
+export function systemManualPdfFileName(docxFileName: string): string {
+  return docxFileName.replace(/\.docx$/i, ".pdf");
 }
 
 export const SYSTEM_MANUALS_GITHUB_REPO = "hanbaedal/bbamong";

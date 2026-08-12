@@ -6,6 +6,7 @@ import {
   SYSTEM_MANUALS_GITHUB_DOCS_DIR,
   SYSTEM_MANUALS_GITHUB_REPO,
   getSystemManualById,
+  systemManualPdfFileName,
   type SystemManualEntry,
 } from "../../shared/systemManuals";
 
@@ -25,27 +26,39 @@ export type SystemManualListItem = SystemManualEntry & {
   availableLocally: boolean;
   githubUrl: string;
   sizeBytes: number | null;
+  pdfFileName: string;
+  pdfAvailableLocally: boolean;
+  pdfSizeBytes: number | null;
+  pdfGithubUrl: string;
 };
+
+async function statFile(
+  filePath: string,
+): Promise<{ available: boolean; sizeBytes: number | null }> {
+  try {
+    const st = await fs.stat(filePath);
+    return { available: st.isFile(), sizeBytes: st.size };
+  } catch {
+    return { available: false, sizeBytes: null };
+  }
+}
 
 export async function listSystemManuals(): Promise<SystemManualListItem[]> {
   const dir = docsDir();
   const items: SystemManualListItem[] = [];
   for (const entry of SYSTEM_MANUALS) {
-    const localPath = path.join(dir, entry.fileName);
-    let availableLocally = false;
-    let sizeBytes: number | null = null;
-    try {
-      const st = await fs.stat(localPath);
-      availableLocally = st.isFile();
-      sizeBytes = st.size;
-    } catch {
-      availableLocally = false;
-    }
+    const pdfFileName = systemManualPdfFileName(entry.fileName);
+    const docx = await statFile(path.join(dir, entry.fileName));
+    const pdf = await statFile(path.join(dir, pdfFileName));
     items.push({
       ...entry,
-      availableLocally,
+      availableLocally: docx.available,
       githubUrl: githubBlobUrl(entry.fileName),
-      sizeBytes,
+      sizeBytes: docx.sizeBytes,
+      pdfFileName,
+      pdfAvailableLocally: pdf.available,
+      pdfSizeBytes: pdf.sizeBytes,
+      pdfGithubUrl: githubBlobUrl(pdfFileName),
     });
   }
   return items;
@@ -70,36 +83,40 @@ async function fetchFromGitHub(fileName: string): Promise<Buffer> {
   return Buffer.from(ab);
 }
 
+export type SystemManualFormat = "docx" | "pdf";
+
 /**
  * 로컬 docs/ 우선, 없거나 forceGithub면 GitHub raw에서 가져와 로컬에 저장 후 반환
  */
 export async function resolveSystemManualFile(
   id: string,
-  options?: { forceGithub?: boolean },
-): Promise<{ entry: SystemManualEntry; buffer: Buffer; source: "local" | "github" }> {
+  options?: { forceGithub?: boolean; format?: SystemManualFormat },
+): Promise<{ entry: SystemManualEntry; fileName: string; buffer: Buffer; source: "local" | "github" }> {
   const entry = getSystemManualById(id);
   if (!entry) {
     throw new Error("매뉴얼을 찾을 수 없습니다.");
   }
 
-  const localPath = path.join(docsDir(), entry.fileName);
+  const format = options?.format ?? "docx";
+  const fileName = format === "pdf" ? systemManualPdfFileName(entry.fileName) : entry.fileName;
+  const localPath = path.join(docsDir(), fileName);
   const forceGithub = Boolean(options?.forceGithub);
 
   if (!forceGithub) {
     try {
       const buffer = await fs.readFile(localPath);
-      return { entry, buffer, source: "local" };
+      return { entry, fileName, buffer, source: "local" };
     } catch {
       /* fall through to GitHub */
     }
   }
 
-  const buffer = await fetchFromGitHub(entry.fileName);
+  const buffer = await fetchFromGitHub(fileName);
   try {
     await fs.mkdir(docsDir(), { recursive: true });
     await fs.writeFile(localPath, buffer);
   } catch (err) {
     console.warn("[SystemManuals] local cache write failed:", err);
   }
-  return { entry, buffer, source: "github" };
+  return { entry, fileName, buffer, source: "github" };
 }
