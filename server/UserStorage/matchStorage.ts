@@ -5,6 +5,7 @@ import { getApiSyncEnabledBySlot } from "../managerOperatorService";
 import { resolveMatchTeamNames, type MatchHeadToHeadRecord, type MatchTeamNameInput } from "@shared/matchTeamDisplay";
 import { refreshMatchHeadToHeadIfDue } from "../apiSports/h2hService";
 import type { MatchHeadToHeadSnapshot } from "@shared/apiSportsTypes";
+import { reconcileStuckPregameSideBetLocks } from "../apiSports/syncService";
 
 function extractMatchNumber(name: string): number {
   const match = name.match(/\d+/);
@@ -88,6 +89,13 @@ async function enrichWithStadiumName(
 export class MatchStorage {
   /** 오늘 전체 (종료·연기 포함 — 경기 선택 슬롯·side bet 결과 표시용) */
   async getTodayMatchesForClient(): Promise<ClientMatchView[]> {
+    // 경기전 고착 잠금(오진입)을 목록 조회 시 가볍게 복구
+    try {
+      await reconcileStuckPregameSideBetLocks();
+    } catch (error) {
+      console.error("[MatchStorage] pregame sideBet lock reconcile failed:", error);
+    }
+
     const { filter } = todayMatchDateFilter();
 
     const docs = await MatchModel.find({

@@ -57,6 +57,50 @@ async function syncOperatorAccountForMatch(matchId: string): Promise<void> {
   }
 }
 
+/** 시작 30분 이상 전 — 오진입(시각 DB 오류 등) 잠금으로 보고 해제 가능 */
+const PREGAME_SIDEBET_UNLOCK_BEFORE_MS = 30 * 60_000;
+
+/**
+ * 사이드벳 마감 플래그 결정.
+ * - 진행·종료·이닝 시작 시 잠금
+ * - 실황 시작 전(scheduled+NS)에는 오진입 잠금을 풀어 경기전 배팅을 복구
+ * - 시작 임박 + 예측 오픈 중 NS 지연이면 잠금 유지
+ */
+export function resolveSideBetsLocked(input: {
+  previouslyLocked?: boolean | null;
+  predictionEnabled?: boolean | null;
+  matchStatus: string;
+  statusShort?: string | null;
+  inning?: number | null;
+  startTime?: Date | string | null;
+  nowMs?: number;
+}): boolean {
+  const nowMs = input.nowMs ?? Date.now();
+  const { matchStatus } = input;
+
+  if (
+    matchStatus === "ongoing" ||
+    matchStatus === "completed" ||
+    matchStatus === "cancelled"
+  ) {
+    return true;
+  }
+  if (input.inning != null) return true;
+  if (isGameFinished(input.statusShort)) return true;
+
+  if (matchStatus === "scheduled" && isGameNotStarted(input.statusShort)) {
+    if (!input.previouslyLocked) return false;
+    if (!input.predictionEnabled) return false;
+    const startMs = input.startTime ? new Date(input.startTime).getTime() : Number.NaN;
+    if (Number.isFinite(startMs) && nowMs < startMs - PREGAME_SIDEBET_UNLOCK_BEFORE_MS) {
+      return false;
+    }
+    return true;
+  }
+
+  return Boolean(input.previouslyLocked);
+}
+
 /**
  * DB ongoing + API 스코어보드 시작 전(NS) 고착을 scheduled로 복구.
  * 예측 시작이 matchStatus를 올리지 않도록 바꾼 뒤, 기존 오진입 데이터 치유용.
@@ -92,6 +136,74 @@ export async function reconcileStuckPregameOngoingStatuses(
 
   if (fixed > 0) {
     console.log(`[MatchStatus] reconciled ${fixed} ongoing→scheduled (API NS) on ${targetDate}`);
+  }
+  return fixed;
+}
+
+/**
+ * 경기전(scheduled+NS)인데 sideBetsLocked/predictionEnabled가 고착된 경우 해제.
+ * 시작 시각 DB 오류로 오전에 예측이 열린 뒤 시각만 고친 케이스를 복구합니다.
+ */
+export async function reconcileStuckPregameSideBetLocks(
+  targetDate = getKstDateString(),
+  nowMs = Date.now(),
+): Promise<number> {
+  const matches = await MatchModel.find({
+    matchStatus: "scheduled",
+    $and: [
+      { $or: [{ matchDate: targetDate }, { matchDate: null }] },
+      { $or: [{ sideBetsLocked: true }, { predictionEnabled: true }] },
+    ],
+  })
+    .select(
+      "id matchDate liveScoreboard startTime sideBetsLocked predictionEnabled currentRound",
+    )
+    .lean();
+
+  let fixed = 0;
+  for (const match of matches) {
+    const matchDate =
+      (match as { matchDate?: string | null }).matchDate ??
+      (match.startTime ? getKstDateString(new Date(match.startTime)) : null);
+    if (matchDate !== targetDate) continue;
+
+    const sb = match.liveScoreboard as LiveScoreboard | null | undefined;
+    if (!sb || !isGameNotStarted(sb.statusShort)) continue;
+    if (sb.inning != null) continue;
+
+    const stillLocked = resolveSideBetsLocked({
+      previouslyLocked: Boolean(match.sideBetsLocked),
+      predictionEnabled: Boolean(match.predictionEnabled),
+      matchStatus: "scheduled",
+      statusShort: sb.statusShort,
+      inning: sb.inning,
+      startTime: match.startTime,
+      nowMs,
+    });
+    if (stillLocked) continue;
+
+    const startMs = match.startTime ? new Date(match.startTime).getTime() : Number.NaN;
+    const earlyEnough =
+      Number.isFinite(startMs) && nowMs < startMs - PREGAME_SIDEBET_UNLOCK_BEFORE_MS;
+
+    const $set: Record<string, unknown> = {
+      sideBetsLocked: false,
+      predictionEnabled: false,
+    };
+    // 오전에 라운드가 진행된 오진입이면 저녁 경기 전에 라운드도 초기화
+    if (earlyEnough && (match.currentRound ?? 1) > 1) {
+      $set.currentRound = 1;
+    }
+
+    await MatchModel.updateOne({ id: match.id }, { $set });
+    await syncOperatorAccountForMatch(match.id);
+    fixed += 1;
+  }
+
+  if (fixed > 0) {
+    console.log(
+      `[MatchStatus] reconciled ${fixed} pregame sideBet/prediction locks on ${targetDate}`,
+    );
   }
   return fixed;
 }
@@ -458,11 +570,14 @@ export async function syncTodayGamesFromApiSports(
         : existing!.liveScoreboard,
       lastInningKey: existing?.lastInningKey ?? buildInningKey(scoreboard),
       controlMode: existing?.controlMode ?? "auto",
-      sideBetsLocked:
-        existing?.sideBetsLocked ||
-        resolvedStatus === "ongoing" ||
-        scoreboard.inning !== null ||
-        isGameFinished(scoreboard.statusShort),
+      sideBetsLocked: resolveSideBetsLocked({
+        previouslyLocked: existing?.sideBetsLocked,
+        predictionEnabled: existing?.predictionEnabled,
+        matchStatus: resolvedStatus,
+        statusShort: scoreboard.statusShort,
+        inning: scoreboard.inning,
+        startTime,
+      }),
     };
 
     if (existing) {
@@ -733,6 +848,7 @@ async function updateMatchScoreFromApiGame(
     id: string;
     matchStatus?: string;
     sideBetsLocked?: boolean;
+    predictionEnabled?: boolean;
     startTime?: Date | null;
     liveScoreboard?: LiveScoreboard | null;
     controlMode?: string | null;
@@ -754,11 +870,14 @@ async function updateMatchScoreFromApiGame(
       liveScoreboard: scoreboard,
       ...apiSportsTeamsUpdate(game, incoming),
       lastInningKey: buildInningKey(scoreboard),
-      sideBetsLocked:
-        match.sideBetsLocked ||
-        nextStatus === "ongoing" ||
-        incoming.inning !== null ||
-        isGameFinished(incoming.statusShort),
+      sideBetsLocked: resolveSideBetsLocked({
+        previouslyLocked: match.sideBetsLocked,
+        predictionEnabled: match.predictionEnabled,
+        matchStatus: nextStatus,
+        statusShort: incoming.statusShort,
+        inning: incoming.inning,
+        startTime: match.startTime,
+      }),
     },
   );
 
@@ -969,11 +1088,14 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
         liveScoreboard: scoreboard,
         ...apiSportsTeamsUpdate(game, incoming),
         lastInningKey: buildInningKey(scoreboard),
-        sideBetsLocked:
-          match.sideBetsLocked ||
-          nextStatus === "ongoing" ||
-          incoming.inning !== null ||
-          isGameFinished(incoming.statusShort),
+        sideBetsLocked: resolveSideBetsLocked({
+          previouslyLocked: match.sideBetsLocked,
+          predictionEnabled: match.predictionEnabled,
+          matchStatus: nextStatus,
+          statusShort: incoming.statusShort,
+          inning: incoming.inning,
+          startTime: match.startTime,
+        }),
       },
     );
 

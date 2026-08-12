@@ -11,6 +11,7 @@ import {
   importSeasonMatchesFromApiSports,
   linkMatchToApiSports,
   mapTodayGames,
+  reconcileStuckPregameSideBetLocks,
   refreshMatchLiveScoreFromApi,
   setMatchControlMode,
   syncTodayGamesFromApiSports,
@@ -94,6 +95,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
         .parse(req.body ?? {});
       const targetDate = body.date ?? getKstDateString();
       const result = await syncTodayGamesFromApiSports(targetDate, { forceApi: body.forceApi });
+      await reconcileStuckPregameSideBetLocks(targetDate);
       await syncOperatorMatchAssignments();
       if (body.forceApi || targetDate === getKstDateString()) {
         await rescheduleTodayMatchTimers();
