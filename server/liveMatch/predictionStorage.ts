@@ -720,7 +720,7 @@ export async function advanceToNextBatter(
   const { match, predictionAutoStopped } = await nextRound(matchId);
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },
-    nextPhase,
+    { $set: nextPhase, $unset: { pinchHitter: 1 } },
     { new: true },
   ).lean();
 
@@ -797,9 +797,12 @@ export async function advanceInningHalf(
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },
     {
-      ...nextPhase,
-      outsInHalf: 0,
-      ...(overlay ? { liveScoreboard: overlay } : {}),
+      $set: {
+        ...nextPhase,
+        outsInHalf: 0,
+        ...(overlay ? { liveScoreboard: overlay } : {}),
+      },
+      $unset: { pinchHitter: 1 },
     },
     { new: true },
   ).lean();

@@ -25,6 +25,8 @@ export interface WSEventHandlers {
   onAdStatus?: (data: any) => void;
   onRoundNext?: (data: any) => void;
   onMatchEnd?: (data: any) => void;
+  onPinchHitterSet?: (data: any) => void;
+  onPinchHitterCleared?: (data: any) => void;
   onScoreboardUpdate?: (data: any) => void;
   onRewardedAdOffer?: (data: any) => void | Promise<void>;
   onBannerAdShow?: (data: any) => void;
@@ -235,6 +237,12 @@ export function useMatchWebSocket({
               break;
             case "round_next":
               handlersRef.current.onRoundNext?.(message.data);
+              break;
+            case "pinch_hitter_set":
+              handlersRef.current.onPinchHitterSet?.(message.data);
+              break;
+            case "pinch_hitter_cleared":
+              handlersRef.current.onPinchHitterCleared?.(message.data);
               break;
             case "scoreboard_update":
               handlersRef.current.onScoreboardUpdate?.(message.data);

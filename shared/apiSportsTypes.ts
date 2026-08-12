@@ -103,4 +103,21 @@ export interface CurrentBatterPreview {
   rbi: number | null;
   ops: string | null;
   season: number;
+  /** 운영자가 설정한 대타 타석 */
+  isPinchHitter?: boolean;
+}
+
+/** 운영자 대타 입력 — 현재 타석만 적용 */
+export interface PinchHitterSnapshot {
+  playerName: string;
+  battingAverage: string | null;
+  hits: number | null;
+  homeRuns: number | null;
+  rbi: number | null;
+  ops: string | null;
+  season: number;
+  batterIndexInHalf: number;
+  inningHalf: "top" | "bottom";
+  gameInning: number;
+  setAt: string;
 }

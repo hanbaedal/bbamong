@@ -41,6 +41,8 @@ interface GameCharacterLayerProps {
   selectedPrediction: PredictionOption | null;
   /** 초=원정(빨강) / 말=홈(청색) 틴트 */
   battingHalf?: InningHalf | null;
+  /** 대타 타석 — 대기 말풍선 안내 */
+  isPinchHitter?: boolean;
   onRunComplete?: () => void;
 }
 
@@ -63,6 +65,7 @@ export default function GameCharacterLayer({
   gameDayOverlayKind = null,
   selectedPrediction,
   battingHalf = null,
+  isPinchHitter = false,
   onRunComplete,
 }: GameCharacterLayerProps) {
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
@@ -238,7 +241,11 @@ export default function GameCharacterLayer({
               data-testid="char-pyamong-waiting"
             />
             <GameThoughtBubble
-              lines={[...LIVE_WAIT_BUBBLE_LINES]}
+              lines={
+                isPinchHitter
+                  ? (["대타가", "나옵니다"] as const)
+                  : [...LIVE_WAIT_BUBBLE_LINES]
+              }
               className="mb-[min(5vw,40px)] shrink-0"
               bubbleWidth="min(10vw, 78px)"
               textClassName="text-[min(2.1vw,11px)] sm:text-[min(2.5vw,13px)] leading-[1.12]"

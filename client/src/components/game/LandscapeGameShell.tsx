@@ -197,6 +197,7 @@ export default function LandscapeGameShell({
               gameDayOverlayKind={gameDayOverlayKind}
               selectedPrediction={selectedPrediction}
               battingHalf={inningHalf ?? null}
+              isPinchHitter={Boolean(currentBatter?.isPinchHitter)}
               onRunComplete={onRunComplete}
             />
 

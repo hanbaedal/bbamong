@@ -8,6 +8,7 @@ import { startRound, stopRound, cancelStartRound, cancelStopRound, updateRoundPr
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { patchMatchLiveScoreboard } from "../apiSports/syncService";
 import { saveManualMatchLineup } from "../apiSports/manualLineupService";
+import { clearMatchPinchHitter, setMatchPinchHitter } from "../apiSports/pinchHitterService";
 import { z } from "zod";
 import { hasActiveSession, createSession, deleteSession, refreshSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
 import { ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken, isOperatorCredentialsActive } from "../managerOperatorService";
@@ -1115,6 +1116,87 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       console.error("Manager lineup patch error:", error);
       const message = error instanceof Error ? error.message : "타순 저장에 실패했습니다.";
+      return res.status(400).json({ error: message });
+    }
+  });
+
+  // 대타 설정 — 현재 타석 이름·시즌 스탯 (예측 화면에 안내)
+  app.post("/api/manager/matches/:id/pinch-hitter", async (req, res) => {
+    try {
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
+
+      const { id } = req.params;
+      const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
+      if (!match) {
+        return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
+      }
+      assertMatchLiveForControls(match);
+
+      const body = z
+        .object({
+          playerName: z.string().trim().min(1).max(40),
+          battingAverage: z.union([z.string(), z.number()]).nullable().optional(),
+          hits: z.number().int().min(0).max(999).nullable().optional(),
+          homeRuns: z.number().int().min(0).max(999).nullable().optional(),
+          rbi: z.number().int().min(0).max(999).nullable().optional(),
+          ops: z.union([z.string(), z.number()]).nullable().optional(),
+          season: z.number().int().min(2000).max(2100).optional(),
+        })
+        .parse(req.body ?? {});
+
+      const pinchHitter = await setMatchPinchHitter(id, body);
+      const gamePhase = buildGamePhasePayload(match as typeof match);
+
+      broadcastManager.sendToMatch(id, "pinch_hitter_set", {
+        matchId: id,
+        pinchHitter,
+        gamePhase,
+        message: `대타 ${pinchHitter.playerName}이(가) 타석에 나옵니다.`,
+      });
+
+      return res.json({
+        success: true,
+        message: "대타를 설정했습니다.",
+        pinchHitter,
+      });
+    } catch (error: unknown) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: "인증이 만료되었습니다." });
+      }
+      console.error("Manager pinch-hitter error:", error);
+      const message = error instanceof Error ? error.message : "대타 설정에 실패했습니다.";
+      return res.status(400).json({ error: message });
+    }
+  });
+
+  app.delete("/api/manager/matches/:id/pinch-hitter", async (req, res) => {
+    try {
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
+
+      const { id } = req.params;
+      const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
+      if (!match) {
+        return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
+      }
+
+      await clearMatchPinchHitter(id);
+      broadcastManager.sendToMatch(id, "pinch_hitter_cleared", {
+        matchId: id,
+        message: "대타가 해제되었습니다.",
+      });
+
+      return res.json({ success: true, message: "대타를 해제했습니다." });
+    } catch (error: unknown) {
+      if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: "인증이 만료되었습니다." });
+      }
+      console.error("Manager pinch-hitter clear error:", error);
+      const message = error instanceof Error ? error.message : "대타 해제에 실패했습니다.";
       return res.status(400).json({ error: message });
     }
   });

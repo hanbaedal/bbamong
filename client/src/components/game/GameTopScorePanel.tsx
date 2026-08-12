@@ -46,16 +46,24 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
 
   return (
     <div
-      className="mt-1 min-w-[8.5rem] rounded-sm bg-black/45 px-1.5 py-1 text-[9px] leading-[1.35] text-white/95 backdrop-blur-[2px]"
+      className="mt-1.5 min-w-[11rem] rounded-md bg-black/55 px-2 py-1.5 text-[12px] sm:text-[13px] leading-[1.45] text-white/95 backdrop-blur-[2px]"
       data-testid="current-batter-stats"
     >
+      {batter.isPinchHitter ? (
+        <p
+          className="mb-1 text-[12px] sm:text-[13px] font-bold text-[#CDFF00]"
+          data-testid="pinch-hitter-badge"
+        >
+          대타가 나옵니다
+        </p>
+      ) : null}
       {rows.map(({ label, value, indent }) => (
         <div
           key={label}
-          className={`grid grid-cols-[4.5rem_1fr] gap-x-1 ${indent ? "pl-2" : ""}`}
+          className={`grid grid-cols-[5.25rem_1fr] gap-x-1.5 ${indent ? "pl-2" : ""}`}
         >
-          <span className="text-white/75 whitespace-nowrap">{label}</span>
-          <span className="text-right font-medium tabular-nums">{value}</span>
+          <span className="text-white/80 whitespace-nowrap">{label}</span>
+          <span className="text-right font-semibold tabular-nums">{value}</span>
         </div>
       ))}
     </div>
@@ -191,17 +199,19 @@ export default function GameTopScorePanel({
           {isLoading ? (
             <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
           ) : (
-            <>
-              <LineScoreTableLandscape
-                scoreboard={scoreboard}
-                className="max-w-full"
-                compact
-                battingHalf={battingHalf}
-              />
-              {currentBatter ? <BatterStatsBlock batter={currentBatter} /> : null}
-            </>
+            <LineScoreTableLandscape
+              scoreboard={scoreboard}
+              className="max-w-full"
+              compact
+              battingHalf={battingHalf}
+            />
           )}
         </div>
+        {!isLoading && currentBatter ? (
+          <div className="origin-top-right mt-0.5">
+            <BatterStatsBlock batter={currentBatter} />
+          </div>
+        ) : null}
       </div>
     </>
   );

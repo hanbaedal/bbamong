@@ -167,7 +167,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
       const matchId = req.params.id;
       let match = await MatchModel.findOne({ id: matchId })
         .select(
-          "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
+          "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter",
         )
         .lean();
       if (!match) return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
@@ -190,7 +190,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
           await refreshMatchLiveScoreFromApi(matchId);
           const healed = await MatchModel.findOne({ id: matchId })
             .select(
-              "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
+              "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter",
             )
             .lean();
           if (healed) match = healed;
@@ -228,7 +228,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
 
         const refreshed = await MatchModel.findOne({ id: matchId })
           .select(
-            "id liveScoreboard apiSportsHomeTeam apiSportsAwayTeam controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats matchHeadToHead registrationOrder apiSportsHomeTeamId apiSportsAwayTeamId",
+            "id liveScoreboard apiSportsHomeTeam apiSportsAwayTeam controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter matchHeadToHead registrationOrder apiSportsHomeTeamId apiSportsAwayTeamId",
           )
           .lean();
         if (refreshed) match = refreshed;
