@@ -13,7 +13,7 @@ const TAG_PRIORITY: Record<string, number> = {
 };
 
 function tagPriority(tag: string): number {
-  return TAG_PRIORITY[tag] ?? 1;
+  return TAG_PRIORITY[tag] ?? (isPriorityNoticeTag(tag) ? 3 : 1);
 }
 
 type NoticeReadDoc = {
@@ -65,7 +65,6 @@ export class NoticeReadStorage {
       .lean()) as Notice[];
 
     const candidates = notices.filter((n) => {
-      if (isPriorityNoticeTag(n.tag)) return true;
       const read = readMap.get(n.id);
       if (!read) return true;
       return !isGameBannerDismissed(read);
