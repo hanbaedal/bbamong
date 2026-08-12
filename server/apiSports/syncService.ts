@@ -140,19 +140,9 @@ export async function reconcileStuckPregameOngoingStatuses(
   return fixed;
 }
 
-/** 경기전으로 되돌릴 때 RoundStatistics에 남은 예측 시작/중지 시각·플래그 제거 */
+/** 경기전으로 되돌릴 때 RoundStatistics 잔여(결과 발송 포함) 제거 — 예측 시작 재진입 가능하게 */
 async function clearPregameRoundPredictionClocks(matchId: string): Promise<void> {
-  await RoundStatisticsModel.updateMany(
-    { matchId },
-    {
-      $set: {
-        predictionStartTime: null,
-        predictionStopTime: null,
-        isPredictionStarted: false,
-        isPredictionStopped: false,
-      },
-    },
-  );
+  await RoundStatisticsModel.deleteMany({ matchId });
 }
 
 /**
@@ -204,12 +194,6 @@ export async function reconcileStuckPregameSideBetLocks(
       Boolean(match.sideBetsLocked) || Boolean(match.predictionEnabled);
     const hasStaleRoundClock = await RoundStatisticsModel.exists({
       matchId: match.id,
-      $or: [
-        { predictionStartTime: { $ne: null } },
-        { predictionStopTime: { $ne: null } },
-        { isPredictionStarted: true },
-        { isPredictionStopped: true },
-      ],
     });
     if (!needsUnlock && !hasStaleRoundClock && !(earlyEnough && (match.currentRound ?? 1) > 1)) {
       continue;

@@ -4,7 +4,7 @@ import { AdminStorage } from "../storage/adminStorage";
 import { adminMatchStorage } from "../storage/adminMatchStorage";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAccessToken, type TokenPayload } from "../utils/jwt";
 import { broadcastManager } from "../liveMatch/broadcastManager";
-import { startRound, stopRound, cancelStartRound, cancelStopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult } from "../liveMatch/predictionStorage";
+import { startRound, stopRound, cancelStartRound, cancelStopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult, ensureMatchLiveForOperatorControls } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { patchMatchLiveScoreboard } from "../apiSports/syncService";
 import { saveManualMatchLineup } from "../apiSports/manualLineupService";
@@ -23,11 +23,9 @@ const adminStorage = new AdminStorage();
 const MANAGER_APP_SCHEME = "ppamongmanager";
 const MANAGER_APP_PACKAGE = "com.ppamong.manager";
 
-/** 경기전(scheduled)에는 예측·진행 컨트롤 불가 */
-function assertMatchLiveForControls(match: { matchStatus?: string | null }): void {
-  if (match.matchStatus !== "ongoing") {
-    throw new Error("경기전에 사용할 수 없습니다. 경기가 시작되면 이용해 주세요.");
-  }
+/** 경기전(scheduled)에는 예측·진행 컨트롤 불가 — 시작 시각 이후면 ongoing 승격 */
+async function assertMatchLiveForControls(matchId: string): Promise<void> {
+  await ensureMatchLiveForOperatorControls(matchId);
 }
 
 /** 이미 다른 곳에서 로그인 중 — 새 로그인 거부 */
@@ -656,7 +654,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
-      assertMatchLiveForControls(match);
+      await assertMatchLiveForControls(id);
 
       // 대기 중인 광고 타이머 취소 및 전면광고 중지
       broadcastManager.clearAdTimer(id);
@@ -687,10 +685,10 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       console.error("Start prediction error:", error);
       const message = error instanceof Error ? error.message : "";
-      if (message.includes("경기전에")) {
+      if (message.includes("경기전에") || message.includes("종료되어") || message.includes("재시작할 수 없습니다")) {
         return res.status(400).json({ error: message });
       }
-      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+      return res.status(500).json({ error: message || "서버 오류가 발생했습니다." });
     }
   });
 
@@ -707,7 +705,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
-      assertMatchLiveForControls(match);
+      await assertMatchLiveForControls(id);
 
       const updatedMatch = await stopRound(id);
       if (!updatedMatch) {
@@ -827,7 +825,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
-      assertMatchLiveForControls(match);
+      await assertMatchLiveForControls(id);
 
       // 예측이 아직 진행 중이면 결과 전송 거부 (먼저 예측 중지해야 함)
       if (match.predictionEnabled) {
@@ -910,7 +908,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
-      assertMatchLiveForControls(match);
+      await assertMatchLiveForControls(id);
 
       if ((match.outsInHalf ?? 0) >= 3) {
         return res.status(400).json({ error: "3아웃입니다. 공수교대를 눌러주세요." });
@@ -987,7 +985,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
-      assertMatchLiveForControls(match);
+      await assertMatchLiveForControls(id);
 
       if ((match.outsInHalf ?? 0) >= 3) {
         return res.status(400).json({ error: "3아웃입니다. 공수교대를 눌러주세요." });
@@ -1131,7 +1129,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
-      assertMatchLiveForControls(match);
+      await assertMatchLiveForControls(id);
 
       const body = z
         .object({
@@ -1264,7 +1262,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
-      assertMatchLiveForControls(match);
+      await assertMatchLiveForControls(id);
 
       await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
 

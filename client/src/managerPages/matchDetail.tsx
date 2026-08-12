@@ -947,8 +947,15 @@ export default function MatchDetailPage() {
   });
   const blockAdvance = Boolean(match.needsResultBeforeAdvance);
   const showThreeOutsHint = Boolean(match.showThreeOutsHint);
-  /** 경기중(ongoing)만 운영 컨트롤 — 경기전(scheduled)은 비활성 */
-  const isMatchLive = match.matchStatus === "ongoing";
+  /** 경기중(ongoing) 또는 시작 시각 경과(API 지연으로 scheduled 잔류) */
+  const startTimeReached = Boolean(
+    match.startTime && Number.isFinite(new Date(match.startTime).getTime())
+      ? Date.now() >= new Date(match.startTime).getTime()
+      : false,
+  );
+  const isMatchLive =
+    match.matchStatus === "ongoing" ||
+    (match.matchStatus === "scheduled" && startTimeReached);
   const predictionRunning = Boolean(match.predictionEnabled);
   const withinStartCancel =
     predictionRunning &&
@@ -1096,11 +1103,13 @@ export default function MatchDetailPage() {
             >
               {!wsConnected
                 ? "연결 중..."
-                : isStartingPrediction
-                  ? "처리중..."
-                  : withinStartCancel
-                    ? "↩ 시작 취소"
-                    : "▶ 예측 시작"}
+                : !isMatchLive
+                  ? "경기전"
+                  : isStartingPrediction
+                    ? "처리중..."
+                    : withinStartCancel
+                      ? "↩ 시작 취소"
+                      : "▶ 예측 시작"}
               <img
                 src={assets.startPrediction}
                 className="manager-match-action-mascot w-[52px] h-[94px] object-contain -top-3 -right-1 scale-x-[-1]"
@@ -1131,11 +1140,13 @@ export default function MatchDetailPage() {
             >
               {!wsConnected
                 ? "연결 중..."
-                : isStoppingPrediction
-                  ? "처리중..."
-                  : withinStopCancel
-                    ? "↩ 중지 취소"
-                    : "■ 예측 중지"}
+                : !isMatchLive
+                  ? "경기전"
+                  : isStoppingPrediction
+                    ? "처리중..."
+                    : withinStopCancel
+                      ? "↩ 중지 취소"
+                      : "■ 예측 중지"}
               <img
                 src={assets.stopPrediction}
                 className="manager-match-action-mascot w-[64px] h-[86px] object-contain -top-6 -left-1 scale-x-[-1]"
