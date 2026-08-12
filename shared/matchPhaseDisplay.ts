@@ -82,7 +82,8 @@ export function formatMatchInningPhase(input: {
   inningHalf?: string | InningHalf | null;
 }): string {
   if (input.matchStatus === "completed") return "경기종료";
-  if (input.matchStatus !== "ongoing") return "대기중";
+  if (input.matchStatus === "cancelled") return "연기됨";
+  if (input.matchStatus !== "ongoing") return "경기전";
 
   const inning = input.gameInning ?? 1;
   const half = parseInningHalf(
@@ -104,7 +105,8 @@ export function resolveLiveInningPhaseLabel(input: {
   > | null;
 }): string {
   if (input.matchStatus === "completed") return "경기종료";
-  if (input.matchStatus && input.matchStatus !== "ongoing") return "대기중";
+  if (input.matchStatus === "cancelled") return "연기됨";
+  if (input.matchStatus && input.matchStatus !== "ongoing") return "경기전";
 
   const resolved = resolveScoreboardInningPhase(input);
   if (resolved) {
