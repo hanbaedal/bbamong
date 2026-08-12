@@ -590,6 +590,7 @@ export default function MatchDetailPage() {
         if (match) {
           setMatch({
             ...match,
+            matchStatus: withinStartCancel ? match.matchStatus : "ongoing",
             predictionEnabled: !withinStartCancel,
             predictionStartTime: withinStartCancel ? undefined : new Date().toISOString(),
             predictionStopTime: undefined,
