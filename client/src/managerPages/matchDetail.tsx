@@ -124,6 +124,8 @@ export default function MatchDetailPage() {
         if (isActive && window.location.pathname.startsWith("/manager/match/")) {
           void setGameImmersiveMode(true);
           void refreshGameKeepAwake();
+          // 앱 복귀 시 access 토큰(15분) 선제 갱신 — WS 재연결 전 만료 방지
+          void refreshAccessToken().catch(() => {});
         }
       }).then((handle) => {
         resumeHandle = handle;
@@ -135,6 +137,16 @@ export default function MatchDetailPage() {
       void setGameImmersiveMode(false);
       void setGameKeepAwake(false);
     };
+  }, [id]);
+
+  /** 경기 운영 중 access 토큰 선제 갱신 (만료 15분, 네트워크 끊김 시 로그아웃하지 않음) */
+  useEffect(() => {
+    const PROACTIVE_REFRESH_MS = 10 * 60_000;
+    const timer = setInterval(() => {
+      void refreshAccessToken().catch(() => {});
+    }, PROACTIVE_REFRESH_MS);
+    void refreshAccessToken().catch(() => {});
+    return () => clearInterval(timer);
   }, [id]);
 
   useEffect(() => {
@@ -360,34 +372,37 @@ export default function MatchDetailPage() {
           return;
         }
 
-        // 비정상 종료 시 재연결 시도
+        // 비정상 종료 시 재연결 — 네트워크 끊김으로 토큰 갱신이 실패해도 로그아웃하지 않음
+        // (refreshAccessToken이 진짜 인증 만료일 때만 스스로 manager-session-expired 발행)
         if (event.code !== 1000 && event.code !== 1001) {
           if (reconnectAttemptsRef.current < maxReconnectAttempts) {
             reconnectAttemptsRef.current += 1;
-            console.log(`[Manager WS] 재연결 시도 ${reconnectAttemptsRef.current}/${maxReconnectAttempts}...`);
-            
+            const attempt = reconnectAttemptsRef.current;
+            const delay = Math.min(RECONNECT_DELAY * attempt, 10_000);
+            console.log(`[Manager WS] 재연결 시도 ${attempt}/${maxReconnectAttempts} (${delay}ms)...`);
+
             reconnectTimeoutRef.current = setTimeout(async () => {
-              try {
-                const refreshed = await refreshAccessToken();
-                
-                if (refreshed) {
-                  console.log("[Manager WS] 토큰 갱신 성공, 재연결 시도");
-                  if (connectFnRef.current) {
-                    connectFnRef.current();
-                  }
-                } else {
-                  if (sessionExpiredRef.current) return;
-                  sessionExpiredRef.current = true;
-                  console.log("[Manager WS] 토큰 갱신 실패, 세션 만료");
-                  window.dispatchEvent(new CustomEvent("manager-session-expired"));
-                }
-              } catch (error) {
-                if (sessionExpiredRef.current) return;
-                sessionExpiredRef.current = true;
-                console.error("[Manager WS] 토큰 갱신 오류:", error);
-                window.dispatchEvent(new CustomEvent("manager-session-expired"));
+              if (
+                sessionExpiredRef.current ||
+                duplicateLoginRef.current ||
+                isUnmountingRef.current
+              ) {
+                return;
               }
-            }, RECONNECT_DELAY);
+              try {
+                await refreshAccessToken();
+              } catch (error) {
+                console.warn("[Manager WS] 토큰 갱신 시도 실패(재연결은 계속):", error);
+              }
+              if (
+                sessionExpiredRef.current ||
+                duplicateLoginRef.current ||
+                isUnmountingRef.current
+              ) {
+                return;
+              }
+              connectFnRef.current?.();
+            }, delay);
           } else {
             console.error("[Manager WS] 최대 재연결 시도 횟수 초과");
             if (!sessionExpiredRef.current) {
@@ -1143,6 +1158,16 @@ export default function MatchDetailPage() {
         </div>
 
         <footer className="manager-match-footer">
+          {!wsConnected && (
+            <div
+              className="manager-match-notice"
+              data-testid="ws-reconnect-notice"
+              style={{ background: "#FFF3CD", color: "#856404" }}
+            >
+              실시간 연결 재시도 중… 네트워크를 확인해 주세요.
+            </div>
+          )}
+
           {isAdPlaying && (
             <div className="manager-match-notice manager-match-notice--ad" data-testid="ad-timer">
               <span>광고 재생중</span>
