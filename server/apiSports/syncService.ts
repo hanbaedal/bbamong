@@ -140,20 +140,34 @@ export async function reconcileStuckPregameOngoingStatuses(
   return fixed;
 }
 
+/** 경기전으로 되돌릴 때 RoundStatistics에 남은 예측 시작/중지 시각·플래그 제거 */
+async function clearPregameRoundPredictionClocks(matchId: string): Promise<void> {
+  await RoundStatisticsModel.updateMany(
+    { matchId },
+    {
+      $set: {
+        predictionStartTime: null,
+        predictionStopTime: null,
+        isPredictionStarted: false,
+        isPredictionStopped: false,
+      },
+    },
+  );
+}
+
 /**
  * 경기전(scheduled+NS)인데 sideBetsLocked/predictionEnabled가 고착된 경우 해제.
  * 시작 시각 DB 오류로 오전에 예측이 열린 뒤 시각만 고친 케이스를 복구합니다.
+ * RoundStatistics 예측 시계도 함께 초기화합니다.
  */
 export async function reconcileStuckPregameSideBetLocks(
   targetDate = getKstDateString(),
   nowMs = Date.now(),
 ): Promise<number> {
+  // 잠금 고착뿐 아니라, 잠금은 풀렸지만 라운드 시각만 남은 경기전도 포함
   const matches = await MatchModel.find({
     matchStatus: "scheduled",
-    $and: [
-      { $or: [{ matchDate: targetDate }, { matchDate: null }] },
-      { $or: [{ sideBetsLocked: true }, { predictionEnabled: true }] },
-    ],
+    $or: [{ matchDate: targetDate }, { matchDate: null }],
   })
     .select(
       "id matchDate liveScoreboard startTime sideBetsLocked predictionEnabled currentRound",
@@ -186,6 +200,21 @@ export async function reconcileStuckPregameSideBetLocks(
     const earlyEnough =
       Number.isFinite(startMs) && nowMs < startMs - PREGAME_SIDEBET_UNLOCK_BEFORE_MS;
 
+    const needsUnlock =
+      Boolean(match.sideBetsLocked) || Boolean(match.predictionEnabled);
+    const hasStaleRoundClock = await RoundStatisticsModel.exists({
+      matchId: match.id,
+      $or: [
+        { predictionStartTime: { $ne: null } },
+        { predictionStopTime: { $ne: null } },
+        { isPredictionStarted: true },
+        { isPredictionStopped: true },
+      ],
+    });
+    if (!needsUnlock && !hasStaleRoundClock && !(earlyEnough && (match.currentRound ?? 1) > 1)) {
+      continue;
+    }
+
     const $set: Record<string, unknown> = {
       sideBetsLocked: false,
       predictionEnabled: false,
@@ -196,6 +225,7 @@ export async function reconcileStuckPregameSideBetLocks(
     }
 
     await MatchModel.updateOne({ id: match.id }, { $set });
+    await clearPregameRoundPredictionClocks(match.id);
     await syncOperatorAccountForMatch(match.id);
     fixed += 1;
   }
