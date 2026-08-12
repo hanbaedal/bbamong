@@ -28,6 +28,8 @@ export default function AttendanceCompact() {
   const userPoints = user?.points ?? 0;
   const attendanceRecords = user?.attendanceRecords ?? [];
   const hasCheckedIn = hasCheckedInToday;
+  /** 출석 1회당 보상 포인트 — 서버 attendanceStorage와 동일 */
+  const ATTENDANCE_REWARD_POINTS = 100;
 
   const attendedDatesInMonth = new Set<number>();
   let totalAttendanceDays = 0;
@@ -42,6 +44,7 @@ export default function AttendanceCompact() {
     }
   });
   const monthDays = attendedDatesInMonth.size;
+  const participationPoints = totalAttendanceDays * ATTENDANCE_REWARD_POINTS;
 
   const checkInMutation = useMutation({
     mutationFn: async () => {
@@ -105,7 +108,13 @@ export default function AttendanceCompact() {
             ·
           </span>
           <span>
-            참여 <strong>{userPoints}</strong>
+            참여포인트 <strong>{participationPoints}</strong>
+          </span>
+          <span className="attendance-compact__sep" aria-hidden>
+            ·
+          </span>
+          <span>
+            보유포인트 <strong>{userPoints}</strong>
           </span>
         </div>
         {hasCheckedIn ? (

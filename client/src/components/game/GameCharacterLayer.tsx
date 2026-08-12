@@ -230,23 +230,36 @@ export default function GameCharacterLayer({
       {phase === "wait_result" && (
         <StadiumFieldMarker point={HOME_PLATE_IMAGE} center={false}>
           <div
-            className="relative pointer-events-none"
-            style={{ transform: "translate(-50%, -100%)" }}
+            className="relative flex flex-row items-end gap-2 sm:gap-3 pointer-events-none"
+            style={{ transform: "translate(-42%, -100%)" }}
           >
-            <img
-              src={pyamongBatterReady}
-              alt=""
-              className="h-auto game-sprite animate-pyamong-idle"
-              style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center" }}
-              data-testid="char-batter-waiting"
-            />
-            <div
-              className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 rounded-xl bg-white/95 text-black text-xs sm:text-sm font-semibold shadow-lg whitespace-nowrap"
-              data-testid="speech-wait-result"
-            >
-              예측결과를 기다립니다
-              <span className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white/95" />
+            <div className="relative shrink-0">
+              <img
+                src={pyamongBatterReady}
+                alt=""
+                className="h-auto game-sprite animate-pyamong-idle"
+                style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center" }}
+                data-testid="char-batter-waiting"
+              />
+              <div
+                className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 rounded-xl bg-white/95 text-black text-xs sm:text-sm font-semibold shadow-lg whitespace-nowrap"
+                data-testid="speech-wait-result"
+              >
+                예측결과를 기다립니다
+                <span className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white/95" />
+              </div>
             </div>
+            {selectedPrediction ? (
+              <div
+                className="mb-[min(18%,28px)] shrink-0 rounded-xl border-2 border-[#CDFF00] bg-black/75 px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-lg"
+                data-testid="wait-result-prediction-badge"
+              >
+                <p className="text-[10px] sm:text-xs text-white/70 leading-none mb-1">내 예측</p>
+                <p className="text-sm sm:text-base font-bold text-[#CDFF00] leading-none whitespace-nowrap">
+                  {selectedPrediction}
+                </p>
+              </div>
+            ) : null}
           </div>
         </StadiumFieldMarker>
       )}
@@ -305,23 +318,43 @@ export default function GameCharacterLayer({
       )}
 
       {phase === "success_celebrate" && (
-        <StadiumFieldMarker point={BASE_IMAGE_POINTS[runTarget]}>
-          <img
-            src={pyamongSuccess}
-            alt=""
-            className="w-[min(10vw,78px)] h-auto game-sprite animate-pyamong-success"
-            data-testid="char-pyamong-success"
-          />
+        <StadiumFieldMarker
+          point={runTarget === "홈런" ? HOME_PLATE_IMAGE : BASE_IMAGE_POINTS[runTarget]}
+          center={runTarget !== "홈런"}
+        >
+          <div
+            style={
+              runTarget === "홈런" ? { transform: "translate(-50%, -100%)" } : undefined
+            }
+          >
+            <img
+              src={pyamongSuccess}
+              alt=""
+              className={`w-[min(10vw,78px)] h-auto game-sprite ${
+                runTarget === "홈런" ? "animate-pyamong-success-home" : "animate-pyamong-success"
+              }`}
+              data-testid="char-pyamong-success"
+            />
+          </div>
         </StadiumFieldMarker>
       )}
 
       {phase === "fail" && (
         <StadiumFieldMarker point={HOME_PLATE_IMAGE} center={false}>
-          <div style={{ transform: "translate(-50%, -100%)" }}>
+          <div
+            className="relative flex flex-col items-center pointer-events-none"
+            style={{ transform: "translate(-50%, -100%)" }}
+          >
+            <div
+              className="mb-2 px-2.5 py-1 rounded-lg bg-black/70 text-white/90 text-[11px] sm:text-xs font-medium animate-sigh-bubble"
+              data-testid="speech-out-sigh"
+            >
+              후우…
+            </div>
             <img
-              src={batterWaiting}
+              src={pyamongWaiting}
               alt=""
-              className="w-[min(5vw,48px)] h-auto game-sprite opacity-80"
+              className="w-[min(12vw,96px)] h-auto game-sprite animate-pyamong-sigh opacity-95"
               data-testid="char-batter-fail"
             />
           </div>

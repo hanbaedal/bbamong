@@ -1,4 +1,4 @@
-/** 기념품 구매 확정(배송 인계) 시 게임 포인트 적립 — 결제 금액의 5% */
+/** 쇼핑센터 구매 확정(배송 인계) 시 게임 포인트 적립 — 결제 금액의 5% */
 export const MALL_REWARD_RATE = 0.05;
 
 export const MALL_REWARD_MIN_ORDER_AMOUNT = 0;

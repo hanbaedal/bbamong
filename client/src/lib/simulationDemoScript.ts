@@ -236,7 +236,7 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "ui-left-menu",
     stepId: "screen",
-    caption: "왼쪽 메뉴: 홈 · 내이야기 · 기념품 · 내정보입니다. 이어지는 장면에서 서브메뉴를 안내합니다.",
+    caption: "왼쪽 메뉴: 홈 · 내이야기 · 쇼핑센터 · 내정보입니다. 이어지는 장면에서 서브메뉴를 안내합니다.",
     durationMs: 6500,
     state: s({
       view: "game-ui",

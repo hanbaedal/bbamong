@@ -4,7 +4,7 @@ export const MALL_BASE_PATH = "/shop";
 /** 향후 shop.ppamong.com 서브도메인 */
 export const MALL_SUBDOMAIN = "shop.ppamong.com";
 
-export const MALL_SECTION_TITLE = "빠몽이 기념품";
+export const MALL_SECTION_TITLE = "빠몽이 쇼핑센터";
 
 export interface MallCategoryDef {
   name: string;

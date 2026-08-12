@@ -59,7 +59,7 @@ export async function ensureGameLandscape(): Promise<void> {
   await lockGameLandscape();
 }
 
-/** 빠몽이 기념품(쇼핑몰) — 세로 고정 */
+/** 빠몽이 쇼핑센터(쇼핑몰) — 세로 고정 */
 export async function lockMallPortrait(): Promise<void> {
   if (Capacitor.isNativePlatform()) {
     if (await nativeLock("portrait")) return;

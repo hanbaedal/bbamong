@@ -10,7 +10,7 @@ interface GameLeftMenuProps {
 const ITEMS: { id: GameMenuAction; label: string; Icon: typeof Home }[] = [
   { id: "home", label: "홈", Icon: Home },
   { id: "story", label: "내이야기", Icon: BookOpen },
-  { id: "mall", label: "기념품", Icon: Gift },
+  { id: "mall", label: "쇼핑센터", Icon: Gift },
   { id: "info", label: "내정보", Icon: User },
 ];
 
