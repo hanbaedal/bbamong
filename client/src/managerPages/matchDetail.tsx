@@ -9,6 +9,7 @@ import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import ManagerOperatorScorePanel from "@/components/ManagerOperatorScorePanel";
 import ManagerLineupEditor, { type LineupSide } from "@/components/ManagerLineupEditor";
+import ManagerPinchHitterEditor from "@/components/ManagerPinchHitterEditor";
 import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
 import { resolveMatchTeamNames } from "@shared/matchTeamDisplay";
 import { refreshGameKeepAwake, setGameKeepAwake } from "@/lib/screenWakeLock";
@@ -37,10 +38,15 @@ interface Match {
   predictionStopTime?: string;
   gameInning?: number;
   inningHalf?: string;
+  batterIndexInHalf?: number;
   outsInHalf?: number;
   needsResultBeforeAdvance?: boolean;
   showThreeOutsHint?: boolean;
   isResultSent?: boolean;
+  pinchHitter?: {
+    playerName?: string;
+    batterIndexInHalf?: number;
+  } | null;
   apiSportsAwayTeam?: string | null;
   apiSportsHomeTeam?: string | null;
   liveScoreboard?: {
@@ -91,6 +97,7 @@ export default function MatchDetailPage() {
     useState(false);
   const [showAdPlayingPopup, setShowAdPlayingPopup] = useState(false);
   const [lineupEditorSide, setLineupEditorSide] = useState<LineupSide | null>(null);
+  const [pinchEditorOpen, setPinchEditorOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [managerId, setManagerId] = useState<string | null>(null);
   const { data: scoreboardPayload } = useLiveScoreboard(id ?? null, {
@@ -314,6 +321,10 @@ export default function MatchDetailPage() {
               fetchMatchDetail();
               break;
             case "round_next":
+              fetchMatchDetail();
+              break;
+            case "pinch_hitter_set":
+            case "pinch_hitter_cleared":
               fetchMatchDetail();
               break;
             case "stats_update":
@@ -969,6 +980,9 @@ export default function MatchDetailPage() {
   const canSwitchHalf =
     (isMatchLive && wsConnected && !isNextBatterLoading && !blockAdvanceActions) ||
     isAdPlaying;
+  /** 대타 — 경기중·예측 중이 아닐 때 (현재 타석 교체) */
+  const canSetPinchHitter =
+    isMatchLive && wsConnected && !isNextBatterLoading && !predictionRunning && !isAdPlaying;
 
   return (
     <div className="manager-match-shell bg-white w-full" data-testid="manager-match-detail">
@@ -1196,6 +1210,17 @@ export default function MatchDetailPage() {
             </button>
             <button
               type="button"
+              onClick={() => setPinchEditorOpen(true)}
+              disabled={!canSetPinchHitter}
+              data-testid="button-pinch-hitter"
+              className="manager-match-bottom-btn bg-[#00897B]"
+            >
+              {match.pinchHitter?.playerName
+                ? `대타 · ${match.pinchHitter.playerName}`
+                : "대타"}
+            </button>
+            <button
+              type="button"
               onClick={() => (isAdPlaying ? handleStopAd() : handlePitcherChange())}
               disabled={!canPitcherChange}
               data-testid="button-pitcher-change"
@@ -1254,6 +1279,25 @@ export default function MatchDetailPage() {
           initialLineup={match.matchLineup}
           initialStats={match.matchPlayerStats}
           onClose={() => setLineupEditorSide(null)}
+          onSaved={() => {
+            void fetchMatchDetail();
+            void queryClient.invalidateQueries({
+              queryKey: ["/api/matches", id, "scoreboard"],
+            });
+          }}
+        />
+      ) : null}
+
+      {pinchEditorOpen && id ? (
+        <ManagerPinchHitterEditor
+          matchId={id}
+          seasonYear={
+            match.startTime ? new Date(match.startTime).getFullYear() : new Date().getFullYear()
+          }
+          batterOrderLabel={
+            match.batterIndexInHalf != null ? `${match.batterIndexInHalf}번째 타자` : undefined
+          }
+          onClose={() => setPinchEditorOpen(false)}
           onSaved={() => {
             void fetchMatchDetail();
             void queryClient.invalidateQueries({

@@ -918,6 +918,22 @@ export function useLandscapePredictionFlow(
       if (data?.scoreboard) onScoreboardRef.current?.(data.scoreboard);
     }, []),
 
+    onPinchHitterSet: useCallback(() => {
+      if (selectedMatch?.id) {
+        queryClient.invalidateQueries({
+          queryKey: ["/api/matches", selectedMatch.id, "scoreboard"],
+        });
+      }
+    }, [selectedMatch?.id]),
+
+    onPinchHitterCleared: useCallback(() => {
+      if (selectedMatch?.id) {
+        queryClient.invalidateQueries({
+          queryKey: ["/api/matches", selectedMatch.id, "scoreboard"],
+        });
+      }
+    }, [selectedMatch?.id]),
+
     onMatchEnd: useCallback(() => {
       handleMatchEnded();
     }, [handleMatchEnded]),

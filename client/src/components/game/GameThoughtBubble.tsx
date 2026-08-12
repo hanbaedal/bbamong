@@ -5,7 +5,7 @@ interface GameThoughtBubbleProps {
   /** 한 줄 문자열 (legacy) */
   text?: string;
   /** 줄별 멘트 — text보다 우선 */
-  lines?: string[];
+  lines?: readonly string[] | string[];
   className?: string;
   bubbleWidth?: string;
   textClassName?: string;

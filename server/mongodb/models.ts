@@ -83,6 +83,8 @@ const matchSchema = new Schema(
     batterIndexInHalf: { type: Number, default: 1 },
     /** 현재 공수(초/말) 누적 아웃 — 공수교대 시 0 */
     outsInHalf: { type: Number, default: 0 },
+    /** 현재 타석 대타 (이름·시즌 스탯) — 다음 타자/공수교대 시 해제 */
+    pinchHitter: { type: Schema.Types.Mixed, default: null },
     /** API-Sports 라인업 스냅샷 (home/away 타순) */
     matchLineup: { type: Schema.Types.Mixed, default: null },
     /** playerId → 시즌 타율 캐시 */

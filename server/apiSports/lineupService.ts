@@ -27,6 +27,7 @@ type MatchLineupRow = {
   batterIndexInHalf?: number | null;
   matchLineup?: MatchLineupSnapshot | null;
   matchPlayerStats?: Record<string, MatchPlayerStatsEntry> | null;
+  pinchHitter?: import("@shared/apiSportsTypes").PinchHitterSnapshot | null;
 };
 
 const memoryPlayerStats = new Map<string, MatchPlayerStatsEntry>();
@@ -230,6 +231,7 @@ export function buildCurrentBatterPreviewFromMatch(
     batterIndexInHalf,
     playerStats: statsForResolve,
     season,
+    pinchHitter: match.pinchHitter ?? null,
   });
 }
 
@@ -238,7 +240,7 @@ export async function getCurrentBatterPreviewForMatch(
 ): Promise<CurrentBatterPreview | null> {
   const match = (await MatchModel.findOne({ id: matchId })
     .select(
-      "id apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
+      "id apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter",
     )
     .lean()) as MatchLineupRow | null;
 
