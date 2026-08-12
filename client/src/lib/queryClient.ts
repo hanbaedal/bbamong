@@ -201,7 +201,22 @@ export async function keepAliveUserSession(): Promise<boolean> {
   return stillMs != null && stillMs > 0;
 }
 
-export async function getOrRefreshAccessToken(): Promise<string | null> {
+/** WS/API 직전 — 만료 임박(2분)이면 refresh. forceRefresh 시 즉시 갱신 시도 */
+const ACCESS_TOKEN_REFRESH_AHEAD_MS = 2 * 60 * 1000;
+
+export async function getOrRefreshAccessToken(options?: {
+  forceRefresh?: boolean;
+}): Promise<string | null> {
+  if (options?.forceRefresh) {
+    resetRefreshCooldown();
+    const refreshed = await refreshUserAccessToken();
+    if (refreshed) return getAccessToken();
+    // 갱신 실패해도 아직 유효한 access 가 있으면 사용 (게임 보호 구간)
+    const fallback = getAccessToken() ?? (await hydrateAccessToken());
+    const remainingMs = fallback ? getAccessTokenRemainingMs(fallback) : null;
+    return remainingMs != null && remainingMs > 0 ? fallback : null;
+  }
+
   let token = getAccessToken();
 
   if (!token) {
@@ -209,7 +224,13 @@ export async function getOrRefreshAccessToken(): Promise<string | null> {
   }
 
   if (token) {
-    return token;
+    const remainingMs = getAccessTokenRemainingMs(token);
+    if (remainingMs == null || remainingMs > ACCESS_TOKEN_REFRESH_AHEAD_MS) {
+      return token;
+    }
+    const refreshed = await refreshUserAccessToken();
+    if (refreshed) return getAccessToken();
+    return remainingMs > 0 ? token : null;
   }
 
   const refreshed = await refreshUserAccessToken();
@@ -287,8 +308,9 @@ export const getQueryFn: <T>(options: {
     let res = await makeRequest();
 
     if (res.status === 429) {
-      console.log("[Query] 요청 제한 (429) - 무시하고 null 반환");
-      return null;
+      // null 을 캐시에 쓰면 matchesData.some 크래시·가짜 no_match(검은 화면) 유발
+      console.log("[Query] 요청 제한 (429) - 기존 캐시 유지");
+      throw new Error("RATE_LIMITED");
     }
 
     // 401 에러 시 토큰 재발급 시도 (다른 기기 로그인으로 교체된 경우 재발급 생략)
@@ -303,8 +325,9 @@ export const getQueryFn: <T>(options: {
           await clearTokens();
         }
         notifyAuthFailure(true);
-        console.log("[Query] Session replaced by another device, returning null");
-        return null;
+        // null 캐시 덮어쓰기 금지 — 기존 경기 목록 유지 (검은 화면·.some 크래시 방지)
+        console.log("[Query] Session replaced by another device — keeping previous query data");
+        throw new Error("다른 기기에서 로그인하여 현재 세션이 종료되었습니다.");
       }
 
       const refreshed = await refreshUserAccessToken();
@@ -312,10 +335,12 @@ export const getQueryFn: <T>(options: {
         // 재발급 성공 시 원래 요청 재시도
         res = await makeRequest();
       } else {
-        // Refresh 실패 시 null 반환 (에러 throw 대신)
-        // 컴포넌트 언마운트를 방지하고 graceful하게 처리
-        console.log("[Query] Session expired, returning null instead of throwing");
-        return null;
+        console.log("[Query] Session expired — keeping previous query data");
+        throw new Error(
+          isGameSessionProtected()
+            ? "일시적으로 연결할 수 없습니다. 잠시 후 다시 시도해주세요."
+            : "세션이 만료되었습니다. 다시 로그인해주세요.",
+        );
       }
     }
 
