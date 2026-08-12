@@ -104,7 +104,6 @@ export function getRunPathImagePoints(target: PredictionOption): ImagePoint[] {
   const first = BASE_IMAGE_POINTS["1루"];
   const second = BASE_IMAGE_POINTS["2루"];
   const third = BASE_IMAGE_POINTS["3루"];
-  const hr = BASE_IMAGE_POINTS.홈런;
 
   switch (target) {
     case "아웃":
@@ -116,7 +115,8 @@ export function getRunPathImagePoints(target: PredictionOption): ImagePoint[] {
     case "3루":
       return [home, first, second, third];
     case "홈런":
-      return [home, first, second, third, hr];
+      // 홈 → 1 → 2 → 3 → 홈플레이트 (홈런 버튼 위치가 아님)
+      return [home, first, second, third, home];
     default:
       return [home];
   }

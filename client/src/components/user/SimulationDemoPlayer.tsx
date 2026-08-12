@@ -23,7 +23,7 @@ const AT_BAT_OPTIONS = Object.keys(ODDS_MAP);
 const LEFT_MENU = [
   { id: "home", label: "홈" },
   { id: "story", label: "내이야기" },
-  { id: "mall", label: "기념품" },
+  { id: "mall", label: "쇼핑센터" },
   { id: "info", label: "내정보" },
 ] as const;
 const FIELD_OPTS = ["아웃", "1루", "2루", "3루", "홈런"] as const;

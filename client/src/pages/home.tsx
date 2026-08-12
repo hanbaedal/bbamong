@@ -148,7 +148,7 @@ export default function HomePage() {
   if (goodsSectionEnabled) {
     menuItems.push({
       id: "gift-box",
-      label: "빠몽이 선물상자",
+      label: "빠몽이 쇼핑센터",
       onClick: () => navigateToMall(),
       icon: <Gift className="w-full h-full" strokeWidth={2} aria-hidden />,
     });

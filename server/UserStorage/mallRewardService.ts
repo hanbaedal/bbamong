@@ -48,7 +48,7 @@ export async function grantMallOrderRewardPoints(orderId: number): Promise<{
       session,
       String(claimed.userId),
       points,
-      `기념품 구매 적립 (주문 #${orderId})`,
+      `쇼핑센터 구매 적립 (주문 #${orderId})`,
       "earned",
     );
 

@@ -64,6 +64,8 @@ export default function AttendancePage() {
   });
 
   const monthDays = attendedDatesInMonth.size;
+  const ATTENDANCE_REWARD_POINTS = 100;
+  const participationPoints = totalAttendanceDays * ATTENDANCE_REWARD_POINTS;
 
   // 출석 체크 Mutation
   const checkInMutation = useMutation({
@@ -195,14 +197,20 @@ export default function AttendancePage() {
             />
           </div>
 
-          {/* 보유 포인트 카드 */}
-          <div className="relative flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-[#1C1F20] shadow-lg col-span-2 h-[65px] overflow-hidden">
-            <span className="text-[#D5D5D5] text-sm font-medium">
-              보유 참여기록
-            </span>
-            <span className="text-white text-2xl font-bold tracking-tight">
-              {userPoints}
-            </span>
+          {/* 참여·보유 포인트 */}
+          <div className="relative flex flex-col gap-2 px-4 py-3 rounded-xl bg-[#1C1F20] shadow-lg col-span-2 overflow-hidden">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[#D5D5D5] text-sm font-medium">참여포인트</span>
+              <span className="text-white text-xl font-bold tracking-tight" data-testid="text-participation-points">
+                {participationPoints}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[#D5D5D5] text-sm font-medium">보유포인트</span>
+              <span className="text-white text-xl font-bold tracking-tight" data-testid="text-balance-points">
+                {userPoints}
+              </span>
+            </div>
           </div>
         </div>
 
