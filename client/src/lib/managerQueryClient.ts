@@ -37,7 +37,8 @@ let refreshPromise: Promise<boolean> | null = null;
 let refreshFailedAt: number = 0;
 let networkFailCount: number = 0;
 const REFRESH_COOLDOWN_MS = 30000;
-const MAX_NETWORK_FAILURES = 3;
+/** 경기 현장 — 일시적 네트워크 오류로 refresh 연속 실패해도 세션 유지 (서버 401만 로그아웃) */
+const MAX_NETWORK_FAILURES = 8;
 
 export function resetManagerRefreshCooldown(): void {
   refreshFailedAt = 0;

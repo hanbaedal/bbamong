@@ -9,6 +9,8 @@ import { clearManagerTokens } from "@/lib/managerTokenManager";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
+import { setGameKeepAwake } from "@/lib/screenWakeLock";
+import { useManagerProactiveSessionRefresh } from "@/hooks/useManagerProactiveSessionRefresh";
 import ManagerGuideModal from "./ManagerGuideModal";
 
 interface ManagerInfo {
@@ -65,6 +67,23 @@ export default function ManagerHomePage() {
       return 10000;
     },
   });
+
+  const hasActiveAssignedMatch = matches.some((m) =>
+    shouldClientPollMatch(m.startTime, m.matchStatus),
+  );
+
+  useManagerProactiveSessionRefresh(hasActiveAssignedMatch);
+
+  useEffect(() => {
+    if (!hasActiveAssignedMatch) {
+      void setGameKeepAwake(false);
+      return;
+    }
+    void setGameKeepAwake(true);
+    return () => {
+      void setGameKeepAwake(false);
+    };
+  }, [hasActiveAssignedMatch]);
 
   useEffect(() => {
     fetchManagerInfo();
