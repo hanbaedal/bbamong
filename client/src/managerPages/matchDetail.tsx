@@ -400,43 +400,34 @@ export default function MatchDetailPage() {
         // 비정상 종료 시 재연결 — 네트워크 끊김으로 토큰 갱신이 실패해도 로그아웃하지 않음
         // (refreshAccessToken이 진짜 인증 만료일 때만 스스로 manager-session-expired 발행)
         if (event.code !== 1000 && event.code !== 1001) {
-          if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-            reconnectAttemptsRef.current += 1;
-            const attempt = reconnectAttemptsRef.current;
-            const delay = Math.min(RECONNECT_DELAY * attempt, 10_000);
-            console.log(`[Manager WS] 재연결 시도 ${attempt}/${maxReconnectAttempts} (${delay}ms)...`);
+          // 실시간 채널만 재연결 — HTTP 예측 시작/중지는 WS와 무관하게 동작
+          reconnectAttemptsRef.current += 1;
+          const attempt = reconnectAttemptsRef.current;
+          const delay = Math.min(RECONNECT_DELAY * Math.min(attempt, 10), 15_000);
+          console.log(`[Manager WS] 재연결 시도 ${attempt} (${delay}ms)...`);
 
-            reconnectTimeoutRef.current = setTimeout(async () => {
-              if (
-                sessionExpiredRef.current ||
-                duplicateLoginRef.current ||
-                isUnmountingRef.current
-              ) {
-                return;
-              }
-              try {
-                await refreshAccessToken();
-              } catch (error) {
-                console.warn("[Manager WS] 토큰 갱신 시도 실패(재연결은 계속):", error);
-              }
-              if (
-                sessionExpiredRef.current ||
-                duplicateLoginRef.current ||
-                isUnmountingRef.current
-              ) {
-                return;
-              }
-              void connectFnRef.current?.();
-            }, delay);
-          } else {
-            console.error("[Manager WS] 최대 재연결 시도 횟수 초과");
-            if (!sessionExpiredRef.current) {
-              toast({
-                variant: "destructive",
-                description: "실시간 연결에 실패했습니다. 페이지를 새로고침해주세요.",
-              });
+          reconnectTimeoutRef.current = setTimeout(async () => {
+            if (
+              sessionExpiredRef.current ||
+              duplicateLoginRef.current ||
+              isUnmountingRef.current
+            ) {
+              return;
             }
-          }
+            try {
+              await refreshAccessToken();
+            } catch (error) {
+              console.warn("[Manager WS] 토큰 갱신 시도 실패(재연결은 계속):", error);
+            }
+            if (
+              sessionExpiredRef.current ||
+              duplicateLoginRef.current ||
+              isUnmountingRef.current
+            ) {
+              return;
+            }
+            void connectFnRef.current?.();
+          }, delay);
         }
       };
     };
@@ -970,41 +961,35 @@ export default function MatchDetailPage() {
     Date.now() - stopToggleAt < PREDICTION_TOGGLE_MS;
   const canStartPrediction =
     isMatchLive &&
-    wsConnected &&
     !isStartingPrediction &&
     (!predictionRunning || withinStartCancel);
   const canStopPrediction =
     isMatchLive &&
-    wsConnected &&
     !isStoppingPrediction &&
     (predictionRunning || withinStopCancel);
   /** 예측 중지 후·결과 전송 전에만 결과 선택 가능 */
   const canSelectResult =
     isMatchLive &&
-    wsConnected &&
     !predictionRunning &&
     Boolean(match.predictionStopTime) &&
     blockAdvance;
   const blockAdvanceActions = blockAdvance || predictionRunning;
   /** 공수교대(3아웃) 제외 — 예측 시작·중지 중에도 투수 교체 가능 */
   const canPitcherChange =
-    (isMatchLive && !showThreeOutsHint && wsConnected && !isNextBatterLoading) ||
-    isAdPlaying;
+    (isMatchLive && !showThreeOutsHint && !isNextBatterLoading) || isAdPlaying;
   /** 다음 타자 — 3아웃이면 공수교대만 (광고 종료는 예외) */
   const canNextBatter =
     (isMatchLive &&
       !showThreeOutsHint &&
-      wsConnected &&
       !isNextBatterLoading &&
       !blockAdvanceActions) ||
     isAdPlaying;
   /** 공수 교대 — 3아웃 시 결과 전송 후 이 버튼으로만 진행 */
   const canSwitchHalf =
-    (isMatchLive && wsConnected && !isNextBatterLoading && !blockAdvanceActions) ||
-    isAdPlaying;
+    (isMatchLive && !isNextBatterLoading && !blockAdvanceActions) || isAdPlaying;
   /** 대타 — 경기중·예측 중이 아닐 때 (현재 타석 교체) */
   const canSetPinchHitter =
-    isMatchLive && wsConnected && !isNextBatterLoading && !predictionRunning && !isAdPlaying;
+    isMatchLive && !isNextBatterLoading && !predictionRunning && !isAdPlaying;
 
   return (
     <div className="manager-match-shell bg-white w-full" data-testid="manager-match-detail">
@@ -1102,14 +1087,14 @@ export default function MatchDetailPage() {
                 withinStartCancel ? "manager-match-action-btn--toggle" : ""
               }`}
             >
-              {!wsConnected
-                ? "연결 중..."
-                : !isMatchLive
-                  ? "경기전"
-                  : isStartingPrediction
-                    ? "처리중..."
-                    : withinStartCancel
-                      ? "↩ 시작 취소"
+              {!isMatchLive
+                ? "경기전"
+                : isStartingPrediction
+                  ? "처리중..."
+                  : withinStartCancel
+                    ? "↩ 시작 취소"
+                    : predictionRunning
+                      ? "예측 중"
                       : "▶ 예측 시작"}
               <img
                 src={assets.startPrediction}
@@ -1139,15 +1124,13 @@ export default function MatchDetailPage() {
                 withinStopCancel ? "manager-match-action-btn--toggle" : ""
               }`}
             >
-              {!wsConnected
-                ? "연결 중..."
-                : !isMatchLive
-                  ? "경기전"
-                  : isStoppingPrediction
-                    ? "처리중..."
-                    : withinStopCancel
-                      ? "↩ 중지 취소"
-                      : "■ 예측 중지"}
+              {!isMatchLive
+                ? "경기전"
+                : isStoppingPrediction
+                  ? "처리중..."
+                  : withinStopCancel
+                    ? "↩ 중지 취소"
+                    : "■ 예측 중지"}
               <img
                 src={assets.stopPrediction}
                 className="manager-match-action-mascot w-[64px] h-[86px] object-contain -top-6 -left-1 scale-x-[-1]"
@@ -1209,7 +1192,7 @@ export default function MatchDetailPage() {
               data-testid="ws-reconnect-notice"
               style={{ background: "#FFF3CD", color: "#856404" }}
             >
-              실시간 연결 재시도 중… 네트워크를 확인해 주세요.
+              실시간 연결 재시도 중… 예측 시작·중지는 계속 사용할 수 있습니다.
             </div>
           )}
 
