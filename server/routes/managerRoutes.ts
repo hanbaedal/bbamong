@@ -685,12 +685,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       console.error("Start prediction error:", error);
       const message = error instanceof Error ? error.message : "";
-      if (
-        message.includes("경기전에") ||
-        message.includes("종료되어") ||
-        message.includes("재시작할 수 없습니다") ||
-        message.includes("찾을 수 없습니다")
-      ) {
+      if (message.includes("경기전에") || message.includes("종료되어") || message.includes("재시작할 수 없습니다") || message.includes("3아웃") || message.includes("찾을 수 없습니다")) {
         return res.status(400).json({ error: message });
       }
       // 운영자가 원인을 볼 수 있도록 메시지 전달 (트랜잭션/DB 오류 포함)
@@ -859,6 +854,8 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       // 결과 전송 후: 3아웃이면 공수교대 대기(자동 다음타자 스킵), 아니면 다음 타자로 이동
       let nextRoundNumber = match.currentRound;
+      let autoNextFailed = false;
+      let autoNextError: string | null = null;
       if (!threeOutsReached) {
         try {
           const { match: updatedMatch } = await advanceToNextBatter(id);
@@ -873,8 +870,12 @@ export async function managerRoutes(app: Express): Promise<void> {
             gamePhase,
             message: `라운드 ${updatedMatch.currentRound}으로 이동했습니다.`,
           });
-          // 타석(다음 타자) 전환에는 배너 미전송 — 투수교체·공수교대만 배너
         } catch (nextRoundError) {
+          autoNextFailed = true;
+          autoNextError =
+            nextRoundError instanceof Error
+              ? nextRoundError.message
+              : "다음 타자 자동 이동에 실패했습니다.";
           console.error("Auto next round failed after result:", nextRoundError);
         }
       }
@@ -883,12 +884,16 @@ export async function managerRoutes(app: Express): Promise<void> {
         success: true, 
         message: threeOutsReached
           ? "결과가 전송되었습니다. 공수교대를 눌러주세요."
-          : "결과가 전송되었습니다.",
+          : autoNextFailed
+            ? "결과가 전송되었습니다. 다음 타자 이동에 실패했습니다. 「다음 타자」를 눌러주세요."
+            : "결과가 전송되었습니다.",
         roundNumber: match.currentRound,
         result,
         nextRound: nextRoundNumber,
         outsInHalf,
         threeOutsReached,
+        autoNextFailed,
+        autoNextError,
         adStarted: false,
         adDelaySeconds: 0
       });
