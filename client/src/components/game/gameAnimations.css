@@ -3,16 +3,18 @@
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
 }
 
-/** 원정(초) 공격 — 빨강 틴트 */
+/**
+ * 빠몽이 몸 전체 컬러 틴트 (옷 에셋 교체 아님).
+ * 노란 기본 스프라이트를 초=원정(빨강) / 말=홈(파랑)으로 재채색.
+ */
 .game-sprite-tint-away {
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45)) sepia(0.45) saturate(2.6) hue-rotate(-18deg)
-    brightness(1.02);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45)) sepia(0.85) saturate(4.2) hue-rotate(-35deg)
+    brightness(0.98);
 }
 
-/** 홈(말) 공격 — 청색 틴트 */
 .game-sprite-tint-home {
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45)) sepia(0.35) saturate(2.4) hue-rotate(175deg)
-    brightness(1.02);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45)) sepia(0.7) saturate(3.8) hue-rotate(170deg)
+    brightness(0.95);
 }
 
 @keyframes pyamong-idle-bob {
