@@ -13,6 +13,7 @@ import pyamongBatterReady from "@assets/game/pyamong-batter-ready.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
+import type { InningHalf } from "@shared/gamePhaseTypes";
 import { getRunDurationSec, HOME_RUN_BAT_TOSS_MS } from "./fieldPositions";
 import {
   BASE_IMAGE_POINTS,
@@ -38,7 +39,22 @@ interface GameCharacterLayerProps {
   gameDayPhase: GameDayPhase;
   gameDayOverlayKind?: GameDayOverlayKind | null;
   selectedPrediction: PredictionOption | null;
+  /** 초=원정(빨강) / 말=홈(청색) 틴트 */
+  battingHalf?: InningHalf | null;
   onRunComplete?: () => void;
+}
+
+function pyamongSpriteClass(
+  battingHalf: InningHalf | null | undefined,
+  extra = "",
+): string {
+  const tint =
+    battingHalf === "top"
+      ? "game-sprite game-sprite-tint-away"
+      : battingHalf === "bottom"
+        ? "game-sprite game-sprite-tint-home"
+        : "game-sprite";
+  return extra ? `${tint} ${extra}` : tint;
 }
 
 export default function GameCharacterLayer({
@@ -46,6 +62,7 @@ export default function GameCharacterLayer({
   gameDayPhase,
   gameDayOverlayKind = null,
   selectedPrediction,
+  battingHalf = null,
   onRunComplete,
 }: GameCharacterLayerProps) {
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
@@ -213,7 +230,10 @@ export default function GameCharacterLayer({
             <img
               src={batterWaiting}
               alt=""
-              className="h-auto game-sprite animate-pyamong-idle shrink-0"
+              className={pyamongSpriteClass(
+                battingHalf,
+                "h-auto animate-pyamong-idle shrink-0",
+              )}
               style={{ width: PYAMONG_BATTER_WIDTH, transformOrigin: "bottom center" }}
               data-testid="char-pyamong-waiting"
             />
@@ -237,7 +257,7 @@ export default function GameCharacterLayer({
               <img
                 src={pyamongBatterReady}
                 alt=""
-                className="h-auto game-sprite animate-pyamong-idle"
+                className={pyamongSpriteClass(battingHalf, "h-auto animate-pyamong-idle")}
                 style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center" }}
                 data-testid="char-batter-waiting"
               />
@@ -278,7 +298,10 @@ export default function GameCharacterLayer({
             <img
               src={pyamongBatToss}
               alt=""
-              className="w-[min(9vw,72px)] h-auto game-sprite animate-home-run-toss-pose"
+              className={pyamongSpriteClass(
+                battingHalf,
+                "w-[min(9vw,72px)] h-auto animate-home-run-toss-pose",
+              )}
               data-testid="char-pyamong-bat-toss"
             />
             <img
@@ -310,7 +333,10 @@ export default function GameCharacterLayer({
             <img
               src={PYAMONG_RUN_FRAMES[runFrameIdx]}
               alt=""
-              className="w-[min(7vw,64px)] h-auto game-sprite animate-pyamong-run"
+              className={pyamongSpriteClass(
+                battingHalf,
+                "w-[min(7vw,64px)] h-auto animate-pyamong-run",
+              )}
               data-testid="char-pyamong-running-sprite"
             />
           </div>
@@ -330,9 +356,12 @@ export default function GameCharacterLayer({
             <img
               src={pyamongSuccess}
               alt=""
-              className={`w-[min(10vw,78px)] h-auto game-sprite ${
-                runTarget === "홈런" ? "animate-pyamong-success-home" : "animate-pyamong-success"
-              }`}
+              className={pyamongSpriteClass(
+                battingHalf,
+                `w-[min(10vw,78px)] h-auto ${
+                  runTarget === "홈런" ? "animate-pyamong-success-home" : "animate-pyamong-success"
+                }`,
+              )}
               data-testid="char-pyamong-success"
             />
           </div>
@@ -354,7 +383,10 @@ export default function GameCharacterLayer({
             <img
               src={pyamongWaiting}
               alt=""
-              className="w-[min(12vw,96px)] h-auto game-sprite animate-pyamong-sigh opacity-95"
+              className={pyamongSpriteClass(
+                battingHalf,
+                "w-[min(12vw,96px)] h-auto animate-pyamong-sigh opacity-95",
+              )}
               data-testid="char-batter-fail"
             />
           </div>
@@ -370,7 +402,10 @@ export default function GameCharacterLayer({
             <img
               src={pyamongWaiting}
               alt=""
-              className="w-[min(14vw,110px)] h-auto game-sprite animate-pyamong-pitcher-change shrink-0"
+              className={pyamongSpriteClass(
+                battingHalf,
+                "w-[min(14vw,110px)] h-auto animate-pyamong-pitcher-change shrink-0",
+              )}
               style={{ transformOrigin: "bottom center" }}
               data-testid="char-pyamong-pitcher-change"
             />
@@ -385,7 +420,10 @@ export default function GameCharacterLayer({
             <img
               src={pyamongWaiting}
               alt=""
-              className="w-[min(11vw,88px)] h-auto game-sprite animate-pyamong-idle shrink-0"
+              className={pyamongSpriteClass(
+                battingHalf,
+                "w-[min(11vw,88px)] h-auto animate-pyamong-idle shrink-0",
+              )}
               style={{ transformOrigin: "bottom center" }}
               data-testid="char-pyamong-inning-switch"
             />

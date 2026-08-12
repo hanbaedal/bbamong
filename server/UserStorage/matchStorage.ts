@@ -61,7 +61,11 @@ async function enrichForClient(
     liveScoreboard: match.liveScoreboard as MatchTeamNameInput["liveScoreboard"],
   });
   const headToHead = match.matchHeadToHead
-    ? { awayWins: match.matchHeadToHead.awayWins, homeWins: match.matchHeadToHead.homeWins }
+    ? {
+        awayWins: match.matchHeadToHead.awayWins,
+        homeWins: match.matchHeadToHead.homeWins,
+        season: match.matchHeadToHead.season,
+      }
     : null;
   return {
     ...match,

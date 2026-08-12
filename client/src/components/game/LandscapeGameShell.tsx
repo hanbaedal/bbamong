@@ -16,6 +16,7 @@ import GameNoticeBanner from "./GameNoticeBanner";
 import ConfirmPopup from "@/components/customUi/confirmPopup";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
 import { useUser } from "@/contexts/UserContext";
+import type { HeadToHeadDisplayParts } from "@shared/matchTeamDisplay";
 import type { AdSessionState } from "@/hooks/useAdMob";
 import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
@@ -29,6 +30,7 @@ interface LandscapeGameShellProps {
   matchTitle: string;
   stadiumName: string;
   teamNamesLine?: string | null;
+  headToHead?: HeadToHeadDisplayParts | null;
   headToHeadLine?: string | null;
   currentBatter?: CurrentBatterPreview | null;
   scoreboard: LiveScoreboard | null;
@@ -84,6 +86,7 @@ export default function LandscapeGameShell({
   matchTitle,
   stadiumName,
   teamNamesLine,
+  headToHead = null,
   headToHeadLine,
   currentBatter = null,
   scoreboard,
@@ -157,6 +160,7 @@ export default function LandscapeGameShell({
               matchTitle={matchTitle}
               stadiumName={stadiumName}
               teamNamesLine={teamNamesLine}
+              headToHead={headToHead}
               headToHeadLine={headToHeadLine}
               currentBatter={currentBatter}
               scoreboard={scoreboard}
@@ -192,6 +196,7 @@ export default function LandscapeGameShell({
               gameDayPhase={gameDayPhase}
               gameDayOverlayKind={gameDayOverlayKind}
               selectedPrediction={selectedPrediction}
+              battingHalf={inningHalf ?? null}
               onRunComplete={onRunComplete}
             />
 

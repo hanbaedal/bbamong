@@ -7,8 +7,10 @@ import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import {
   formatMatchTeamLineWithHeadToHead,
   formatMatchTeamLine,
-  formatHeadToHeadRecordLine,
+  buildHeadToHeadDisplay,
+  resolveHeadToHeadSeason,
   resolveMatchTeamNames,
+  type HeadToHeadDisplayParts,
   type MatchHeadToHeadRecord,
   type MatchTeamNameInput,
 } from "@shared/matchTeamDisplay";
@@ -51,19 +53,28 @@ export function formatGameMatchTeamLine(
   return formatMatchTeamLineWithHeadToHead(awayTeamName, homeTeamName, match.headToHead);
 }
 
-/** 예측 화면 상단 — 팀명 1줄 + 상대전적 2줄 */
+/** 예측 화면 상단 — 팀명 1줄 + 상대전적(시즌·팀명·승수) */
 export function resolveGameMatchHeaderLines(
-  match: Pick<GameMatchItem, "awayTeamName" | "homeTeamName" | "headToHead">,
+  match: Pick<GameMatchItem, "awayTeamName" | "homeTeamName" | "headToHead" | "startTime">,
   liveScoreboard?: MatchTeamNameInput["liveScoreboard"],
-): { teamNamesLine: string; headToHeadLine: string } {
+): { teamNamesLine: string; headToHead: HeadToHeadDisplayParts } {
   const { awayTeamName, homeTeamName } = resolveMatchTeamNames({
     apiSportsAwayTeam: match.awayTeamName,
     apiSportsHomeTeam: match.homeTeamName,
     liveScoreboard,
   });
+  const season = resolveHeadToHeadSeason(
+    match.headToHead as (MatchHeadToHeadRecord & { season?: number }) | null | undefined,
+    match.startTime,
+  );
   return {
     teamNamesLine: formatMatchTeamLine(awayTeamName, homeTeamName),
-    headToHeadLine: formatHeadToHeadRecordLine(match.headToHead),
+    headToHead: buildHeadToHeadDisplay({
+      awayTeamName,
+      homeTeamName,
+      headToHead: match.headToHead,
+      season,
+    }),
   };
 }
 

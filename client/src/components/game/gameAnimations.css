@@ -3,6 +3,18 @@
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
 }
 
+/** 원정(초) 공격 — 빨강 틴트 */
+.game-sprite-tint-away {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45)) sepia(0.45) saturate(2.6) hue-rotate(-18deg)
+    brightness(1.02);
+}
+
+/** 홈(말) 공격 — 청색 틴트 */
+.game-sprite-tint-home {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45)) sepia(0.35) saturate(2.4) hue-rotate(175deg)
+    brightness(1.02);
+}
+
 @keyframes pyamong-idle-bob {
   0%,
   100% {
