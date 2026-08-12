@@ -110,14 +110,14 @@ export default function PredictionPage() {
     void lockGameLandscape();
   }, []);
 
-  /** 게임 중 세션 만료 팝업 차단 + access token 선제 갱신 */
+  /** 게임 중 세션 만료 팝업 차단 + access token 선제 갱신 (15분 JWT → 4분마다 점검) */
   useEffect(() => {
     setGameSessionProtected(true);
     void keepAliveUserSession();
 
     const intervalId = window.setInterval(() => {
       void keepAliveUserSession();
-    }, 10 * 60 * 1000);
+    }, 4 * 60 * 1000);
 
     return () => {
       window.clearInterval(intervalId);
@@ -152,26 +152,33 @@ export default function PredictionPage() {
 
   const nowMs = useNowMs();
 
-  const { data: matchesData, isLoading: matchesLoading } = useQuery<GameMatchItem[]>({
+  const {
+    data: matchesData,
+    isLoading: matchesLoading,
+    isError: matchesError,
+  } = useQuery<GameMatchItem[]>({
     queryKey: ["/api/matches"],
     staleTime: 30_000,
     refetchInterval: (query) => {
-      const list = query.state.data ?? [];
+      const list = Array.isArray(query.state.data) ? query.state.data : [];
       const dayPhase = resolveGameDayPhase(list, false);
       if (dayPhase === "no_match") return 30_000;
       if (dayPhase === "pregame") return 15_000;
       const current = list.find((m) => m.id === selectedMatchId) ?? list[0];
       if (!current) return false;
-      return shouldClientPollMatch(current.startTime, current.matchStatus) ? 3000 : false;
+      // WS가 라이브 상태를 담당 — HTTP 목록 폴링은 완화 (429 방지)
+      return shouldClientPollMatch(current.startTime, current.matchStatus) ? 10_000 : false;
     },
     refetchIntervalInBackground: false,
   });
 
-  const matchesInitialLoading = matchesLoading && matchesData === undefined;
+  const hasMatchesSnapshot = Array.isArray(matchesData);
+  const matchesAwaitingData = !hasMatchesSnapshot && (matchesLoading || matchesError);
+  const matchesInitialLoading = matchesLoading && !hasMatchesSnapshot;
 
   const orderedMatches = useMemo(
-    () => sortMatchesByOrder(matchesData ?? []),
-    [matchesData],
+    () => sortMatchesByOrder(hasMatchesSnapshot ? matchesData : []),
+    [matchesData, hasMatchesSnapshot],
   );
 
   const joinableMatches = useMemo(
@@ -180,13 +187,13 @@ export default function PredictionPage() {
   );
 
   const gameDayPhase = useMemo(
-    () => resolveGameDayPhase(orderedMatches, matchesLoading, nowMs),
-    [orderedMatches, matchesLoading, nowMs],
+    () => resolveGameDayPhase(orderedMatches, matchesLoading || matchesAwaitingData, nowMs),
+    [orderedMatches, matchesLoading, matchesAwaitingData, nowMs],
   );
 
   const gameDayOverlayKind = useMemo(
-    () => resolveGameDayOverlayKind(orderedMatches, matchesLoading, nowMs),
-    [orderedMatches, matchesLoading, nowMs],
+    () => resolveGameDayOverlayKind(orderedMatches, matchesLoading || matchesAwaitingData, nowMs),
+    [orderedMatches, matchesLoading, matchesAwaitingData, nowMs],
   );
 
   const viewableMatches = useMemo(
@@ -219,12 +226,27 @@ export default function PredictionPage() {
     queryKey: ["/api/live-match/matches", displayMatch?.id, "side-bets/me"],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/live-match/matches/${displayMatch!.id}/side-bets/me`);
+      if (res.status === 429) throw new Error("RATE_LIMITED");
+      if (!res.ok) throw new Error(`side-bets/me ${res.status}`);
       return res.json();
     },
     enabled: Boolean(user && displayMatch?.id),
+    retry: (failureCount, error) => {
+      const msg = error instanceof Error ? error.message : "";
+      if (msg.includes("RATE_LIMITED") || msg.includes("다른 기기") || msg.includes("세션이 만료") || msg.includes("일시적으로 연결")) {
+        return false;
+      }
+      return failureCount < 1;
+    },
     refetchInterval: (query) => {
+      const err = query.state.error;
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("다른 기기") || msg.includes("세션이 만료") || msg.includes("일시적으로 연결")) {
+        return false;
+      }
+      if (msg.includes("RATE_LIMITED")) return 20_000;
       const bets = query.state.data?.bets ?? [];
-      return bets.some((b) => b.status === "pending") ? 5_000 : 12_000;
+      return bets.some((b) => b.status === "pending") ? 8_000 : 20_000;
     },
   });
 
@@ -234,10 +256,27 @@ export default function PredictionPage() {
     queryKey: ["/api/live-match/side-bets/me/today"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/live-match/side-bets/me/today");
+      if (res.status === 429) throw new Error("RATE_LIMITED");
+      if (!res.ok) throw new Error(`side-bets/today ${res.status}`);
       return res.json();
     },
     enabled: Boolean(user),
-    refetchInterval: 8_000,
+    retry: (failureCount, error) => {
+      const msg = error instanceof Error ? error.message : "";
+      if (msg.includes("RATE_LIMITED") || msg.includes("다른 기기") || msg.includes("세션이 만료") || msg.includes("일시적으로 연결")) {
+        return false;
+      }
+      return failureCount < 1;
+    },
+    refetchInterval: (query) => {
+      const err = query.state.error;
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("다른 기기") || msg.includes("세션이 만료") || msg.includes("일시적으로 연결")) {
+        return false;
+      }
+      if (msg.includes("RATE_LIMITED")) return 20_000;
+      return 15_000;
+    },
   });
 
   const winnerBet = currentSideBets?.bets.find((b) => b.type === "winner");
@@ -318,16 +357,16 @@ export default function PredictionPage() {
   useEffect(() => {
     if (!selectedMatchId) return;
     // 매치 목록 로드 전에는 비어 있어 복원값을 지우면 안 됨
-    if (matchesLoading || matchesData === undefined) return;
+    if (matchesLoading || !hasMatchesSnapshot) return;
     const stillViewable = viewableMatches.some((m) => m.id === selectedMatchId);
     if (!stillViewable) {
       setSelectedMatchId(null);
     }
-  }, [selectedMatchId, viewableMatches, matchesLoading, matchesData]);
+  }, [selectedMatchId, viewableMatches, matchesLoading, hasMatchesSnapshot]);
 
   useEffect(() => {
     if (!selectedMatchId) return;
-    if (matchesLoading || matchesData === undefined) return;
+    if (matchesLoading || !hasMatchesSnapshot) return;
     const found = orderedMatches.find((m) => m.id === selectedMatchId);
     if (found && isMatchSelectableForGame(found, nowMs)) return;
     setSelectedMatchId(null);
@@ -338,17 +377,17 @@ export default function PredictionPage() {
     orderedMatches,
     nowMs,
     matchesLoading,
-    matchesData,
+    hasMatchesSnapshot,
     gameDayOverlayKind,
   ]);
 
   useEffect(() => {
-    if (matchesLoading || matchPickPromptedRef.current) return;
+    if (matchesLoading || matchesAwaitingData || matchPickPromptedRef.current) return;
     if (selectedMatchId) return;
     if (gameDayOverlayKind) return;
     matchPickPromptedRef.current = true;
     setMatchModalOpen(true);
-  }, [matchesLoading, selectedMatchId, gameDayOverlayKind]);
+  }, [matchesLoading, matchesAwaitingData, selectedMatchId, gameDayOverlayKind]);
 
   useEffect(() => {
     setLiveScoreboard(null);
@@ -360,7 +399,7 @@ export default function PredictionPage() {
   }, [selectedMatchId]);
 
   useEffect(() => {
-    if (matchesLoading || !selectedMatchId || matchesData === undefined) return;
+    if (matchesLoading || !selectedMatchId || !hasMatchesSnapshot) return;
     if (matchesData.some((m) => m.id === selectedMatchId)) return;
     if (matchEndedHandledRef.current) return;
     matchEndedHandledRef.current = true;
@@ -370,7 +409,7 @@ export default function PredictionPage() {
     }
     toast({ description: "경기가 종료되었습니다." });
     setSelectedMatchId(null);
-  }, [selectedMatchId, matchesData, matchesLoading, toast, nowMs]);
+  }, [selectedMatchId, matchesData, hasMatchesSnapshot, matchesLoading, toast, nowMs]);
 
   const flow = useLandscapePredictionFlow(flowMatch, {
     onScoreboardUpdate: setLiveScoreboard,
@@ -385,6 +424,7 @@ export default function PredictionPage() {
     {
       startTime: selectedMatch?.startTime,
       matchStatus: selectedMatch?.matchStatus,
+      pollMs: 8_000,
     },
   );
 
@@ -417,7 +457,7 @@ export default function PredictionPage() {
     };
 
     void fetchPhase();
-    const id = setInterval(fetchPhase, 3000);
+    const id = setInterval(fetchPhase, 8000);
     return () => {
       stopped = true;
       clearInterval(id);

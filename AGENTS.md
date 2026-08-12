@@ -23,6 +23,11 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 ### Delivery preference (owner)
 - When a change set is done: **push to GitHub, open/update the PR, mark ready, and squash-merge to `main`** in the same turn unless the user asks to keep it draft or hold merge. Do not leave finished work as unmerged open PRs by default.
 
+### Prediction wait / black screen
+- `/api/matches` 등 React Query는 **429·세션 오류 시 null로 캐시를 덮지 않는다** (throw → 이전 스냅샷 유지). null을 `[]`로 취급하면 가짜 `no_match` 검은 화면·`matchesData.some` 크래시가 난다.
+- 예측 화면 keepAlive는 **4분** 간격, WS 연결 전 access는 **만료 2분 전 refresh**, close `4005`는 **forceRefresh 후** 재연결.
+- 라이브 대기 중 HTTP 폴링은 WS 보조로 **완화**(목록·스코어보드·phase ~8–10s). side-bet는 세션 교체/만료 메시지 시 interval 중지.
+
 ### Prediction flow edge guards
 - `wait_result` 중 `round_next`는 결과 생략(`skippedResult`)이 아니면 보류한다. 투수교체 환불 시 서버가 `skippedResult: true`를 보낸다.
 - `betSnapshotRef`로 `activeBet`이 비어도 `round_result` 연출이 가능하고, 없으면 `/check`로 복구한다.

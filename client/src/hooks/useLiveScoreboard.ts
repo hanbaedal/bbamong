@@ -28,6 +28,10 @@ export function useLiveScoreboard(matchId?: string | null, options?: LiveScorebo
     refetchInterval: shouldPoll ? pollMs : false,
     queryFn: async () => {
       const res = await fetch(getFullUrl(`/api/matches/${matchId}/scoreboard`));
+      if (res.status === 429) {
+        console.log("[Scoreboard] 요청 제한 (429) - 기존 캐시 유지");
+        throw new Error("RATE_LIMITED");
+      }
       if (!res.ok) throw new Error("스코어보드 조회 실패");
       return res.json();
     },

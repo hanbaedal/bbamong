@@ -303,10 +303,20 @@ export function useMatchWebSocket({
         }
 
         if (event.code === 4005) {
-          // 다른 기기 로그인으로 세션이 교체된 경우가 많음 — 토큰 갱신 후 재연결 시도.
-          // 갱신 실패(SESSION_REPLACED) 시 queryClient가 중복 로그인 팝업을 띄움.
+          // 세션 종료 — 만료·교체 모두 가능. force refresh 후 재연결 (만료 토큰으로 4002 방지).
           console.log("[WS] Session terminated (4005) - attempting reconnect with fresh token");
-          scheduleReconnect();
+          void (async () => {
+            const fresh = await getOrRefreshAccessToken({ forceRefresh: true });
+            if (!fresh) {
+              console.log("[WS] No fresh token after 4005 — stopping reconnect");
+              setConnectionState("disconnected");
+              handlersRef.current.onError?.(
+                new Error("세션이 만료되었습니다. 다시 로그인해주세요."),
+              );
+              return;
+            }
+            scheduleReconnect();
+          })();
           return;
         }
 

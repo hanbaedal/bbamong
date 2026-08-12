@@ -571,7 +571,7 @@ export function useLandscapePredictionFlow(
     };
 
     void poll();
-    const id = setInterval(poll, 2500);
+    const id = setInterval(poll, 8000);
     return () => clearInterval(id);
   }, [selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus, screenPhase, handleMatchEnded]);
 
