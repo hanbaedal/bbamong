@@ -872,6 +872,7 @@ export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
 
     await refreshMatchHeadToHeadIfDue(matchId, {
       id: matchId,
+      registrationOrder: match.registrationOrder,
       startTime: match.startTime,
       apiSportsAwayTeamId: game.teams.away.id,
       apiSportsHomeTeamId: game.teams.home.id,
@@ -1191,6 +1192,7 @@ export async function linkMatchToApiSports(matchId: string, apiSportsGameId: num
 
   await refreshMatchHeadToHeadIfDue(matchId, {
     id: matchId,
+    registrationOrder: (updated as { registrationOrder?: number | null }).registrationOrder,
     startTime: updated.startTime,
     apiSportsAwayTeamId: game.teams.away.id,
     apiSportsHomeTeamId: game.teams.home.id,

@@ -163,6 +163,11 @@ export async function refreshMatchLineupIfDue(
   if (!match?.apiSportsGameId) return;
   if (!(await isMatchApiSportsPollingEnabled(match.registrationOrder))) return;
 
+  // 운영자 수동 라인업은 API가 덮어쓰지 않음 (KBO 라인업 엔드포인트 미제공)
+  if (match.matchLineup?.source === "manual") {
+    return;
+  }
+
   const lineupStale = lineupIsStale(match.matchLineup);
   const statsStale = playerStatsNeedRefresh(match.matchLineup, match.matchPlayerStats);
   if (!lineupStale && !statsStale) return;
@@ -171,7 +176,7 @@ export async function refreshMatchLineupIfDue(
   if (lineupStale) {
     const fetched = await fetchLineupSnapshot(match.apiSportsGameId);
     if (fetched) {
-      lineup = fetched;
+      lineup = { ...fetched, source: "api" };
     } else if (!lineup) {
       return;
     }

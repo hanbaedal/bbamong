@@ -1,4 +1,9 @@
 import { API_SPORTS_BASE_URL } from "./constants";
+import {
+  isEndpointCircuitOpen,
+  isMissingEndpointError,
+  openEndpointCircuit,
+} from "./endpointCircuit";
 import { markApiSportsError, markApiSportsSuccess } from "./healthState";
 
 export interface ApiSportsGameResponse {
@@ -67,7 +72,10 @@ async function apiSportsFetch<T>(path: string, params: Record<string, string | n
   const body = (await response.json()) as { errors?: unknown; response?: T };
   if (body.errors && Object.keys(body.errors as object).length > 0) {
     const message = `API-SPORTS error: ${JSON.stringify(body.errors)}`;
-    markApiSportsError(message);
+    // 미제공 엔드포인트는 헬스 lastError를 오염시키지 않음
+    if (!isMissingEndpointError(message)) {
+      markApiSportsError(message);
+    }
     throw new Error(message);
   }
 
@@ -75,15 +83,22 @@ async function apiSportsFetch<T>(path: string, params: Record<string, string | n
   return body.response as T;
 }
 
-/** 라인업·통계 등 선택 엔드포인트 — 실패 시 null (quota/404) */
+/** 라인업·통계 등 선택 엔드포인트 — 실패 시 null (quota/404/미제공) */
 async function apiSportsFetchOptional<T>(
   path: string,
   params: Record<string, string | number>,
 ): Promise<T | null> {
+  if (isEndpointCircuitOpen(path)) {
+    return null;
+  }
   try {
     return await apiSportsFetch<T>(path, params);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (isMissingEndpointError(message)) {
+      openEndpointCircuit(path);
+      return null;
+    }
     console.warn(`[ApiSports] optional ${path} skipped: ${message}`);
     return null;
   }
@@ -109,7 +124,21 @@ export async function fetchGameById(gameId: number): Promise<ApiSportsGameRespon
   return games[0] ?? null;
 }
 
-/** 두 팀 시즌 상대전적 경기 목록 */
+/** 팀 시즌 경기 목록 (/games?team=) — h2h 파라미터 미지원 시 폴백 */
+export async function fetchGamesByTeamSeason(
+  teamId: number,
+  season: number,
+  leagueId: number,
+): Promise<ApiSportsGameResponse[] | null> {
+  return apiSportsFetchOptional<ApiSportsGameResponse[]>("/games", {
+    team: teamId,
+    season,
+    league: leagueId,
+    timezone: "Asia/Seoul",
+  });
+}
+
+/** 두 팀 시즌 상대전적 경기 목록 — h2h 우선, 실패 시 team 시즌 목록 교집합 */
 export async function fetchHeadToHeadGames(
   awayTeamId: number,
   homeTeamId: number,
@@ -123,7 +152,7 @@ export async function fetchHeadToHeadGames(
     league: leagueId,
     timezone: "Asia/Seoul",
   });
-  if (games?.length) return games;
+  if (games && games.length > 0) return games;
 
   const reversed = await apiSportsFetchOptional<ApiSportsGameResponse[]>("/games", {
     h2h: `${homeTeamId}-${awayTeamId}`,
@@ -131,7 +160,29 @@ export async function fetchHeadToHeadGames(
     league: leagueId,
     timezone: "Asia/Seoul",
   });
-  return reversed;
+  if (reversed && reversed.length > 0) return reversed;
+
+  // h2h 파라미터가 빈 배열이거나 실패한 경우 — 팀 시즌 경기로 폴백
+  const [awayGames, homeGames] = await Promise.all([
+    fetchGamesByTeamSeason(awayTeamId, season, leagueId),
+    fetchGamesByTeamSeason(homeTeamId, season, leagueId),
+  ]);
+  if (!awayGames && !homeGames) {
+    // h2h가 []로 성공한 경우도 여기로 올 수 있음 → 빈 배열 유지
+    if (games) return games;
+    if (reversed) return reversed;
+    return null;
+  }
+
+  const pairIds = new Set([awayTeamId, homeTeamId]);
+  const byId = new Map<number, ApiSportsGameResponse>();
+  for (const game of [...(awayGames ?? []), ...(homeGames ?? [])]) {
+    const ids = [game.teams?.away?.id, game.teams?.home?.id];
+    if (ids.every((id) => typeof id === "number" && pairIds.has(id))) {
+      byId.set(game.id, game);
+    }
+  }
+  return Array.from(byId.values());
 }
 
 export function apiSportsTeamIdsFromGame(game: ApiSportsGameResponse): {

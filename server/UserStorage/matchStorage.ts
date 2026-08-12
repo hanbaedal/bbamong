@@ -111,6 +111,7 @@ export class MatchStorage {
         }
         const snapshot = await refreshMatchHeadToHeadIfDue(row.id, {
           id: row.id,
+          registrationOrder: resolveRegistrationOrder(row),
           startTime: row.startTime,
           apiSportsGameId: row.apiSportsGameId,
           apiSportsAwayTeamId: row.apiSportsAwayTeamId,

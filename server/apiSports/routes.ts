@@ -18,9 +18,15 @@ import {
 } from "./syncService";
 import { syncOperatorMatchAssignments, isMatchApiSportsPollingEnabled } from "../managerOperatorService";
 import { rescheduleTodayMatchTimers } from "./matchManagementSchedule";
+import { refreshMatchHeadToHeadIfDue } from "./h2hService";
 import { buildCurrentBatterPreviewFromMatch, refreshMatchLineupIfDue } from "./lineupService";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
-import type { CurrentBatterPreview, MatchLineupSnapshot, MatchPlayerStatsEntry } from "@shared/apiSportsTypes";
+import type {
+  CurrentBatterPreview,
+  MatchHeadToHeadSnapshot,
+  MatchLineupSnapshot,
+  MatchPlayerStatsEntry,
+} from "@shared/apiSportsTypes";
 
 export async function apiSportsRoutes(app: Express): Promise<void> {
   app.get("/api/api-sports/health", async (_req, res) => {
@@ -220,10 +226,28 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
 
         const refreshed = await MatchModel.findOne({ id: matchId })
           .select(
-            "id liveScoreboard apiSportsHomeTeam apiSportsAwayTeam controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
+            "id liveScoreboard apiSportsHomeTeam apiSportsAwayTeam controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats matchHeadToHead registrationOrder apiSportsHomeTeamId apiSportsAwayTeamId",
           )
           .lean();
         if (refreshed) match = refreshed;
+      }
+
+      const h2hMissing = !(match as { matchHeadToHead?: { syncedAt?: string } | null }).matchHeadToHead
+        ?.syncedAt;
+      if (apiPollingEnabled && h2hMissing && match.apiSportsGameId) {
+        await refreshMatchHeadToHeadIfDue(matchId, {
+          id: matchId,
+          registrationOrder: (match as { registrationOrder?: number | null }).registrationOrder,
+          startTime: match.startTime,
+          apiSportsGameId: match.apiSportsGameId,
+          apiSportsAwayTeamId: match.apiSportsAwayTeamId,
+          apiSportsHomeTeamId: match.apiSportsHomeTeamId,
+          matchHeadToHead:
+            ((match as { matchHeadToHead?: MatchHeadToHeadSnapshot | null }).matchHeadToHead) ??
+            null,
+        }).catch((err) => {
+          console.warn(`[Scoreboard] h2h refresh ${matchId}:`, err);
+        });
       }
 
       let currentBatter: CurrentBatterPreview | null = null;
