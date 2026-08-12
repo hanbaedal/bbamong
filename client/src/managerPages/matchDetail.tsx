@@ -107,7 +107,7 @@ export default function MatchDetailPage() {
   });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const connectFnRef = useRef<(() => void) | null>(null);
+  const connectFnRef = useRef<(() => void | Promise<void>) | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 30;
   const RECONNECT_DELAY = 1000;
@@ -426,7 +426,7 @@ export default function MatchDetailPage() {
               ) {
                 return;
               }
-              connectFnRef.current?.();
+              void connectFnRef.current?.();
             }, delay);
           } else {
             console.error("[Manager WS] 최대 재연결 시도 횟수 초과");
@@ -443,7 +443,7 @@ export default function MatchDetailPage() {
 
     // Store connect function in ref for reconnection
     connectFnRef.current = connect;
-    connect();
+    void connect();
 
     return () => {
       // 언마운트 상태 표시 - 4004 코드 발생 시 duplicate login으로 처리하지 않기 위함
