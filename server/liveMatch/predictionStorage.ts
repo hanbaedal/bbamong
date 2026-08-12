@@ -359,22 +359,47 @@ export async function startRound(matchId: string): Promise<Match> {
     const match = await MatchModel.findOne({ id: matchId }).session(session).lean();
     if (!match) throw new Error("경기를 찾을 수 없습니다.");
 
-    const currentRound = match.currentRound;
-    const existing = await RoundStatisticsModel.findOne({
+    let currentRound =
+      typeof match.currentRound === "number" && Number.isFinite(match.currentRound)
+        ? match.currentRound
+        : 1;
+    let existing = await RoundStatisticsModel.findOne({
       matchId,
       roundNumber: currentRound,
     })
       .session(session)
       .lean();
 
+    /**
+     * 결과가 이미 전송된 라운드에 currentRound가 고착되면(자동 다음타자 실패·3아웃 대기 등)
+     * 예측 시작이 500으로 막힘 → 다음 라운드로 넘겨 새 타석 예측을 연다.
+     */
+    if (existing?.isResultSent) {
+      currentRound += 1;
+      await MatchModel.updateOne(
+        { id: matchId },
+        { $set: { currentRound, predictionEnabled: false } },
+        { session },
+      );
+      existing = await RoundStatisticsModel.findOne({
+        matchId,
+        roundNumber: currentRound,
+      })
+        .session(session)
+        .lean();
+      console.log(
+        `[Prediction] startRound healed result-sent sticky round → ${currentRound} (${matchId})`,
+      );
+    }
+
     if (existing && existing.isPredictionStarted && !existing.isPredictionStopped) {
-      if (match.predictionEnabled) {
+      if (match.predictionEnabled && currentRound === match.currentRound) {
         await session.commitTransaction();
         return match as Match;
       }
       const syncedMatch = await MatchModel.findOneAndUpdate(
         { id: matchId },
-        { predictionEnabled: true, sideBetsLocked: true },
+        { predictionEnabled: true, sideBetsLocked: true, currentRound },
         { new: true, session },
       ).lean();
       await session.commitTransaction();
@@ -382,13 +407,9 @@ export async function startRound(matchId: string): Promise<Match> {
       return syncedMatch as Match;
     }
 
-    if (existing && existing.isResultSent) {
-      throw new Error("결과가 이미 발송된 라운드는 재시작할 수 없습니다.");
-    }
-
     const updatedMatch = await MatchModel.findOneAndUpdate(
       { id: matchId },
-      { predictionEnabled: true, sideBetsLocked: true },
+      { predictionEnabled: true, sideBetsLocked: true, currentRound },
       { new: true, session },
     ).lean();
 
@@ -429,8 +450,10 @@ export async function startRound(matchId: string): Promise<Match> {
         roundStatsQuery(matchId, currentRound),
         {
           predictionStartTime: new Date(),
+          predictionStopTime: null,
           isPredictionStarted: true,
           isPredictionStopped: false,
+          isResultSent: false,
           totalParticipants: 0,
           totalPoints: 0,
           totalWinners: 0,
@@ -442,8 +465,10 @@ export async function startRound(matchId: string): Promise<Match> {
         roundStatsQuery(matchId, currentRound),
         {
           predictionStartTime: new Date(),
+          predictionStopTime: null,
           isPredictionStarted: true,
           isPredictionStopped: false,
+          isResultSent: false,
         },
         { session },
       );
@@ -472,7 +497,11 @@ export async function startRound(matchId: string): Promise<Match> {
     if (!updatedMatch) throw new Error("경기를 찾을 수 없습니다.");
     return updatedMatch as Match;
   } catch (error) {
-    await session.abortTransaction();
+    try {
+      await session.abortTransaction();
+    } catch {
+      /* ignore abort errors */
+    }
     throw error;
   } finally {
     session.endSession();
