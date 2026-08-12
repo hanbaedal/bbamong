@@ -376,36 +376,25 @@ export async function startRound(matchId: string): Promise<Match> {
       .lean();
 
     /**
-     * 결과가 이미 전송된 라운드에 currentRound가 고착되면(자동 다음타자 실패 등)
-     * 예측 시작이 막힘 → 다음 라운드로 넘겨 새 타석 예측을 연다.
-     * (3아웃은 위에서 차단 — 공수교대 유도)
+     * 결과가 이미 전송된 라운드 — 자동 진행 없음.
+     * 운영자가 「다음 타자」또는 「공수교대」를 누른 뒤에만 새 예측을 연다.
      */
     if (existing?.isResultSent) {
-      currentRound += 1;
-      await MatchModel.updateOne(
-        { id: matchId },
-        { $set: { currentRound, predictionEnabled: false } },
-        { session },
-      );
-      existing = await RoundStatisticsModel.findOne({
-        matchId,
-        roundNumber: currentRound,
-      })
-        .session(session)
-        .lean();
-      console.log(
-        `[Prediction] startRound healed result-sent sticky round → ${currentRound} (${matchId})`,
+      throw new Error(
+        outsInHalf >= 3
+          ? "결과가 전송되었습니다. 공수교대를 눌러주세요."
+          : "결과가 전송되었습니다. 다음 타자를 눌러주세요.",
       );
     }
 
     if (existing && existing.isPredictionStarted && !existing.isPredictionStopped) {
-      if (match.predictionEnabled && currentRound === match.currentRound) {
+      if (match.predictionEnabled) {
         await session.commitTransaction();
         return match as Match;
       }
       const syncedMatch = await MatchModel.findOneAndUpdate(
         { id: matchId },
-        { predictionEnabled: true, sideBetsLocked: true, currentRound },
+        { predictionEnabled: true, sideBetsLocked: true },
         { new: true, session },
       ).lean();
       await session.commitTransaction();
@@ -415,7 +404,7 @@ export async function startRound(matchId: string): Promise<Match> {
 
     const updatedMatch = await MatchModel.findOneAndUpdate(
       { id: matchId },
-      { predictionEnabled: true, sideBetsLocked: true, currentRound },
+      { predictionEnabled: true, sideBetsLocked: true },
       { new: true, session },
     ).lean();
 

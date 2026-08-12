@@ -176,6 +176,8 @@ export class AdminMatchStorage implements IAdminMatchStorage {
         !roundStats.isResultSent &&
         (roundStats.isPredictionStarted || roundStats.isPredictionStopped),
     );
+    /** 결과 전송 후 — 다음 타자/공수교대 대기 (자동 진행 없음) */
+    const needsAdvanceAfterResult = Boolean(roundStats?.isResultSent);
 
     return {
       ...(match as Match),
@@ -184,6 +186,7 @@ export class AdminMatchStorage implements IAdminMatchStorage {
       isResultSent: roundStats?.isResultSent ?? false,
       isPredictionStarted: roundStats?.isPredictionStarted ?? false,
       needsResultBeforeAdvance,
+      needsAdvanceAfterResult,
       outsInHalf,
       showThreeOutsHint: outsInHalf >= 3,
       stadium: { id: stadium?.id ?? match.stadiumId, name: stadium?.name ?? "" },
