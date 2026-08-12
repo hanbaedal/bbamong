@@ -42,6 +42,8 @@ interface Match {
   batterIndexInHalf?: number;
   outsInHalf?: number;
   needsResultBeforeAdvance?: boolean;
+  /** 결과 전송 후 다음 타자/공수교대 대기 */
+  needsAdvanceAfterResult?: boolean;
   showThreeOutsHint?: boolean;
   isResultSent?: boolean;
   pinchHitter?: {
@@ -700,29 +702,26 @@ export default function MatchDetailPage() {
         if (data.threeOutsReached) {
           threeOutsSpokenRef.current = true;
           void speakGameVoice(OPERATOR_GAME_VOICE.threeOuts);
-          toast({ description: "3아웃입니다. 공수교대를 눌러주세요." });
-        } else if (data.autoNextFailed) {
-          toast({
-            variant: "destructive",
-            description:
-              typeof data.autoNextError === "string" && data.autoNextError
-                ? data.autoNextError
-                : "다음 타자 자동 이동에 실패했습니다. 「다음 타자」를 눌러주세요.",
-          });
+          toast({ description: "결과가 전송되었습니다. 공수교대를 눌러주세요." });
+        } else {
+          toast({ description: "결과가 전송되었습니다. 다음 타자를 눌러주세요." });
         }
         if (match) {
           setMatch({
             ...match,
-            currentRound: data.nextRound ?? match.currentRound + 1,
+            // 자동 다음타자 없음 — 라운드 유지, 운영자 버튼 대기
+            currentRound: match.currentRound,
             predictionEnabled: false,
             predictionStartTime: undefined,
             predictionStopTime: undefined,
             outsInHalf: data.outsInHalf ?? match.outsInHalf,
             showThreeOutsHint: Boolean(data.threeOutsReached),
             needsResultBeforeAdvance: false,
+            needsAdvanceAfterResult: true,
             isResultSent: true,
           });
         }
+        void fetchMatchDetail();
       } else {
         const errorData = await response.json();
         toast({
@@ -946,6 +945,9 @@ export default function MatchDetailPage() {
     scoreboard: scoreboardPayload?.scoreboard ?? null,
   });
   const blockAdvance = Boolean(match.needsResultBeforeAdvance);
+  const awaitAdvanceAfterResult = Boolean(
+    match.needsAdvanceAfterResult || match.isResultSent,
+  );
   const showThreeOutsHint = Boolean(match.showThreeOutsHint);
   /** 경기중(ongoing) 또는 시작 시각 경과(API 지연으로 scheduled 잔류) */
   const startTimeReached = Boolean(
@@ -967,9 +969,11 @@ export default function MatchDetailPage() {
     blockAdvance &&
     stopToggleAt > 0 &&
     Date.now() - stopToggleAt < PREDICTION_TOGGLE_MS;
+  /** 결과 후·3아웃에는 예측 시작 불가 — 다음 타자/공수교대만 */
   const canStartPrediction =
     isMatchLive &&
     !showThreeOutsHint &&
+    !awaitAdvanceAfterResult &&
     !isStartingPrediction &&
     (!predictionRunning || withinStartCancel);
   const canStopPrediction =
@@ -986,14 +990,14 @@ export default function MatchDetailPage() {
   /** 공수교대(3아웃) 제외 — 예측 시작·중지 중에도 투수 교체 가능 */
   const canPitcherChange =
     (isMatchLive && !showThreeOutsHint && !isNextBatterLoading) || isAdPlaying;
-  /** 다음 타자 — 3아웃이면 공수교대만 (광고 종료는 예외) */
+  /** 다음 타자 — 3아웃이면 공수교대만; 결과 대기 중에는 다음타자 가능 */
   const canNextBatter =
     (isMatchLive &&
       !showThreeOutsHint &&
       !isNextBatterLoading &&
       !blockAdvanceActions) ||
     isAdPlaying;
-  /** 공수 교대 — 3아웃 시 결과 전송 후 이 버튼으로만 진행 */
+  /** 공수 교대 — 결과 대기 중이 아니어야 함(미결과면 먼저 결과) */
   const canSwitchHalf =
     (isMatchLive && !isNextBatterLoading && !blockAdvanceActions) || isAdPlaying;
   /** 대타 — 경기중·예측 중이 아닐 때 (현재 타석 교체) */
@@ -1100,13 +1104,15 @@ export default function MatchDetailPage() {
                 ? "경기전"
                 : showThreeOutsHint
                   ? "공수교대"
-                  : isStartingPrediction
-                    ? "처리중..."
-                    : withinStartCancel
-                      ? "↩ 시작 취소"
-                      : predictionRunning
-                        ? "예측 중"
-                        : "▶ 예측 시작"}
+                  : awaitAdvanceAfterResult
+                    ? "다음 타자"
+                    : isStartingPrediction
+                      ? "처리중..."
+                      : withinStartCancel
+                        ? "↩ 시작 취소"
+                        : predictionRunning
+                          ? "예측 중"
+                          : "▶ 예측 시작"}
               <img
                 src={assets.startPrediction}
                 className="manager-match-action-mascot w-[52px] h-[94px] object-contain -top-3 -right-1 scale-x-[-1]"
@@ -1220,6 +1226,16 @@ export default function MatchDetailPage() {
               data-testid="text-three-outs-hint"
             >
               3아웃 — 공수교대를 눌러주세요
+            </div>
+          )}
+
+          {!showThreeOutsHint && awaitAdvanceAfterResult && (
+            <div
+              className="manager-match-notice"
+              data-testid="text-await-next-batter"
+              style={{ background: "#E8F5E9", color: "#2E7D32" }}
+            >
+              결과 전송됨 — 다음 타자를 눌러주세요
             </div>
           )}
 
