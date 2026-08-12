@@ -120,15 +120,17 @@ function ManualCard({
 }
 
 export default function SystemManualsPage() {
-  const { user } = useUser();
+  const { user, isUserLoaded } = useUser();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  const isSuperAdmin = user?.userType === "슈퍼어드민";
+
   useEffect(() => {
-    if (user && user.userType !== "슈퍼관리자") {
+    if (isUserLoaded && !isSuperAdmin) {
       setLocation("/admin/home");
     }
-  }, [user, setLocation]);
+  }, [isUserLoaded, isSuperAdmin, setLocation]);
 
   const { data, isLoading, refetch, isFetching } = useQuery<SystemManualsResponse>({
     queryKey: ["/api/admin/ops/system-manuals"],
@@ -140,7 +142,7 @@ export default function SystemManualsPage() {
       }
       return res.json();
     },
-    enabled: user?.userType === "슈퍼관리자",
+    enabled: isUserLoaded && isSuperAdmin,
   });
 
   const handleDownload = async (item: SystemManualItem, source: "local" | "github") => {
@@ -163,6 +165,14 @@ export default function SystemManualsPage() {
 
   const usage = data?.manuals.filter((m) => m.category === "usage") ?? [];
   const db = data?.manuals.filter((m) => m.category === "db") ?? [];
+
+  if (!isUserLoaded || !isSuperAdmin) {
+    return (
+      <AdminLayout>
+        <div className="p-6 text-sm text-[#888]">확인 중…</div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
