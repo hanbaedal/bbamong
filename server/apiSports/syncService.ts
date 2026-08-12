@@ -23,7 +23,7 @@ import {
 } from "./scoreboardParser";
 import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
-import { isConfirmedPostponedMatch, isGameNotStarted } from "@shared/apiSportsStatus";
+import { isConfirmedPostponedMatch, isGameNotStarted, normalizeApiStatusShort } from "@shared/apiSportsStatus";
 import { LIVE_SCORE_NS_GATE_POLL_MS, LIVE_SCORE_SYNC_START_BEFORE_MS } from "./constants";
 import { isStaleFinishedScoreboard, isStalePostponedScoreboard, isMisclassifiedTerminalStatus } from "@shared/matchManagementStatus";
 import { refreshMatchLineupIfDue } from "./lineupService";
@@ -55,6 +55,45 @@ async function syncOperatorAccountForMatch(matchId: string): Promise<void> {
   } catch (error) {
     console.error(`[Operators] account status sync failed (${matchId}):`, error);
   }
+}
+
+/**
+ * DB ongoing + API 스코어보드 시작 전(NS) 고착을 scheduled로 복구.
+ * 예측 시작이 matchStatus를 올리지 않도록 바꾼 뒤, 기존 오진입 데이터 치유용.
+ */
+export async function reconcileStuckPregameOngoingStatuses(
+  targetDate = getKstDateString(),
+): Promise<number> {
+  const matches = await MatchModel.find({
+    matchStatus: "ongoing",
+    $or: [{ matchDate: targetDate }, { matchDate: null }],
+  })
+    .select("id matchDate liveScoreboard startTime")
+    .lean();
+
+  let fixed = 0;
+  for (const match of matches) {
+    const matchDate =
+      (match as { matchDate?: string | null }).matchDate ??
+      (match.startTime ? getKstDateString(new Date(match.startTime)) : null);
+    if (matchDate !== targetDate) continue;
+
+    const sb = match.liveScoreboard as LiveScoreboard | null | undefined;
+    if (!sb || !isGameNotStarted(sb.statusShort)) continue;
+    if (sb.inning != null) continue;
+    if (/\d+회/.test(sb.inningLabel ?? "") && !/종료|연기|취소/.test(sb.inningLabel ?? "")) {
+      continue;
+    }
+
+    await MatchModel.updateOne({ id: match.id }, { $set: { matchStatus: "scheduled" } });
+    await syncOperatorAccountForMatch(match.id);
+    fixed += 1;
+  }
+
+  if (fixed > 0) {
+    console.log(`[MatchStatus] reconciled ${fixed} ongoing→scheduled (API NS) on ${targetDate}`);
+  }
+  return fixed;
 }
 
 function gameStartDate(game: ApiSportsGameResponse): Date {
@@ -134,6 +173,17 @@ export function resolveMatchStatusFromScoreboard(
   if (hasStartTimeReached(startTime)) {
     const totalRuns = (scoreboard.homeScore ?? 0) + (scoreboard.awayScore ?? 0);
     if (totalRuns > 0) return "ongoing";
+  }
+  // API가 시작 전(NS 등)이면 scheduled — 예측 시작으로 ongoing이 고착되지 않게 복귀
+  if (isGameNotStarted(scoreboard.statusShort)) {
+    return "scheduled";
+  }
+  // API 상태 신호가 없으면 종료·취소만 유지하고, ongoing은 올리지/유지하지 않음
+  if (!normalizeApiStatusShort(scoreboard.statusShort)) {
+    if (currentStatus === "completed" || currentStatus === "cancelled") {
+      return currentStatus;
+    }
+    return "scheduled";
   }
   return currentStatus === "ongoing" ? "ongoing" : "scheduled";
 }
@@ -387,6 +437,7 @@ export async function syncTodayGamesFromApiSports(
       stalePostponed ||
       isGameFinished(scoreboard.statusShort) ||
       isGamePostponedOrCancelled(scoreboard.statusShort) ||
+      isGameNotStarted(scoreboard.statusShort) ||
       !existing?.liveScoreboard ||
       typeof existing.liveScoreboard.homeScore !== "number" ||
       typeof existing.liveScoreboard.awayScore !== "number" ||
@@ -682,6 +733,7 @@ async function updateMatchScoreFromApiGame(
     id: string;
     matchStatus?: string;
     sideBetsLocked?: boolean;
+    startTime?: Date | null;
     liveScoreboard?: LiveScoreboard | null;
     controlMode?: string | null;
   },
@@ -689,16 +741,11 @@ async function updateMatchScoreFromApiGame(
 ): Promise<string> {
   const incoming = parseLiveScoreboard(game);
   const scoreboard = resolveScoreboardForApiWrite(match, incoming);
-  const nextStatus = isConfirmedPostponedMatch({
-    matchStatus: match.matchStatus,
-    statusShort: incoming.statusShort,
-    statusLong: incoming.statusLong,
-    inningLabel: incoming.inningLabel,
-  })
-    ? "cancelled"
-    : isGameFinished(incoming.statusShort)
-      ? "completed"
-      : (match.matchStatus ?? "ongoing");
+  const nextStatus = resolveMatchStatusFromScoreboard(
+    match.matchStatus ?? "scheduled",
+    incoming,
+    match.startTime,
+  );
 
   await MatchModel.updateOne(
     { id: match.id },
