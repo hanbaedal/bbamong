@@ -1050,12 +1050,17 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       const body = z
         .object({
-          home: z.array(batterSchema).max(9).default([]),
-          away: z.array(batterSchema).max(9).default([]),
+          side: z.enum(["home", "away"]).optional(),
+          home: z.array(batterSchema).max(9).optional(),
+          away: z.array(batterSchema).max(9).optional(),
         })
         .parse(req.body ?? {});
 
-      const saved = await saveManualMatchLineup(id, body);
+      const saved = await saveManualMatchLineup(id, {
+        side: body.side,
+        home: body.home ?? [],
+        away: body.away ?? [],
+      });
       return res.json({
         success: true,
         message: "타순·시즌 기록을 저장했습니다. (수동 — API 덮어쓰기 없음)",

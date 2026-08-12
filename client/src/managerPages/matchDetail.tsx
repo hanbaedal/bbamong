@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import ManagerOperatorScorePanel from "@/components/ManagerOperatorScorePanel";
-import ManagerLineupEditor from "@/components/ManagerLineupEditor";
+import ManagerLineupEditor, { type LineupSide } from "@/components/ManagerLineupEditor";
 import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
 import { resolveMatchTeamNames } from "@shared/matchTeamDisplay";
 import { refreshGameKeepAwake, setGameKeepAwake } from "@/lib/screenWakeLock";
@@ -90,7 +90,7 @@ export default function MatchDetailPage() {
   const [showPredictionDisabledPopup, setShowPredictionDisabledPopup] =
     useState(false);
   const [showAdPlayingPopup, setShowAdPlayingPopup] = useState(false);
-  const [showLineupEditor, setShowLineupEditor] = useState(false);
+  const [lineupEditorSide, setLineupEditorSide] = useState<LineupSide | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [managerId, setManagerId] = useState<string | null>(null);
   const { data: scoreboardPayload } = useLiveScoreboard(id ?? null, {
@@ -970,6 +970,11 @@ export default function MatchDetailPage() {
             inningHalf={match.inningHalf}
             matchStatus={match.matchStatus}
             controlMode={scoreboardPayload?.controlMode}
+            awayLineupCount={match.matchLineup?.away?.length ?? 0}
+            homeLineupCount={match.matchLineup?.home?.length ?? 0}
+            awayTeamFallback={awayTeamName}
+            homeTeamFallback={homeTeamName}
+            onTeamClick={(side) => setLineupEditorSide(side)}
             onSaveScores={async ({ awayScore, homeScore }) => {
               if (!id) return;
               try {
@@ -1014,24 +1019,9 @@ export default function MatchDetailPage() {
               비상 수동 제어 (점수 API 잠금)
             </p>
           )}
-          <div className="mt-1.5 flex items-center justify-between gap-2">
-            <p className="text-[clamp(9px,2.2vw,11px)] text-gray-500 leading-snug">
-              타순{" "}
-              {match.matchLineup?.source === "manual"
-                ? `수동 ${(match.matchLineup.away?.length ?? 0) + (match.matchLineup.home?.length ?? 0)}명`
-                : match.matchLineup
-                  ? "연동"
-                  : "미입력"}
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowLineupEditor(true)}
-              className="shrink-0 rounded-md border border-[#1A6DFF]/40 bg-[#1A6DFF]/10 px-2 py-1 text-[clamp(10px,2.4vw,12px)] font-semibold text-[#1A6DFF]"
-              data-testid="button-open-lineup-editor"
-            >
-              타순 입력
-            </button>
-          </div>
+          <p className="mt-1 text-[clamp(9px,2.2vw,11px)] text-gray-500 leading-snug">
+            팀 이름을 눌러 주전 타순·시즌 전적을 입력하세요.
+          </p>
         </div>
 
         <div className="manager-match-controls">
@@ -1212,14 +1202,18 @@ export default function MatchDetailPage() {
         />
       )}
 
-      {showLineupEditor && id ? (
+      {lineupEditorSide && id ? (
         <ManagerLineupEditor
           matchId={id}
           awayTeamLabel={awayTeamName}
           homeTeamLabel={homeTeamName}
+          initialSide={lineupEditorSide}
+          seasonYear={
+            match.startTime ? new Date(match.startTime).getFullYear() : new Date().getFullYear()
+          }
           initialLineup={match.matchLineup}
           initialStats={match.matchPlayerStats}
-          onClose={() => setShowLineupEditor(false)}
+          onClose={() => setLineupEditorSide(null)}
           onSaved={() => {
             void fetchMatchDetail();
             void queryClient.invalidateQueries({

@@ -50,20 +50,59 @@ function normalizeSide(batters: ManualBatterInput[], side: "home" | "away"): Lin
   return Array.from(byOrder.values()).sort((a, b) => a.battingOrder - b.battingOrder);
 }
 
+function playerIdsForSide(side: "home" | "away"): string[] {
+  return side === "home"
+    ? ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    : ["11", "12", "13", "14", "15", "16", "17", "18", "19"];
+}
+
 /** 운영자/관리자 수동 타순·시즌 스탯 저장 (source=manual) */
 export async function saveManualMatchLineup(
   matchId: string,
-  input: { home: ManualBatterInput[]; away: ManualBatterInput[] },
+  input: {
+    home?: ManualBatterInput[];
+    away?: ManualBatterInput[];
+    /** 지정 시 해당 팀만 갱신하고 반대 팀은 DB 값 유지 */
+    side?: "home" | "away";
+  },
 ): Promise<{
   matchLineup: MatchLineupSnapshot;
   matchPlayerStats: Record<string, MatchPlayerStatsEntry>;
 }> {
-  const syncedAt = new Date().toISOString();
-  const home = normalizeSide(input.home ?? [], "home");
-  const away = normalizeSide(input.away ?? [], "away");
+  const existing = await MatchModel.findOne({ id: matchId })
+    .select("matchLineup matchPlayerStats")
+    .lean();
+  if (!existing) {
+    throw new Error("경기를 찾을 수 없습니다.");
+  }
 
-  if (home.length === 0 && away.length === 0) {
-    throw new Error("홈·원정 타순에 이름을 한 명 이상 입력하세요.");
+  const syncedAt = new Date().toISOString();
+  const prevLineup = (existing.matchLineup as MatchLineupSnapshot | null) ?? null;
+  const prevStats =
+    (existing.matchPlayerStats as Record<string, MatchPlayerStatsEntry> | null) ?? {};
+
+  const side = input.side;
+  let home: LineupBatterEntry[];
+  let away: LineupBatterEntry[];
+
+  if (side === "home") {
+    home = normalizeSide(input.home ?? [], "home");
+    away = prevLineup?.away ?? [];
+    if (home.length === 0) {
+      throw new Error("홈 타순에 이름을 한 명 이상 입력하세요.");
+    }
+  } else if (side === "away") {
+    away = normalizeSide(input.away ?? [], "away");
+    home = prevLineup?.home ?? [];
+    if (away.length === 0) {
+      throw new Error("원정 타순에 이름을 한 명 이상 입력하세요.");
+    }
+  } else {
+    home = normalizeSide(input.home ?? [], "home");
+    away = normalizeSide(input.away ?? [], "away");
+    if (home.length === 0 && away.length === 0) {
+      throw new Error("홈·원정 타순에 이름을 한 명 이상 입력하세요.");
+    }
   }
 
   const matchLineup: MatchLineupSnapshot = {
@@ -73,16 +112,25 @@ export async function saveManualMatchLineup(
     source: "manual",
   };
 
-  const matchPlayerStats: Record<string, MatchPlayerStatsEntry> = {};
-  const applyStats = (side: "home" | "away", batters: ManualBatterInput[]) => {
+  const matchPlayerStats: Record<string, MatchPlayerStatsEntry> = { ...prevStats };
+
+  const rewriteSideStats = (target: "home" | "away", batters: ManualBatterInput[]) => {
+    for (const id of playerIdsForSide(target)) {
+      delete matchPlayerStats[id];
+    }
     for (const batter of batters) {
       if (!batter?.name?.trim()) continue;
-      const entry = toLineupEntry(side, batter);
+      const entry = toLineupEntry(target, batter);
       matchPlayerStats[String(entry.playerId)] = toStatsEntry(batter, syncedAt);
     }
   };
-  applyStats("home", input.home ?? []);
-  applyStats("away", input.away ?? []);
+
+  if (side === "home" || side == null) {
+    rewriteSideStats("home", input.home ?? []);
+  }
+  if (side === "away" || side == null) {
+    rewriteSideStats("away", input.away ?? []);
+  }
 
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },

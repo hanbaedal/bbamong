@@ -14,6 +14,12 @@ interface ManagerOperatorScorePanelProps {
   controlMode?: string | null;
   /** 점수 보정 저장 — 성공 시 호출측에서 쿼리 갱신 */
   onSaveScores?: (scores: { awayScore: number; homeScore: number }) => Promise<void>;
+  /** 팀명 클릭 — 주전 타순·시즌 전적 모달 */
+  onTeamClick?: (side: "home" | "away") => void;
+  awayLineupCount?: number;
+  homeLineupCount?: number;
+  awayTeamFallback?: string;
+  homeTeamFallback?: string;
 }
 
 function resolveBattingHalf(
@@ -43,6 +49,11 @@ export default function ManagerOperatorScorePanel({
   matchStatus,
   controlMode,
   onSaveScores,
+  onTeamClick,
+  awayLineupCount = 0,
+  homeLineupCount = 0,
+  awayTeamFallback,
+  homeTeamFallback,
 }: ManagerOperatorScorePanelProps) {
   const [awayScore, setAwayScore] = useState(0);
   const [homeScore, setHomeScore] = useState(0);
@@ -76,8 +87,8 @@ export default function ManagerOperatorScorePanel({
   }
 
   const { awayLabel, homeLabel } = getScoreboardDisplayTeamLabels(scoreboard, {
-    awayFallback: "원정팀",
-    homeFallback: "홈팀",
+    awayFallback: awayTeamFallback?.trim() || "원정팀",
+    homeFallback: homeTeamFallback?.trim() || "홈팀",
   });
   const battingHalf = resolveBattingHalf(scoreboard, gameInning, inningHalf);
   const showAttackBadge = matchStatus === "ongoing" && battingHalf != null;
@@ -88,7 +99,22 @@ export default function ManagerOperatorScorePanel({
     <div className="manager-operator-score" data-testid="manager-score-panel">
       <div className="manager-operator-score-summary">
         <div className="manager-operator-score-team manager-operator-score-team--away">
-          <span className="manager-operator-score-team-name">{awayLabel}</span>
+          {onTeamClick ? (
+            <button
+              type="button"
+              className="manager-operator-score-team-name manager-operator-score-team-name--btn"
+              onClick={() => onTeamClick("away")}
+              data-testid="button-team-lineup-away"
+              title="타순·시즌 전적 입력"
+            >
+              {awayLabel}
+              <span className="manager-operator-score-team-lineup-hint">
+                {awayLineupCount > 0 ? `타순 ${awayLineupCount}` : "타순 입력"}
+              </span>
+            </button>
+          ) : (
+            <span className="manager-operator-score-team-name">{awayLabel}</span>
+          )}
           {awayBatting && (
             <span className="manager-operator-score-phase" data-testid="manager-score-phase-away">
               공격
@@ -138,7 +164,22 @@ export default function ManagerOperatorScorePanel({
               공격
             </span>
           )}
-          <span className="manager-operator-score-team-name">{homeLabel}</span>
+          {onTeamClick ? (
+            <button
+              type="button"
+              className="manager-operator-score-team-name manager-operator-score-team-name--btn"
+              onClick={() => onTeamClick("home")}
+              data-testid="button-team-lineup-home"
+              title="타순·시즌 전적 입력"
+            >
+              {homeLabel}
+              <span className="manager-operator-score-team-lineup-hint">
+                {homeLineupCount > 0 ? `타순 ${homeLineupCount}` : "타순 입력"}
+              </span>
+            </button>
+          ) : (
+            <span className="manager-operator-score-team-name">{homeLabel}</span>
+          )}
         </div>
       </div>
 

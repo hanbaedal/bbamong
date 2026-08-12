@@ -12,7 +12,7 @@ type BatterRow = {
   ops: string;
 };
 
-type LineupSide = "home" | "away";
+export type LineupSide = "home" | "away";
 
 export type ManagerLineupSnapshot = {
   home?: Array<{ battingOrder: number; name: string; playerId?: number }>;
@@ -77,10 +77,27 @@ function parseOptionalInt(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function toPayload(rows: BatterRow[]) {
+  return rows
+    .filter((r) => r.name.trim())
+    .map((r) => ({
+      battingOrder: r.battingOrder,
+      name: r.name.trim(),
+      battingAverage: r.battingAverage.trim() || null,
+      hits: parseOptionalInt(r.hits),
+      homeRuns: parseOptionalInt(r.homeRuns),
+      rbi: parseOptionalInt(r.rbi),
+      ops: r.ops.trim() || null,
+    }));
+}
+
 interface ManagerLineupEditorProps {
   matchId: string;
   awayTeamLabel: string;
   homeTeamLabel: string;
+  /** 팀명 클릭으로 열 때 해당 팀만 편집 */
+  initialSide?: LineupSide;
+  seasonYear?: number;
   initialLineup?: ManagerLineupSnapshot | null;
   initialStats?: ManagerPlayerStats | null;
   onSaved?: () => void;
@@ -91,6 +108,8 @@ export default function ManagerLineupEditor({
   matchId,
   awayTeamLabel,
   homeTeamLabel,
+  initialSide = "away",
+  seasonYear = new Date().getFullYear(),
   initialLineup,
   initialStats,
   onSaved,
@@ -104,20 +123,26 @@ export default function ManagerLineupEditor({
     rowsFromSnapshot("away", initialLineup, initialStats),
   );
   const [saving, setSaving] = useState(false);
-  const [activeSide, setActiveSide] = useState<LineupSide>("away");
+  const [activeSide, setActiveSide] = useState<LineupSide>(initialSide);
 
   useEffect(() => {
     setHomeRows(rowsFromSnapshot("home", initialLineup, initialStats));
     setAwayRows(rowsFromSnapshot("away", initialLineup, initialStats));
   }, [initialLineup, initialStats]);
 
+  useEffect(() => {
+    setActiveSide(initialSide);
+  }, [initialSide]);
+
   const activeRows = activeSide === "home" ? homeRows : awayRows;
   const setActiveRows = activeSide === "home" ? setHomeRows : setAwayRows;
+  const teamLabel =
+    activeSide === "home" ? homeTeamLabel || "홈" : awayTeamLabel || "원정";
 
-  const namedCount = useMemo(() => {
-    const count = (rows: BatterRow[]) => rows.filter((r) => r.name.trim()).length;
-    return { home: count(homeRows), away: count(awayRows) };
-  }, [homeRows, awayRows]);
+  const namedCount = useMemo(
+    () => activeRows.filter((r) => r.name.trim()).length,
+    [activeRows],
+  );
 
   const updateRow = (order: number, patch: Partial<BatterRow>) => {
     setActiveRows((prev) =>
@@ -126,34 +151,23 @@ export default function ManagerLineupEditor({
   };
 
   const handleSave = async () => {
-    const toPayload = (rows: BatterRow[]) =>
-      rows
-        .filter((r) => r.name.trim())
-        .map((r) => ({
-          battingOrder: r.battingOrder,
-          name: r.name.trim(),
-          battingAverage: r.battingAverage.trim() || null,
-          hits: parseOptionalInt(r.hits),
-          homeRuns: parseOptionalInt(r.homeRuns),
-          rbi: parseOptionalInt(r.rbi),
-          ops: r.ops.trim() || null,
-        }));
-
     setSaving(true);
     try {
+      // 편집 중인 팀만 갱신하고, 반대 팀은 기존 스냅샷을 유지
       const res = await managerFetch(`/api/manager/matches/${matchId}/lineup`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          home: toPayload(homeRows),
-          away: toPayload(awayRows),
+          side: activeSide,
+          home: activeSide === "home" ? toPayload(homeRows) : undefined,
+          away: activeSide === "away" ? toPayload(awayRows) : undefined,
         }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(typeof err?.error === "string" ? err.error : "타순 저장에 실패했습니다.");
       }
-      toast({ description: "타순·시즌 기록을 저장했습니다." });
+      toast({ description: `${teamLabel} 주전 타순·${seasonYear} 전적을 저장했습니다.` });
       onSaved?.();
       onClose();
     } catch (err: unknown) {
@@ -174,9 +188,11 @@ export default function ManagerLineupEditor({
       <div className="w-full max-w-lg max-h-[90dvh] overflow-hidden rounded-xl bg-white shadow-xl flex flex-col">
         <header className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100">
           <div>
-            <h2 className="text-sm font-bold text-gray-900">타순 · 시즌 기록</h2>
+            <h2 className="text-sm font-bold text-gray-900">
+              {teamLabel} · 주전 타순
+            </h2>
             <p className="text-[11px] text-gray-500">
-              수동 입력 (API 덮어쓰기 없음) · 원정 {namedCount.away} · 홈 {namedCount.home}
+              {seasonYear} 전적(타율·안타·홈런·타점·OPS) · 입력 {namedCount}/9 · API 덮어쓰기 없음
             </p>
           </div>
           <button
@@ -189,28 +205,10 @@ export default function ManagerLineupEditor({
           </button>
         </header>
 
-        <div className="flex gap-1 px-3 pt-2">
-          {(
-            [
-              ["away", awayTeamLabel || "원정"],
-              ["home", homeTeamLabel || "홈"],
-            ] as const
-          ).map(([side, label]) => (
-            <button
-              key={side}
-              type="button"
-              onClick={() => setActiveSide(side)}
-              className={`flex-1 rounded-md py-1.5 text-xs font-semibold ${
-                activeSide === side ? "bg-[#1A6DFF] text-white" : "bg-gray-100 text-gray-600"
-              }`}
-              data-testid={`button-lineup-side-${side}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+          <p className="text-[11px] text-gray-500 px-0.5">
+            1~9번 주전만 등록합니다. 예측 화면은 운영자 「다음 타자」 순서에 맞춰 표시됩니다.
+          </p>
           {activeRows.map((row) => (
             <div
               key={row.battingOrder}
