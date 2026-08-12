@@ -36,13 +36,13 @@ router.post("/predictions", userAuthMiddleware, async (req: any, res: Response) 
     }
 
     // 경기 상태 확인 - 취소되거나 종료된 경기는 예측 불가
-    if (match.matchStatus === "취소") {
+    if (match.matchStatus === "cancelled" || match.matchStatus === "취소") {
       return res.status(400).json({ 
         error: "취소된 경기입니다. 예측할 수 없습니다." 
       });
     }
 
-    if (match.matchStatus === "종료") {
+    if (match.matchStatus === "completed" || match.matchStatus === "종료") {
       return res.status(400).json({ 
         error: "종료된 경기입니다. 예측할 수 없습니다." 
       });

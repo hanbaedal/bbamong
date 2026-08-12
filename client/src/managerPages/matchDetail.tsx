@@ -700,6 +700,15 @@ export default function MatchDetailPage() {
         if (data.threeOutsReached) {
           threeOutsSpokenRef.current = true;
           void speakGameVoice(OPERATOR_GAME_VOICE.threeOuts);
+          toast({ description: "3아웃입니다. 공수교대를 눌러주세요." });
+        } else if (data.autoNextFailed) {
+          toast({
+            variant: "destructive",
+            description:
+              typeof data.autoNextError === "string" && data.autoNextError
+                ? data.autoNextError
+                : "다음 타자 자동 이동에 실패했습니다. 「다음 타자」를 눌러주세요.",
+          });
         }
         if (match) {
           setMatch({
@@ -960,6 +969,7 @@ export default function MatchDetailPage() {
     Date.now() - stopToggleAt < PREDICTION_TOGGLE_MS;
   const canStartPrediction =
     isMatchLive &&
+    !showThreeOutsHint &&
     !isStartingPrediction &&
     (!predictionRunning || withinStartCancel);
   const canStopPrediction =
@@ -1088,13 +1098,15 @@ export default function MatchDetailPage() {
             >
               {!isMatchLive
                 ? "경기전"
-                : isStartingPrediction
-                  ? "처리중..."
-                  : withinStartCancel
-                    ? "↩ 시작 취소"
-                    : predictionRunning
-                      ? "예측 중"
-                      : "▶ 예측 시작"}
+                : showThreeOutsHint
+                  ? "공수교대"
+                  : isStartingPrediction
+                    ? "처리중..."
+                    : withinStartCancel
+                      ? "↩ 시작 취소"
+                      : predictionRunning
+                        ? "예측 중"
+                        : "▶ 예측 시작"}
               <img
                 src={assets.startPrediction}
                 className="manager-match-action-mascot w-[52px] h-[94px] object-contain -top-3 -right-1 scale-x-[-1]"

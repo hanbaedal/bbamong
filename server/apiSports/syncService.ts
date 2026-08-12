@@ -63,8 +63,8 @@ const PREGAME_SIDEBET_UNLOCK_BEFORE_MS = 30 * 60_000;
 /**
  * 사이드벳 마감 플래그 결정.
  * - 진행·종료·이닝 시작 시 잠금
- * - 실황 시작 전(scheduled+NS)에는 오진입 잠금을 풀어 경기전 배팅을 복구
- * - 시작 임박 + 예측 오픈 중 NS 지연이면 잠금 유지
+ * - 시작 30분 전보다 이른 오전 오진입만 잠금 해제
+ * - 시작 임박·경과 후 API NS 지연이어도 한번 잠겼으면 유지
  */
 export function resolveSideBetsLocked(input: {
   previouslyLocked?: boolean | null;
@@ -90,12 +90,13 @@ export function resolveSideBetsLocked(input: {
 
   if (matchStatus === "scheduled" && isGameNotStarted(input.statusShort)) {
     if (!input.previouslyLocked) return false;
-    if (!input.predictionEnabled) return false;
     const startMs = input.startTime ? new Date(input.startTime).getTime() : Number.NaN;
-    if (Number.isFinite(startMs) && nowMs < startMs - PREGAME_SIDEBET_UNLOCK_BEFORE_MS) {
-      return false;
-    }
-    return true;
+    const nearOrPastStart =
+      Number.isFinite(startMs) && nowMs >= startMs - PREGAME_SIDEBET_UNLOCK_BEFORE_MS;
+    // 시작 임박·경과: 실경기 가능 — 잠금 유지 (NS 지연으로 사이드벳 재오픈 금지)
+    if (nearOrPastStart) return true;
+    // 오전 오진입만 해제
+    return false;
   }
 
   return Boolean(input.previouslyLocked);
@@ -103,16 +104,17 @@ export function resolveSideBetsLocked(input: {
 
 /**
  * DB ongoing + API 스코어보드 시작 전(NS) 고착을 scheduled로 복구.
- * 예측 시작이 matchStatus를 올리지 않도록 바꾼 뒤, 기존 오진입 데이터 치유용.
+ * 시작 30분보다 이른 오전 오진입만 대상 — 시작 임박·경과 ongoing은 유지.
  */
 export async function reconcileStuckPregameOngoingStatuses(
   targetDate = getKstDateString(),
+  nowMs = Date.now(),
 ): Promise<number> {
   const matches = await MatchModel.find({
     matchStatus: "ongoing",
     $or: [{ matchDate: targetDate }, { matchDate: null }],
   })
-    .select("id matchDate liveScoreboard startTime")
+    .select("id matchDate liveScoreboard startTime predictionEnabled currentRound outsInHalf")
     .lean();
 
   let fixed = 0;
@@ -121,6 +123,16 @@ export async function reconcileStuckPregameOngoingStatuses(
       (match as { matchDate?: string | null }).matchDate ??
       (match.startTime ? getKstDateString(new Date(match.startTime)) : null);
     if (matchDate !== targetDate) continue;
+
+    const startMs = match.startTime ? new Date(match.startTime).getTime() : Number.NaN;
+    const earlyEnough =
+      Number.isFinite(startMs) && nowMs < startMs - PREGAME_SIDEBET_UNLOCK_BEFORE_MS;
+    if (!earlyEnough) continue;
+
+    // 이미 예측·진행이 있으면 오진입이 아님
+    if (match.predictionEnabled) continue;
+    if ((match.currentRound ?? 1) > 1) continue;
+    if ((match.outsInHalf ?? 0) > 0) continue;
 
     const sb = match.liveScoreboard as LiveScoreboard | null | undefined;
     if (!sb || !isGameNotStarted(sb.statusShort)) continue;
@@ -140,27 +152,35 @@ export async function reconcileStuckPregameOngoingStatuses(
   return fixed;
 }
 
-/** 경기전으로 되돌릴 때 RoundStatistics 잔여(결과 발송 포함) 제거 — 예측 시작 재진입 가능하게 */
+/** 오전 오진입 시계만 초기화 — 정산된 라운드·Prediction 이력은 삭제하지 않음 */
 async function clearPregameRoundPredictionClocks(matchId: string): Promise<void> {
-  await RoundStatisticsModel.deleteMany({ matchId });
+  await RoundStatisticsModel.updateMany(
+    { matchId, isResultSent: { $ne: true } },
+    {
+      $set: {
+        predictionStartTime: null,
+        predictionStopTime: null,
+        isPredictionStarted: false,
+        isPredictionStopped: false,
+      },
+    },
+  );
 }
 
 /**
  * 경기전(scheduled+NS)인데 sideBetsLocked/predictionEnabled가 고착된 경우 해제.
- * 시작 시각 DB 오류로 오전에 예측이 열린 뒤 시각만 고친 케이스를 복구합니다.
- * RoundStatistics 예측 시계도 함께 초기화합니다.
+ * 시작 30분보다 이른 오전 오진입만 — 시작 임박·경과 경기는 wipe 금지.
  */
 export async function reconcileStuckPregameSideBetLocks(
   targetDate = getKstDateString(),
   nowMs = Date.now(),
 ): Promise<number> {
-  // 잠금 고착뿐 아니라, 잠금은 풀렸지만 라운드 시각만 남은 경기전도 포함
   const matches = await MatchModel.find({
     matchStatus: "scheduled",
     $or: [{ matchDate: targetDate }, { matchDate: null }],
   })
     .select(
-      "id matchDate liveScoreboard startTime sideBetsLocked predictionEnabled currentRound",
+      "id matchDate liveScoreboard startTime sideBetsLocked predictionEnabled currentRound outsInHalf",
     )
     .lean();
 
@@ -171,31 +191,40 @@ export async function reconcileStuckPregameSideBetLocks(
       (match.startTime ? getKstDateString(new Date(match.startTime)) : null);
     if (matchDate !== targetDate) continue;
 
-    const sb = match.liveScoreboard as LiveScoreboard | null | undefined;
-    if (!sb || !isGameNotStarted(sb.statusShort)) continue;
-    if (sb.inning != null) continue;
-
-    const stillLocked = resolveSideBetsLocked({
-      previouslyLocked: Boolean(match.sideBetsLocked),
-      predictionEnabled: Boolean(match.predictionEnabled),
-      matchStatus: "scheduled",
-      statusShort: sb.statusShort,
-      inning: sb.inning,
-      startTime: match.startTime,
-      nowMs,
-    });
-    if (stillLocked) continue;
-
     const startMs = match.startTime ? new Date(match.startTime).getTime() : Number.NaN;
     const earlyEnough =
       Number.isFinite(startMs) && nowMs < startMs - PREGAME_SIDEBET_UNLOCK_BEFORE_MS;
+    // 시작 임박·경과: 실경기 가능 — stats wipe·강제 unlock 금지
+    if (!earlyEnough) continue;
+
+    const sb = match.liveScoreboard as LiveScoreboard | null | undefined;
+    if (!sb || !isGameNotStarted(sb.statusShort)) continue;
+    if (sb.inning != null) continue;
+    if ((match.outsInHalf ?? 0) > 0) continue;
+
+    const settledOrLiveStats = await RoundStatisticsModel.exists({
+      matchId: match.id,
+      $or: [{ isResultSent: true }, { isPredictionStopped: true }],
+    });
+    if (settledOrLiveStats) continue;
+
+    const hasSettledPrediction = await PredictionModel.exists({
+      matchId: match.id,
+      status: { $in: ["success", "fail"] },
+    });
+    if (hasSettledPrediction) continue;
 
     const needsUnlock =
       Boolean(match.sideBetsLocked) || Boolean(match.predictionEnabled);
     const hasStaleRoundClock = await RoundStatisticsModel.exists({
       matchId: match.id,
+      $or: [
+        { predictionStartTime: { $ne: null } },
+        { predictionStopTime: { $ne: null } },
+        { isPredictionStarted: true },
+      ],
     });
-    if (!needsUnlock && !hasStaleRoundClock && !(earlyEnough && (match.currentRound ?? 1) > 1)) {
+    if (!needsUnlock && !hasStaleRoundClock && !((match.currentRound ?? 1) > 1)) {
       continue;
     }
 
@@ -203,8 +232,7 @@ export async function reconcileStuckPregameSideBetLocks(
       sideBetsLocked: false,
       predictionEnabled: false,
     };
-    // 오전에 라운드가 진행된 오진입이면 저녁 경기 전에 라운드도 초기화
-    if (earlyEnough && (match.currentRound ?? 1) > 1) {
+    if ((match.currentRound ?? 1) > 1) {
       $set.currentRound = 1;
     }
 
@@ -300,8 +328,12 @@ export function resolveMatchStatusFromScoreboard(
     const totalRuns = (scoreboard.homeScore ?? 0) + (scoreboard.awayScore ?? 0);
     if (totalRuns > 0) return "ongoing";
   }
-  // API가 시작 전(NS 등)이면 scheduled — 예측 시작으로 ongoing이 고착되지 않게 복귀
+  // API가 시작 전(NS 등)이어도, 이미 ongoing + 시작 시각 경과면 강등하지 않음
+  // (운영자 승격·실황 지연 시 scheduled 핑퐁 방지)
   if (isGameNotStarted(scoreboard.statusShort)) {
+    if (currentStatus === "ongoing" && hasStartTimeReached(startTime)) {
+      return "ongoing";
+    }
     return "scheduled";
   }
   // API 상태 신호가 없으면 종료·취소만 유지하고, ongoing은 올리지/유지하지 않음

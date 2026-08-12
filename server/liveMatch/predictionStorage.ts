@@ -359,6 +359,11 @@ export async function startRound(matchId: string): Promise<Match> {
     const match = await MatchModel.findOne({ id: matchId }).session(session).lean();
     if (!match) throw new Error("경기를 찾을 수 없습니다.");
 
+    const outsInHalf = (match as { outsInHalf?: number }).outsInHalf ?? 0;
+    if (outsInHalf >= 3) {
+      throw new Error("3아웃입니다. 공수교대를 눌러주세요.");
+    }
+
     let currentRound =
       typeof match.currentRound === "number" && Number.isFinite(match.currentRound)
         ? match.currentRound
@@ -371,8 +376,9 @@ export async function startRound(matchId: string): Promise<Match> {
       .lean();
 
     /**
-     * 결과가 이미 전송된 라운드에 currentRound가 고착되면(자동 다음타자 실패·3아웃 대기 등)
-     * 예측 시작이 500으로 막힘 → 다음 라운드로 넘겨 새 타석 예측을 연다.
+     * 결과가 이미 전송된 라운드에 currentRound가 고착되면(자동 다음타자 실패 등)
+     * 예측 시작이 막힘 → 다음 라운드로 넘겨 새 타석 예측을 연다.
+     * (3아웃은 위에서 차단 — 공수교대 유도)
      */
     if (existing?.isResultSent) {
       currentRound += 1;
@@ -940,7 +946,11 @@ export async function updateRoundPredictionResult(
       );
     }
 
-    const roundPredictions = await PredictionModel.find({ matchId, roundNumber })
+    const roundPredictions = await PredictionModel.find({
+      matchId,
+      roundNumber,
+      status: "pending",
+    })
       .session(session)
       .lean();
 
