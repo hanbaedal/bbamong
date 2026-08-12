@@ -42,6 +42,7 @@ import BoardManagementPage from "@/adminPages/BoardManagement";
 import NoticesPage from "@/adminPages/Notices";
 import TermsManagementPage from "@/adminPages/TermsManagement";
 import DbBackupPage from "@/adminPages/ops/DbBackup";
+import SystemManualsPage from "@/adminPages/ops/SystemManuals";
 import AppReleaseManagementPage from "@/adminPages/ops/AppReleaseManagement";
 import AdminLoginStatusPage from "@/adminPages/ops/AdminLoginStatus";
 import ManagerLoginStatusPage from "@/adminPages/ops/ManagerLoginStatus";
@@ -134,6 +135,7 @@ function Router() {
       <Route path="/admin/notices" component={NoticesPage} />
       <Route path="/admin/terms" component={TermsManagementPage} />
       <Route path="/admin/ops/app-releases" component={AppReleaseManagementPage} />
+      <Route path="/admin/ops/system-manuals" component={SystemManualsPage} />
       <Route path="/admin/ops/db-backup" component={DbBackupPage} />
       <Route path="/admin/ops/admin-login-status" component={AdminLoginStatusPage} />
       <Route path="/admin/ops/manager-login-status" component={ManagerLoginStatusPage} />

@@ -120,6 +120,12 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
           iconKey: "adTermIcon",
           children: [
             {
+              id: "system-manuals",
+              label: "시스템 매뉴얼",
+              path: "/admin/ops/system-manuals",
+              iconKey: "adTermIcon",
+            },
+            {
               id: "db-backup",
               label: "디비 백업하기",
               path: "/admin/ops/db-backup",
