@@ -13,6 +13,7 @@ import ManagerPinchHitterEditor from "@/components/ManagerPinchHitterEditor";
 import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
 import { resolveMatchTeamNames } from "@shared/matchTeamDisplay";
 import { refreshGameKeepAwake, setGameKeepAwake } from "@/lib/screenWakeLock";
+import { useManagerProactiveSessionRefresh } from "@/hooks/useManagerProactiveSessionRefresh";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
@@ -131,8 +132,6 @@ export default function MatchDetailPage() {
         if (isActive && window.location.pathname.startsWith("/manager/match/")) {
           void setGameImmersiveMode(true);
           void refreshGameKeepAwake();
-          // 앱 복귀 시 access 토큰(15분) 선제 갱신 — WS 재연결 전 만료 방지
-          void refreshAccessToken().catch(() => {});
         }
       }).then((handle) => {
         resumeHandle = handle;
@@ -146,15 +145,8 @@ export default function MatchDetailPage() {
     };
   }, [id]);
 
-  /** 경기 운영 중 access 토큰 선제 갱신 (만료 15분, 네트워크 끊김 시 로그아웃하지 않음) */
-  useEffect(() => {
-    const PROACTIVE_REFRESH_MS = 10 * 60_000;
-    const timer = setInterval(() => {
-      void refreshAccessToken().catch(() => {});
-    }, PROACTIVE_REFRESH_MS);
-    void refreshAccessToken().catch(() => {});
-    return () => clearInterval(timer);
-  }, [id]);
+  /** access 15분 — 5분마다 선제 갱신 + 앱/탭 복귀 시 갱신 */
+  useManagerProactiveSessionRefresh(Boolean(id));
 
   useEffect(() => {
     if (!startToggleAt && !stopToggleAt) return;
@@ -210,7 +202,29 @@ export default function MatchDetailPage() {
   useEffect(() => {
     if (!id || !managerId) return;
 
-    const connect = () => {
+    const connect = async () => {
+      if (
+        sessionExpiredRef.current ||
+        duplicateLoginRef.current ||
+        isUnmountingRef.current
+      ) {
+        return;
+      }
+
+      try {
+        await refreshAccessToken();
+      } catch (error) {
+        console.warn("[Manager WS] 연결 전 토큰 갱신 실패(연결 시도 계속):", error);
+      }
+
+      if (
+        sessionExpiredRef.current ||
+        duplicateLoginRef.current ||
+        isUnmountingRef.current
+      ) {
+        return;
+      }
+
       let wsUrl: string;
       if (Capacitor.isNativePlatform()) {
         const accessToken = getManagerAccessToken();
