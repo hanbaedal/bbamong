@@ -105,7 +105,7 @@ export default function GameNoticeBanner({ suppressed = false }: { suppressed?: 
   const queryClient = useQueryClient();
   const { user } = useUser();
   const [modalOpen, setModalOpen] = useState(false);
-  /** 이번 게임 세션에서 닫은 공지 — 우선 공지가 API에서 다시 와도 배지 재노출 방지(광고 중 탭 충돌 완화) */
+  /** 이번 게임 세션에서 닫은 공지 — API 반영 전·네트워크 실패 시 재노출 방지 */
   const sessionDismissedRef = useRef<Set<number>>(new Set());
 
   const { data, isLoading } = useQuery<{ notice: GameNotice | null }>({
@@ -126,10 +126,15 @@ export default function GameNoticeBanner({ suppressed = false }: { suppressed?: 
     onSuccess: (_data, noticeId) => {
       sessionDismissedRef.current.add(noticeId);
       setModalOpen(false);
+      queryClient.setQueryData<{ notice: GameNotice | null }>(
+        ["/api/users/notices/banner"],
+        { notice: null },
+      );
       queryClient.invalidateQueries({ queryKey: ["/api/users/notices/banner"] });
     },
-    onError: () => {
-      // 네트워크 실패해도 세션 동안은 닫아 광고와 겹치지 않게
+    onError: (_err, noticeId) => {
+      // 네트워크 실패해도 세션 동안은 숨김 — 성공 시 서버에도 기록됨
+      sessionDismissedRef.current.add(noticeId);
       setModalOpen(false);
     },
   });
@@ -141,6 +146,7 @@ export default function GameNoticeBanner({ suppressed = false }: { suppressed?: 
     }
   }, [suppressed]);
 
+  // 로그인 사용자 변경 시에만 세션 숨김 초기화 (같은 계정 재진입은 서버 dismiss 유지)
   useEffect(() => {
     setModalOpen(false);
     sessionDismissedRef.current.clear();
