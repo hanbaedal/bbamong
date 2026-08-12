@@ -71,6 +71,8 @@ export interface MatchLineupSnapshot {
   syncedAt: string;
   home: LineupBatterEntry[];
   away: LineupBatterEntry[];
+  /** manual이면 API 라인업 갱신이 덮어쓰지 않음 (KBO 라인업 미제공 대응) */
+  source?: "api" | "manual";
 }
 
 /** 선수 시즌 타격 요약 (playerId 문자열 키) */

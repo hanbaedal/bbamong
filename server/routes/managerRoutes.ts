@@ -7,6 +7,7 @@ import { broadcastManager } from "../liveMatch/broadcastManager";
 import { startRound, stopRound, cancelStartRound, cancelStopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { patchMatchLiveScoreboard } from "../apiSports/syncService";
+import { saveManualMatchLineup } from "../apiSports/manualLineupService";
 import { z } from "zod";
 import { hasActiveSession, createSession, deleteSession, refreshSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
 import { ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken, isOperatorCredentialsActive } from "../managerOperatorService";
@@ -1022,6 +1023,55 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: message });
       }
       return res.status(500).json({ error: message });
+    }
+  });
+
+  // 타순·시즌 스탯 수동 입력 (KBO API 라인업 미제공 대응)
+  app.patch("/api/manager/matches/:id/lineup", async (req, res) => {
+    try {
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
+
+      const { id } = req.params;
+      const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
+      if (!match) {
+        return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
+      }
+
+      const batterSchema = z.object({
+        battingOrder: z.number().int().min(1).max(9),
+        name: z.string().trim().min(1).max(40),
+        battingAverage: z.union([z.string(), z.number()]).nullable().optional(),
+        hits: z.number().int().min(0).max(999).nullable().optional(),
+        homeRuns: z.number().int().min(0).max(999).nullable().optional(),
+        rbi: z.number().int().min(0).max(999).nullable().optional(),
+        ops: z.union([z.string(), z.number()]).nullable().optional(),
+      });
+
+      const body = z
+        .object({
+          home: z.array(batterSchema).max(9).default([]),
+          away: z.array(batterSchema).max(9).default([]),
+        })
+        .parse(req.body ?? {});
+
+      const saved = await saveManualMatchLineup(id, body);
+      return res.json({
+        success: true,
+        message: "타순·시즌 기록을 저장했습니다. (수동 — API 덮어쓰기 없음)",
+        matchLineup: saved.matchLineup,
+        matchPlayerStats: saved.matchPlayerStats,
+      });
+    } catch (error: unknown) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: "인증이 만료되었습니다." });
+      }
+      console.error("Manager lineup patch error:", error);
+      const message = error instanceof Error ? error.message : "타순 저장에 실패했습니다.";
+      return res.status(400).json({ error: message });
     }
   });
 

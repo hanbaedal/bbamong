@@ -8,7 +8,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import ManagerOperatorScorePanel from "@/components/ManagerOperatorScorePanel";
+import ManagerLineupEditor from "@/components/ManagerLineupEditor";
 import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
+import { resolveMatchTeamNames } from "@shared/matchTeamDisplay";
 import { refreshGameKeepAwake, setGameKeepAwake } from "@/lib/screenWakeLock";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
@@ -39,6 +41,27 @@ interface Match {
   needsResultBeforeAdvance?: boolean;
   showThreeOutsHint?: boolean;
   isResultSent?: boolean;
+  apiSportsAwayTeam?: string | null;
+  apiSportsHomeTeam?: string | null;
+  liveScoreboard?: {
+    awayTeamName?: string;
+    homeTeamName?: string;
+  } | null;
+  matchLineup?: {
+    home?: Array<{ battingOrder: number; name: string; playerId?: number }>;
+    away?: Array<{ battingOrder: number; name: string; playerId?: number }>;
+    source?: string;
+  } | null;
+  matchPlayerStats?: Record<
+    string,
+    {
+      battingAverage?: string | null;
+      hits?: number | null;
+      homeRuns?: number | null;
+      rbi?: number | null;
+      ops?: string | null;
+    }
+  > | null;
   stadium: {
     id: number;
     name: string;
@@ -67,6 +90,7 @@ export default function MatchDetailPage() {
   const [showPredictionDisabledPopup, setShowPredictionDisabledPopup] =
     useState(false);
   const [showAdPlayingPopup, setShowAdPlayingPopup] = useState(false);
+  const [showLineupEditor, setShowLineupEditor] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [managerId, setManagerId] = useState<string | null>(null);
   const { data: scoreboardPayload } = useLiveScoreboard(id ?? null, {
@@ -866,6 +890,11 @@ export default function MatchDetailPage() {
   const today = new Date();
   const formattedDate = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 (${["일", "월", "화", "수", "목", "금", "토"][today.getDay()]})`;
   const displayStadiumName = getDisplayStadiumName(match.stadium.name);
+  const { awayTeamName, homeTeamName } = resolveMatchTeamNames({
+    apiSportsAwayTeam: match.apiSportsAwayTeam,
+    apiSportsHomeTeam: match.apiSportsHomeTeam,
+    liveScoreboard: match.liveScoreboard ?? scoreboardPayload?.scoreboard ?? null,
+  });
   const matchPhaseText = resolveLiveInningPhaseLabel({
     matchStatus: match.matchStatus,
     gameInning: match.gameInning,
@@ -985,6 +1014,24 @@ export default function MatchDetailPage() {
               비상 수동 제어 (점수 API 잠금)
             </p>
           )}
+          <div className="mt-1.5 flex items-center justify-between gap-2">
+            <p className="text-[clamp(9px,2.2vw,11px)] text-gray-500 leading-snug">
+              타순{" "}
+              {match.matchLineup?.source === "manual"
+                ? `수동 ${(match.matchLineup.away?.length ?? 0) + (match.matchLineup.home?.length ?? 0)}명`
+                : match.matchLineup
+                  ? "연동"
+                  : "미입력"}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowLineupEditor(true)}
+              className="shrink-0 rounded-md border border-[#1A6DFF]/40 bg-[#1A6DFF]/10 px-2 py-1 text-[clamp(10px,2.4vw,12px)] font-semibold text-[#1A6DFF]"
+              data-testid="button-open-lineup-editor"
+            >
+              타순 입력
+            </button>
+          </div>
         </div>
 
         <div className="manager-match-controls">
@@ -1164,6 +1211,23 @@ export default function MatchDetailPage() {
           onConfirm={() => setShowAdPlayingPopup(false)}
         />
       )}
+
+      {showLineupEditor && id ? (
+        <ManagerLineupEditor
+          matchId={id}
+          awayTeamLabel={awayTeamName}
+          homeTeamLabel={homeTeamName}
+          initialLineup={match.matchLineup}
+          initialStats={match.matchPlayerStats}
+          onClose={() => setShowLineupEditor(false)}
+          onSaved={() => {
+            void fetchMatchDetail();
+            void queryClient.invalidateQueries({
+              queryKey: ["/api/matches", id, "scoreboard"],
+            });
+          }}
+        />
+      ) : null}
     </div>
   );
 }
