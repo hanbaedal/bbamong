@@ -23,10 +23,14 @@ export function resolveOperatorMatchPhase(input: {
   if (isGameFinished(short) || matchStatus === "completed") {
     return "경기종료";
   }
+  // API 시작 전이면 DB ongoing(예측 오픈 고착 등)보다 실황 우선 → 경기전
+  if (isGameNotStarted(short)) {
+    return "경기전";
+  }
   if (isGameLiveStatus(short) || matchStatus === "ongoing") {
     return "경기중";
   }
-  if (isGameNotStarted(short) || matchStatus === "scheduled" || !matchStatus) {
+  if (matchStatus === "scheduled" || !matchStatus) {
     return "경기전";
   }
 

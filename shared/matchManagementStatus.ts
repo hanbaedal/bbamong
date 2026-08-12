@@ -3,6 +3,7 @@ import {
   isGameLiveStatus,
   isGamePostponedOrCancelled,
   isConfirmedPostponedMatch,
+  isGameNotStarted,
   normalizeApiStatusShort,
 } from "./apiSportsStatus";
 import { resolveOperatorMatchPhase } from "./operatorMatchStatus";
@@ -57,6 +58,9 @@ export function isStaleFinishedScoreboard(input: {
 
   const label = input.inningLabel ?? "";
   if (/\d+회/.test(label)) return false;
+
+  // API가 시작 전이면 종료 오인 아님 (ongoing 고착 케이스 포함)
+  if (isGameNotStarted(input.statusShort)) return false;
 
   if (input.matchStatus === "completed") return true;
   if (isGameFinished(input.statusShort)) return true;
@@ -125,6 +129,11 @@ export function resolveMatchManagementStatusDisplay(input: {
 
   if (inningLabel && /\d+회/.test(inningLabel) && !/종료|연기|취소/.test(inningLabel)) {
     return inningLabel;
+  }
+
+  // API 시작 전 + 이닝 진행 없음 → DB ongoing이어도 경기전 (실황 우선)
+  if (isGameNotStarted(input.statusShort) && !hasLiveInningProgress(input)) {
+    return "경기전";
   }
 
   if (

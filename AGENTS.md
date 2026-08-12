@@ -38,3 +38,4 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - During `matchStatus === "ongoing"`, API-SPORTS polls **do not overwrite** `liveScoreboard` scores/inning tables (status/team names still refresh). Final FT while `controlMode === "auto"` applies the API final board; `manual` keeps operator/admin corrections.
 - Display for “N회 초/말” prefers operator `gameInning` / `inningHalf` over API (`shared/matchPhaseDisplay.ts`).
 - Operators/admins can PATCH scores (`/api/manager/matches/:id/scoreboard`, `/api/admin/matches/:id/scoreboard`) which sets `controlMode: "manual"`. Toggle admin “수동” off to return to auto (end sync can apply again).
+- **`matchStatus` vs 예측 오픈**: 「예측 시작」은 `predictionEnabled`/`sideBetsLocked`만 켠다. `matchStatus: ongoing`은 API live·이닝 등 **실황 근거**로만 올린다. API `NS`(시작 전)이면 `scheduled`로 되돌린다(ongoing 고착 방지). UI「경기중」도 API 시작 전을 우선한다.

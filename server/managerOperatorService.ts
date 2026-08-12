@@ -17,6 +17,7 @@ import {
 import {
   isGameFinished,
   isGameLiveStatus,
+  isGameNotStarted,
   isGamePostponedOrCancelled,
   isConfirmedPostponedMatch,
 } from "../shared/apiSportsStatus";
@@ -372,8 +373,12 @@ export function resolveOperatorMatchPhaseFromTodayMatch(
   };
 
   const recoverFromStale = (): OperatorMatchPhase => {
+    if (hasLiveInningProgress(staleInput) || isGameLiveStatus(match.statusShort)) {
+      return "경기중";
+    }
     const started = Date.now() >= new Date(match.startTime).getTime();
-    if (started || match.matchStatus === "ongoing" || hasLiveInningProgress(staleInput)) {
+    // 시작 시각만 지났고 API가 아직 NS면 경기전 유지 (ongoing 고착 오인 방지)
+    if (started && !isGameNotStarted(match.statusShort)) {
       return "경기중";
     }
     return "경기전";
@@ -386,6 +391,11 @@ export function resolveOperatorMatchPhaseFromTodayMatch(
 
   if (isConfirmedPostponedMatch({ ...staleInput, inningLabel })) {
     return "연기됨";
+  }
+
+  // API 시작 전·이닝 없음 → DB ongoing이어도 경기전
+  if (isGameNotStarted(match.statusShort) && !hasLiveInningProgress(staleInput)) {
+    return "경기전";
   }
 
   if (match.matchStatus === "completed") {

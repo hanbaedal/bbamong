@@ -8,6 +8,7 @@ import {
 } from "../managerOperatorService";
 import {
   backfillSeasonMatchesBeforeToday,
+  reconcileStuckPregameOngoingStatuses,
   refreshMatchFromApiAtEnd,
   refreshMatchFromApiAtStart,
   refreshStalePastMatchScores,
@@ -231,6 +232,7 @@ async function maybeRunMissedDailySync(): Promise<void> {
     return;
   }
 
+  await reconcileStuckPregameOngoingStatuses(kstToday);
   await rescheduleTodayMatchTimers();
 }
 

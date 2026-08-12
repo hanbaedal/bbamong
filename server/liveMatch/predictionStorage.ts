@@ -335,7 +335,7 @@ export async function startRound(matchId: string): Promise<Match> {
       }
       const syncedMatch = await MatchModel.findOneAndUpdate(
         { id: matchId },
-        { predictionEnabled: true, sideBetsLocked: true, matchStatus: "ongoing" },
+        { predictionEnabled: true, sideBetsLocked: true },
         { new: true, session },
       ).lean();
       await session.commitTransaction();
@@ -349,7 +349,7 @@ export async function startRound(matchId: string): Promise<Match> {
 
     const updatedMatch = await MatchModel.findOneAndUpdate(
       { id: matchId },
-      { predictionEnabled: true, sideBetsLocked: true, matchStatus: "ongoing" },
+      { predictionEnabled: true, sideBetsLocked: true },
       { new: true, session },
     ).lean();
 
