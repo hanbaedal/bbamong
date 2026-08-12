@@ -109,7 +109,6 @@ export default function MatchDetailPage() {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const connectFnRef = useRef<(() => void | Promise<void>) | null>(null);
   const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 30;
   const RECONNECT_DELAY = 1000;
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pongTimeoutRef = useRef<NodeJS.Timeout | null>(null);
