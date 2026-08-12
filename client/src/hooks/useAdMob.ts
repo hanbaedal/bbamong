@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
+import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import {
   AdMob,
@@ -168,6 +169,31 @@ export type AdSessionState = "idle" | "preparing" | "showing" | "overlay";
 
 /** 배너 표시 후 자동 숨김 */
 const BANNER_AUTO_HIDE_MS = 8_000;
+
+/** 전면 광고 Dismiss 이벤트 누락 시 검정 화면 고착 방지 */
+const INTERSTITIAL_DISMISS_TIMEOUT_MS = 75_000;
+/** 보상형 광고 Dismiss 누락 방지 */
+const REWARDED_DISMISS_TIMEOUT_MS = 90_000;
+/** prepare/show SDK 호출이 응답 없을 때 */
+const AD_SDK_CALL_TIMEOUT_MS = 12_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`[AdMob] ${label} timed out after ${ms}ms`));
+    }, ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 /** 연속 banner_ad_show 무시 간격 */
 const BANNER_SHOW_COOLDOWN_MS = 60_000;
 
@@ -234,7 +260,27 @@ export function useAdMob(): UseAdMobResult {
 
   const waitForInterstitialDismiss = useCallback((): Promise<{ dismissedEarly: boolean }> => {
     return new Promise((resolve) => {
-      interstitialDismissResolverRef.current = resolve;
+      let settled = false;
+      const finish = (result: { dismissedEarly: boolean }) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        interstitialDismissResolverRef.current = null;
+        resolve(result);
+      };
+
+      const timer = setTimeout(() => {
+        console.warn(
+          `[AdMob] interstitial dismiss timed out after ${INTERSTITIAL_DISMISS_TIMEOUT_MS}ms — unblocking UI`,
+        );
+        setIsAdShowing(false);
+        setAdSessionState("idle");
+        finish({ dismissedEarly: true });
+      }, INTERSTITIAL_DISMISS_TIMEOUT_MS);
+
+      interstitialDismissResolverRef.current = (result) => {
+        finish(result);
+      };
     });
   }, []);
 
@@ -276,7 +322,11 @@ export function useAdMob(): UseAdMobResult {
         isTesting: IS_TESTING,
       };
 
-      await AdMob.prepareInterstitial(options);
+      await withTimeout(
+        AdMob.prepareInterstitial(options),
+        AD_SDK_CALL_TIMEOUT_MS,
+        "prepareInterstitial",
+      );
       console.log("[AdMob] prepareInterstitial called");
     } catch (error) {
       console.error("[AdMob] Error preparing interstitial:", error);
@@ -332,7 +382,7 @@ export function useAdMob(): UseAdMobResult {
 
     try {
       setIsAdShowing(true);
-      await AdMob.showInterstitial();
+      await withTimeout(AdMob.showInterstitial(), AD_SDK_CALL_TIMEOUT_MS, "showInterstitial");
       console.log("[AdMob] showInterstitial called");
       return true;
     } catch (error) {
@@ -658,24 +708,33 @@ export function useAdMob(): UseAdMobResult {
 
     return new Promise<boolean>((resolve) => {
       let settled = false;
+      const cleanup = () => {
+        clearTimeout(timer);
+        rewardListener.then((l) => l.remove());
+        dismissListener.then((l) => l.remove());
+        failListener.then((l) => l.remove());
+      };
       const finish = (value: boolean) => {
         if (settled) return;
         settled = true;
+        cleanup();
         resolve(value);
       };
+
+      const timer = setTimeout(() => {
+        console.warn(
+          `[AdMob] rewarded dismiss timed out after ${REWARDED_DISMISS_TIMEOUT_MS}ms — skipping reward`,
+        );
+        finish(false);
+      }, REWARDED_DISMISS_TIMEOUT_MS);
 
       const rewardListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
         rewardedGrantedRef.current = true;
       });
       const dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
-        rewardListener.then((l) => l.remove());
-        dismissListener.then((l) => l.remove());
         finish(rewardedGrantedRef.current);
       });
       const failListener = AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => {
-        rewardListener.then((l) => l.remove());
-        dismissListener.then((l) => l.remove());
-        failListener.then((l) => l.remove());
         finish(false);
       });
 
@@ -683,17 +742,43 @@ export function useAdMob(): UseAdMobResult {
         adId,
         isTesting: IS_TESTING,
       };
-      AdMob.prepareRewardVideoAd(options)
-        .then(() => AdMob.showRewardVideoAd())
+      withTimeout(AdMob.prepareRewardVideoAd(options), AD_SDK_CALL_TIMEOUT_MS, "prepareRewardVideoAd")
+        .then(() =>
+          withTimeout(AdMob.showRewardVideoAd(), AD_SDK_CALL_TIMEOUT_MS, "showRewardVideoAd"),
+        )
         .catch((error) => {
           console.error("[AdMob] Rewarded ad error:", error);
-          rewardListener.then((l) => l.remove());
-          dismissListener.then((l) => l.remove());
-          failListener.then((l) => l.remove());
           finish(false);
         });
     });
   }, [isNativePlatform, initializeAdMob]);
+
+  /** 백그라운드 복귀 시 Dismiss 이벤트 누락으로 showing에 고착된 경우 해제 */
+  useEffect(() => {
+    if (!isNativePlatform) return;
+
+    let resumeHandle: { remove: () => void } | null = null;
+    void App.addListener("appStateChange", ({ isActive }) => {
+      if (!isActive) return;
+      if (!interstitialDismissResolverRef.current) return;
+      const showedAt = interstitialShowedAtRef.current;
+      const waitedMs = showedAt != null ? Date.now() - showedAt : INTERSTITIAL_DISMISS_TIMEOUT_MS;
+      // 짧게 백그라운드 갔다 온 정상 시청은 건드리지 않음
+      if (waitedMs < 20_000) return;
+      console.warn(
+        `[AdMob] resume while waiting dismiss (${waitedMs}ms) — force unblock`,
+      );
+      setIsAdShowing(false);
+      setAdSessionState("idle");
+      resolveInterstitialDismiss({ dismissedEarly: true });
+    }).then((handle) => {
+      resumeHandle = handle;
+    });
+
+    return () => {
+      resumeHandle?.remove();
+    };
+  }, [isNativePlatform, resolveInterstitialDismiss]);
 
   return {
     isAdReady,
