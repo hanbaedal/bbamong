@@ -11,6 +11,7 @@ import {
   syncPostgresToMongo,
 } from "../storage/postgresToMongoSync";
 import { isPostgresConfigured } from "../storage/postgresClient";
+import { listSystemManuals, resolveSystemManualFile } from "../ops/systemManualsService";
 
 export async function superAdminOpsRoutes(app: Express): Promise<void> {
   app.get("/api/admin/ops/db-tables", superAdminAuthMiddleware, async (_req, res) => {
@@ -145,4 +146,49 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
       }
     },
   );
+
+  /** 시스템 매뉴얼 목록 (docs/ + GitHub 원본 링크) */
+  app.get("/api/admin/ops/system-manuals", superAdminAuthMiddleware, async (_req, res) => {
+    try {
+      const manuals = await listSystemManuals();
+      res.json({
+        manuals,
+        githubRepo: "hanbaedal/bbamong",
+        githubBranch: "main",
+        docsPath: "docs",
+      });
+    } catch (error) {
+      console.error("[Ops] system-manuals list error:", error);
+      res.status(500).json({ error: "매뉴얼 목록 조회에 실패했습니다." });
+    }
+  });
+
+  /**
+   * 매뉴얼 다운로드
+   * - 기본: 서버 docs/ (배포본 = GitHub main)
+   * - ?source=github : GitHub raw에서 가져와 저장 후 다운로드
+   */
+  app.get("/api/admin/ops/system-manuals/:id/download", superAdminAuthMiddleware, async (req, res) => {
+    try {
+      const forceGithub = req.query.source === "github";
+      const { entry, buffer, source } = await resolveSystemManualFile(req.params.id, {
+        forceGithub,
+      });
+      const encoded = encodeURIComponent(entry.fileName);
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename*=UTF-8''${encoded}`,
+      );
+      res.setHeader("X-Manual-Source", source);
+      res.send(buffer);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "다운로드에 실패했습니다.";
+      console.error("[Ops] system-manuals download error:", error);
+      res.status(400).json({ error: message });
+    }
+  });
 }
