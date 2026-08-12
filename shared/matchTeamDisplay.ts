@@ -11,6 +11,7 @@ export interface MatchTeamNameInput {
 export interface MatchHeadToHeadRecord {
   awayWins: number;
   homeWins: number;
+  season?: number;
 }
 
 /** apiSports 필드 → liveScoreboard 순으로 팀명 해석 */
@@ -70,12 +71,65 @@ export function formatMatchTeamLineWithHeadToHead(
   return `${awayLabel}${separator}${homeLabel}`;
 }
 
-/** 팀명 아래 — 시즌 상대전적 2줄 (`원정 3승 · 홈 2승`, 없으면 `—`) */
+/** 시즌 상대전적 표시용 (UI 색 분리) */
+export interface HeadToHeadDisplayParts {
+  season: number;
+  awayName: string;
+  homeName: string;
+  awayWins: number;
+  homeWins: number;
+  /** 종료 경기 승패가 하나도 없으면 true */
+  empty: boolean;
+}
+
+export function resolveHeadToHeadSeason(
+  headToHead?: (MatchHeadToHeadRecord & { season?: number }) | null,
+  fallbackDate?: string | Date | null,
+): number {
+  if (headToHead && typeof headToHead.season === "number" && headToHead.season > 2000) {
+    return headToHead.season;
+  }
+  if (fallbackDate) {
+    const d = typeof fallbackDate === "string" ? fallbackDate : fallbackDate.toISOString();
+    const year = Number(d.slice(0, 4));
+    if (Number.isFinite(year) && year > 2000) return year;
+  }
+  return new Date().getFullYear();
+}
+
+export function buildHeadToHeadDisplay(input: {
+  awayTeamName: string;
+  homeTeamName: string;
+  headToHead?: (MatchHeadToHeadRecord & { season?: number }) | null;
+  season?: number;
+}): HeadToHeadDisplayParts {
+  const season = input.season ?? resolveHeadToHeadSeason(input.headToHead);
+  const awayName = input.awayTeamName.trim() || "원정";
+  const homeName = input.homeTeamName.trim() || "홈";
+  if (!input.headToHead) {
+    return { season, awayName, homeName, awayWins: 0, homeWins: 0, empty: true };
+  }
+  const awayWins = input.headToHead.awayWins;
+  const homeWins = input.headToHead.homeWins;
+  const empty = awayWins + homeWins <= 0;
+  return { season, awayName, homeName, awayWins, homeWins, empty };
+}
+
+/** 팀명 아래 — 시즌 상대전적 (`2026 상대전적 한화 6승 : 두산 6승`, 없으면 `—`) */
 export function formatHeadToHeadRecordLine(
   headToHead?: MatchHeadToHeadRecord | null,
+  options?: {
+    awayTeamName?: string;
+    homeTeamName?: string;
+    season?: number;
+  },
 ): string {
-  if (!headToHead) return "상대전적 —";
-  const total = headToHead.awayWins + headToHead.homeWins;
-  if (total <= 0) return "상대전적 —";
-  return `상대전적 원정 ${headToHead.awayWins}승 · 홈 ${headToHead.homeWins}승`;
+  const parts = buildHeadToHeadDisplay({
+    awayTeamName: options?.awayTeamName ?? "원정",
+    homeTeamName: options?.homeTeamName ?? "홈",
+    headToHead,
+    season: options?.season,
+  });
+  if (parts.empty) return `${parts.season} 상대전적 —`;
+  return `${parts.season} 상대전적 ${parts.awayName} ${parts.awayWins}승 : ${parts.homeName} ${parts.homeWins}승`;
 }

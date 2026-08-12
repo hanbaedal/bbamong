@@ -509,7 +509,7 @@ export default function PredictionPage() {
   const stadiumName = getDisplayStadiumName(displayMatch?.stadiumName, displayMatch?.homeTeamName) ?? "";
   const matchHeaderLines = displayMatch
     ? resolveGameMatchHeaderLines(displayMatch, liveScoreboard)
-    : { teamNamesLine: null, headToHeadLine: null };
+    : { teamNamesLine: null, headToHead: null };
   const canSelectMatch = true;
   const canSelectStadium = stadiumOptions.length > 0;
   const shellDayPhase =
@@ -565,7 +565,7 @@ export default function PredictionPage() {
         matchTitle={matchTitle}
         stadiumName={stadiumName}
         teamNamesLine={matchHeaderLines.teamNamesLine}
-        headToHeadLine={matchHeaderLines.headToHeadLine}
+        headToHead={matchHeaderLines.headToHead}
         currentBatter={isLivePlay ? currentBatter : null}
         scoreboard={liveScoreboard}
         scoreLoading={scoreLoading && Boolean(selectedMatch)}

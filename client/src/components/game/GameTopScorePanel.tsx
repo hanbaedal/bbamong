@@ -2,11 +2,19 @@ import LineScoreTableLandscape from "./LineScoreTableLandscape";
 import type { CurrentBatterPreview, LiveScoreboard } from "@shared/apiSportsTypes";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 import { formatStatCount, formatStatDisplay } from "@shared/batterDisplay";
+import type { HeadToHeadDisplayParts } from "@shared/matchTeamDisplay";
+
+/** 원정(공격 초) */
+export const GAME_AWAY_TEAM_COLOR = "#E11936";
+/** 홈(공격 말) */
+export const GAME_HOME_TEAM_COLOR = "#1A6DFF";
 
 interface GameTopScorePanelProps {
   matchTitle: string;
   stadiumName: string;
   teamNamesLine?: string | null;
+  headToHead?: HeadToHeadDisplayParts | null;
+  /** @deprecated 문자열 폴백 — headToHead 우선 */
   headToHeadLine?: string | null;
   scoreboard: LiveScoreboard | null;
   currentBatter?: CurrentBatterPreview | null;
@@ -54,10 +62,40 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
   );
 }
 
+function HeadToHeadLine({ parts }: { parts: HeadToHeadDisplayParts }) {
+  if (parts.empty) {
+    return (
+      <p
+        className={`mt-0.5 text-[10px] sm:text-xs font-normal text-white/80 whitespace-nowrap ${titleShadow}`}
+        data-testid="game-match-head-to-head"
+      >
+        {parts.season} 상대전적 —
+      </p>
+    );
+  }
+
+  return (
+    <p
+      className={`mt-0.5 text-[10px] sm:text-xs font-semibold whitespace-nowrap ${titleShadow}`}
+      data-testid="game-match-head-to-head"
+    >
+      <span className="text-white/85 font-normal">{parts.season} 상대전적 </span>
+      <span style={{ color: GAME_AWAY_TEAM_COLOR }}>
+        {parts.awayName} {parts.awayWins}승
+      </span>
+      <span className="text-white/70 font-normal"> : </span>
+      <span style={{ color: GAME_HOME_TEAM_COLOR }}>
+        {parts.homeName} {parts.homeWins}승
+      </span>
+    </p>
+  );
+}
+
 export default function GameTopScorePanel({
   matchTitle,
   stadiumName,
   teamNamesLine,
+  headToHead = null,
   headToHeadLine,
   scoreboard,
   currentBatter = null,
@@ -114,7 +152,16 @@ export default function GameTopScorePanel({
           )
         ) : null}
 
-        {teamNamesLine ? (
+        {headToHead ? (
+          <p
+            className={`mt-0.5 text-xs sm:text-sm font-semibold whitespace-nowrap ${titleShadow}`}
+            data-testid="game-match-teams"
+          >
+            <span style={{ color: GAME_AWAY_TEAM_COLOR }}>{headToHead.awayName}</span>
+            <span className="text-white/70 font-normal"> : </span>
+            <span style={{ color: GAME_HOME_TEAM_COLOR }}>{headToHead.homeName}</span>
+          </p>
+        ) : teamNamesLine ? (
           <p
             className={`mt-0.5 text-xs sm:text-sm font-normal text-white/95 whitespace-nowrap ${titleShadow}`}
             data-testid="game-match-teams"
@@ -123,7 +170,9 @@ export default function GameTopScorePanel({
           </p>
         ) : null}
 
-        {headToHeadLine ? (
+        {headToHead ? (
+          <HeadToHeadLine parts={headToHead} />
+        ) : headToHeadLine ? (
           <p
             className={`mt-0.5 text-[10px] sm:text-xs font-normal text-white/80 whitespace-nowrap ${titleShadow}`}
             data-testid="game-match-head-to-head"
