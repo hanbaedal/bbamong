@@ -734,6 +734,10 @@ export default function MatchDetailPage() {
   };
 
   const handleNextBatter = () => {
+    if (match?.showThreeOutsHint) {
+      toast({ description: "3아웃입니다. 공수교대를 눌러주세요." });
+      return;
+    }
     if (match?.needsResultBeforeAdvance) {
       toast({ description: "먼저 예측 결과를 전송해 주세요." });
       return;
@@ -903,7 +907,8 @@ export default function MatchDetailPage() {
   });
   const blockAdvance = Boolean(match.needsResultBeforeAdvance);
   const showThreeOutsHint = Boolean(match.showThreeOutsHint);
-  const matchStarted = match.matchStatus === "ongoing" || match.matchStatus === "scheduled";
+  /** 경기중(ongoing)만 운영 컨트롤 — 경기전(scheduled)은 비활성 */
+  const isMatchLive = match.matchStatus === "ongoing";
   const predictionRunning = Boolean(match.predictionEnabled);
   const withinStartCancel =
     predictionRunning &&
@@ -916,16 +921,18 @@ export default function MatchDetailPage() {
     stopToggleAt > 0 &&
     Date.now() - stopToggleAt < PREDICTION_TOGGLE_MS;
   const canStartPrediction =
-    matchStarted &&
+    isMatchLive &&
     wsConnected &&
     !isStartingPrediction &&
     (!predictionRunning || withinStartCancel);
   const canStopPrediction =
+    isMatchLive &&
     wsConnected &&
     !isStoppingPrediction &&
     (predictionRunning || withinStopCancel);
   /** 예측 중지 후·결과 전송 전에만 결과 선택 가능 */
   const canSelectResult =
+    isMatchLive &&
     wsConnected &&
     !predictionRunning &&
     Boolean(match.predictionStopTime) &&
@@ -933,11 +940,19 @@ export default function MatchDetailPage() {
   const blockAdvanceActions = blockAdvance || predictionRunning;
   /** 공수교대(3아웃) 제외 — 예측 시작·중지 중에도 투수 교체 가능 */
   const canPitcherChange =
-    (matchStarted && !showThreeOutsHint && wsConnected && !isNextBatterLoading) ||
+    (isMatchLive && !showThreeOutsHint && wsConnected && !isNextBatterLoading) ||
     isAdPlaying;
-  /** 다음 타자·공수 교대 — 경기중(ongoing)에만 (광고 종료는 예외) */
-  const canAdvancePlay =
-    (matchStarted && wsConnected && !isNextBatterLoading && !blockAdvanceActions) ||
+  /** 다음 타자 — 3아웃이면 공수교대만 (광고 종료는 예외) */
+  const canNextBatter =
+    (isMatchLive &&
+      !showThreeOutsHint &&
+      wsConnected &&
+      !isNextBatterLoading &&
+      !blockAdvanceActions) ||
+    isAdPlaying;
+  /** 공수 교대 — 3아웃 시 결과 전송 후 이 버튼으로만 진행 */
+  const canSwitchHalf =
+    (isMatchLive && wsConnected && !isNextBatterLoading && !blockAdvanceActions) ||
     isAdPlaying;
 
   return (
@@ -1148,7 +1163,7 @@ export default function MatchDetailPage() {
             <button
               type="button"
               onClick={() => (isAdPlaying ? handleStopAd() : handleNextBatter())}
-              disabled={!canAdvancePlay}
+              disabled={!canNextBatter}
               data-testid="button-next-batter"
               className="manager-match-bottom-btn bg-[#4285F4]"
             >
@@ -1166,7 +1181,7 @@ export default function MatchDetailPage() {
             <button
               type="button"
               onClick={() => (isAdPlaying ? handleStopAd() : handleSwitchHalf())}
-              disabled={!canAdvancePlay}
+              disabled={!canSwitchHalf}
               data-testid="button-switch-half"
               className={`manager-match-bottom-btn ${
                 isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"

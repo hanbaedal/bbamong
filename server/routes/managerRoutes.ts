@@ -22,6 +22,13 @@ const adminStorage = new AdminStorage();
 const MANAGER_APP_SCHEME = "ppamongmanager";
 const MANAGER_APP_PACKAGE = "com.ppamong.manager";
 
+/** 경기전(scheduled)에는 예측·진행 컨트롤 불가 */
+function assertMatchLiveForControls(match: { matchStatus?: string | null }): void {
+  if (match.matchStatus !== "ongoing") {
+    throw new Error("경기전에 사용할 수 없습니다. 경기가 시작되면 이용해 주세요.");
+  }
+}
+
 /** 이미 다른 곳에서 로그인 중 — 새 로그인 거부 */
 export class ManagerSessionActiveError extends Error {
   constructor(message = "다른 기기에서 이미 로그인 중입니다. 해당 기기에서 로그아웃한 뒤 다시 시도하세요.") {
@@ -648,6 +655,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
+      assertMatchLiveForControls(match);
 
       // 대기 중인 광고 타이머 취소 및 전면광고 중지
       broadcastManager.clearAdTimer(id);
@@ -677,6 +685,10 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: "인증이 만료되었습니다." });
       }
       console.error("Start prediction error:", error);
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("경기전에")) {
+        return res.status(400).json({ error: message });
+      }
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   });
@@ -694,6 +706,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
+      assertMatchLiveForControls(match);
 
       const updatedMatch = await stopRound(id);
       if (!updatedMatch) {
@@ -720,7 +733,8 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (
         message.includes("시작되지 않았습니다") ||
         message.includes("이미 중지되었습니다") ||
-        message.includes("경기를 찾을 수 없습니다")
+        message.includes("경기를 찾을 수 없습니다") ||
+        message.includes("경기전에")
       ) {
         return res.status(400).json({ error: message });
       }
@@ -812,6 +826,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
+      assertMatchLiveForControls(match);
 
       // 예측이 아직 진행 중이면 결과 전송 거부 (먼저 예측 중지해야 함)
       if (match.predictionEnabled) {
@@ -835,29 +850,33 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: `라운드 ${match.currentRound} 결과: ${result}`
       }, userDataMap);
 
-      // 결과 전송 후 자동으로 다음 타자(라운드)로 이동
+      // 결과 전송 후: 3아웃이면 공수교대 대기(자동 다음타자 스킵), 아니면 다음 타자로 이동
       let nextRoundNumber = match.currentRound;
-      try {
-        const { match: updatedMatch } = await advanceToNextBatter(id);
-        nextRoundNumber = updatedMatch.currentRound;
-        const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
+      if (!threeOutsReached) {
+        try {
+          const { match: updatedMatch } = await advanceToNextBatter(id);
+          nextRoundNumber = updatedMatch.currentRound;
+          const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
-        broadcastManager.sendToMatch(id, "round_next", {
-          matchId: id,
-          currentRound: updatedMatch.currentRound,
-          predictionEnabled: updatedMatch.predictionEnabled,
-          advanceType: "next_batter",
-          gamePhase,
-          message: `라운드 ${updatedMatch.currentRound}으로 이동했습니다.`,
-        });
-        // 타석(다음 타자) 전환에는 배너 미전송 — 투수교체·공수교대만 배너
-      } catch (nextRoundError) {
-        console.error("Auto next round failed after result:", nextRoundError);
+          broadcastManager.sendToMatch(id, "round_next", {
+            matchId: id,
+            currentRound: updatedMatch.currentRound,
+            predictionEnabled: updatedMatch.predictionEnabled,
+            advanceType: "next_batter",
+            gamePhase,
+            message: `라운드 ${updatedMatch.currentRound}으로 이동했습니다.`,
+          });
+          // 타석(다음 타자) 전환에는 배너 미전송 — 투수교체·공수교대만 배너
+        } catch (nextRoundError) {
+          console.error("Auto next round failed after result:", nextRoundError);
+        }
       }
 
       return res.json({ 
         success: true, 
-        message: "결과가 전송되었습니다.",
+        message: threeOutsReached
+          ? "결과가 전송되었습니다. 공수교대를 눌러주세요."
+          : "결과가 전송되었습니다.",
         roundNumber: match.currentRound,
         result,
         nextRound: nextRoundNumber,
@@ -872,7 +891,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       console.error("Submit result error:", error);
       const message = error?.message || "";
-      if (message.includes("이미 전송되었습니다") || message.includes("시작되지 않았습니다") || message.includes("중지되지 않았습니다")) {
+      if (message.includes("이미 전송되었습니다") || message.includes("시작되지 않았습니다") || message.includes("중지되지 않았습니다") || message.includes("경기전에")) {
         return res.status(400).json({ error: message });
       }
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
@@ -889,6 +908,11 @@ export async function managerRoutes(app: Express): Promise<void> {
       const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
+      }
+      assertMatchLiveForControls(match);
+
+      if ((match.outsInHalf ?? 0) >= 3) {
+        return res.status(400).json({ error: "3아웃입니다. 공수교대를 눌러주세요." });
       }
 
       await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
@@ -939,7 +963,12 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       console.error("Next batter error:", error);
       const message = error instanceof Error ? error.message : "다음 타자 이동에 실패했습니다.";
-      if (message.includes("결과를 전송")) {
+      if (
+        message.includes("결과를 전송") ||
+        message.includes("예측을 시작") ||
+        message.includes("경기전에") ||
+        message.includes("3아웃")
+      ) {
         return res.status(400).json({ error: message });
       }
       return res.status(500).json({ error: message });
@@ -956,6 +985,11 @@ export async function managerRoutes(app: Express): Promise<void> {
       const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
+      }
+      assertMatchLiveForControls(match);
+
+      if ((match.outsInHalf ?? 0) >= 3) {
+        return res.status(400).json({ error: "3아웃입니다. 공수교대를 눌러주세요." });
       }
 
       const { match: updatedMatch, predictionAutoStopped, skippedResult } =
@@ -1019,7 +1053,12 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       console.error("Pitcher change error:", error);
       const message = error instanceof Error ? error.message : "투수 교체 처리에 실패했습니다.";
-      if (message.includes("결과") || message.includes("예측")) {
+      if (
+        message.includes("결과") ||
+        message.includes("예측") ||
+        message.includes("경기전에") ||
+        message.includes("3아웃")
+      ) {
         return res.status(400).json({ error: message });
       }
       return res.status(500).json({ error: message });
@@ -1143,6 +1182,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!match) {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
+      assertMatchLiveForControls(match);
 
       await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
 
@@ -1200,7 +1240,11 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       console.error("Switch half error:", error);
       const message = error instanceof Error ? error.message : "공수교대 처리에 실패했습니다.";
-      if (message.includes("결과를 전송")) {
+      if (
+        message.includes("결과를 전송") ||
+        message.includes("예측을 시작") ||
+        message.includes("경기전에")
+      ) {
         return res.status(400).json({ error: message });
       }
       return res.status(500).json({ error: message });
