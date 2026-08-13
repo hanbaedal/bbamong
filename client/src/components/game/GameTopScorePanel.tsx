@@ -46,12 +46,12 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
 
   return (
     <div
-      className="mt-1.5 min-w-[11rem] rounded-md bg-black/55 px-2 py-1.5 text-[12px] sm:text-[13px] leading-[1.45] text-white/95 backdrop-blur-[2px]"
+      className="mt-0.5 min-w-[7.5rem] max-w-[8.75rem] rounded-md bg-black/55 px-1.5 py-1 text-[10px] sm:text-xs leading-[1.25] text-white/95 backdrop-blur-[2px] pointer-events-none"
       data-testid="current-batter-stats"
     >
       {batter.isPinchHitter ? (
         <p
-          className="mb-1 text-[12px] sm:text-[13px] font-bold text-[#CDFF00]"
+          className="mb-0.5 text-[10px] sm:text-xs font-bold text-[#CDFF00]"
           data-testid="pinch-hitter-badge"
         >
           대타가 나옵니다
@@ -60,10 +60,10 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
       {rows.map(({ label, value, indent }) => (
         <div
           key={label}
-          className={`grid grid-cols-[5.25rem_1fr] gap-x-1.5 ${indent ? "pl-2" : ""}`}
+          className={`grid grid-cols-[auto_minmax(0,1fr)] gap-x-1 ${indent ? "pl-1" : ""}`}
         >
           <span className="text-white/80 whitespace-nowrap">{label}</span>
-          <span className="text-right font-semibold tabular-nums">{value}</span>
+          <span className="text-right font-semibold tabular-nums truncate">{value}</span>
         </div>
       ))}
     </div>
@@ -192,7 +192,7 @@ export default function GameTopScorePanel({
 
       {/* 우측: 스코어보드 + 현재 타자 기록 */}
       <div
-        className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-0 ${scorePanelTop}`}
+        className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-0 pointer-events-none ${scorePanelTop}`}
         data-testid="game-top-score-panel"
       >
         <div className="origin-top-right scale-[0.68] sm:scale-[0.72]">

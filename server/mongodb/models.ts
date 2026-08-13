@@ -79,8 +79,12 @@ const matchSchema = new Schema(
     gameInning: { type: Number, default: 1 },
     /** top=초(원정 공격), bottom=말(홈 공격) */
     inningHalf: { type: String, default: "top" },
-    /** 현재 공수에서 몇 번째 타자 */
+    /** 현재 공격 팀의 타순 (1~9, 공수교대 후에도 팀별 커서 유지) */
     batterIndexInHalf: { type: Number, default: 1 },
+    /** 원정(초) 타순 커서 1~9 */
+    awayBatterOrder: { type: Number, default: 1 },
+    /** 홈(말) 타순 커서 1~9 */
+    homeBatterOrder: { type: Number, default: 1 },
     /** 현재 공수(초/말) 누적 아웃 — 공수교대 시 0 */
     outsInHalf: { type: Number, default: 0 },
     /** 현재 타석 대타 (이름·시즌 스탯) — 다음 타자/공수교대 시 해제 */

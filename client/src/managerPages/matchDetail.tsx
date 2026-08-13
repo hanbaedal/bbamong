@@ -24,7 +24,7 @@ import "./managerMatchDetail.css";
 
 const WS_BASE_URL = 'wss://ppamong.com';
 const PREDICTION_TOGGLE_MS = 1000;
-const RESULT_BUTTON_ROWS = [["1루", "2루", "3루"], ["홈런", "아웃"]] as const;
+const RESULT_BUTTONS = ["1루", "2루", "3루", "홈런", "아웃"] as const;
 
 interface Match {
   id: string;
@@ -94,7 +94,6 @@ export default function MatchDetailPage() {
   const [isStoppingPrediction, setIsStoppingPrediction] = useState(false);
   const [isNextBatterLoading, setIsNextBatterLoading] = useState(false);
   const [startToggleAt, setStartToggleAt] = useState(0);
-  const [stopToggleAt, setStopToggleAt] = useState(0);
   const [toggleTick, setToggleTick] = useState(0);
   const [showPredictionDisabledPopup, setShowPredictionDisabledPopup] =
     useState(false);
@@ -150,19 +149,15 @@ export default function MatchDetailPage() {
   useManagerProactiveSessionRefresh(Boolean(id));
 
   useEffect(() => {
-    if (!startToggleAt && !stopToggleAt) return;
-    const elapsed = Math.max(
-      startToggleAt ? PREDICTION_TOGGLE_MS - (Date.now() - startToggleAt) : 0,
-      stopToggleAt ? PREDICTION_TOGGLE_MS - (Date.now() - stopToggleAt) : 0,
-    );
+    if (!startToggleAt) return;
+    const elapsed = PREDICTION_TOGGLE_MS - (Date.now() - startToggleAt);
     if (elapsed <= 0) {
       setStartToggleAt(0);
-      setStopToggleAt(0);
       return;
     }
     const timer = setTimeout(() => setToggleTick((n) => n + 1), elapsed);
     return () => clearTimeout(timer);
-  }, [startToggleAt, stopToggleAt, toggleTick]);
+  }, [startToggleAt, toggleTick]);
 
   // 매니저 정보 가져오기
   useEffect(() => {
@@ -613,34 +608,20 @@ export default function MatchDetailPage() {
   const handleStopPrediction = async () => {
     if (isStoppingPrediction) return;
 
-    const withinStopCancel =
-      !match?.predictionEnabled &&
-      Boolean(match?.predictionStopTime) &&
-      Boolean(match?.needsResultBeforeAdvance) &&
-      stopToggleAt > 0 &&
-      Date.now() - stopToggleAt < PREDICTION_TOGGLE_MS;
-
     setIsStoppingPrediction(true);
     try {
-      const response = await managerFetch(
-        withinStopCancel
-          ? `/api/manager/matches/${id}/prediction/cancel-stop`
-          : `/api/manager/matches/${id}/prediction/stop`,
-        { method: "POST" },
-      );
+      const response = await managerFetch(`/api/manager/matches/${id}/prediction/stop`, {
+        method: "POST",
+      });
 
       if (response.ok) {
-        setStopToggleAt(withinStopCancel ? 0 : Date.now());
         if (match) {
           setMatch({
             ...match,
-            predictionEnabled: withinStopCancel,
-            predictionStopTime: withinStopCancel ? undefined : new Date().toISOString(),
-            needsResultBeforeAdvance: withinStopCancel ? false : match.needsResultBeforeAdvance,
+            predictionEnabled: false,
+            predictionStopTime: new Date().toISOString(),
+            needsResultBeforeAdvance: true,
           });
-        }
-        if (withinStopCancel) {
-          toast({ description: "예측 중지를 취소했습니다." });
         }
         void fetchMatchDetail();
       } else {
@@ -651,7 +632,7 @@ export default function MatchDetailPage() {
         });
       }
     } catch (error) {
-      console.error("Failed to stop/cancel prediction:", error);
+      console.error("Failed to stop prediction:", error);
       toast({
         variant: "destructive",
         description: "예측 중지 처리에 실패했습니다.",
@@ -798,7 +779,6 @@ export default function MatchDetailPage() {
       {
         onSuccess: () => {
           setStartToggleAt(0);
-          setStopToggleAt(0);
           setSelectedResult(null);
         },
       },
@@ -963,12 +943,6 @@ export default function MatchDetailPage() {
     predictionRunning &&
     startToggleAt > 0 &&
     Date.now() - startToggleAt < PREDICTION_TOGGLE_MS;
-  const withinStopCancel =
-    !predictionRunning &&
-    Boolean(match.predictionStopTime) &&
-    blockAdvance &&
-    stopToggleAt > 0 &&
-    Date.now() - stopToggleAt < PREDICTION_TOGGLE_MS;
   /** 결과 후·3아웃에는 예측 시작 불가 — 다음 타자/공수교대만 */
   const canStartPrediction =
     isMatchLive &&
@@ -976,10 +950,7 @@ export default function MatchDetailPage() {
     !awaitAdvanceAfterResult &&
     !isStartingPrediction &&
     (!predictionRunning || withinStartCancel);
-  const canStopPrediction =
-    isMatchLive &&
-    !isStoppingPrediction &&
-    (predictionRunning || withinStopCancel);
+  const canStopPrediction = isMatchLive && !isStoppingPrediction && predictionRunning;
   /** 예측 중지 후·결과 전송 전에만 결과 선택 가능 */
   const canSelectResult =
     isMatchLive &&
@@ -1067,7 +1038,7 @@ export default function MatchDetailPage() {
                   queryKey: ["/api/matches", id, "scoreboard"],
                 });
                 toast({
-                  description: "점수를 보정했습니다. API 덮어쓰기가 잠금됩니다.",
+                  description: "점수를 보정했습니다. TV 기준으로 잠갔습니다.",
                 });
               } catch (err: unknown) {
                 toast({
@@ -1075,6 +1046,34 @@ export default function MatchDetailPage() {
                   description: err instanceof Error ? err.message : "스코어보드 보정에 실패했습니다.",
                 });
                 throw err;
+              }
+            }}
+            onResumeAuto={async () => {
+              if (!id) return;
+              try {
+                const res = await managerFetch(`/api/manager/matches/${id}/scoreboard`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    lockManual: false,
+                    syncOperatorPhase: false,
+                  }),
+                });
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}));
+                  throw new Error(
+                    typeof err?.error === "string" ? err.error : "자동 반영 전환에 실패했습니다.",
+                  );
+                }
+                await queryClient.invalidateQueries({
+                  queryKey: ["/api/matches", id, "scoreboard"],
+                });
+                toast({ description: "API 점수 자동 반영을 다시 켰습니다." });
+              } catch (err: unknown) {
+                toast({
+                  variant: "destructive",
+                  description: err instanceof Error ? err.message : "자동 반영 전환에 실패했습니다.",
+                });
               }
             }}
           />
@@ -1102,17 +1101,13 @@ export default function MatchDetailPage() {
             >
               {!isMatchLive
                 ? "경기전"
-                : showThreeOutsHint
-                  ? "공수교대"
-                  : awaitAdvanceAfterResult
-                    ? "다음 타자"
-                    : isStartingPrediction
-                      ? "처리중..."
-                      : withinStartCancel
-                        ? "↩ 시작 취소"
-                        : predictionRunning
-                          ? "예측 중"
-                          : "▶ 예측 시작"}
+                : isStartingPrediction
+                  ? "처리중..."
+                  : withinStartCancel
+                    ? "↩ 시작 취소"
+                    : predictionRunning
+                      ? "예측 중"
+                      : "▶ 예측 시작"}
               <img
                 src={assets.startPrediction}
                 className="manager-match-action-mascot w-[52px] h-[94px] object-contain -top-3 -right-1 scale-x-[-1]"
@@ -1137,17 +1132,13 @@ export default function MatchDetailPage() {
               onClick={handleStopPrediction}
               disabled={!canStopPrediction}
               data-testid="button-stop-prediction"
-              className={`manager-match-action-btn bg-[#E11936] relative z-20 ${
-                withinStopCancel ? "manager-match-action-btn--toggle" : ""
-              }`}
+              className="manager-match-action-btn bg-[#E11936] relative z-20"
             >
               {!isMatchLive
                 ? "경기전"
                 : isStoppingPrediction
                   ? "처리중..."
-                  : withinStopCancel
-                    ? "↩ 중지 취소"
-                    : "■ 예측 중지"}
+                  : "■ 예측 중지"}
               <img
                 src={assets.stopPrediction}
                 className="manager-match-action-mascot w-[64px] h-[86px] object-contain -top-6 -left-1 scale-x-[-1]"
@@ -1168,23 +1159,19 @@ export default function MatchDetailPage() {
         <div className="manager-match-results">
           <h3 className="manager-match-section-title">예측 결과</h3>
           <div className="manager-match-result-grid">
-            {RESULT_BUTTON_ROWS.map((row) => (
-              <div key={row.join("-")} className="manager-match-result-row">
-                {row.map((label) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => handleResultSelect(label)}
-                    disabled={!canSelectResult}
-                    data-testid={`button-result-${label}`}
-                    className={`manager-match-result-btn ${
-                      selectedResult === label ? "manager-match-result-btn--selected" : ""
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+            {RESULT_BUTTONS.map((label) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => handleResultSelect(label)}
+                disabled={!canSelectResult}
+                data-testid={`button-result-${label}`}
+                className={`manager-match-result-btn ${
+                  selectedResult === label ? "manager-match-result-btn--selected" : ""
+                }`}
+              >
+                {label}
+              </button>
             ))}
           </div>
           <button
@@ -1247,27 +1234,7 @@ export default function MatchDetailPage() {
               data-testid="button-next-batter"
               className="manager-match-bottom-btn bg-[#4285F4]"
             >
-              {isNextBatterLoading ? "처리중..." : "다음 타자"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPinchEditorOpen(true)}
-              disabled={!canSetPinchHitter}
-              data-testid="button-pinch-hitter"
-              className="manager-match-bottom-btn bg-[#00897B]"
-            >
-              {match.pinchHitter?.playerName
-                ? `대타 · ${match.pinchHitter.playerName}`
-                : "대타"}
-            </button>
-            <button
-              type="button"
-              onClick={() => (isAdPlaying ? handleStopAd() : handlePitcherChange())}
-              disabled={!canPitcherChange}
-              data-testid="button-pitcher-change"
-              className="manager-match-bottom-btn bg-[#5C6BC0]"
-            >
-              {isNextBatterLoading ? "처리중..." : "투수 교체"}
+              {isNextBatterLoading ? "처리중" : "다음\n타자"}
             </button>
             <button
               type="button"
@@ -1278,7 +1245,27 @@ export default function MatchDetailPage() {
                 isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"
               } ${showThreeOutsHint && !isAdPlaying ? "manager-match-bottom-btn--pulse" : ""}`}
             >
-              {isAdPlaying ? "광고 종료" : isNextBatterLoading ? "처리중..." : "공수 교대"}
+              {isAdPlaying ? "광고\n종료" : isNextBatterLoading ? "처리중" : "공수\n교대"}
+            </button>
+            <button
+              type="button"
+              onClick={() => (isAdPlaying ? handleStopAd() : handlePitcherChange())}
+              disabled={!canPitcherChange}
+              data-testid="button-pitcher-change"
+              className="manager-match-bottom-btn bg-[#5C6BC0]"
+            >
+              {isNextBatterLoading ? "처리중" : "투수\n교체"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPinchEditorOpen(true)}
+              disabled={!canSetPinchHitter}
+              data-testid="button-pinch-hitter"
+              className="manager-match-bottom-btn bg-[#00897B]"
+            >
+              {match.pinchHitter?.playerName
+                ? `대타\n${match.pinchHitter.playerName}`
+                : "대타"}
             </button>
           </div>
         </footer>

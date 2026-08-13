@@ -13,7 +13,7 @@ import type {
   Match,
   RoundStatistics,
 } from "@shared/schema";
-import { computeInningHalfSwitch } from "./gamePhase";
+import { computeInningHalfSwitch, computeNextBatterPhase } from "./gamePhase";
 import { calculateFixedOddsPayout } from "@shared/predictionOdds";
 import type { ClientSession } from "mongoose";
 import {
@@ -760,14 +760,21 @@ export async function nextRound(
 }
 
 function readGamePhase(doc: Record<string, unknown>) {
+  const inningHalf = (doc.inningHalf === "bottom" ? "bottom" : "top") as "top" | "bottom";
+  const batterIndexInHalf = (doc.batterIndexInHalf as number | undefined) ?? 1;
   return {
     gameInning: (doc.gameInning as number | undefined) ?? 1,
-    inningHalf: (doc.inningHalf === "bottom" ? "bottom" : "top") as "top" | "bottom",
-    batterIndexInHalf: (doc.batterIndexInHalf as number | undefined) ?? 1,
+    inningHalf,
+    batterIndexInHalf,
+    awayBatterOrder:
+      (doc.awayBatterOrder as number | undefined) ?? (inningHalf === "top" ? batterIndexInHalf : 1),
+    homeBatterOrder:
+      (doc.homeBatterOrder as number | undefined) ??
+      (inningHalf === "bottom" ? batterIndexInHalf : 1),
   };
 }
 
-/** 다음 타자 — 같은 공수, 타순 +1 */
+/** 다음 타자 — 같은 공수, 그 팀 타순 1~9 순환 */
 export async function advanceToNextBatter(
   matchId: string,
 ): Promise<{ match: Match; predictionAutoStopped: boolean }> {
@@ -775,10 +782,7 @@ export async function advanceToNextBatter(
   if (!before) throw new Error("경기를 찾을 수 없습니다.");
 
   const phase = readGamePhase(before as Record<string, unknown>);
-  const nextPhase = {
-    ...phase,
-    batterIndexInHalf: phase.batterIndexInHalf + 1,
-  };
+  const nextPhase = computeNextBatterPhase(phase);
 
   const { match, predictionAutoStopped } = await nextRound(matchId);
   const updated = await MatchModel.findOneAndUpdate(
@@ -839,7 +843,7 @@ export async function advancePitcherChange(
   }
 }
 
-/** 공수교대 — 초/말 전환, 타순 1부터 */
+/** 공수교대 — 초/말 전환, 상대 팀 타순 커서 이어서 */
 export async function advanceInningHalf(
   matchId: string,
 ): Promise<{ match: Match; predictionAutoStopped: boolean }> {

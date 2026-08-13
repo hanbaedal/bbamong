@@ -34,13 +34,13 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - 유저 WS는 `prediction_cancelled`를 처리한다. 결과/대기 중 전면광고는 덮지 않는다(보류 후 재생).
 - **게임 배너 광고 없음**: 예측 게임에서 배너를 쓰지 않는다. **공수교대·투수교체** 시 전면(+보상) 광고만 `scheduleAdStart`(약 5초 후)로 재생한다.
 - **광고 시작/중지**: 운영자 **투수교체·공수교대** = 광고 시작, **예측 시작**(또는 하단 광고 종료) = 광고 중지(`ad_stopped`). 별도「광고 시작」버튼 없음.
-- **사용자 광고 UX**: 5초 후 X로 끄기 가능(보상 없음). 전면 끝까지 + 보상형 완료(또는 웹 오버레이 `AD_OVERLAY_COMPLETE_SECONDS`) 시 500P. 운영자 중지도 보상 없음.
+- **사용자 광고 UX**: 5초 후 X로 끄기 가능(보상 없음). **운영자가 광고를 중지할 때까지** 보고 있으면 500P. 15초 자동 보상 없음. 5초 만에 끄면 보상 없음.
 
 ### Admin schedule team logos
 - Admin 경기관리 리스트는 API-SPORTS `teams.*.logo` URL을 원형으로 표시한다 (실패 시 약칭 이니셜 폴백). 관리자 전용 UI용이며, 사용자 앱에 공식 엠블럼을 확대 배포하기 전에는 별도 권리 검토가 필요하다.
 
 ### Live scoreboard (API vs operator)
-- During `matchStatus === "ongoing"`, API-SPORTS polls **do not overwrite** `liveScoreboard` scores/inning tables (status/team names still refresh). Final FT while `controlMode === "auto"` applies the API final board; `manual` keeps operator/admin corrections.
+- During `matchStatus === "ongoing"` and `controlMode === "auto"`, API-SPORTS polls **do overwrite** `liveScoreboard` scores/inning tables. `controlMode === "manual"` (운영자/관리자 점수 보정) keeps operator scores until they turn auto back on.
 - Display for “N회 초/말” prefers operator `gameInning` / `inningHalf` over API (`shared/matchPhaseDisplay.ts`).
-- Operators/admins can PATCH scores (`/api/manager/matches/:id/scoreboard`, `/api/admin/matches/:id/scoreboard`) which sets `controlMode: "manual"`. Toggle admin “수동” off to return to auto (end sync can apply again).
+- Operators/admins can PATCH scores (`/api/manager/matches/:id/scoreboard`, `/api/admin/matches/:id/scoreboard`) which sets `controlMode: "manual"`. `lockManual: false` (또는 관리자 「수동」 끄기) returns to auto.
 - **`matchStatus` vs 예측 오픈**: 「예측 시작」은 `predictionEnabled`/`sideBetsLocked`만 켠다. `matchStatus: ongoing`은 API live·이닝 등 **실황 근거**로만 올린다. API `NS`(시작 전)이면 `scheduled`로 되돌린다(ongoing 고착 방지). UI「경기중」도 API 시작 전을 우선한다.

@@ -14,6 +14,8 @@ interface ManagerOperatorScorePanelProps {
   controlMode?: string | null;
   /** 점수 보정 저장 — 성공 시 호출측에서 쿼리 갱신 */
   onSaveScores?: (scores: { awayScore: number; homeScore: number }) => Promise<void>;
+  /** 수동 잠금 해제 — API 점수 자동 반영 */
+  onResumeAuto?: () => Promise<void>;
   /** 팀명 클릭 — 주전 타순·시즌 전적 모달 */
   onTeamClick?: (side: "home" | "away") => void;
   awayLineupCount?: number;
@@ -49,6 +51,7 @@ export default function ManagerOperatorScorePanel({
   matchStatus,
   controlMode,
   onSaveScores,
+  onResumeAuto,
   onTeamClick,
   awayLineupCount = 0,
   homeLineupCount = 0,
@@ -59,14 +62,15 @@ export default function ManagerOperatorScorePanel({
   const [homeScore, setHomeScore] = useState(0);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    setAwayScore(scoreboard?.awayScore ?? 0);
-    setHomeScore(scoreboard?.homeScore ?? 0);
-  }, [scoreboard?.awayScore, scoreboard?.homeScore, scoreboard?.syncedAt]);
-
   const dirty =
     Boolean(onSaveScores) &&
     (awayScore !== (scoreboard?.awayScore ?? 0) || homeScore !== (scoreboard?.homeScore ?? 0));
+
+  useEffect(() => {
+    if (dirty) return;
+    setAwayScore(scoreboard?.awayScore ?? 0);
+    setHomeScore(scoreboard?.homeScore ?? 0);
+  }, [scoreboard?.awayScore, scoreboard?.homeScore, scoreboard?.syncedAt, dirty]);
 
   const handleSave = async () => {
     if (!onSaveScores || saving) return;
@@ -206,9 +210,20 @@ export default function ManagerOperatorScorePanel({
           {controlMode === "manual" && (
             <span className="manager-operator-score-manual-hint">수동 잠금 — API 점수 미반영</span>
           )}
+          {controlMode === "manual" && onResumeAuto && (
+            <button
+              type="button"
+              className="manager-operator-score-save"
+              disabled={saving}
+              onClick={() => void onResumeAuto()}
+              data-testid="button-resume-auto-score"
+            >
+              API 자동 반영 켜기
+            </button>
+          )}
           {matchStatus === "ongoing" && controlMode !== "manual" && (
             <span className="manager-operator-score-live-hint">
-              경기 중 API 점수는 자동 덮어쓰지 않습니다. TV와 다르면 보정하세요.
+              경기 중 API 점수가 자동 반영됩니다. TV와 다르면 보정하세요.
             </span>
           )}
         </div>

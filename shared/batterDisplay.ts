@@ -4,7 +4,7 @@ import type {
   MatchLineupSnapshot,
   PinchHitterSnapshot,
 } from "./apiSportsTypes";
-import type { InningHalf } from "./gamePhaseTypes";
+import { wrapBatterOrder, type InningHalf } from "./gamePhaseTypes";
 
 /** 타율 표시 — ".285" 또는 "0.285" → ".285" */
 export function formatBattingAverage(value: string | number | null | undefined): string | null {
@@ -132,14 +132,15 @@ export function resolveCurrentBatterPreview(input: {
   season: number;
   pinchHitter?: PinchHitterSnapshot | null;
 }): CurrentBatterPreview {
-  const orderLabel = `${input.batterIndexInHalf}번째 타자`;
+  const battingOrder = wrapBatterOrder(input.batterIndexInHalf);
+  const orderLabel = `${battingOrder}번째 타자`;
   const lineup = input.lineup;
   if (!lineup || (lineup.home.length === 0 && lineup.away.length === 0)) {
     return applyPinchHitter(
       emptyBatterPreview(orderLabel, input.season),
       input.pinchHitter,
       input.inningHalf,
-      input.batterIndexInHalf,
+      battingOrder,
     );
   }
 
@@ -150,12 +151,13 @@ export function resolveCurrentBatterPreview(input: {
       emptyBatterPreview(orderLabel, input.season),
       input.pinchHitter,
       input.inningHalf,
-      input.batterIndexInHalf,
+      battingOrder,
     );
   }
 
-  const index = Math.max(0, input.batterIndexInHalf - 1);
-  const player = sorted[index] ?? sorted[index % sorted.length];
+  const player =
+    sorted.find((p) => wrapBatterOrder(p.battingOrder) === battingOrder) ??
+    sorted[(battingOrder - 1) % sorted.length];
   const stats = input.playerStats?.[String(player.playerId)];
 
   const base: CurrentBatterPreview = {
@@ -170,5 +172,5 @@ export function resolveCurrentBatterPreview(input: {
     isPinchHitter: false,
   };
 
-  return applyPinchHitter(base, input.pinchHitter, input.inningHalf, input.batterIndexInHalf);
+  return applyPinchHitter(base, input.pinchHitter, input.inningHalf, battingOrder);
 }
