@@ -82,7 +82,7 @@ export default function GameAdOverlay({
         <p className="text-white text-lg sm:text-xl font-semibold">{message}</p>
         <p className="text-white/60 text-sm">
           {canDismiss
-            ? "끝까지 보면 보상을 받을 수 있습니다. 끄면 보상은 없습니다."
+            ? "운영자가 광고를 끝낼 때까지 보면 500P를 받습니다. 지금 끄면 보상은 없습니다."
             : "광고가 끝나면 예측 대기 화면으로 이동합니다"}
         </p>
         {onDismiss && !canDismiss && (

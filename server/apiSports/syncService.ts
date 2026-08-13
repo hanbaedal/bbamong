@@ -1327,9 +1327,7 @@ export async function patchMatchLiveScoreboard(matchId: string, patch: LiveScore
     liveScoreboard: merged,
     lastInningKey: buildInningKey(merged),
   };
-  if (lockManual) {
-    update.controlMode = "manual" satisfies MatchControlMode;
-  }
+  update.controlMode = (lockManual ? "manual" : "auto") satisfies MatchControlMode;
   if (patch.syncOperatorPhase && nextInning != null && nextHalf) {
     update.gameInning = nextInning;
     update.inningHalf = nextHalf;

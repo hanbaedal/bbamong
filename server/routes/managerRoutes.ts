@@ -9,6 +9,7 @@ import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { patchMatchLiveScoreboard } from "../apiSports/syncService";
 import { saveManualMatchLineup } from "../apiSports/manualLineupService";
 import { clearMatchPinchHitter, setMatchPinchHitter } from "../apiSports/pinchHitterService";
+import { listKboPlayers, resolveMatchTeamShort } from "../kboRoster/kboRosterService";
 import { z } from "zod";
 import { hasActiveSession, createSession, deleteSession, refreshSession, hasLogoutPermission, revokeLogoutPermission } from "../sessionManager";
 import { ensureOperatorsReady, peekLoginLinkToken, resolveLoginLinkToken, isOperatorCredentialsActive } from "../managerOperatorService";
@@ -1055,6 +1056,41 @@ export async function managerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // 오늘 경기 팀 선수단 (운영자 타순/대타 선택)
+  app.get("/api/manager/matches/:id/kbo-roster", async (req, res) => {
+    try {
+      const decoded = await requirePpamongOperatorAuth(req, res);
+      if (!decoded) return;
+
+      const { id } = req.params;
+      const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
+      if (!match) {
+        return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
+      }
+
+      const side = req.query.side === "home" ? "home" : "away";
+      const seasonRaw = Number.parseInt(String(req.query.season ?? ""), 10);
+      const season = Number.isFinite(seasonRaw)
+        ? seasonRaw
+        : match.startTime
+          ? new Date(match.startTime as string | Date).getFullYear()
+          : new Date().getFullYear();
+      const team = resolveMatchTeamShort(match, side);
+      if (!team) {
+        return res.json({ team: null, season, players: [] });
+      }
+      const players = await listKboPlayers({ team, season, activeOnly: true });
+      return res.json({ team, season, players });
+    } catch (error: unknown) {
+      if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
+        return res.status(401).json({ error: "인증이 만료되었습니다." });
+      }
+      console.error("Manager kbo roster error:", error);
+      const message = error instanceof Error ? error.message : "선수단을 불러오지 못했습니다.";
+      return res.status(400).json({ error: message });
+    }
+  });
+
   // 타순·시즌 스탯 수동 입력 (KBO API 라인업 미제공 대응)
   app.patch("/api/manager/matches/:id/lineup", async (req, res) => {
     try {
@@ -1069,12 +1105,15 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       const batterSchema = z.object({
         battingOrder: z.number().int().min(1).max(9),
-        name: z.string().trim().min(1).max(40),
+        name: z.string().trim().max(40).optional(),
+        rosterPlayerId: z.string().trim().min(1).max(80).optional(),
         battingAverage: z.union([z.string(), z.number()]).nullable().optional(),
         hits: z.number().int().min(0).max(999).nullable().optional(),
         homeRuns: z.number().int().min(0).max(999).nullable().optional(),
         rbi: z.number().int().min(0).max(999).nullable().optional(),
         ops: z.union([z.string(), z.number()]).nullable().optional(),
+        position: z.string().trim().max(20).nullable().optional(),
+        note: z.string().trim().max(80).nullable().optional(),
       });
 
       const body = z
@@ -1124,7 +1163,8 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       const body = z
         .object({
-          playerName: z.string().trim().min(1).max(40),
+          playerName: z.string().trim().max(40).optional(),
+          rosterPlayerId: z.string().trim().min(1).max(80).optional(),
           battingAverage: z.union([z.string(), z.number()]).nullable().optional(),
           hits: z.number().int().min(0).max(999).nullable().optional(),
           homeRuns: z.number().int().min(0).max(999).nullable().optional(),

@@ -1,14 +1,18 @@
 import type { PinchHitterSnapshot } from "@shared/apiSportsTypes";
 import { formatBattingAverage, formatOps } from "@shared/batterDisplay";
 import { MatchModel } from "../UserStorage/db";
+import { getKboPlayersByIds } from "../kboRoster/kboRosterService";
 
 export type PinchHitterInput = {
-  playerName: string;
+  playerName?: string;
+  rosterPlayerId?: string;
   battingAverage?: string | number | null;
   hits?: number | null;
   homeRuns?: number | null;
   rbi?: number | null;
   ops?: string | number | null;
+  position?: string | null;
+  note?: string | null;
   season?: number;
 };
 
@@ -34,24 +38,36 @@ export async function setMatchPinchHitter(
     throw new Error("경기전에 대타를 설정할 수 없습니다.");
   }
 
-  const playerName = input.playerName?.trim();
-  if (!playerName) throw new Error("대타 이름을 입력하세요.");
+  const rosterId = input.rosterPlayerId?.trim();
+  const roster = rosterId ? (await getKboPlayersByIds([rosterId]))[0] : null;
+  if (rosterId && !roster) {
+    throw new Error("선택한 선수를 선수단에서 찾을 수 없습니다.");
+  }
+
+  const playerName = (roster?.name || input.playerName || "").trim();
+  if (!playerName) throw new Error("대타 선수를 선택하세요.");
 
   const season = resolveSeason(match.startTime as Date | undefined, input.season);
   const snapshot: PinchHitterSnapshot = {
     playerName,
-    battingAverage: formatBattingAverage(input.battingAverage ?? null),
+    battingAverage: formatBattingAverage(roster?.battingAverage ?? input.battingAverage ?? null),
     hits:
-      typeof input.hits === "number" && Number.isFinite(input.hits)
+      roster?.hits ??
+      (typeof input.hits === "number" && Number.isFinite(input.hits)
         ? Math.round(input.hits)
-        : null,
+        : null),
     homeRuns:
-      typeof input.homeRuns === "number" && Number.isFinite(input.homeRuns)
+      roster?.homeRuns ??
+      (typeof input.homeRuns === "number" && Number.isFinite(input.homeRuns)
         ? Math.round(input.homeRuns)
-        : null,
+        : null),
     rbi:
-      typeof input.rbi === "number" && Number.isFinite(input.rbi) ? Math.round(input.rbi) : null,
-    ops: formatOps(input.ops ?? null),
+      roster?.rbi ??
+      (typeof input.rbi === "number" && Number.isFinite(input.rbi) ? Math.round(input.rbi) : null),
+    ops: formatOps(roster?.ops ?? input.ops ?? null),
+    position: roster?.position || input.position?.trim() || null,
+    note: roster?.note || input.note?.trim() || null,
+    rosterPlayerId: roster?.id,
     season,
     batterIndexInHalf: (match.batterIndexInHalf as number | undefined) ?? 1,
     inningHalf: match.inningHalf === "bottom" ? "bottom" : "top",

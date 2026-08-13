@@ -1,0 +1,101 @@
+import { useMemo, useState } from "react";
+import type { KboRosterPlayer } from "@shared/kboRoster";
+
+interface ManagerRosterPickerProps {
+  teamLabel: string;
+  players: KboRosterPlayer[];
+  loading?: boolean;
+  selectedId?: string;
+  onSelect: (player: KboRosterPlayer) => void;
+  onClose: () => void;
+}
+
+export default function ManagerRosterPicker({
+  teamLabel,
+  players,
+  loading = false,
+  selectedId,
+  onSelect,
+  onClose,
+}: ManagerRosterPickerProps) {
+  const [query, setQuery] = useState("");
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return players;
+    return players.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.position.toLowerCase().includes(q),
+    );
+  }, [players, query]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/50 p-3"
+      data-testid="manager-roster-picker"
+    >
+      <div className="w-full max-w-md max-h-[85dvh] overflow-hidden rounded-xl bg-white shadow-xl flex flex-col">
+        <header className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100">
+          <h3 className="text-sm font-bold text-gray-900">{teamLabel} 선수 선택</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm text-gray-500 px-2 py-1"
+            data-testid="button-roster-picker-close"
+          >
+            닫기
+          </button>
+        </header>
+        <div className="px-3 py-2 border-b border-gray-100">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="이름·포지션 검색"
+            className="w-full h-9 rounded border border-gray-200 px-2 text-sm"
+            data-testid="input-roster-search"
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <p className="px-3 py-6 text-center text-sm text-gray-500">불러오는 중…</p>
+          ) : filtered.length === 0 ? (
+            <p className="px-3 py-6 text-center text-sm text-gray-500 leading-relaxed">
+              {players.length === 0
+                ? "이 팀 선수가 없습니다. 관리자 「팀별 타자 등록」에서 먼저 등록하세요."
+                : "검색 결과가 없습니다."}
+            </p>
+          ) : (
+            <ul>
+              {filtered.map((player) => (
+                <li key={player.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(player)}
+                    className={`w-full text-left px-3 py-2.5 border-b border-gray-50 ${
+                      selectedId === player.id ? "bg-[#EEF4FF]" : "bg-white"
+                    }`}
+                    data-testid={`button-roster-player-${player.id}`}
+                  >
+                    <span className="block text-sm font-semibold text-gray-900">
+                      {player.name}
+                      <span className="ml-1.5 text-xs font-medium text-[#1A6DFF]">
+                        {player.position}
+                      </span>
+                    </span>
+                    <span className="block text-[11px] text-gray-500 tabular-nums">
+                      타율 {player.battingAverage || "—"} · 안타 {player.hits ?? "—"} · 홈런{" "}
+                      {player.homeRuns ?? "—"} · 타점 {player.rbi ?? "—"} · OPS {player.ops || "—"}
+                    </span>
+                    {player.note ? (
+                      <span className="block text-[11px] text-gray-400 truncate">{player.note}</span>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

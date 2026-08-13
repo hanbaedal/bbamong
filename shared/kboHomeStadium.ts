@@ -29,8 +29,16 @@ const KBO_FRANCHISES: KboFranchise[] = [
   },
 ];
 
-const KBO_TEAM_SHORTS = new Set(KBO_FRANCHISES.map((f) => f.teamShort));
+/** 두산·LG·KIA·롯데·삼성·SSG·NC·KT·키움·한화 */
+export const KBO_TEAM_SHORT_LIST = KBO_FRANCHISES.map((f) => f.teamShort);
+export type KboTeamShort = (typeof KBO_TEAM_SHORT_LIST)[number];
+
+const KBO_TEAM_SHORTS = new Set(KBO_TEAM_SHORT_LIST);
 const KBO_STADIUM_SHORTS = new Set(KBO_FRANCHISES.map((f) => f.stadiumShort));
+
+export function isKboTeamShort(value: string): value is KboTeamShort {
+  return KBO_TEAM_SHORTS.has(value);
+}
 
 /** 구장 전체명·영문 → 약칭 */
 const STADIUM_NAME_TO_SHORT: { patterns: string[]; short: string }[] = [

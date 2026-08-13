@@ -7,6 +7,7 @@ import AdminLoginPage from "@/adminPages/auth/login";
 import AdminHomePage from "@/adminPages/AdminHome";
 import HomePageManagementPage from "@/adminPages/HomePageManagement";
 import AppHomeSettingsPage from "@/adminPages/AppHomeSettings";
+import KboRosterPage from "@/adminPages/KboRoster";
 import MallOrderManagementPage from "@/adminPages/MallOrderManagement";
 import MallSalesManagementPage from "@/adminPages/MallSalesManagement";
 import MallInventoryManagementPage from "@/adminPages/MallInventoryManagement";
@@ -76,6 +77,7 @@ function Router() {
       <Route path="/admin/mall-preview" component={AdminMallPreviewPage} />
       <Route path="/admin/mall-management" component={HomePageManagementPage} />
       <Route path="/admin/app-home-settings" component={AppHomeSettingsPage} />
+      <Route path="/admin/kbo-roster" component={KboRosterPage} />
       <Route path="/admin/mall-orders" component={MallOrderManagementPage} />
       <Route path="/admin/mall-sales" component={MallSalesManagementPage} />
       <Route path="/admin/mall-inventory" component={MallInventoryManagementPage} />

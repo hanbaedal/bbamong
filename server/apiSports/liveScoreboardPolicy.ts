@@ -1,21 +1,17 @@
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import { formatInningWithHalf, type InningHalf } from "@shared/gamePhaseTypes";
-import { isGameFinished } from "@shared/apiSportsStatus";
 
 /**
- * 라이브 중(또는 수동 모드)에는 API가 점수·이닝 표를 덮어쓰지 않음.
- * - scheduled → ongoing 첫 반영은 허용 (matchStatus 가 아직 scheduled)
- * - API 종료(FT 등) + auto 이면 최종 스코어 반영
- * - manual 이면 종료 시에도 운영자/관리자 보정 점수 유지
+ * 수동 잠금(controlMode=manual)일 때만 API가 점수·이닝 표를 덮어쓰지 않음.
+ * auto면 경기 중에도 API 스코어를 반영한다. 운영자 보정 시에만 manual.
+ * API 종료(FT 등) + auto 이면 최종 스코어 반영.
+ * manual 이면 종료 시에도 운영자/관리자 보정 점수 유지.
  */
 export function shouldPreserveLiveScoreFields(
   match: { controlMode?: string | null; matchStatus?: string | null },
-  apiStatusShort: string | null | undefined,
+  _apiStatusShort?: string | null,
 ): boolean {
-  if (match.controlMode === "manual") return true;
-  const apiFinished = isGameFinished(apiStatusShort);
-  if (match.matchStatus === "ongoing" && !apiFinished) return true;
-  return false;
+  return match.controlMode === "manual";
 }
 
 /** 기존 보드의 점수·이닝 표를 유지하고, API에서 상태/팀명/동기화 시각만 갱신 */

@@ -19,7 +19,7 @@ export default function GameFieldLabels({
   interactive,
   selectedPrediction,
   highlightPrediction,
-  blinkPrediction,
+  blinkPrediction: _blinkPrediction,
   onSelect,
 }: GameFieldLabelsProps) {
   if (!visible) return null;
@@ -30,11 +30,7 @@ export default function GameFieldLabels({
       aria-hidden={!interactive}
     >
       {OPTIONS.map((key) => {
-        // 결과 대기 중에는 예측한 라벨만 표시 (빨간 깜빡임)
-        if (blinkPrediction != null && key !== blinkPrediction) return null;
-
         const isSelected = selectedPrediction === key || highlightPrediction === key;
-        const isBlink = blinkPrediction === key;
         return (
           <StadiumFieldMarker key={key} point={BASE_IMAGE_POINTS[key]}>
             <button
@@ -42,12 +38,10 @@ export default function GameFieldLabels({
               disabled={!interactive}
               onClick={() => onSelect?.(key)}
               className={`pointer-events-auto min-w-[2.75rem] sm:min-w-[3.25rem] rounded-full border-2 px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-bold whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.55)] transition-transform ${
-                isSelected || isBlink
+                isSelected
                   ? "border-[#E11936] bg-[#E11936]/90 text-white scale-110"
                   : "border-[#FFE566] bg-black/75 text-[#FFE566]"
-              } ${isBlink ? "animate-label-blink" : ""} ${
-                interactive ? "cursor-pointer hover:scale-110 active:scale-95" : ""
-              }`}
+              } ${interactive ? "cursor-pointer hover:scale-110 active:scale-95" : ""}`}
               data-testid={`field-label-${key}`}
             >
               {FIELD_LABEL_TEXT[key]}

@@ -1,41 +1,61 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { managerFetch } from "@/lib/managerQueryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { KboRosterPlayer } from "@shared/kboRoster";
+import type { LineupSide } from "@/components/ManagerLineupEditor";
+import ManagerRosterPicker from "@/components/ManagerRosterPicker";
 
 interface ManagerPinchHitterEditorProps {
   matchId: string;
   seasonYear: number;
+  side: LineupSide;
+  teamLabel: string;
   batterOrderLabel?: string;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function parseOptionalInt(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const n = Number.parseInt(trimmed, 10);
-  return Number.isFinite(n) ? n : null;
-}
-
 export default function ManagerPinchHitterEditor({
   matchId,
   seasonYear,
+  side,
+  teamLabel,
   batterOrderLabel,
   onClose,
   onSaved,
 }: ManagerPinchHitterEditorProps) {
   const { toast } = useToast();
-  const [playerName, setPlayerName] = useState("");
-  const [battingAverage, setBattingAverage] = useState("");
-  const [hits, setHits] = useState("");
-  const [homeRuns, setHomeRuns] = useState("");
-  const [rbi, setRbi] = useState("");
-  const [ops, setOps] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(true);
+  const [selected, setSelected] = useState<KboRosterPlayer | null>(null);
+  const [players, setPlayers] = useState<KboRosterPlayer[]>([]);
+  const [loadingPlayers, setLoadingPlayers] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingPlayers(true);
+    void managerFetch(
+      `/api/manager/matches/${matchId}/kbo-roster?side=${side}&season=${seasonYear}`,
+    )
+      .then(async (res) => {
+        if (!res.ok) throw new Error("선수단을 불러오지 못했습니다.");
+        const data = (await res.json()) as { players?: KboRosterPlayer[] };
+        if (!cancelled) setPlayers(data.players ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setPlayers([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPlayers(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [matchId, side, seasonYear]);
+
   const handleSave = async () => {
-    if (!playerName.trim()) {
-      toast({ variant: "destructive", description: "대타 이름을 입력하세요." });
+    if (!selected) {
+      toast({ variant: "destructive", description: "대타 선수를 선택하세요." });
       return;
     }
     setSaving(true);
@@ -44,12 +64,8 @@ export default function ManagerPinchHitterEditor({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          playerName: playerName.trim(),
-          battingAverage: battingAverage.trim() || null,
-          hits: parseOptionalInt(hits),
-          homeRuns: parseOptionalInt(homeRuns),
-          rbi: parseOptionalInt(rbi),
-          ops: ops.trim() || null,
+          rosterPlayerId: selected.id,
+          playerName: selected.name,
           season: seasonYear,
         }),
       });
@@ -57,7 +73,7 @@ export default function ManagerPinchHitterEditor({
         const err = await res.json().catch(() => ({}));
         throw new Error(typeof err?.error === "string" ? err.error : "대타 저장에 실패했습니다.");
       }
-      toast({ description: `대타 ${playerName.trim()}을(를) 설정했습니다.` });
+      toast({ description: `대타 ${selected.name}을(를) 설정했습니다.` });
       onSaved();
       onClose();
     } catch (err) {
@@ -70,9 +86,6 @@ export default function ManagerPinchHitterEditor({
     }
   };
 
-  const fieldClass =
-    "w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-900 focus:border-[#1A6DFF] focus:outline-none";
-
   return (
     <div
       className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/50 p-3"
@@ -81,10 +94,10 @@ export default function ManagerPinchHitterEditor({
       <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">대타 입력</h2>
+            <h2 className="text-base font-semibold text-gray-900">대타 선택</h2>
             <p className="mt-0.5 text-xs text-gray-500">
               {batterOrderLabel ? `${batterOrderLabel} · ` : ""}
-              예측 화면에 대타 안내와 {seasonYear} 전적이 표시됩니다.
+              {teamLabel} 명단에서 고릅니다.
             </p>
           </div>
           <button
@@ -97,70 +110,22 @@ export default function ManagerPinchHitterEditor({
           </button>
         </div>
 
-        <div className="space-y-3 px-4 py-3">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">대타 이름</span>
-            <input
-              className={fieldClass}
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="선수 이름"
-              maxLength={40}
-              data-testid="input-pinch-name"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">{seasonYear} 타율</span>
-            <input
-              className={fieldClass}
-              value={battingAverage}
-              onChange={(e) => setBattingAverage(e.target.value)}
-              placeholder=".285"
-              data-testid="input-pinch-avg"
-            />
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-gray-600">안타</span>
-              <input
-                className={fieldClass}
-                inputMode="numeric"
-                value={hits}
-                onChange={(e) => setHits(e.target.value)}
-                data-testid="input-pinch-hits"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-gray-600">홈런</span>
-              <input
-                className={fieldClass}
-                inputMode="numeric"
-                value={homeRuns}
-                onChange={(e) => setHomeRuns(e.target.value)}
-                data-testid="input-pinch-hr"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-gray-600">타점</span>
-              <input
-                className={fieldClass}
-                inputMode="numeric"
-                value={rbi}
-                onChange={(e) => setRbi(e.target.value)}
-                data-testid="input-pinch-rbi"
-              />
-            </label>
-          </div>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">OPS</span>
-            <input
-              className={fieldClass}
-              value={ops}
-              onChange={(e) => setOps(e.target.value)}
-              placeholder=".812"
-              data-testid="input-pinch-ops"
-            />
-          </label>
+        <div className="px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="w-full h-12 rounded-lg border border-gray-200 px-3 text-left"
+            data-testid="input-pinch-name"
+          >
+            {selected ? (
+              <span>
+                <span className="font-semibold text-gray-900">{selected.name}</span>
+                <span className="ml-1 text-xs text-[#1A6DFF]">{selected.position}</span>
+              </span>
+            ) : (
+              <span className="text-gray-400">선수 선택</span>
+            )}
+          </button>
         </div>
 
         <div className="flex gap-2 border-t px-4 py-3">
@@ -174,7 +139,7 @@ export default function ManagerPinchHitterEditor({
           <button
             type="button"
             onClick={() => void handleSave()}
-            disabled={saving}
+            disabled={saving || !selected}
             className="flex-1 rounded-lg bg-[#1A6DFF] py-2.5 text-sm font-semibold text-white disabled:opacity-50"
             data-testid="button-pinch-save"
           >
@@ -182,6 +147,20 @@ export default function ManagerPinchHitterEditor({
           </button>
         </div>
       </div>
+
+      {pickerOpen ? (
+        <ManagerRosterPicker
+          teamLabel={`${teamLabel} 대타`}
+          players={players}
+          loading={loadingPlayers}
+          selectedId={selected?.id}
+          onSelect={(player) => {
+            setSelected(player);
+            setPickerOpen(false);
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -79,8 +79,12 @@ const matchSchema = new Schema(
     gameInning: { type: Number, default: 1 },
     /** top=초(원정 공격), bottom=말(홈 공격) */
     inningHalf: { type: String, default: "top" },
-    /** 현재 공수에서 몇 번째 타자 */
+    /** 현재 공격 팀의 타순 (1~9, 공수교대 후에도 팀별 커서 유지) */
     batterIndexInHalf: { type: Number, default: 1 },
+    /** 원정(초) 타순 커서 1~9 */
+    awayBatterOrder: { type: Number, default: 1 },
+    /** 홈(말) 타순 커서 1~9 */
+    homeBatterOrder: { type: Number, default: 1 },
     /** 현재 공수(초/말) 누적 아웃 — 공수교대 시 0 */
     outsInHalf: { type: Number, default: 0 },
     /** 현재 타석 대타 (이름·시즌 스탯) — 다음 타자/공수교대 시 해제 */
@@ -686,5 +690,28 @@ const mallPurchaseOrderSchema = new Schema(
 );
 mallPurchaseOrderSchema.index({ status: 1, createdAt: -1 });
 export const MallPurchaseOrderModel = mongoose.model("MallPurchaseOrder", mallPurchaseOrderSchema);
+
+const kboPlayerSchema = new Schema(
+  {
+    id: { type: String, required: true, unique: true },
+    team: { type: String, required: true },
+    season: { type: Number, required: true },
+    name: { type: String, required: true },
+    position: { type: String, default: "" },
+    battingAverage: { type: String, default: null },
+    hits: { type: Number, default: null },
+    homeRuns: { type: Number, default: null },
+    rbi: { type: Number, default: null },
+    ops: { type: String, default: null },
+    note: { type: String, default: "" },
+    active: { type: Boolean, default: true },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+kboPlayerSchema.index({ team: 1, season: 1, active: 1 });
+kboPlayerSchema.index({ team: 1, season: 1, name: 1 }, { unique: true });
+export const KboPlayerModel = mongoose.model("KboPlayer", kboPlayerSchema);
 
 export type MongoUser = InferSchemaType<typeof userSchema>;

@@ -64,6 +64,8 @@ export interface LineupBatterEntry {
   playerId: number;
   name: string;
   battingOrder: number;
+  /** 관리자 선수단 id — 수동 타순에서 스냅샷 출처 */
+  rosterPlayerId?: string;
 }
 
 /** Match DB에 저장하는 라인업 스냅샷 */
@@ -82,6 +84,8 @@ export interface MatchPlayerStatsEntry {
   homeRuns: number | null;
   rbi: number | null;
   ops: string | null;
+  position?: string | null;
+  note?: string | null;
   syncedAt: string;
 }
 
@@ -102,6 +106,8 @@ export interface CurrentBatterPreview {
   homeRuns: number | null;
   rbi: number | null;
   ops: string | null;
+  position?: string | null;
+  note?: string | null;
   season: number;
   /** 운영자가 설정한 대타 타석 */
   isPinchHitter?: boolean;
@@ -115,6 +121,9 @@ export interface PinchHitterSnapshot {
   homeRuns: number | null;
   rbi: number | null;
   ops: string | null;
+  position?: string | null;
+  note?: string | null;
+  rosterPlayerId?: string;
   season: number;
   batterIndexInHalf: number;
   inningHalf: "top" | "bottom";

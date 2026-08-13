@@ -31,6 +31,7 @@ import { appReleaseRoutes } from "./routes/appReleaseRoutes"
 import {adminWaitingScreenRoutes} from "./routes/adminWaitingScreenRoutes"
 import {adminAdvertisementRoutes} from "./routes/adminAdvertisementRoutes"
 import {adminAdmobRoutes} from "./routes/adminAdmobRoutes"
+import { adminKboRosterRoutes } from "./routes/adminKboRosterRoutes"
 import { shopRoutes } from "./UserRoutes/shopRoutes"
 import { mallRoutes } from "./UserRoutes/mallRoutes"
 import { mallAdminRoutes } from "./UserRoutes/mallAdminRoutes"
@@ -91,6 +92,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   await adminWaitingScreenRoutes(app)
   await adminAdvertisementRoutes(app)
   await adminAdmobRoutes(app)
+  adminKboRosterRoutes(app)
   
   // 매니저 라우터 등록
   await managerRoutes(app)
