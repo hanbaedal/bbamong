@@ -12,6 +12,8 @@ type MatchLiveTimers = {
   windowStart: NodeJS.Timeout | null;
   windowEnd: NodeJS.Timeout | null;
   interval: NodeJS.Timeout | null;
+  starting: boolean;
+  tickInFlight: boolean;
 };
 
 const liveTimersByMatch = new Map<string, MatchLiveTimers>();
@@ -19,7 +21,13 @@ const liveTimersByMatch = new Map<string, MatchLiveTimers>();
 function getOrCreateTimers(matchId: string): MatchLiveTimers {
   let timers = liveTimersByMatch.get(matchId);
   if (!timers) {
-    timers = { windowStart: null, windowEnd: null, interval: null };
+    timers = {
+      windowStart: null,
+      windowEnd: null,
+      interval: null,
+      starting: false,
+      tickInFlight: false,
+    };
     liveTimersByMatch.set(matchId, timers);
   }
   return timers;
@@ -27,7 +35,7 @@ function getOrCreateTimers(matchId: string): MatchLiveTimers {
 
 export function isLiveScoreSyncActive(): boolean {
   for (const timers of liveTimersByMatch.values()) {
-    if (timers.interval) return true;
+    if (timers.interval || timers.starting) return true;
   }
   return false;
 }
@@ -49,31 +57,45 @@ export function stopLiveScoreSync(): void {
 }
 
 async function runLiveScoreTick(matchId: string): Promise<void> {
+  const timers = liveTimersByMatch.get(matchId);
+  if (!timers || timers.tickInFlight) return;
+  timers.tickInFlight = true;
   try {
     const shouldStop = await refreshMatchLiveScoreFromApi(matchId);
     if (shouldStop) stopLiveScoreSyncForMatch(matchId);
   } catch (error) {
     console.error(`[LiveScoreSync] tick failed (${matchId}):`, error);
+  } finally {
+    const current = liveTimersByMatch.get(matchId);
+    if (current) current.tickInFlight = false;
   }
 }
 
 function beginLiveScoreInterval(matchId: string, registrationOrder?: number): void {
   const timers = getOrCreateTimers(matchId);
-  if (timers.interval) return;
+  if (timers.interval || timers.starting) return;
+  timers.starting = true;
 
   void (async () => {
-    const order = registrationOrder ?? 0;
-    if (order >= 1 && order <= 5 && !(await isApiSyncEnabledForRegistrationOrder(order))) {
-      console.log(`[LiveScoreSync] abort start ${matchId} — order=${order} API OFF`);
-      stopLiveScoreSyncForMatch(matchId);
-      return;
-    }
+    try {
+      const order = registrationOrder ?? 0;
+      if (order >= 1 && order <= 5 && !(await isApiSyncEnabledForRegistrationOrder(order))) {
+        console.log(`[LiveScoreSync] abort start ${matchId} — order=${order} API OFF`);
+        stopLiveScoreSyncForMatch(matchId);
+        return;
+      }
 
-    void runLiveScoreTick(matchId);
-    timers.interval = setInterval(() => void runLiveScoreTick(matchId), LIVE_SCORE_SYNC_INTERVAL_MS);
-    console.log(
-      `[LiveScoreSync] started ${matchId} every ${LIVE_SCORE_SYNC_INTERVAL_MS}ms (order=${registrationOrder ?? "?"}, operator API ON)`,
-    );
+      if (!liveTimersByMatch.has(matchId)) return;
+      void runLiveScoreTick(matchId);
+      timers.interval = setInterval(() => void runLiveScoreTick(matchId), LIVE_SCORE_SYNC_INTERVAL_MS);
+      console.log(
+        `[LiveScoreSync] started ${matchId} every ${LIVE_SCORE_SYNC_INTERVAL_MS}ms (order=${registrationOrder ?? "?"}, operator API ON)`,
+      );
+    } finally {
+      if (liveTimersByMatch.get(matchId) === timers) {
+        timers.starting = false;
+      }
+    }
   })();
 }
 

@@ -31,6 +31,16 @@ type MatchLineupRow = {
 };
 
 const memoryPlayerStats = new Map<string, MatchPlayerStatsEntry>();
+const lineupInFlight = new Set<string>();
+
+function emptyLineupSnapshot(): MatchLineupSnapshot {
+  return {
+    syncedAt: new Date().toISOString(),
+    home: [],
+    away: [],
+    source: "api",
+  };
+}
 
 function lineupIsStale(snapshot?: MatchLineupSnapshot | null): boolean {
   if (!snapshot?.syncedAt) return true;
@@ -152,49 +162,66 @@ export async function refreshMatchLineupIfDue(
   teamIds: number[] = [],
 ): Promise<void> {
   if (!process.env.API_SPORTS_KEY?.trim()) return;
+  if (lineupInFlight.has(matchId)) return;
 
-  const match =
-    prefetched ??
-    ((await MatchModel.findOne({ id: matchId })
-      .select(
-        "id apiSportsGameId registrationOrder startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
-      )
-      .lean()) as MatchLineupRow | null);
+  lineupInFlight.add(matchId);
+  try {
+    const match =
+      prefetched ??
+      ((await MatchModel.findOne({ id: matchId })
+        .select(
+          "id apiSportsGameId registrationOrder startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats",
+        )
+        .lean()) as MatchLineupRow | null);
 
-  if (!match?.apiSportsGameId) return;
-  if (!(await isMatchApiSportsPollingEnabled(match.registrationOrder))) return;
+    if (!match?.apiSportsGameId) return;
+    if (!(await isMatchApiSportsPollingEnabled(match.registrationOrder))) return;
 
-  // 운영자 수동 라인업은 API가 덮어쓰지 않음 (KBO 라인업 엔드포인트 미제공)
-  if (match.matchLineup?.source === "manual") {
-    return;
-  }
-
-  const lineupStale = lineupIsStale(match.matchLineup);
-  const statsStale = playerStatsNeedRefresh(match.matchLineup, match.matchPlayerStats);
-  if (!lineupStale && !statsStale) return;
-
-  let lineup = match.matchLineup ?? null;
-  if (lineupStale) {
-    const fetched = await fetchLineupSnapshot(match.apiSportsGameId);
-    if (fetched) {
-      lineup = { ...fetched, source: "api" };
-    } else if (!lineup) {
+    // 운영자 수동 라인업은 API가 덮어쓰지 않음 (KBO 라인업 엔드포인트 미제공)
+    if (match.matchLineup?.source === "manual") {
       return;
     }
+
+    const lineupStale = lineupIsStale(match.matchLineup);
+    const statsStale = playerStatsNeedRefresh(match.matchLineup, match.matchPlayerStats);
+    if (!lineupStale && !statsStale) return;
+
+    let lineup = match.matchLineup ?? null;
+    if (lineupStale) {
+      const fetched = await fetchLineupSnapshot(match.apiSportsGameId);
+      if (fetched) {
+        lineup = { ...fetched, source: "api" };
+      } else if (lineup) {
+        // 실패해도 syncedAt을 밀어 2.5초 라이브 틱마다 재폭주하지 않음
+        lineup = { ...lineup, syncedAt: new Date().toISOString() };
+      } else {
+        lineup = emptyLineupSnapshot();
+        console.log(
+          `[ApiSports] lineup empty ${matchId} — retry after ${LINEUP_REFRESH_MS}ms (KBO 미제공 가능)`,
+        );
+      }
+    }
+
+    if (!lineup) return;
+
+    if (lineup.home.length === 0 && lineup.away.length === 0) {
+      await MatchModel.updateOne({ id: matchId }, { matchLineup: lineup });
+      return;
+    }
+
+    const season = resolveApiSportsSeason(match.startTime);
+    const stats = await enrichPlayerStatsForLineup(lineup, match.matchPlayerStats, season, teamIds);
+
+    await MatchModel.updateOne(
+      { id: matchId },
+      {
+        ...(lineupStale ? { matchLineup: lineup } : {}),
+        matchPlayerStats: stats,
+      },
+    );
+  } finally {
+    lineupInFlight.delete(matchId);
   }
-
-  if (!lineup) return;
-
-  const season = resolveApiSportsSeason(match.startTime);
-  const stats = await enrichPlayerStatsForLineup(lineup, match.matchPlayerStats, season, teamIds);
-
-  await MatchModel.updateOne(
-    { id: matchId },
-    {
-      ...(lineupStale ? { matchLineup: lineup } : {}),
-      matchPlayerStats: stats,
-    },
-  );
 }
 
 export function buildCurrentBatterPreviewFromMatch(
