@@ -24,6 +24,20 @@ interface ManagerOperatorScorePanelProps {
   homeTeamFallback?: string;
 }
 
+function TvScoreIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none">
+      <rect x="2.5" y="4.5" width="19" height="13" rx="2.2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 20.5h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M12 17.5v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M14.6 8.2l1.2 1.2-4.1 4.1H9.4v-1.3l5.2-4z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 function resolveBattingHalf(
   scoreboard: LiveScoreboard | null,
   gameInning?: number | null,
@@ -200,32 +214,43 @@ export default function ManagerOperatorScorePanel({
         <div className="manager-operator-score-actions">
           <button
             type="button"
-            className="manager-operator-score-save"
+            className="manager-operator-score-icon-btn"
             disabled={!dirty || saving}
             onClick={() => void handleSave()}
+            aria-label={saving ? "점수 저장 중" : "점수 보정 (TV 기준)"}
+            title="점수 보정 (TV 기준)"
             data-testid="button-save-scoreboard"
           >
-            {saving ? "저장 중…" : "점수 보정 (TV 기준)"}
+            <TvScoreIcon />
           </button>
-          {controlMode === "manual" && (
-            <span className="manager-operator-score-manual-hint">수동 잠금 — API 점수 미반영</span>
-          )}
-          {controlMode === "manual" && onResumeAuto && (
-            <button
-              type="button"
-              className="manager-operator-score-save"
-              disabled={saving}
-              onClick={() => void onResumeAuto()}
-              data-testid="button-resume-auto-score"
-            >
-              API 자동 반영 켜기
-            </button>
-          )}
-          {matchStatus === "ongoing" && controlMode !== "manual" && (
-            <span className="manager-operator-score-live-hint">
-              경기 중 API 점수가 자동 반영됩니다. TV와 다르면 보정하세요.
-            </span>
-          )}
+          <div className="manager-operator-score-hints">
+            {dirty ? (
+              <span className="manager-operator-score-live-hint">
+                {saving ? "저장 중…" : "저장되지 않은 수정이 있습니다. TV 아이콘을 눌러 반영하세요."}
+              </span>
+            ) : matchStatus === "ongoing" && controlMode !== "manual" ? (
+              <span className="manager-operator-score-live-hint">
+                경기 중 API 점수가 자동 반영됩니다. TV와 다르면 보정하세요.
+              </span>
+            ) : controlMode === "manual" ? (
+              <span className="manager-operator-score-manual-hint">수동 잠금 — API 점수 미반영</span>
+            ) : (
+              <span className="manager-operator-score-live-hint">
+                TV와 점수가 다르면 아이콘으로 보정하세요.
+              </span>
+            )}
+            {controlMode === "manual" && onResumeAuto && (
+              <button
+                type="button"
+                className="manager-operator-score-save"
+                disabled={saving}
+                onClick={() => void onResumeAuto()}
+                data-testid="button-resume-auto-score"
+              >
+                API 자동 반영 켜기
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

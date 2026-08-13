@@ -1082,37 +1082,46 @@ export default function MatchDetailPage() {
               비상 수동 제어 (점수 API 잠금)
             </p>
           )}
-          <p className="mt-1 text-[clamp(9px,2.2vw,11px)] text-gray-500 leading-snug">
-            팀 이름을 눌러 주전 타순·시즌 전적을 입력하세요.
-          </p>
         </div>
 
         <div className="manager-match-controls">
           <div className="manager-match-control-col">
-            <h3 className="manager-match-section-title">예측 시작</h3>
             <button
               type="button"
               onClick={handleStartPrediction}
               disabled={!canStartPrediction}
               data-testid="button-start-prediction"
-              className={`manager-match-action-btn bg-[#1A6DFF] relative z-20 ${
+              aria-label={
+                !isMatchLive
+                  ? "경기전"
+                  : isStartingPrediction
+                    ? "예측 시작 처리중"
+                    : withinStartCancel
+                      ? "시작 취소"
+                      : predictionRunning
+                        ? "예측 중"
+                        : "예측 시작"
+              }
+              className={`manager-match-action-btn manager-match-action-btn--start ${
                 withinStartCancel ? "manager-match-action-btn--toggle" : ""
               }`}
             >
-              {!isMatchLive
-                ? "경기전"
-                : isStartingPrediction
-                  ? "처리중..."
-                  : withinStartCancel
-                    ? "↩ 시작 취소"
-                    : predictionRunning
-                      ? "예측 중"
-                      : "▶ 예측 시작"}
               <img
                 src={assets.startPrediction}
-                className="manager-match-action-mascot w-[52px] h-[94px] object-contain -top-3 -right-1 scale-x-[-1]"
+                className="manager-match-action-mascot"
                 alt=""
               />
+              <span className="manager-match-action-label">
+                {!isMatchLive
+                  ? "경기전"
+                  : isStartingPrediction
+                    ? "처리중"
+                    : withinStartCancel
+                      ? "시작 취소"
+                      : predictionRunning
+                        ? "예측 중"
+                        : "시작"}
+              </span>
             </button>
             <div
               className="manager-match-time-box text-[#1A6DFF]"
@@ -1126,24 +1135,32 @@ export default function MatchDetailPage() {
           </div>
 
           <div className="manager-match-control-col">
-            <h3 className="manager-match-section-title">예측 중지</h3>
             <button
               type="button"
               onClick={handleStopPrediction}
               disabled={!canStopPrediction}
               data-testid="button-stop-prediction"
-              className="manager-match-action-btn bg-[#E11936] relative z-20"
+              aria-label={
+                !isMatchLive
+                  ? "경기전"
+                  : isStoppingPrediction
+                    ? "예측 중지 처리중"
+                    : "예측 중지"
+              }
+              className="manager-match-action-btn manager-match-action-btn--stop"
             >
-              {!isMatchLive
-                ? "경기전"
-                : isStoppingPrediction
-                  ? "처리중..."
-                  : "■ 예측 중지"}
               <img
                 src={assets.stopPrediction}
-                className="manager-match-action-mascot w-[64px] h-[86px] object-contain -top-6 -left-1 scale-x-[-1]"
+                className="manager-match-action-mascot"
                 alt=""
               />
+              <span className="manager-match-action-label">
+                {!isMatchLive
+                  ? "경기전"
+                  : isStoppingPrediction
+                    ? "처리중"
+                    : "중지"}
+              </span>
             </button>
             <div
               className="manager-match-time-box text-[#E11936]"
