@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import AdminLayout from "../adminLayout";
-import AdminPageShell from "../components/AdminPageShell";
-import { adminTableClass, adminTableWrapClass } from "../components/adminPageStyles";
+import AdminLayout from "./adminLayout";
+import AdminPageShell from "./components/AdminPageShell";
+import { adminTableClass, adminTableWrapClass } from "./components/adminPageStyles";
 import { queryClient, apiRequest } from "@/lib/adminQueryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
