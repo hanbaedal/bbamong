@@ -35,14 +35,20 @@ const scorePanelTop = "top-[calc(0.375rem+1.35rem)] sm:top-[calc(0.5rem+1.35rem)
 
 function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
   const seasonLabel = `${batter.season} 타율`;
+  const nameValue = batter.position
+    ? `${formatStatDisplay(batter.playerName)} · ${batter.position}`
+    : formatStatDisplay(batter.playerName);
   const rows: { label: string; value: string; indent?: boolean }[] = [
-    { label: "타자 이름", value: formatStatDisplay(batter.playerName) },
+    { label: "타자 이름", value: nameValue },
     { label: seasonLabel, value: formatStatDisplay(batter.battingAverage) },
     { label: "안타", value: formatStatCount(batter.hits), indent: true },
     { label: "홈런", value: formatStatCount(batter.homeRuns), indent: true },
     { label: "타점", value: formatStatCount(batter.rbi), indent: true },
     { label: "OPS", value: formatStatDisplay(batter.ops), indent: true },
   ];
+  if (batter.note?.trim()) {
+    rows.push({ label: "특징", value: batter.note.trim() });
+  }
 
   return (
     <div

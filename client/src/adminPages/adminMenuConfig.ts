@@ -26,6 +26,12 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
           iconKey: "adNoticeIcon",
         },
         {
+          id: "kbo-roster",
+          label: "팀별 타자 등록",
+          path: "/admin/kbo-roster",
+          iconKey: "adMatchIcon",
+        },
+        {
           id: "basic-work-management",
           label: "업무 관리",
           iconKey: "adTermIcon",

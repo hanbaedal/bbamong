@@ -72,6 +72,8 @@ export interface PlayerStatsForBatterPreview {
   homeRuns?: number | null;
   rbi?: number | null;
   ops?: string | null;
+  position?: string | null;
+  note?: string | null;
 }
 
 function pickLineupSide(
@@ -90,6 +92,8 @@ function emptyBatterPreview(orderLabel: string, season: number): CurrentBatterPr
     homeRuns: null,
     rbi: null,
     ops: null,
+    position: null,
+    note: null,
     season,
     isPinchHitter: false,
   };
@@ -114,6 +118,8 @@ function applyPinchHitter(
     homeRuns: pinch.homeRuns ?? null,
     rbi: pinch.rbi ?? null,
     ops: formatOps(pinch.ops),
+    position: pinch.position ?? null,
+    note: pinch.note ?? null,
     season: pinch.season || base.season,
     isPinchHitter: true,
   };
@@ -168,6 +174,8 @@ export function resolveCurrentBatterPreview(input: {
     homeRuns: stats?.homeRuns ?? null,
     rbi: stats?.rbi ?? null,
     ops: formatOps(stats?.ops ?? null),
+    position: stats?.position ?? null,
+    note: stats?.note ?? null,
     season: input.season,
     isPinchHitter: false,
   };

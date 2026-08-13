@@ -57,8 +57,8 @@ interface Match {
     homeTeamName?: string;
   } | null;
   matchLineup?: {
-    home?: Array<{ battingOrder: number; name: string; playerId?: number }>;
-    away?: Array<{ battingOrder: number; name: string; playerId?: number }>;
+    home?: Array<{ battingOrder: number; name: string; playerId?: number; rosterPlayerId?: string }>;
+    away?: Array<{ battingOrder: number; name: string; playerId?: number; rosterPlayerId?: string }>;
     source?: string;
   } | null;
   matchPlayerStats?: Record<
@@ -69,6 +69,8 @@ interface Match {
       homeRuns?: number | null;
       rbi?: number | null;
       ops?: string | null;
+      position?: string | null;
+      note?: string | null;
     }
   > | null;
   stadium: {
@@ -1336,6 +1338,8 @@ export default function MatchDetailPage() {
       {pinchEditorOpen && id ? (
         <ManagerPinchHitterEditor
           matchId={id}
+          side={match.inningHalf === "bottom" ? "home" : "away"}
+          teamLabel={match.inningHalf === "bottom" ? homeTeamName : awayTeamName}
           seasonYear={
             match.startTime ? new Date(match.startTime).getFullYear() : new Date().getFullYear()
           }

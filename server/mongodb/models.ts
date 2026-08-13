@@ -691,4 +691,27 @@ const mallPurchaseOrderSchema = new Schema(
 mallPurchaseOrderSchema.index({ status: 1, createdAt: -1 });
 export const MallPurchaseOrderModel = mongoose.model("MallPurchaseOrder", mallPurchaseOrderSchema);
 
+const kboPlayerSchema = new Schema(
+  {
+    id: { type: String, required: true, unique: true },
+    team: { type: String, required: true },
+    season: { type: Number, required: true },
+    name: { type: String, required: true },
+    position: { type: String, default: "" },
+    battingAverage: { type: String, default: null },
+    hits: { type: Number, default: null },
+    homeRuns: { type: Number, default: null },
+    rbi: { type: Number, default: null },
+    ops: { type: String, default: null },
+    note: { type: String, default: "" },
+    active: { type: Boolean, default: true },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+kboPlayerSchema.index({ team: 1, season: 1, active: 1 });
+kboPlayerSchema.index({ team: 1, season: 1, name: 1 }, { unique: true });
+export const KboPlayerModel = mongoose.model("KboPlayer", kboPlayerSchema);
+
 export type MongoUser = InferSchemaType<typeof userSchema>;

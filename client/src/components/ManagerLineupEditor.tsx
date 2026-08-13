@@ -1,22 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { managerFetch } from "@/lib/managerQueryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { KboRosterPlayer } from "@shared/kboRoster";
+import ManagerRosterPicker from "@/components/ManagerRosterPicker";
 
 type BatterRow = {
   battingOrder: number;
   name: string;
-  battingAverage: string;
-  hits: string;
-  homeRuns: string;
-  rbi: string;
-  ops: string;
+  rosterPlayerId: string;
+  position: string;
 };
 
 export type LineupSide = "home" | "away";
 
 export type ManagerLineupSnapshot = {
-  home?: Array<{ battingOrder: number; name: string; playerId?: number }>;
-  away?: Array<{ battingOrder: number; name: string; playerId?: number }>;
+  home?: Array<{ battingOrder: number; name: string; playerId?: number; rosterPlayerId?: string }>;
+  away?: Array<{ battingOrder: number; name: string; playerId?: number; rosterPlayerId?: string }>;
   source?: string;
 };
 
@@ -28,6 +27,7 @@ export type ManagerPlayerStats = Record<
     homeRuns?: number | null;
     rbi?: number | null;
     ops?: string | null;
+    position?: string | null;
   }
 >;
 
@@ -35,11 +35,8 @@ function emptyRows(): BatterRow[] {
   return Array.from({ length: 9 }, (_, i) => ({
     battingOrder: i + 1,
     name: "",
-    battingAverage: "",
-    hits: "",
-    homeRuns: "",
-    rbi: "",
-    ops: "",
+    rosterPlayerId: "",
+    position: "",
   }));
 }
 
@@ -60,42 +57,17 @@ function rowsFromSnapshot(
     rows[order - 1] = {
       battingOrder: order,
       name: entry.name ?? "",
-      battingAverage: st?.battingAverage ?? "",
-      hits: st?.hits != null ? String(st.hits) : "",
-      homeRuns: st?.homeRuns != null ? String(st.homeRuns) : "",
-      rbi: st?.rbi != null ? String(st.rbi) : "",
-      ops: st?.ops ?? "",
+      rosterPlayerId: entry.rosterPlayerId ?? "",
+      position: st?.position ?? "",
     };
   }
   return rows;
-}
-
-function parseOptionalInt(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const n = Number.parseInt(trimmed, 10);
-  return Number.isFinite(n) ? n : null;
-}
-
-function toPayload(rows: BatterRow[]) {
-  return rows
-    .filter((r) => r.name.trim())
-    .map((r) => ({
-      battingOrder: r.battingOrder,
-      name: r.name.trim(),
-      battingAverage: r.battingAverage.trim() || null,
-      hits: parseOptionalInt(r.hits),
-      homeRuns: parseOptionalInt(r.homeRuns),
-      rbi: parseOptionalInt(r.rbi),
-      ops: r.ops.trim() || null,
-    }));
 }
 
 interface ManagerLineupEditorProps {
   matchId: string;
   awayTeamLabel: string;
   homeTeamLabel: string;
-  /** 팀명 클릭으로 열 때 해당 팀만 편집 */
   initialSide?: LineupSide;
   seasonYear?: number;
   initialLineup?: ManagerLineupSnapshot | null;
@@ -124,6 +96,9 @@ export default function ManagerLineupEditor({
   );
   const [saving, setSaving] = useState(false);
   const [activeSide, setActiveSide] = useState<LineupSide>(initialSide);
+  const [pickerOrder, setPickerOrder] = useState<number | null>(null);
+  const [players, setPlayers] = useState<KboRosterPlayer[]>([]);
+  const [loadingPlayers, setLoadingPlayers] = useState(false);
 
   useEffect(() => {
     setHomeRows(rowsFromSnapshot("home", initialLineup, initialStats));
@@ -139,35 +114,102 @@ export default function ManagerLineupEditor({
   const teamLabel =
     activeSide === "home" ? homeTeamLabel || "홈" : awayTeamLabel || "원정";
 
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingPlayers(true);
+    void managerFetch(
+      `/api/manager/matches/${matchId}/kbo-roster?side=${activeSide}&season=${seasonYear}`,
+    )
+      .then(async (res) => {
+        if (!res.ok) throw new Error("선수단을 불러오지 못했습니다.");
+        const data = (await res.json()) as { players?: KboRosterPlayer[] };
+        if (!cancelled) setPlayers(data.players ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setPlayers([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPlayers(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [matchId, activeSide, seasonYear]);
+
   const namedCount = useMemo(
     () => activeRows.filter((r) => r.name.trim()).length,
     [activeRows],
   );
 
-  const updateRow = (order: number, patch: Partial<BatterRow>) => {
+  const pickingRow = pickerOrder
+    ? activeRows.find((row) => row.battingOrder === pickerOrder)
+    : undefined;
+
+  const handlePick = (player: KboRosterPlayer) => {
+    if (pickerOrder == null) return;
+    const taken = activeRows.find(
+      (row) => row.rosterPlayerId === player.id && row.battingOrder !== pickerOrder,
+    );
+    if (taken) {
+      toast({
+        variant: "destructive",
+        description: `${player.name}은(는) 이미 ${taken.battingOrder}번에 있습니다.`,
+      });
+      return;
+    }
     setActiveRows((prev) =>
-      prev.map((row) => (row.battingOrder === order ? { ...row, ...patch } : row)),
+      prev.map((row) =>
+        row.battingOrder === pickerOrder
+          ? {
+              ...row,
+              name: player.name,
+              rosterPlayerId: player.id,
+              position: player.position,
+            }
+          : row,
+      ),
+    );
+    setPickerOrder(null);
+  };
+
+  const clearRow = (order: number) => {
+    setActiveRows((prev) =>
+      prev.map((row) =>
+        row.battingOrder === order
+          ? { ...row, name: "", rosterPlayerId: "", position: "" }
+          : row,
+      ),
     );
   };
 
   const handleSave = async () => {
+    const payload = activeRows
+      .filter((r) => r.name.trim() || r.rosterPlayerId)
+      .map((r) => ({
+        battingOrder: r.battingOrder,
+        name: r.name.trim(),
+        rosterPlayerId: r.rosterPlayerId || undefined,
+      }));
+    if (payload.length === 0) {
+      toast({ variant: "destructive", description: "선수를 한 명 이상 선택하세요." });
+      return;
+    }
     setSaving(true);
     try {
-      // 편집 중인 팀만 갱신하고, 반대 팀은 기존 스냅샷을 유지
       const res = await managerFetch(`/api/manager/matches/${matchId}/lineup`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           side: activeSide,
-          home: activeSide === "home" ? toPayload(homeRows) : undefined,
-          away: activeSide === "away" ? toPayload(awayRows) : undefined,
+          home: activeSide === "home" ? payload : undefined,
+          away: activeSide === "away" ? payload : undefined,
         }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(typeof err?.error === "string" ? err.error : "타순 저장에 실패했습니다.");
       }
-      toast({ description: `${teamLabel} 주전 타순·${seasonYear} 전적을 저장했습니다.` });
+      toast({ description: `${teamLabel} 주전 타순을 저장했습니다.` });
       onSaved?.();
       onClose();
     } catch (err: unknown) {
@@ -185,14 +227,12 @@ export default function ManagerLineupEditor({
       className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/50 p-3"
       data-testid="manager-lineup-editor"
     >
-      <div className="w-full max-w-lg max-h-[90dvh] overflow-hidden rounded-xl bg-white shadow-xl flex flex-col">
+      <div className="w-full max-w-md max-h-[90dvh] overflow-hidden rounded-xl bg-white shadow-xl flex flex-col">
         <header className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100">
           <div>
-            <h2 className="text-sm font-bold text-gray-900">
-              {teamLabel} · 주전 타순
-            </h2>
+            <h2 className="text-sm font-bold text-gray-900">{teamLabel} · 주전 타순</h2>
             <p className="text-[11px] text-gray-500">
-              {seasonYear} 전적(타율·안타·홈런·타점·OPS) · 입력 {namedCount}/9 · API 덮어쓰기 없음
+              이름 칸을 눌러 선수를 선택하세요 · {namedCount}/9
             </p>
           </div>
           <button
@@ -205,48 +245,47 @@ export default function ManagerLineupEditor({
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
-          <p className="text-[11px] text-gray-500 px-0.5">
-            1~9번 주전만 등록합니다. 예측 화면은 운영자 「다음 타자」 순서에 맞춰 표시됩니다.
-          </p>
-          {activeRows.map((row) => (
-            <div
-              key={row.battingOrder}
-              className="grid grid-cols-[1.5rem_1fr] gap-x-2 gap-y-1 items-start border border-gray-100 rounded-lg p-2"
-            >
-              <span className="text-xs font-bold text-gray-500 pt-2">{row.battingOrder}</span>
-              <div className="space-y-1">
-                <input
-                  value={row.name}
-                  onChange={(e) => updateRow(row.battingOrder, { name: e.target.value })}
-                  placeholder="타자 이름"
-                  className="w-full h-8 rounded border border-gray-200 px-2 text-sm"
-                  data-testid={`input-lineup-name-${activeSide}-${row.battingOrder}`}
-                />
-                <div className="grid grid-cols-5 gap-1">
-                  {(
-                    [
-                      ["battingAverage", "타율"],
-                      ["hits", "안타"],
-                      ["homeRuns", "홈런"],
-                      ["rbi", "타점"],
-                      ["ops", "OPS"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <label key={key} className="block">
-                      <span className="block text-[9px] text-gray-400 leading-none mb-0.5">{label}</span>
-                      <input
-                        value={row[key]}
-                        onChange={(e) => updateRow(row.battingOrder, { [key]: e.target.value })}
-                        className="w-full h-7 rounded border border-gray-200 px-1 text-[11px] tabular-nums"
-                        data-testid={`input-lineup-${key}-${activeSide}-${row.battingOrder}`}
-                      />
-                    </label>
-                  ))}
+        <div className="flex-1 overflow-y-auto px-3 py-2">
+          <div className="grid grid-cols-[2.5rem_1fr] gap-x-2 gap-y-1.5 items-center">
+            <span className="text-[10px] font-semibold text-gray-400">순번</span>
+            <span className="text-[10px] font-semibold text-gray-400">이름</span>
+            {activeRows.map((row) => (
+              <div key={row.battingOrder} className="contents">
+                <span className="text-sm font-bold text-gray-700 text-center">
+                  {row.battingOrder}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPickerOrder(row.battingOrder)}
+                    className="flex-1 min-w-0 h-10 rounded-lg border border-gray-200 px-2 text-left text-sm bg-white"
+                    data-testid={`input-lineup-name-${activeSide}-${row.battingOrder}`}
+                  >
+                    {row.name ? (
+                      <span className="block truncate">
+                        <span className="font-semibold text-gray-900">{row.name}</span>
+                        {row.position ? (
+                          <span className="ml-1 text-xs text-[#1A6DFF]">{row.position}</span>
+                        ) : null}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">선수 선택</span>
+                    )}
+                  </button>
+                  {row.name ? (
+                    <button
+                      type="button"
+                      onClick={() => clearRow(row.battingOrder)}
+                      className="shrink-0 h-10 w-8 text-gray-400 text-lg"
+                      aria-label={`${row.battingOrder}번 지우기`}
+                    >
+                      ×
+                    </button>
+                  ) : null}
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         <footer className="flex gap-2 px-3 py-2 border-t border-gray-100">
@@ -268,6 +307,17 @@ export default function ManagerLineupEditor({
           </button>
         </footer>
       </div>
+
+      {pickerOrder != null ? (
+        <ManagerRosterPicker
+          teamLabel={`${teamLabel} ${pickerOrder}번`}
+          players={players}
+          loading={loadingPlayers}
+          selectedId={pickingRow?.rosterPlayerId}
+          onSelect={handlePick}
+          onClose={() => setPickerOrder(null)}
+        />
+      ) : null}
     </div>
   );
 }
