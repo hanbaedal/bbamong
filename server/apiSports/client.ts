@@ -195,26 +195,42 @@ export function apiSportsTeamIdsFromGame(game: ApiSportsGameResponse): {
   };
 }
 
+/** 빈 배열은 엔드포인트 존재·데이터 없음 — 별칭 경로를 이어서 두드리지 않음 */
+function firstLineupPayload(rows: unknown): "data" | "empty" | "miss" {
+  if (rows == null) return "miss";
+  if (Array.isArray(rows)) return rows.length > 0 ? "data" : "empty";
+  if (typeof rows === "object") return "data";
+  return "empty";
+}
+
 /** 경기 라인업 — API-Sports baseball (경로·응답 형태 방어적 시도) */
-export async function fetchGameLineups(gameId: number): Promise<unknown[] | null> {
-  const byGameParam = await apiSportsFetchOptional<unknown[]>("/lineups", { game: gameId });
-  if (byGameParam?.length) return byGameParam;
+export async function fetchGameLineups(gameId: number): Promise<unknown | null> {
+  const attempts: Array<[string, Record<string, string | number>]> = [
+    ["/lineups", { game: gameId }],
+    ["/lineups", { id: gameId }],
+    ["/games/lineups", { id: gameId }],
+  ];
 
-  const byIdParam = await apiSportsFetchOptional<unknown[]>("/lineups", { id: gameId });
-  if (byIdParam?.length) return byIdParam;
-
-  const byGamesLineups = await apiSportsFetchOptional<unknown[]>("/games/lineups", { id: gameId });
-  if (byGamesLineups?.length) return byGamesLineups;
+  for (const [path, params] of attempts) {
+    const rows = await apiSportsFetchOptional<unknown>(path, params);
+    const kind = firstLineupPayload(rows);
+    if (kind === "data") return rows;
+    if (kind === "empty") return null;
+  }
 
   return null;
 }
 
 /** 경기별 선수 통계 (box score) */
-export async function fetchGameStatistics(gameId: number): Promise<unknown[] | null> {
-  const stats = await apiSportsFetchOptional<unknown[]>("/games/statistics", { id: gameId });
-  if (stats?.length) return stats;
+export async function fetchGameStatistics(gameId: number): Promise<unknown | null> {
+  const stats = await apiSportsFetchOptional<unknown>("/games/statistics", { id: gameId });
+  const statsKind = firstLineupPayload(stats);
+  if (statsKind === "data") return stats;
+  if (statsKind === "empty") return null;
 
-  return apiSportsFetchOptional<unknown[]>("/statistics", { game: gameId });
+  const fallback = await apiSportsFetchOptional<unknown>("/statistics", { game: gameId });
+  if (firstLineupPayload(fallback) === "data") return fallback;
+  return null;
 }
 
 /** 팀 로스터 + 시즌 통계 */

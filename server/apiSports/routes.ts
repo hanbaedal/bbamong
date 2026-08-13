@@ -12,19 +12,16 @@ import {
   linkMatchToApiSports,
   mapTodayGames,
   reconcileStuckPregameSideBetLocks,
-  refreshMatchLiveScoreFromApi,
   setMatchControlMode,
   syncTodayGamesFromApiSports,
   patchMatchLiveScoreboard,
 } from "./syncService";
-import { syncOperatorMatchAssignments, isMatchApiSportsPollingEnabled } from "../managerOperatorService";
+import { syncOperatorMatchAssignments } from "../managerOperatorService";
 import { rescheduleTodayMatchTimers } from "./matchManagementSchedule";
-import { refreshMatchHeadToHeadIfDue } from "./h2hService";
-import { buildCurrentBatterPreviewFromMatch, refreshMatchLineupIfDue } from "./lineupService";
+import { buildCurrentBatterPreviewFromMatch } from "./lineupService";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
 import type {
   CurrentBatterPreview,
-  MatchHeadToHeadSnapshot,
   MatchLineupSnapshot,
   MatchPlayerStatsEntry,
 } from "@shared/apiSportsTypes";
@@ -165,92 +162,12 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
   app.get("/api/matches/:id/scoreboard", async (req, res) => {
     try {
       const matchId = req.params.id;
-      let match = await MatchModel.findOne({ id: matchId })
+      const match = await MatchModel.findOne({ id: matchId })
         .select(
           "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter",
         )
         .lean();
       if (!match) return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
-
-      const apiPollingEnabled = await isMatchApiSportsPollingEnabled(
-        (match as { registrationOrder?: number | null }).registrationOrder,
-      );
-
-      const board = match.liveScoreboard as
-        | { homeScore?: number; awayScore?: number }
-        | null
-        | undefined;
-      const scoresMissing =
-        !board ||
-        typeof board.homeScore !== "number" ||
-        typeof board.awayScore !== "number";
-
-      if (apiPollingEnabled && scoresMissing && match.apiSportsGameId) {
-        try {
-          await refreshMatchLiveScoreFromApi(matchId);
-          const healed = await MatchModel.findOne({ id: matchId })
-            .select(
-              "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter",
-            )
-            .lean();
-          if (healed) match = healed;
-        } catch (err) {
-          console.warn(`[Scoreboard] live score heal ${matchId}:`, err);
-        }
-      }
-
-      const lineupMissing =
-        !match.matchLineup?.syncedAt ||
-        ((match.matchLineup as MatchLineupSnapshot).home.length === 0 &&
-          (match.matchLineup as MatchLineupSnapshot).away.length === 0);
-
-      if (apiPollingEnabled && lineupMissing && match.apiSportsGameId) {
-        await refreshMatchLineupIfDue(
-          matchId,
-          {
-            id: matchId,
-            registrationOrder: (match as { registrationOrder?: number | null }).registrationOrder,
-            apiSportsGameId: match.apiSportsGameId,
-            startTime: match.startTime,
-            gameInning: match.gameInning,
-            inningHalf: match.inningHalf,
-            batterIndexInHalf: match.batterIndexInHalf,
-            matchLineup: (match.matchLineup as MatchLineupSnapshot | null) ?? null,
-            matchPlayerStats:
-              (match.matchPlayerStats as Record<string, MatchPlayerStatsEntry> | null) ?? null,
-          },
-          [match.apiSportsHomeTeamId, match.apiSportsAwayTeamId].filter(
-            (id): id is number => typeof id === "number" && id > 0,
-          ),
-        ).catch((err) => {
-          console.warn(`[Scoreboard] lineup refresh ${matchId}:`, err);
-        });
-
-        const refreshed = await MatchModel.findOne({ id: matchId })
-          .select(
-            "id liveScoreboard apiSportsHomeTeam apiSportsAwayTeam controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter matchHeadToHead registrationOrder apiSportsHomeTeamId apiSportsAwayTeamId",
-          )
-          .lean();
-        if (refreshed) match = refreshed;
-      }
-
-      const h2hMissing = !(match as { matchHeadToHead?: { syncedAt?: string } | null }).matchHeadToHead
-        ?.syncedAt;
-      if (apiPollingEnabled && h2hMissing && match.apiSportsGameId) {
-        await refreshMatchHeadToHeadIfDue(matchId, {
-          id: matchId,
-          registrationOrder: (match as { registrationOrder?: number | null }).registrationOrder,
-          startTime: match.startTime,
-          apiSportsGameId: match.apiSportsGameId,
-          apiSportsAwayTeamId: match.apiSportsAwayTeamId,
-          apiSportsHomeTeamId: match.apiSportsHomeTeamId,
-          matchHeadToHead:
-            ((match as { matchHeadToHead?: MatchHeadToHeadSnapshot | null }).matchHeadToHead) ??
-            null,
-        }).catch((err) => {
-          console.warn(`[Scoreboard] h2h refresh ${matchId}:`, err);
-        });
-      }
 
       let currentBatter: CurrentBatterPreview | null = null;
       const scoreboardHalf = match.liveScoreboard?.inningHalf ?? null;
