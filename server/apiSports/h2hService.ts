@@ -66,7 +66,8 @@ export async function refreshMatchHeadToHeadIfDue(
     }
 
     const lastAttempt = h2hAttemptAt.get(matchId);
-    if (lastAttempt != null && Date.now() - lastAttempt < H2H_REFRESH_MS) {
+    const retryAfterMs = match.matchHeadToHead ? H2H_REFRESH_MS : 30_000;
+    if (lastAttempt != null && Date.now() - lastAttempt < retryAfterMs) {
       return match.matchHeadToHead ?? null;
     }
     h2hAttemptAt.set(matchId, Date.now());

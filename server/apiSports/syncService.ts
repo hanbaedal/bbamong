@@ -335,16 +335,23 @@ async function ensureStadiumByName(name: string): Promise<number> {
   const existing = await StadiumModel.findOne({ name: trimmed }).lean();
   if (existing) return existing.id;
 
-  const id = await getNextSequence("stadium");
-  try {
-    await StadiumModel.create({ id, name: trimmed });
-    return id;
-  } catch {
-    // 동시 생성 시 유니크 충돌 → 재조회
-    const again = await StadiumModel.findOne({ name: trimmed }).lean();
-    if (again) return again.id;
-    throw new Error(`구장 생성 실패: ${trimmed}`);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const id = await getNextSequence("stadium");
+    const idTaken = await StadiumModel.findOne({ id }).lean();
+    if (idTaken) continue;
+    try {
+      await StadiumModel.create({ id, name: trimmed });
+      return id;
+    } catch (error) {
+      const again = await StadiumModel.findOne({ name: trimmed }).lean();
+      if (again) return again.id;
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt === 7) {
+        throw new Error(`구장 생성 실패: ${trimmed} (${message})`);
+      }
+    }
   }
+  throw new Error(`구장 생성 실패: ${trimmed}`);
 }
 
 function extractMatchOrder(name: string): number {
@@ -532,6 +539,17 @@ export async function syncTodayGamesFromApiSports(
       .map((m) => [(m as { registrationOrder: number }).registrationOrder, m]),
   );
   const byName = new Map(internalMatches.map((m) => [m.name, m]));
+  const usedMatchIds = new Set<string>();
+
+  const takeExisting = (
+    ...candidates: Array<(typeof internalMatches)[number] | null | undefined>
+  ) => {
+    for (const candidate of candidates) {
+      if (!candidate?.id || usedMatchIds.has(candidate.id)) continue;
+      return candidate;
+    }
+    return null;
+  };
 
   let created = 0;
   let updated = 0;
@@ -547,11 +565,12 @@ export async function syncTodayGamesFromApiSports(
     const stadiumId = await ensureStadiumByName(venueNameFromDaumGame(external, scoreboard));
 
     const order = i + 1;
-    const existing =
-      byDaumId.get(daumGameId) ??
-      byRegistrationOrder.get(order) ??
-      byName.get(matchName) ??
-      null;
+    const existing = takeExisting(
+      byDaumId.get(daumGameId),
+      byRegistrationOrder.get(order),
+      byName.get(matchName),
+    );
+    if (existing) usedMatchIds.add(existing.id);
 
     if (options?.skipExisting && existing?.daumGameId === daumGameId) {
       linked += 1;
@@ -593,6 +612,7 @@ export async function syncTodayGamesFromApiSports(
       typeof existing.liveScoreboard.awayScore !== "number" ||
       existing.matchStatus !== "ongoing";
 
+    const daumChanged = existing?.daumGameId !== daumGameId;
     const payload = {
       name: matchName,
       stadiumId,
@@ -605,6 +625,7 @@ export async function syncTodayGamesFromApiSports(
       liveScoreboard: useFreshScoreboard ? scoreboard : existing!.liveScoreboard,
       lastInningKey: existing?.lastInningKey ?? buildInningKey(scoreboard),
       controlMode: existing?.controlMode ?? "auto",
+      ...(daumChanged ? { matchHeadToHead: null } : {}),
       sideBetsLocked: resolveSideBetsLocked({
         previouslyLocked: existing?.sideBetsLocked,
         predictionEnabled: existing?.predictionEnabled,
