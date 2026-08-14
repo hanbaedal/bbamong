@@ -204,15 +204,15 @@ export default function LandscapeGameShell({
               onRunComplete={onRunComplete}
             />
 
-            <GameConfetti active={screenPhase === "success_celebrate"} />
+            <GameConfetti active={screenPhase === "success_announce"} />
 
-            {(screenPhase === "success_celebrate" || screenPhase === "fail") && (
+            {(screenPhase === "success_announce" || screenPhase === "fail") && (
               <GameResultBanner
-                phase={screenPhase}
+                phase={screenPhase === "fail" ? "fail" : "success_announce"}
                 prediction={selectedPrediction}
                 betAmount={lastBetAmount}
                 wonAmount={lastWonAmount}
-                countdown={resultCountdown}
+                countdown={screenPhase === "fail" ? resultCountdown : null}
               />
             )}
 
