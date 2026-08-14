@@ -245,8 +245,13 @@ async function runStartupMatchManagementSync(): Promise<void> {
 }
 
 export function startMatchManagementSchedule(): void {
-  if (!process.env.API_SPORTS_KEY?.trim()) {
-    console.log("[MatchMgmtSchedule] API_SPORTS_KEY 없음 — 경기관리 스케줄 비활성");
+  const hasApiKey = Boolean(process.env.API_SPORTS_KEY?.trim());
+
+  if (!hasApiKey) {
+    console.log("[MatchMgmtSchedule] API_SPORTS_KEY 없음 — api-sports 일일 동기화 비활성, 다음 실황 폴링만 시작");
+    void scheduleLiveScoreSync().catch((error) => {
+      console.error("[MatchMgmtSchedule] daum live sync failed:", error);
+    });
     return;
   }
 

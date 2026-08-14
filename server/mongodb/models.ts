@@ -64,6 +64,8 @@ const matchSchema = new Schema(
     predictionEnabled: { type: Boolean, default: false },
     registrationOrder: { type: Number, default: null },
     apiSportsGameId: { type: Number, default: null },
+    /** 다음 스포츠 경기 ID — 선발명단·실시간 스코어 연동 */
+    daumGameId: { type: Number, default: null },
     apiSportsHomeTeam: { type: String, default: null },
     apiSportsAwayTeam: { type: String, default: null },
     apiSportsHomeTeamId: { type: Number, default: null },

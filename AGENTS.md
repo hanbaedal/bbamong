@@ -40,7 +40,8 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - Admin 경기관리 리스트는 API-SPORTS `teams.*.logo` URL을 원형으로 표시한다 (실패 시 약칭 이니셜 폴백). 관리자 전용 UI용이며, 사용자 앱에 공식 엠블럼을 확대 배포하기 전에는 별도 권리 검토가 필요하다.
 
 ### Live scoreboard (API vs operator)
-- During `matchStatus === "ongoing"` and `controlMode === "auto"`, API-SPORTS polls **do overwrite** `liveScoreboard` scores/inning tables. `controlMode === "manual"` (운영자/관리자 점수 보정) keeps operator scores until they turn auto back on.
-- Display for “N회 초/말” prefers operator `gameInning` / `inningHalf` over API (`shared/matchPhaseDisplay.ts`).
+- KBO 실시간 스코어는 **다음 스포츠** `list.json`/`get.json`을 우선한다 (득점·안타·실책·이닝표). API-SPORTS 키·쿼터가 없어도 운영자·예측 스코어보드에 반영된다. 다음 실황이 없으면 API-SPORTS로 폴백.
+- 예측 안타/아웃·공수교대는 운영자 조작이다. 다음 점수는 **스코어보드 표시**만 채운다. “N회 초/말” 표시는 운영자 `gameInning` / `inningHalf`를 우선한다 (`shared/matchPhaseDisplay.ts`).
+- During `matchStatus === "ongoing"` and `controlMode === "auto"`, live polls **do overwrite** `liveScoreboard` scores/inning tables. `controlMode === "manual"` (운영자/관리자 점수 보정) keeps operator scores until they turn auto back on.
 - Operators/admins can PATCH scores (`/api/manager/matches/:id/scoreboard`, `/api/admin/matches/:id/scoreboard`) which sets `controlMode: "manual"`. `lockManual: false` (또는 관리자 「수동」 끄기) returns to auto.
-- **`matchStatus` vs 예측 오픈**: 「예측 시작」은 `predictionEnabled`/`sideBetsLocked`만 켠다. `matchStatus: ongoing`은 API live·이닝 등 **실황 근거**로만 올린다. API `NS`(시작 전)이면 `scheduled`로 되돌린다(ongoing 고착 방지). UI「경기중」도 API 시작 전을 우선한다.
+- **`matchStatus` vs 예측 오픈**: 「예측 시작」은 `predictionEnabled`/`sideBetsLocked`만 켠다. `matchStatus: ongoing`은 실황(다음 또는 API) 근거로만 올린다. 시작 전(`NS`)이면 `scheduled`로 되돌린다(ongoing 고착 방지). UI「경기중」도 시작 전을 우선한다.

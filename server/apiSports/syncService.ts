@@ -35,6 +35,7 @@ import {
 } from "@shared/kboHomeStadium";
 import { resolveScoreboardForApiWrite } from "./liveScoreboardPolicy";
 import { formatInningWithHalf, parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
+import { resolveDaumLiveScoreboard } from "../daumLive/daumLiveScoreService";
 
 const MAX_DAILY_MATCHES = 5;
 
@@ -1084,15 +1085,112 @@ function shouldFetchLiveScoreFromApi(
 }
 
 /**
- * live sync — api-sports → Match DB 스코어보드
+ * live sync — 다음 스포츠 실황 우선, 없으면 api-sports
  * 해당 registrationOrder 슬롯 운영자 API 폴링 ON일 때만 호출
  * @returns true면 live sync 중단(종료·취소·API OFF·대상 아님)
  */
-export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boolean> {
-  if (!process.env.API_SPORTS_KEY?.trim()) return true;
+async function persistIncomingLiveScoreboard(
+  match: {
+    id: string;
+    name?: string;
+    matchStatus?: string | null;
+    controlMode?: string | null;
+    liveScoreboard?: LiveScoreboard | null;
+    startTime?: Date | null;
+    sideBetsLocked?: boolean | null;
+    predictionEnabled?: boolean | null;
+    currentRound?: number | null;
+    lastInningKey?: string | null;
+  },
+  incoming: LiveScoreboard,
+  extra: Record<string, unknown> = {},
+): Promise<boolean> {
+  const matchId = match.id;
+  const scoreboard = resolveScoreboardForApiWrite(
+    {
+      controlMode: match.controlMode,
+      matchStatus: match.matchStatus,
+      liveScoreboard: match.liveScoreboard,
+    },
+    incoming,
+  );
+  const previousStatus = match.matchStatus ?? "scheduled";
+  const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, incoming, match.startTime);
+  const notStarted = isGameNotStarted(incoming.statusShort);
+  const nextKey = buildInningKey(scoreboard);
 
+  await MatchModel.updateOne(
+    { id: matchId },
+    {
+      matchStatus: nextStatus,
+      liveScoreboard: scoreboard,
+      lastInningKey: nextKey,
+      sideBetsLocked: resolveSideBetsLocked({
+        previouslyLocked: match.sideBetsLocked,
+        predictionEnabled: match.predictionEnabled,
+        matchStatus: nextStatus,
+        statusShort: incoming.statusShort,
+        inning: incoming.inning,
+        startTime: match.startTime,
+      }),
+      ...extra,
+    },
+  );
+
+  await syncOperatorAccountForMatch(matchId);
+
+  if (nextKey !== (match.lastInningKey ?? null)) {
+    broadcastManager.sendToMatch(matchId, "scoreboard_update", { scoreboard });
+  }
+
+  if (notStarted && nextStatus === "scheduled") {
+    return false;
+  }
+
+  if (nextStatus === "completed" && previousStatus !== "completed") {
+    if (match.predictionEnabled) {
+      console.log(
+        `[LiveScoreSync] defer complete ${match.name} (${matchId}) — prediction still open`,
+      );
+      return false;
+    }
+    const openRound = await RoundStatisticsModel.findOne({
+      matchId,
+      roundNumber: match.currentRound,
+      isPredictionStarted: true,
+      isResultSent: false,
+    })
+      .select("id")
+      .lean();
+    if (openRound) {
+      console.log(
+        `[LiveScoreSync] defer complete ${match.name} (${matchId}) — round result not sent`,
+      );
+      return false;
+    }
+
+    const { match: ended } = await finalizeMatchEnd(matchId);
+    broadcastManager.sendToMatch(matchId, "end", {
+      matchId,
+      message: "경기가 종료되었습니다.",
+      matchStatus: ended.matchStatus,
+    });
+    console.log(`[LiveScoreSync] ${ended.name} (${matchId}) → completed`);
+    return true;
+  }
+
+  if (nextStatus === "cancelled" || isGamePostponedOrCancelled(scoreboard.statusShort)) {
+    console.log(`[LiveScoreSync] ${match.name} (${matchId}) → cancelled/postponed`);
+    return true;
+  }
+
+  if (isGameFinished(scoreboard.statusShort)) return true;
+  return false;
+}
+
+export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boolean> {
   const match = await MatchModel.findOne({ id: matchId }).lean();
-  if (!match?.apiSportsGameId) return true;
+  if (!match) return true;
   if (match.matchStatus === "completed" || match.matchStatus === "cancelled") return true;
 
   const order = match.registrationOrder ?? 99;
@@ -1111,44 +1209,28 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
   }
 
   try {
+    const daum = await resolveDaumLiveScoreboard(match);
+    if (daum) {
+      return await persistIncomingLiveScoreboard(match, daum.scoreboard, {
+        daumGameId: daum.daumGameId,
+      });
+    }
+  } catch (error) {
+    console.warn(`[LiveScoreSync] daum tick failed (${matchId}):`, error);
+  }
+
+  if (!process.env.API_SPORTS_KEY?.trim() || !match.apiSportsGameId) {
+    return false;
+  }
+
+  try {
     const game = await fetchGameById(match.apiSportsGameId);
     if (!game) return false;
 
     const incoming = parseLiveScoreboard(game);
-    const scoreboard = resolveScoreboardForApiWrite(
-      {
-        controlMode: (match as { controlMode?: string | null }).controlMode,
-        matchStatus: match.matchStatus,
-        liveScoreboard: match.liveScoreboard as LiveScoreboard | null | undefined,
-      },
-      incoming,
-    );
-    const previousStatus = match.matchStatus ?? "scheduled";
-    const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, incoming, match.startTime);
-    const apiNotStarted = isGameNotStarted(incoming.statusShort);
-
-    await MatchModel.updateOne(
-      { id: matchId },
-      {
-        matchStatus: nextStatus,
-        liveScoreboard: scoreboard,
-        ...apiSportsTeamsUpdate(game, incoming),
-        lastInningKey: buildInningKey(scoreboard),
-        sideBetsLocked: resolveSideBetsLocked({
-          previouslyLocked: match.sideBetsLocked,
-          predictionEnabled: match.predictionEnabled,
-          matchStatus: nextStatus,
-          statusShort: incoming.statusShort,
-          inning: incoming.inning,
-          startTime: match.startTime,
-        }),
-      },
-    );
-
-    await syncOperatorAccountForMatch(matchId);
-
-    if (apiNotStarted && nextStatus === "scheduled") {
-      return false;
+    const shouldStop = await persistIncomingLiveScoreboard(match, incoming, apiSportsTeamsUpdate(game, incoming));
+    if (shouldStop || isGameNotStarted(incoming.statusShort)) {
+      return shouldStop;
     }
 
     void refreshMatchLineupIfDue(
@@ -1180,46 +1262,7 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
       console.warn(`[LiveScoreSync] h2h refresh ${matchId}:`, err);
     });
 
-    if (nextStatus === "completed" && previousStatus !== "completed") {
-      // 운영자 예측 라운드가 열려 있으면 종료를 미룸 (점수만 갱신된 상태 유지)
-      if (match.predictionEnabled) {
-        console.log(
-          `[LiveScoreSync] defer complete ${match.name} (${matchId}) — prediction still open`,
-        );
-        return false;
-      }
-      const openRound = await RoundStatisticsModel.findOne({
-        matchId,
-        roundNumber: match.currentRound,
-        isPredictionStarted: true,
-        isResultSent: false,
-      })
-        .select("id")
-        .lean();
-      if (openRound) {
-        console.log(
-          `[LiveScoreSync] defer complete ${match.name} (${matchId}) — round result not sent`,
-        );
-        return false;
-      }
-
-      const { match: ended } = await finalizeMatchEnd(matchId);
-      broadcastManager.sendToMatch(matchId, "end", {
-        matchId,
-        message: "경기가 종료되었습니다.",
-        matchStatus: ended.matchStatus,
-      });
-      console.log(`[LiveScoreSync] ${ended.name} (${matchId}) → completed`);
-      return true;
-    }
-
-    if (nextStatus === "cancelled" || isGamePostponedOrCancelled(scoreboard.statusShort)) {
-      console.log(`[LiveScoreSync] ${match.name} (${matchId}) → cancelled/postponed`);
-      return true;
-    }
-
-    if (isGameFinished(scoreboard.statusShort)) return true;
-    return false;
+    return shouldStop;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown sync error";
     markApiSportsError(message);
@@ -1235,8 +1278,8 @@ export async function setMatchControlMode(matchId: string, mode: MatchControlMod
   ).lean();
   if (!updated) throw new Error("경기를 찾을 수 없습니다.");
 
-  // auto 복귀 시 즉시 1회 동기화 시도 (ongoing 이면 점수 보존 정책은 그대로 적용)
-  if (mode === "auto" && updated.apiSportsGameId) {
+  // auto 복귀 시 즉시 1회 동기화 시도 (다음 실황 또는 api-sports)
+  if (mode === "auto") {
     try {
       await refreshMatchLiveScoreFromApi(matchId);
     } catch (err) {

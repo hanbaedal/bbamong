@@ -140,7 +140,6 @@ function scheduleLiveScoreWindow(
 export async function scheduleLiveScoreSync(): Promise<void> {
   stopLiveScoreSync();
 
-  if (!process.env.API_SPORTS_KEY?.trim()) return;
   if (!(await isAnyOperatorApiSyncEnabled())) {
     console.log("[LiveScoreSync] idle — all operator API polling OFF");
     return;
@@ -153,7 +152,6 @@ export async function scheduleLiveScoreSync(): Promise<void> {
   tomorrow.setDate(tomorrow.getDate() + 1);
 
   const candidates = await MatchModel.find({
-    apiSportsGameId: { $ne: null },
     registrationOrder: { $gte: 1, $lte: 5 },
     matchStatus: { $nin: ["completed", "cancelled"] },
     $or: [{ matchDate: kstToday }, { matchDate: null, startTime: { $gte: today, $lt: tomorrow } }],
