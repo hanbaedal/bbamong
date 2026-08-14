@@ -698,6 +698,8 @@ const kboPlayerSchema = new Schema(
     season: { type: Number, required: true },
     name: { type: String, required: true },
     position: { type: String, default: "" },
+    jerseyNumber: { type: String, default: "" },
+    batsThrows: { type: String, default: "" },
     battingAverage: { type: String, default: null },
     hits: { type: Number, default: null },
     homeRuns: { type: Number, default: null },

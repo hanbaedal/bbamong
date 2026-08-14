@@ -25,7 +25,9 @@ export default function ManagerRosterPicker({
     return players.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
-        p.position.toLowerCase().includes(q),
+        p.position.toLowerCase().includes(q) ||
+        p.jerseyNumber?.toLowerCase().includes(q) ||
+        p.batsThrows?.toLowerCase().includes(q),
     );
   }, [players, query]);
 
@@ -61,7 +63,7 @@ export default function ManagerRosterPicker({
           ) : filtered.length === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-gray-500 leading-relaxed">
               {players.length === 0
-                ? "이 팀 선수가 없습니다. 관리자 「팀별 타자 등록」에서 먼저 등록하세요."
+                ? "이 팀 선수가 없습니다. 관리자 「KBO 선수단」에서 먼저 불러오세요."
                 : "검색 결과가 없습니다."}
             </p>
           ) : (
@@ -77,10 +79,20 @@ export default function ManagerRosterPicker({
                     data-testid={`button-roster-player-${player.id}`}
                   >
                     <span className="block text-sm font-semibold text-gray-900">
+                      {player.jerseyNumber ? (
+                        <span className="mr-1.5 text-xs font-medium text-gray-500 tabular-nums">
+                          {player.jerseyNumber}
+                        </span>
+                      ) : null}
                       {player.name}
                       <span className="ml-1.5 text-xs font-medium text-[#1A6DFF]">
                         {player.position}
                       </span>
+                      {player.batsThrows ? (
+                        <span className="ml-1.5 text-xs font-normal text-gray-500">
+                          {player.batsThrows}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="block text-[11px] text-gray-500 tabular-nums">
                       타율 {player.battingAverage || "—"} · 안타 {player.hits ?? "—"} · 홈런{" "}

@@ -13,6 +13,8 @@ export type KboPlayerWriteInput = {
   season: number;
   name: string;
   position: string;
+  jerseyNumber?: string | null;
+  batsThrows?: string | null;
   battingAverage?: string | number | null;
   hits?: number | null;
   homeRuns?: number | null;
@@ -28,6 +30,8 @@ type LeanPlayer = {
   season: number;
   name: string;
   position?: string | null;
+  jerseyNumber?: string | null;
+  batsThrows?: string | null;
   battingAverage?: string | null;
   hits?: number | null;
   homeRuns?: number | null;
@@ -62,6 +66,8 @@ function toPublic(doc: LeanPlayer): KboRosterPlayer {
     season: doc.season,
     name: doc.name,
     position: doc.position?.trim() || "",
+    jerseyNumber: (doc.jerseyNumber ?? "").trim(),
+    batsThrows: (doc.batsThrows ?? "").trim(),
     battingAverage: formatBattingAverage(doc.battingAverage ?? null),
     hits: normalizeHits(doc.hits ?? null),
     homeRuns: normalizeHits(doc.homeRuns ?? null),
@@ -84,11 +90,17 @@ function normalizeWrite(input: KboPlayerWriteInput) {
   if (!isKboBatterPosition(position)) throw new Error("올바른 포지션이 아닙니다.");
   const note = (input.note ?? "").trim();
   if (note.length > 80) throw new Error("특징은 80자 이하여야 합니다.");
+  const jerseyNumber = (input.jerseyNumber ?? "").trim();
+  if (jerseyNumber.length > 4) throw new Error("등번호는 4자 이하여야 합니다.");
+  const batsThrows = (input.batsThrows ?? "").trim();
+  if (batsThrows.length > 20) throw new Error("투타유형은 20자 이하여야 합니다.");
   return {
     team,
     season: normalizeSeason(input.season),
     name,
     position,
+    jerseyNumber,
+    batsThrows,
     battingAverage: formatBattingAverage(input.battingAverage ?? null),
     hits: normalizeHits(input.hits ?? null),
     homeRuns: normalizeHits(input.homeRuns ?? null),
@@ -117,8 +129,23 @@ export async function listKboPlayers(input: {
   const season = normalizeSeason(input.season);
   const filter: Record<string, unknown> = { team, season };
   if (input.activeOnly) filter.active = true;
-  const rows = await KboPlayerModel.find(filter).sort({ name: 1 }).lean();
-  return (rows as LeanPlayer[]).map(toPublic);
+  const rows = await KboPlayerModel.find(filter).lean();
+  const positionRank = new Map(
+    ["투수", "포수", "내야수", "외야수", "1루수", "2루수", "3루수", "유격수", "좌익수", "중견수", "우익수", "지명타자"].map(
+      (pos, i) => [pos, i],
+    ),
+  );
+  return (rows as LeanPlayer[])
+    .map(toPublic)
+    .sort((a, b) => {
+      const pa = positionRank.get(a.position) ?? 99;
+      const pb = positionRank.get(b.position) ?? 99;
+      if (pa !== pb) return pa - pb;
+      const ja = Number.parseInt(a.jerseyNumber, 10);
+      const jb = Number.parseInt(b.jerseyNumber, 10);
+      if (Number.isFinite(ja) && Number.isFinite(jb) && ja !== jb) return ja - jb;
+      return a.name.localeCompare(b.name, "ko");
+    });
 }
 
 export async function getKboPlayersByIds(ids: string[]): Promise<KboRosterPlayer[]> {
