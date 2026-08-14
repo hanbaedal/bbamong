@@ -1061,40 +1061,9 @@ export async function userRoutes(app: Express): Promise<void> {
     try {
       const userId = req.user!.userId;
       const page = Number(req.query.page) || 1;
-      const limit = Number(req.query.limit) || 5;
+      const groupByDay = req.query.group === "day";
+      const limit = Number(req.query.limit) || (groupByDay ? 10 : 5);
       const offset = (page - 1) * limit;
-
-      const userPredictionsRaw = await PredictionModel.find({ userId })
-        .sort({ createdAt: -1 })
-        .skip(offset)
-        .limit(limit)
-        .lean();
-
-      const matchIds = Array.from(new Set(userPredictionsRaw.map((p) => p.matchId)));
-      const matches = await MatchModel.find({ id: { $in: matchIds } }).lean();
-      const stadiumIds = Array.from(new Set(matches.map((m) => m.stadiumId)));
-      const stadiums = await StadiumModel.find({ id: { $in: stadiumIds } }).lean();
-      const matchMap = Object.fromEntries(matches.map((m) => [m.id, m]));
-      const stadiumMap = Object.fromEntries(stadiums.map((s) => [s.id, s]));
-
-      const userPredictions = userPredictionsRaw.map((p) => {
-        const match = matchMap[p.matchId];
-        const stadium = match ? stadiumMap[match.stadiumId] : undefined;
-        return {
-          id: p.id,
-          prediction: p.prediction,
-          amount: p.amount,
-          status: p.status,
-          wonAmount: p.wonAmount,
-          createdAt: p.createdAt,
-          matchId: match?.id,
-          matchName: match?.name,
-          matchDate: match?.matchDate,
-          stadiumName: stadium?.name,
-        };
-      });
-
-      const total = await PredictionModel.countDocuments({ userId });
 
       const stats = await PredictionModel.find({ userId }).select("status").lean();
 
@@ -1133,6 +1102,114 @@ export async function userRoutes(app: Express): Promise<void> {
         }
       }
 
+      const statistics = {
+        total: stats.length,
+        wins,
+        losses,
+        pending,
+        today: {
+          total: todayTotal,
+          wins: todayWins,
+        },
+      };
+
+      if (groupByDay) {
+        const [agg] = await PredictionModel.aggregate<{
+          meta: Array<{ total: number }>;
+          data: Array<{
+            _id: string;
+            total: number;
+            wins: number;
+            losses: number;
+            pending: number;
+          }>;
+        }>([
+          { $match: { userId } },
+          {
+            $addFields: {
+              dayKey: {
+                $dateToString: {
+                  format: "%Y-%m-%d",
+                  date: "$createdAt",
+                  timezone: "Asia/Seoul",
+                },
+              },
+            },
+          },
+          {
+            $group: {
+              _id: "$dayKey",
+              total: { $sum: 1 },
+              wins: { $sum: { $cond: [{ $eq: ["$status", "success"] }, 1, 0] } },
+              losses: { $sum: { $cond: [{ $eq: ["$status", "fail"] }, 1, 0] } },
+              pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+            },
+          },
+          { $sort: { _id: -1 } },
+          {
+            $facet: {
+              meta: [{ $count: "total" }],
+              data: [{ $skip: offset }, { $limit: limit }],
+            },
+          },
+        ]);
+
+        const dayTotal = agg?.meta?.[0]?.total ?? 0;
+        const days = (agg?.data ?? []).map((row) => ({
+          date: row._id,
+          total: row.total,
+          wins: row.wins,
+          losses: row.losses,
+          pending: row.pending,
+        }));
+
+        return res.json({
+          success: true,
+          predictions: [],
+          days,
+          pagination: {
+            page,
+            limit,
+            total: dayTotal,
+            totalPages: Math.ceil(dayTotal / limit) || 0,
+          },
+          statistics,
+          currentUserRank: userRank,
+        });
+      }
+
+      const userPredictionsRaw = await PredictionModel.find({ userId })
+        .sort({ createdAt: -1 })
+        .skip(offset)
+        .limit(limit)
+        .lean();
+
+      const matchIds = Array.from(new Set(userPredictionsRaw.map((p) => p.matchId)));
+      const matches = await MatchModel.find({ id: { $in: matchIds } }).lean();
+      const stadiumIds = Array.from(new Set(matches.map((m) => m.stadiumId)));
+      const stadiums = await StadiumModel.find({ id: { $in: stadiumIds } }).lean();
+      const matchMap = Object.fromEntries(matches.map((m) => [m.id, m]));
+      const stadiumMap = Object.fromEntries(stadiums.map((s) => [s.id, s]));
+
+      const userPredictions = userPredictionsRaw.map((p) => {
+        const match = matchMap[p.matchId];
+        const stadium = match ? stadiumMap[match.stadiumId] : undefined;
+        return {
+          id: p.id,
+          prediction: p.prediction,
+          amount: p.amount,
+          status: p.status,
+          wonAmount: p.wonAmount,
+          createdAt: p.createdAt,
+          matchId: match?.id,
+          matchName: match?.name,
+          matchDate: match?.matchDate,
+          stadiumName: stadium?.name,
+        };
+      });
+
+      const total = await PredictionModel.countDocuments({ userId });
+
       return res.json({
         success: true,
         predictions: userPredictions,
@@ -1142,16 +1219,7 @@ export async function userRoutes(app: Express): Promise<void> {
           total,
           totalPages: Math.ceil(total / limit),
         },
-        statistics: {
-          total: stats.length,
-          wins,
-          losses,
-          pending,
-          today: {
-            total: todayTotal,
-            wins: todayWins,
-          },
-        },
+        statistics,
         currentUserRank: userRank,
       });
     } catch (error) {
