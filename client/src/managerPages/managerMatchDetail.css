@@ -150,6 +150,10 @@
   color: #1a6dff;
   line-height: 1.1;
   white-space: nowrap;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
 }
 
 .manager-operator-score-phase {

@@ -97,6 +97,8 @@ const matchSchema = new Schema(
     matchPlayerStats: { type: Schema.Types.Mixed, default: null },
     /** 시즌 상대전적 (awayWins/homeWins) */
     matchHeadToHead: { type: Schema.Types.Mixed, default: null },
+    /** 다음 스포츠 팀 시즌 성적 (순위·승무패 등) */
+    matchTeamSeasonStats: { type: Schema.Types.Mixed, default: null },
     createdAt: { type: Date, default: Date.now },
   },
   { versionKey: false },

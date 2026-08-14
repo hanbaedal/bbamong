@@ -39,9 +39,12 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 ### Admin schedule team logos
 - Admin 경기관리 리스트는 API-SPORTS `teams.*.logo` URL을 원형으로 표시한다 (실패 시 약칭 이니셜 폴백). 관리자 전용 UI용이며, 사용자 앱에 공식 엠블럼을 확대 배포하기 전에는 별도 권리 검토가 필요하다.
 
-### Live scoreboard (API vs operator)
-- KBO 실시간 스코어는 **다음 스포츠** `list.json`/`get.json`을 우선한다 (득점·안타·실책·이닝표). API-SPORTS 키·쿼터가 없어도 운영자·예측 스코어보드에 반영된다. 다음 실황이 없으면 API-SPORTS로 폴백.
-- 예측 안타/아웃·공수교대는 운영자 조작이다. 다음 점수는 **스코어보드 표시**만 채운다. “N회 초/말” 표시는 운영자 `gameInning` / `inningHalf`를 우선한다 (`shared/matchPhaseDisplay.ts`).
-- During `matchStatus === "ongoing"` and `controlMode === "auto"`, live polls **do overwrite** `liveScoreboard` scores/inning tables. `controlMode === "manual"` (운영자/관리자 점수 보정) keeps operator scores until they turn auto back on.
+### Live scoreboard (Daum vs operator)
+- KBO 실시간 스코어는 **다음 스포츠**만 폴링한다 (득점·안타·실책·볼넷·이닝표). 볼·스트라이크·아웃·루상 주자는 네이버 문자중계 `relay`의 `currentGameState`. **API-SPORTS 실황 폴링/폴백은 하지 않는다** (일정 import 등 다른 용도는 유지).
+- 예측 화면 좌상단 공지 배지 자리에는 **경기 진행 위젯**(이닝 초/말, 팀 점수, 다이아몬드, B-S / OUT, 타자·구종)을 둔다. 배경은 투명. 공지사항은 설정 메뉴에서만 본다.
+- 팀명 클릭 → 다음 스포츠 시즌 성적 모달 (순위·승무패·승률·타율·평균자책·승차). 운영자 타순 입력은 팀명 옆 「타순」 버튼.
+- 예측 개인기록은 타율·홈런·안타·타점·득점·도루·출루율·OPS.
+- 예측 안타/아웃·공수교대는 운영자 조작이다. 다음 점수는 **스코어보드 표시**만 채운다. “N회 초/말” 표시는 운영자 `gameInning` / `inningHalf`를 우선한다 (`shared/matchPhaseDisplay.ts`). 진행 위젯은 TV 실황(다음/네이버)을 쓴다.
+- During `matchStatus === "ongoing"` and `controlMode === "auto"`, live polls **do overwrite** `liveScoreboard` scores/inning tables. `controlMode === "manual"` (운영자/관리자 점수 보정) keeps operator scores until they turn auto back on. 주자·볼카운트는 manual이어도 실황을 갱신한다.
 - Operators/admins can PATCH scores (`/api/manager/matches/:id/scoreboard`, `/api/admin/matches/:id/scoreboard`) which sets `controlMode: "manual"`. `lockManual: false` (또는 관리자 「수동」 끄기) returns to auto.
-- **`matchStatus` vs 예측 오픈**: 「예측 시작」은 `predictionEnabled`/`sideBetsLocked`만 켠다. `matchStatus: ongoing`은 실황(다음 또는 API) 근거로만 올린다. 시작 전(`NS`)이면 `scheduled`로 되돌린다(ongoing 고착 방지). UI「경기중」도 시작 전을 우선한다.
+- **`matchStatus` vs 예측 오픈**: 「예측 시작」은 `predictionEnabled`/`sideBetsLocked`만 켠다. `matchStatus: ongoing`은 실황(다음 스포츠) 근거로만 올린다. 시작 전(`NS`)이면 `scheduled`로 되돌린다(ongoing 고착 방지). UI「경기중」도 시작 전을 우선한다.

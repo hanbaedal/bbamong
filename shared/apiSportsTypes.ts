@@ -17,6 +17,9 @@ export interface LiveScoreboard {
   awayHits: number;
   homeErrors: number;
   awayErrors: number;
+  /** 볼넷 (Daum ballfour) */
+  homeWalks?: number;
+  awayWalks?: number;
   /** 이닝별 득점 (api-sports scores.*.innings) */
   homeInnings?: InningRunsMap;
   awayInnings?: InningRunsMap;
@@ -26,6 +29,44 @@ export interface LiveScoreboard {
   inningLabel: string;
   statusShort: string;
   statusLong: string;
+  /** 볼·스트라이크·아웃·루상 주자 (네이버 문자중계) */
+  situation?: LiveScoreSituation | null;
+  syncedAt: string;
+}
+
+/** 실시간 볼카운트·아웃·주자·타석 */
+export interface LiveScoreSituation {
+  balls: number;
+  strikes: number;
+  outs: number;
+  first: boolean;
+  second: boolean;
+  third: boolean;
+  batterName?: string | null;
+  /** 예: "1구 볼" */
+  pitchLabel?: string | null;
+  /** 예: "143km/h 체인지업" */
+  pitchDetail?: string | null;
+}
+
+/** 팀 시즌 성적 (다음 스포츠 순위표) */
+export interface TeamSeasonStats {
+  teamShort: string;
+  season: number;
+  rank: number | null;
+  wins: number | null;
+  draws: number | null;
+  losses: number | null;
+  winningPercentage: string | null;
+  battingAverage: string | null;
+  era: string | null;
+  gamesBehind: string | null;
+}
+
+export interface MatchTeamSeasonStats {
+  season: number;
+  home: TeamSeasonStats | null;
+  away: TeamSeasonStats | null;
   syncedAt: string;
 }
 
@@ -84,6 +125,9 @@ export interface MatchPlayerStatsEntry {
   homeRuns: number | null;
   rbi: number | null;
   ops: string | null;
+  runs?: number | null;
+  stolenBases?: number | null;
+  onBasePercentage?: string | null;
   position?: string | null;
   note?: string | null;
   syncedAt: string;
@@ -106,6 +150,9 @@ export interface CurrentBatterPreview {
   homeRuns: number | null;
   rbi: number | null;
   ops: string | null;
+  runs?: number | null;
+  stolenBases?: number | null;
+  onBasePercentage?: string | null;
   position?: string | null;
   note?: string | null;
   season: number;
@@ -121,6 +168,9 @@ export interface PinchHitterSnapshot {
   homeRuns: number | null;
   rbi: number | null;
   ops: string | null;
+  runs?: number | null;
+  stolenBases?: number | null;
+  onBasePercentage?: string | null;
   position?: string | null;
   note?: string | null;
   rosterPlayerId?: string;

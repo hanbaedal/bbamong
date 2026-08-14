@@ -28,6 +28,7 @@ export function mergePreservingLiveScoreFields(
     awayTeamLogo: incoming.awayTeamLogo || existing.awayTeamLogo,
     statusShort: incoming.statusShort,
     statusLong: incoming.statusLong,
+    situation: incoming.situation ?? existing.situation,
     syncedAt: incoming.syncedAt,
   };
 }

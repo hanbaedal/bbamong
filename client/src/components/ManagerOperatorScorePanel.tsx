@@ -16,8 +16,10 @@ interface ManagerOperatorScorePanelProps {
   onSaveScores?: (scores: { awayScore: number; homeScore: number }) => Promise<void>;
   /** 수동 잠금 해제 — API 점수 자동 반영 */
   onResumeAuto?: () => Promise<void>;
-  /** 팀명 클릭 — 주전 타순·시즌 전적 모달 */
+  /** 팀명 클릭 — 시즌 성적 모달 */
   onTeamClick?: (side: "home" | "away") => void;
+  /** 타순 입력/수정 */
+  onLineupClick?: (side: "home" | "away") => void;
   awayLineupCount?: number;
   homeLineupCount?: number;
   awayTeamFallback?: string;
@@ -67,6 +69,7 @@ export default function ManagerOperatorScorePanel({
   onSaveScores,
   onResumeAuto,
   onTeamClick,
+  onLineupClick,
   awayLineupCount = 0,
   homeLineupCount = 0,
   awayTeamFallback,
@@ -122,17 +125,29 @@ export default function ManagerOperatorScorePanel({
               type="button"
               className="manager-operator-score-team-name manager-operator-score-team-name--btn"
               onClick={() => onTeamClick("away")}
-              data-testid="button-team-lineup-away"
-              title="타순·시즌 전적 입력"
+              data-testid="button-team-stats-away"
+              title="시즌 성적"
             >
               {awayLabel}
-              <span className="manager-operator-score-team-lineup-hint">
-                {awayLineupCount > 0 ? `타순 ${awayLineupCount}` : "타순 입력"}
-              </span>
             </button>
           ) : (
             <span className="manager-operator-score-team-name">{awayLabel}</span>
           )}
+          {onLineupClick ? (
+            <button
+              type="button"
+              className="manager-operator-score-team-lineup-hint"
+              onClick={() => onLineupClick("away")}
+              data-testid="button-team-lineup-away"
+              title="타순 입력"
+            >
+              {awayLineupCount > 0 ? `타순 ${awayLineupCount}` : "타순 입력"}
+            </button>
+          ) : onTeamClick ? (
+            <span className="manager-operator-score-team-lineup-hint">
+              {awayLineupCount > 0 ? `타순 ${awayLineupCount}` : "타순 입력"}
+            </span>
+          ) : null}
           {awayBatting && (
             <span className="manager-operator-score-phase" data-testid="manager-score-phase-away">
               공격
@@ -187,17 +202,29 @@ export default function ManagerOperatorScorePanel({
               type="button"
               className="manager-operator-score-team-name manager-operator-score-team-name--btn"
               onClick={() => onTeamClick("home")}
-              data-testid="button-team-lineup-home"
-              title="타순·시즌 전적 입력"
+              data-testid="button-team-stats-home"
+              title="시즌 성적"
             >
               {homeLabel}
-              <span className="manager-operator-score-team-lineup-hint">
-                {homeLineupCount > 0 ? `타순 ${homeLineupCount}` : "타순 입력"}
-              </span>
             </button>
           ) : (
             <span className="manager-operator-score-team-name">{homeLabel}</span>
           )}
+          {onLineupClick ? (
+            <button
+              type="button"
+              className="manager-operator-score-team-lineup-hint"
+              onClick={() => onLineupClick("home")}
+              data-testid="button-team-lineup-home"
+              title="타순 입력"
+            >
+              {homeLineupCount > 0 ? `타순 ${homeLineupCount}` : "타순 입력"}
+            </button>
+          ) : onTeamClick ? (
+            <span className="manager-operator-score-team-lineup-hint">
+              {homeLineupCount > 0 ? `타순 ${homeLineupCount}` : "타순 입력"}
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -230,7 +257,7 @@ export default function ManagerOperatorScorePanel({
               </span>
             ) : matchStatus === "ongoing" && controlMode !== "manual" ? (
               <span className="manager-operator-score-live-hint">
-                경기 중 API 점수가 자동 반영됩니다. TV와 다르면 보정하세요.
+                경기 중 다음 스포츠 점수가 자동 반영됩니다. TV와 다르면 보정하세요.
               </span>
             ) : controlMode === "manual" ? (
               <span className="manager-operator-score-manual-hint">수동 잠금 — API 점수 미반영</span>

@@ -65,11 +65,12 @@ export function mapDaumGameStatus(gameStatus?: string | null): {
   return { statusShort: "IN", statusLong: "In Progress" };
 }
 
-function scoreTotals(block?: DaumScoreBlock): { run: number; hit: number; error: number } {
+function scoreTotals(block?: DaumScoreBlock): { run: number; hit: number; error: number; walks: number } {
   return {
     run: toInt(block?.run),
     hit: toInt(block?.hit),
     error: toInt(block?.error),
+    walks: toInt(block?.ballfour),
   };
 }
 
@@ -106,6 +107,8 @@ export function parseDaumLiveScoreboard(game: DaumListGame): LiveScoreboard {
     awayHits: away.hit,
     homeErrors: home.error,
     awayErrors: away.error,
+    homeWalks: home.walks,
+    awayWalks: away.walks,
     homeInnings,
     awayInnings,
     inning,

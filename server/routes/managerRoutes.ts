@@ -1278,6 +1278,8 @@ export async function managerRoutes(app: Express): Promise<void> {
           awayHits: z.number().int().min(0).max(99).optional(),
           homeErrors: z.number().int().min(0).max(99).optional(),
           awayErrors: z.number().int().min(0).max(99).optional(),
+          homeWalks: z.number().int().min(0).max(99).optional(),
+          awayWalks: z.number().int().min(0).max(99).optional(),
           inning: z.number().int().min(1).max(20).nullable().optional(),
           inningHalf: z.enum(["top", "bottom"]).nullable().optional(),
           lockManual: z.boolean().optional(),

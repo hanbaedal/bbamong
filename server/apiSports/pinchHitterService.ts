@@ -1,8 +1,9 @@
 import type { PinchHitterSnapshot } from "@shared/apiSportsTypes";
-import { formatBattingAverage, formatOps } from "@shared/batterDisplay";
+import { formatBattingAverage, formatOps, formatSeasonRate } from "@shared/batterDisplay";
 import { MatchModel } from "../UserStorage/db";
-import { getKboPlayersByIds } from "../kboRoster/kboRosterService";
+import { getKboPlayersByIds, resolveMatchTeamShort } from "../kboRoster/kboRosterService";
 import { ensureMatchLiveForOperatorControls } from "../liveMatch/predictionStorage";
+import { lookupDaumBatterStats } from "../daumLive/daumSeasonStatsService";
 
 export type PinchHitterInput = {
   playerName?: string;
@@ -33,7 +34,9 @@ export async function setMatchPinchHitter(
 ): Promise<PinchHitterSnapshot> {
   await ensureMatchLiveForOperatorControls(matchId);
   const match = await MatchModel.findOne({ id: matchId })
-    .select("id startTime matchStatus batterIndexInHalf inningHalf gameInning")
+    .select(
+      "id startTime matchStatus batterIndexInHalf inningHalf gameInning apiSportsHomeTeam apiSportsAwayTeam liveScoreboard",
+    )
     .lean();
   if (!match) throw new Error("경기를 찾을 수 없습니다.");
 
@@ -47,23 +50,40 @@ export async function setMatchPinchHitter(
   if (!playerName) throw new Error("대타 선수를 선택하세요.");
 
   const season = resolveSeason(match.startTime as Date | undefined, input.season);
+  const battingTeam =
+    match.inningHalf === "bottom"
+      ? resolveMatchTeamShort(match, "home")
+      : resolveMatchTeamShort(match, "away");
+  const daumStats = await lookupDaumBatterStats({
+    name: playerName,
+    teamShort: battingTeam,
+    season,
+  }).catch(() => null);
+
   const snapshot: PinchHitterSnapshot = {
     playerName,
-    battingAverage: formatBattingAverage(roster?.battingAverage ?? input.battingAverage ?? null),
-    hits:
-      roster?.hits ??
-      (typeof input.hits === "number" && Number.isFinite(input.hits)
-        ? Math.round(input.hits)
-        : null),
+    battingAverage:
+      formatSeasonRate(daumStats?.battingAverage ?? roster?.battingAverage ?? input.battingAverage ?? null) ??
+      formatBattingAverage(roster?.battingAverage ?? input.battingAverage ?? null),
+    hits: daumStats?.hits ?? roster?.hits ?? (typeof input.hits === "number" && Number.isFinite(input.hits)
+      ? Math.round(input.hits)
+      : null),
     homeRuns:
+      daumStats?.homeRuns ??
       roster?.homeRuns ??
       (typeof input.homeRuns === "number" && Number.isFinite(input.homeRuns)
         ? Math.round(input.homeRuns)
         : null),
     rbi:
+      daumStats?.rbi ??
       roster?.rbi ??
       (typeof input.rbi === "number" && Number.isFinite(input.rbi) ? Math.round(input.rbi) : null),
-    ops: formatOps(roster?.ops ?? input.ops ?? null),
+    ops:
+      formatSeasonRate(daumStats?.ops ?? roster?.ops ?? input.ops ?? null) ??
+      formatOps(roster?.ops ?? input.ops ?? null),
+    runs: daumStats?.runs ?? null,
+    stolenBases: daumStats?.stolenBases ?? null,
+    onBasePercentage: formatSeasonRate(daumStats?.onBasePercentage ?? null),
     position: roster?.position || input.position?.trim() || null,
     note: roster?.note || input.note?.trim() || null,
     rosterPlayerId: roster?.id,

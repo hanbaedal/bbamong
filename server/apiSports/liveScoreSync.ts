@@ -178,5 +178,10 @@ export async function scheduleLiveScoreSync(): Promise<void> {
     }
     liveSlotsUsed += 1;
     scheduleLiveScoreWindow(candidate);
+    void import("../daumLive/daumSeasonStatsService")
+      .then(({ refreshMatchSeasonContext }) => refreshMatchSeasonContext(candidate.id))
+      .catch((error) => {
+        console.warn(`[LiveScoreSync] pregame season stats ${candidate.id}:`, error);
+      });
   }
 }
