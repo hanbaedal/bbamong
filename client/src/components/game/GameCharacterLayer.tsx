@@ -350,6 +350,22 @@ export default function GameCharacterLayer({
         </div>
       )}
 
+      {phase === "success_announce" && (
+        <StadiumFieldMarker point={HOME_PLATE_IMAGE} center={false}>
+          <div style={{ transform: "translate(-50%, -100%)" }}>
+            <img
+              src={pyamongSuccess}
+              alt=""
+              className={pyamongSpriteClass(
+                battingHalf,
+                "w-[min(10vw,78px)] h-auto animate-pyamong-success-home",
+              )}
+              data-testid="char-pyamong-success-announce"
+            />
+          </div>
+        </StadiumFieldMarker>
+      )}
+
       {phase === "success_celebrate" && (
         <StadiumFieldMarker
           point={runTarget === "홈런" ? HOME_PLATE_IMAGE : BASE_IMAGE_POINTS[runTarget]}
@@ -366,7 +382,7 @@ export default function GameCharacterLayer({
               className={pyamongSpriteClass(
                 battingHalf,
                 `w-[min(10vw,78px)] h-auto ${
-                  runTarget === "홈런" ? "animate-pyamong-success-home" : "animate-pyamong-success"
+                  runTarget === "홈런" ? "animate-pyamong-hop-home" : "animate-pyamong-hop"
                 }`,
               )}
               data-testid="char-pyamong-success"

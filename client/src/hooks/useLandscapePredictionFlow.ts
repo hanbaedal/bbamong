@@ -16,7 +16,7 @@ import type {
   PredictionResult,
   RoundAdvanceType,
 } from "@/components/game/gameTypes";
-import { GAME_EVENT_SHOW_MS } from "@/components/game/gameTypes";
+import { GAME_EVENT_SHOW_MS, SUCCESS_ANNOUNCE_MS, SUCCESS_HOP_MS, isSuccessPresentationPhase } from "@/components/game/gameTypes";
 import { speakGameVoice, USER_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
 
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
@@ -170,8 +170,7 @@ export function useLandscapePredictionFlow(
     const phase = screenPhaseRef.current;
     const deferExit =
       phase === "wait_result" ||
-      phase === "success_running" ||
-      phase === "success_celebrate" ||
+      isSuccessPresentationPhase(phase) ||
       phase === "fail";
 
     const exitGame = () => {
@@ -277,8 +276,7 @@ export function useLandscapePredictionFlow(
     const phase = screenPhaseRef.current;
     return (
       resultShownRef.current ||
-      phase === "success_running" ||
-      phase === "success_celebrate" ||
+      isSuccessPresentationPhase(phase) ||
       phase === "fail"
     );
   }, []);
@@ -482,7 +480,7 @@ export function useLandscapePredictionFlow(
           resultShownRef.current = true;
           setPredictionResult(data.status as PredictionResult);
           setLastWonAmount(data.wonAmount ?? 0);
-          setScreenPhase(data.status === "success" ? "success_running" : "fail");
+          setScreenPhase(data.status === "success" ? "success_announce" : "fail");
           activeBetRef.current = null;
         } else {
           if (resolvedId != null) lastResultPredictionIdRef.current = resolvedId;
@@ -575,6 +573,7 @@ export function useLandscapePredictionFlow(
             if (resultShownRef.current) return;
             const phase = screenPhaseRef.current;
             if (
+              phase === "success_announce" ||
               phase === "success_running" ||
               phase === "success_celebrate" ||
               phase === "fail" ||
@@ -598,7 +597,7 @@ export function useLandscapePredictionFlow(
             if (user && data.status === "success" && data.wonAmount > 0) {
               setUser({ ...user, points: (user.points ?? 0) + data.wonAmount });
             }
-            setScreenPhase(data.status === "success" ? "success_running" : "fail");
+            setScreenPhase(data.status === "success" ? "success_announce" : "fail");
           }
         } catch {
           /* ignore */
@@ -614,13 +613,19 @@ export function useLandscapePredictionFlow(
   }, []);
 
   useEffect(() => {
+    if (screenPhase !== "success_announce") return;
+    const t = setTimeout(() => setScreenPhase("success_running"), SUCCESS_ANNOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [screenPhase]);
+
+  useEffect(() => {
     if (screenPhase !== "success_celebrate" && screenPhase !== "fail") {
       resultDismissScheduledRef.current = false;
       return;
     }
     if (resultDismissScheduledRef.current) return;
     resultDismissScheduledRef.current = true;
-    scheduleResultDismiss(RESULT_AUTO_MS);
+    scheduleResultDismiss(screenPhase === "fail" ? RESULT_AUTO_MS : SUCCESS_HOP_MS);
   }, [screenPhase, scheduleResultDismiss]);
 
   const handleRoundResult = useCallback(
@@ -649,7 +654,7 @@ export function useLandscapePredictionFlow(
         const won = data.wonAmount ?? calculateFixedOddsPayout(bet.amount, bet.prediction);
         setLastWonAmount(won);
         if (won > 0) setUser({ ...user, points: (user.points ?? 0) + won });
-        setScreenPhase("success_running");
+        setScreenPhase("success_announce");
       } else {
         setScreenPhase("fail");
       }
@@ -747,7 +752,7 @@ export function useLandscapePredictionFlow(
         resultShownRef.current = true;
         setPredictionResult(data.status);
         setLastWonAmount(data.wonAmount ?? 0);
-        setScreenPhase(data.status === "success" ? "success_running" : "fail");
+        setScreenPhase(data.status === "success" ? "success_announce" : "fail");
         return;
       }
 
@@ -806,6 +811,7 @@ export function useLandscapePredictionFlow(
         activeBetRef.current != null ||
         betSnapshotRef.current != null ||
         screenPhaseRef.current === "wait_result" ||
+        screenPhaseRef.current === "success_announce" ||
         screenPhaseRef.current === "success_running" ||
         screenPhaseRef.current === "success_celebrate" ||
         screenPhaseRef.current === "fail";
@@ -826,7 +832,7 @@ export function useLandscapePredictionFlow(
         predictionEnabled: data.predictionEnabled,
       };
 
-      // 성공 주루 → 축하 / 실패 배너 중이면 round_next로 끊지 않음
+      // 성공 축하·주루 / 실패 배너 중이면 round_next로 끊지 않음
       if (isInResultPresentation()) {
         pendingRoundNextRef.current = pendingPayload;
         queryClient.invalidateQueries({ queryKey: ["/api/matches"] });

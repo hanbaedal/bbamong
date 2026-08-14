@@ -1031,21 +1031,21 @@ export default function MatchDetailPage() {
   const anyAdvanceBusy = Boolean(advanceBusy);
   /** 공수교대(3아웃) 제외 — 예측 시작·중지 중에도 투수 교체 가능. 결과 전송 후에는 다음 타자. */
   const canPitcherChange =
-    (isMatchLive &&
-      !showThreeOutsHint &&
-      !anyAdvanceBusy &&
-      !awaitAdvanceAfterResult) ||
-    isAdPlaying;
+    isMatchLive &&
+    !showThreeOutsHint &&
+    !anyAdvanceBusy &&
+    !awaitAdvanceAfterResult &&
+    !isAdPlaying;
   /** 다음 타자 — 3아웃이면 공수교대만; 결과 대기 중에는 다음타자 가능 */
   const canNextBatter =
-    (isMatchLive &&
-      !showThreeOutsHint &&
-      !anyAdvanceBusy &&
-      !blockAdvanceActions) ||
-    isAdPlaying;
+    isMatchLive &&
+    !showThreeOutsHint &&
+    !anyAdvanceBusy &&
+    !blockAdvanceActions &&
+    !isAdPlaying;
   /** 공수 교대 — 결과 대기 중이 아니어야 함(미결과면 먼저 결과) */
   const canSwitchHalf =
-    (isMatchLive && !anyAdvanceBusy && !blockAdvanceActions) || isAdPlaying;
+    isMatchLive && !anyAdvanceBusy && !blockAdvanceActions && !isAdPlaying;
   /** 대타 — 경기중·예측 중이 아닐 때 (현재 타석 교체) */
   const canSetPinchHitter =
     isMatchLive && !anyAdvanceBusy && !predictionRunning && !isAdPlaying;
@@ -1319,39 +1319,48 @@ export default function MatchDetailPage() {
           )}
 
           <div className="manager-match-bottom-grid">
-            <button
-              type="button"
-              onClick={() => (isAdPlaying ? handleStopAd() : handleNextBatter())}
-              disabled={!canNextBatter}
-              data-testid="button-next-batter"
-              className={`manager-match-bottom-btn ${
-                isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#4285F4]"
-              }`}
-            >
-              {isAdPlaying ? "광고\n종료" : advanceBusy === "next" ? "처리중" : "다음\n타자"}
-            </button>
-            <button
-              type="button"
-              onClick={() => (isAdPlaying ? handleStopAd() : handleSwitchHalf())}
-              disabled={!canSwitchHalf}
-              data-testid="button-switch-half"
-              className={`manager-match-bottom-btn ${
-                isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"
-              } ${showThreeOutsHint && !isAdPlaying ? "manager-match-bottom-btn--pulse" : ""}`}
-            >
-              {isAdPlaying ? "광고\n종료" : advanceBusy === "switch" ? "처리중" : "공수\n교대"}
-            </button>
-            <button
-              type="button"
-              onClick={() => (isAdPlaying ? handleStopAd() : handlePitcherChange())}
-              disabled={!canPitcherChange}
-              data-testid="button-pitcher-change"
-              className={`manager-match-bottom-btn ${
-                isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#5C6BC0]"
-              }`}
-            >
-              {isAdPlaying ? "광고\n종료" : advanceBusy === "pitcher" ? "처리중" : "투수\n교체"}
-            </button>
+            {isAdPlaying ? (
+              <button
+                type="button"
+                onClick={() => handleStopAd()}
+                data-testid="button-stop-ad"
+                className="manager-match-bottom-btn manager-match-bottom-btn--ad-stop"
+              >
+                광고 종료
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleNextBatter()}
+                  disabled={!canNextBatter}
+                  data-testid="button-next-batter"
+                  className="manager-match-bottom-btn bg-[#4285F4]"
+                >
+                  {advanceBusy === "next" ? "처리중" : "다음\n타자"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchHalf()}
+                  disabled={!canSwitchHalf}
+                  data-testid="button-switch-half"
+                  className={`manager-match-bottom-btn bg-[#E11936] ${
+                    showThreeOutsHint ? "manager-match-bottom-btn--pulse" : ""
+                  }`}
+                >
+                  {advanceBusy === "switch" ? "처리중" : "공수\n교대"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePitcherChange()}
+                  disabled={!canPitcherChange}
+                  data-testid="button-pitcher-change"
+                  className="manager-match-bottom-btn bg-[#5C6BC0]"
+                >
+                  {advanceBusy === "pitcher" ? "처리중" : "투수\n교체"}
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setPinchEditorOpen(true)}

@@ -108,8 +108,43 @@
   transform-origin: bottom center;
 }
 
-.animate-pyamong-success {
-  animation: pyamong-success-bounce 0.9s ease-in-out infinite;
+@keyframes pyamong-hop-thrice {
+  0%,
+  16.66%,
+  33.33%,
+  50%,
+  100% {
+    transform: translate(-50%, -50%) translateY(0) scale(1);
+  }
+  8.33%,
+  25%,
+  41.66% {
+    transform: translate(-50%, -50%) translateY(-28px) scale(1.06);
+  }
+}
+
+.animate-pyamong-hop {
+  animation: pyamong-hop-thrice 1.35s ease-in-out forwards;
+}
+
+@keyframes pyamong-hop-thrice-home {
+  0%,
+  16.66%,
+  33.33%,
+  50%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  8.33%,
+  25%,
+  41.66% {
+    transform: translateY(-28px) scale(1.06);
+  }
+}
+
+.animate-pyamong-hop-home {
+  animation: pyamong-hop-thrice-home 1.35s ease-in-out forwards;
+  transform-origin: bottom center;
 }
 
 /* 홈런 세리머니: 홈플레이트 발밑 앵커(translate -50%/-100%) */
