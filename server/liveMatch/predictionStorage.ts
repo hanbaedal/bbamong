@@ -774,17 +774,23 @@ function readGamePhase(doc: Record<string, unknown>) {
   };
 }
 
+function hadPinchHitter(doc: Record<string, unknown> | null | undefined): boolean {
+  const pinch = doc?.pinchHitter;
+  return Boolean(pinch && typeof pinch === "object");
+}
+
 /** 다음 타자 — 같은 공수, 그 팀 타순 1~9 순환 */
 export async function advanceToNextBatter(
   matchId: string,
-): Promise<{ match: Match; predictionAutoStopped: boolean }> {
+): Promise<{ match: Match; predictionAutoStopped: boolean; pinchCleared: boolean }> {
   const before = await MatchModel.findOne({ id: matchId }).lean();
   if (!before) throw new Error("경기를 찾을 수 없습니다.");
+  const pinchCleared = hadPinchHitter(before as Record<string, unknown>);
 
   const phase = readGamePhase(before as Record<string, unknown>);
   const nextPhase = computeNextBatterPhase(phase);
 
-  const { match, predictionAutoStopped } = await nextRound(matchId);
+  const { predictionAutoStopped } = await nextRound(matchId);
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },
     { $set: nextPhase, $unset: { pinchHitter: 1 } },
@@ -792,13 +798,13 @@ export async function advanceToNextBatter(
   ).lean();
 
   if (!updated) throw new Error("경기를 찾을 수 없습니다.");
-  return { match: updated as Match, predictionAutoStopped };
+  return { match: updated as Match, predictionAutoStopped, pinchCleared };
 }
 
-/** 투수 교체 — 공수교대 외 언제든(진행 중 라운드는 환불 후 라운드 증가) */
+/** 투수 교체 — 같은 타석 유지. 결과 전송 후에는 다음 타자를 사용 */
 export async function advancePitcherChange(
   matchId: string,
-): Promise<{ match: Match; predictionAutoStopped: boolean; skippedResult: boolean }> {
+): Promise<{ match: Match; predictionAutoStopped: boolean; skippedResult: boolean; pinchCleared: boolean }> {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -814,6 +820,12 @@ export async function advancePitcherChange(
       .session(session)
       .lean();
 
+    if (existing?.isResultSent) {
+      throw new Error(
+        "결과 전송 후에는 다음 타자를 눌러주세요. 같은 타석에서 투수만 바꿀 때 투수교체를 사용하세요.",
+      );
+    }
+
     let predictionAutoStopped = false;
     let skippedResult = false;
 
@@ -826,15 +838,19 @@ export async function advancePitcherChange(
       await RoundStatisticsModel.deleteOne(roundStatsQuery(matchId, currentRound), { session });
     }
 
+    const pinchCleared = hadPinchHitter(before as Record<string, unknown>);
     const updated = await MatchModel.findOneAndUpdate(
       { id: matchId },
-      { currentRound: currentRound + 1, predictionEnabled: false },
+      {
+        $set: { currentRound: currentRound + 1, predictionEnabled: false },
+        $unset: { pinchHitter: 1 },
+      },
       { new: true, session },
     ).lean();
 
     await session.commitTransaction();
     if (!updated) throw new Error("경기를 찾을 수 없습니다.");
-    return { match: updated as Match, predictionAutoStopped, skippedResult };
+    return { match: updated as Match, predictionAutoStopped, skippedResult, pinchCleared };
   } catch (error) {
     await session.abortTransaction();
     throw error;
@@ -846,9 +862,10 @@ export async function advancePitcherChange(
 /** 공수교대 — 초/말 전환, 상대 팀 타순 커서 이어서 */
 export async function advanceInningHalf(
   matchId: string,
-): Promise<{ match: Match; predictionAutoStopped: boolean }> {
+): Promise<{ match: Match; predictionAutoStopped: boolean; pinchCleared: boolean }> {
   const before = await MatchModel.findOne({ id: matchId }).lean();
   if (!before) throw new Error("경기를 찾을 수 없습니다.");
+  const pinchCleared = hadPinchHitter(before as Record<string, unknown>);
 
   const phase = readGamePhase(before as Record<string, unknown>);
   const nextPhase = computeInningHalfSwitch(phase);
@@ -875,7 +892,7 @@ export async function advanceInningHalf(
   ).lean();
 
   if (!updated) throw new Error("경기를 찾을 수 없습니다.");
-  return { match: updated as Match, predictionAutoStopped };
+  return { match: updated as Match, predictionAutoStopped, pinchCleared };
 }
 
 export async function getMatchInfo(matchId: string): Promise<Match | undefined> {

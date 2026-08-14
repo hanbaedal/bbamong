@@ -2,6 +2,7 @@ import type { PinchHitterSnapshot } from "@shared/apiSportsTypes";
 import { formatBattingAverage, formatOps } from "@shared/batterDisplay";
 import { MatchModel } from "../UserStorage/db";
 import { getKboPlayersByIds } from "../kboRoster/kboRosterService";
+import { ensureMatchLiveForOperatorControls } from "../liveMatch/predictionStorage";
 
 export type PinchHitterInput = {
   playerName?: string;
@@ -30,13 +31,11 @@ export async function setMatchPinchHitter(
   matchId: string,
   input: PinchHitterInput,
 ): Promise<PinchHitterSnapshot> {
+  await ensureMatchLiveForOperatorControls(matchId);
   const match = await MatchModel.findOne({ id: matchId })
     .select("id startTime matchStatus batterIndexInHalf inningHalf gameInning")
     .lean();
   if (!match) throw new Error("경기를 찾을 수 없습니다.");
-  if (match.matchStatus !== "ongoing") {
-    throw new Error("경기전에 대타를 설정할 수 없습니다.");
-  }
 
   const rosterId = input.rosterPlayerId?.trim();
   const roster = rosterId ? (await getKboPlayersByIds([rosterId]))[0] : null;

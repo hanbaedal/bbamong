@@ -76,7 +76,16 @@ async function requirePpamongOperatorAuth(req: Request, res: Response): Promise<
     return null;
   }
 
+  await refreshSession("manager", decoded.adminId).catch(() => {});
   return decoded;
+}
+
+function emitPinchCleared(matchId: string, pinchCleared: boolean) {
+  if (!pinchCleared) return;
+  broadcastManager.sendToMatch(matchId, "pinch_hitter_cleared", {
+    matchId,
+    message: "대타가 해제되었습니다.",
+  });
 }
 
 function clearManagerAuthCookies(res: Response): void {
@@ -908,18 +917,11 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
 
-      const { match: updatedMatch, predictionAutoStopped } = await advanceToNextBatter(id);
+      const { match: updatedMatch, pinchCleared } = await advanceToNextBatter(id);
       const overallStats = await getMatchOverallStatistics(id);
       const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
-      if (predictionAutoStopped) {
-        broadcastManager.sendToMatch(id, "prediction_stopped", {
-          matchId: id,
-          currentRound: updatedMatch.currentRound - 1,
-          stoppedRound: updatedMatch.currentRound - 1,
-          message: "투수 교체로 예측이 자동 중지되었습니다.",
-        });
-      }
+      emitPinchCleared(id, pinchCleared);
 
       broadcastManager.clearAdTimer(id);
       if (broadcastManager.isAdPlaying(id)) {
@@ -946,7 +948,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: "다음 타자로 이동했습니다.",
         currentRound: updatedMatch.currentRound,
         gamePhase,
-        predictionAutoStopped,
+        predictionAutoStopped: false,
       });
     } catch (error: unknown) {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
@@ -983,10 +985,12 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: "3아웃입니다. 공수교대를 눌러주세요." });
       }
 
-      const { match: updatedMatch, predictionAutoStopped, skippedResult } =
+      const { match: updatedMatch, predictionAutoStopped, skippedResult, pinchCleared } =
         await advancePitcherChange(id);
       const overallStats = await getMatchOverallStatistics(id);
       const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
+
+      emitPinchCleared(id, pinchCleared);
 
       if (predictionAutoStopped) {
         broadcastManager.sendToMatch(id, "prediction_stopped", {
@@ -1045,6 +1049,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       console.error("Pitcher change error:", error);
       const message = error instanceof Error ? error.message : "투수 교체 처리에 실패했습니다.";
       if (
+        message.includes("다음 타자") ||
         message.includes("결과") ||
         message.includes("예측") ||
         message.includes("경기전에") ||
@@ -1298,18 +1303,11 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
 
-      const { match: updatedMatch, predictionAutoStopped } = await advanceInningHalf(id);
+      const { match: updatedMatch, pinchCleared } = await advanceInningHalf(id);
       const overallStats = await getMatchOverallStatistics(id);
       const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
-      if (predictionAutoStopped) {
-        broadcastManager.sendToMatch(id, "prediction_stopped", {
-          matchId: id,
-          currentRound: updatedMatch.currentRound - 1,
-          stoppedRound: updatedMatch.currentRound - 1,
-          message: "공수교대로 예측이 자동 중지되었습니다.",
-        });
-      }
+      emitPinchCleared(id, pinchCleared);
 
       broadcastManager.clearAdTimer(id);
       if (broadcastManager.isAdPlaying(id)) {
@@ -1344,7 +1342,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         currentRound: updatedMatch.currentRound,
         gamePhase,
         adStarted: true,
-        predictionAutoStopped,
+        predictionAutoStopped: false,
       });
     } catch (error: unknown) {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
