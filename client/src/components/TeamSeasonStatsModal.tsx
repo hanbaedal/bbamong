@@ -67,6 +67,16 @@ export default function TeamSeasonStatsModal({
             <Stat label="평균자책" value={dash(stats?.era)} />
             <Stat label="승차" value={dash(stats?.gamesBehind)} />
           </div>
+          <div className="border-t border-[#333] px-3 py-2.5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full rounded-md bg-[#2A2A2A] py-2 text-sm font-semibold text-white hover:bg-[#333]"
+              data-testid="team-season-stats-close-button"
+            >
+              닫기
+            </button>
+          </div>
         </div>
       </div>
     </>,

@@ -17,19 +17,20 @@ export interface LiveScoreboard {
   awayHits: number;
   homeErrors: number;
   awayErrors: number;
-  /** 볼넷 (Daum ballfour) */
+  /** 볼넷 (다음 스포츠 ballfour) — 네이버에서 가져오지 않음 */
   homeWalks?: number;
   awayWalks?: number;
-  /** 이닝별 득점 (api-sports scores.*.innings) */
+  /** 이닝별 득점 (다음 스포츠 inning CSV) */
   homeInnings?: InningRunsMap;
   awayInnings?: InningRunsMap;
+  /** 다음 스포츠 periodType (T1/B3 …). 예측 공수교대(gameInning)와 별개 */
   inning: number | null;
-  /** API status에서 파싱 — top=초(원정 공격), bottom=말(홈 공격) */
+  /** 다음 스포츠 — top=초(원정 공격), bottom=말(홈 공격) */
   inningHalf?: InningHalf | null;
   inningLabel: string;
   statusShort: string;
   statusLong: string;
-  /** 볼·스트라이크·아웃·루상 주자 (네이버 문자중계) */
+  /** 네이버 문자중계 전용. 점수·이닝과 섞지 않음 */
   situation?: LiveScoreSituation | null;
   syncedAt: string;
 }

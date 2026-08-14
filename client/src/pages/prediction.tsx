@@ -606,7 +606,6 @@ export default function PredictionPage() {
       <LandscapeGameShell
         matchTitle={matchTitle}
         stadiumName={stadiumName}
-        teamNamesLine={matchHeaderLines.teamNamesLine}
         headToHead={matchHeaderLines.headToHead}
         currentBatter={isLivePlay ? currentBatter : null}
         scoreboard={liveScoreboard}
@@ -702,8 +701,12 @@ export default function PredictionPage() {
           open
           teamName={
             teamStatsSide === "away"
-              ? matchHeaderLines.headToHead?.awayName || "원정팀"
-              : matchHeaderLines.headToHead?.homeName || "홈팀"
+              ? matchHeaderLines.headToHead?.awayName ||
+                liveScoreboard?.awayTeamName ||
+                "원정팀"
+              : matchHeaderLines.headToHead?.homeName ||
+                liveScoreboard?.homeTeamName ||
+                "홈팀"
           }
           stats={
             (teamStatsSide === "away"

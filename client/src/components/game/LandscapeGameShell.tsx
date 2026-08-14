@@ -29,7 +29,6 @@ import "./gameAnimations.css";
 interface LandscapeGameShellProps {
   matchTitle: string;
   stadiumName: string;
-  teamNamesLine?: string | null;
   headToHead?: HeadToHeadDisplayParts | null;
   headToHeadLine?: string | null;
   currentBatter?: CurrentBatterPreview | null;
@@ -84,7 +83,6 @@ interface LandscapeGameShellProps {
 export default function LandscapeGameShell({
   matchTitle,
   stadiumName,
-  teamNamesLine,
   headToHead = null,
   headToHeadLine,
   currentBatter = null,
@@ -148,7 +146,17 @@ export default function LandscapeGameShell({
       data-testid="landscape-game-shell"
     >
       <GameFieldViewport>
-        <GameLiveSituationWidget scoreboard={scoreboard} hidden={noticeSuppressed} />
+        <GameLiveSituationWidget
+          scoreboard={scoreboard}
+          hidden={noticeSuppressed}
+          stadiumName={stadiumName}
+          stadiumSelectEnabled={stadiumSelectEnabled}
+          onStadiumNameClick={onStadiumNameClick}
+          awayFallback={headToHead?.awayName}
+          homeFallback={headToHead?.homeName}
+          onAwayTeamClick={onAwayTeamClick}
+          onHomeTeamClick={onHomeTeamClick}
+        />
         {emptyMessage ? (
           <div className="absolute inset-0 flex items-center justify-center z-10 px-6">
             <p className="text-white text-center text-sm drop-shadow-lg">{emptyMessage}</p>
@@ -157,8 +165,6 @@ export default function LandscapeGameShell({
           <>
             <GameTopScorePanel
               matchTitle={matchTitle}
-              stadiumName={stadiumName}
-              teamNamesLine={teamNamesLine}
               headToHead={headToHead}
               headToHeadLine={headToHeadLine}
               currentBatter={currentBatter}
@@ -166,11 +172,7 @@ export default function LandscapeGameShell({
               isLoading={scoreLoading || matchesInitialLoading}
               battingHalf={inningHalf ?? null}
               onMatchTitleClick={onMatchTitleClick}
-              onStadiumNameClick={onStadiumNameClick}
               matchSelectEnabled={matchSelectEnabled}
-              stadiumSelectEnabled={stadiumSelectEnabled}
-              onAwayTeamClick={onAwayTeamClick}
-              onHomeTeamClick={onHomeTeamClick}
             />
 
             {pregameCountdown ? (
