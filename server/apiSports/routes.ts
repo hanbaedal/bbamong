@@ -24,6 +24,7 @@ import type {
   CurrentBatterPreview,
   MatchLineupSnapshot,
   MatchPlayerStatsEntry,
+  PinchHitterSnapshot,
 } from "@shared/apiSportsTypes";
 
 export async function apiSportsRoutes(app: Express): Promise<void> {
@@ -177,9 +178,11 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
           id: match.id,
           startTime: match.startTime,
           batterIndexInHalf: match.batterIndexInHalf ?? 1,
+          inningHalf,
           matchLineup: (match.matchLineup as MatchLineupSnapshot | null) ?? null,
           matchPlayerStats:
             (match.matchPlayerStats as Record<string, MatchPlayerStatsEntry> | null) ?? null,
+          pinchHitter: (match.pinchHitter as PinchHitterSnapshot | null) ?? null,
         },
         inningHalf,
       );

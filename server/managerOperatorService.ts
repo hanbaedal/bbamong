@@ -209,9 +209,6 @@ export async function assertOperatorLoginAllowed(doc: {
   if (isMatchEnded(match.matchStatus)) {
     throw new Error("담당 경기가 종료되어 로그인 정보가 만료되었습니다. 관리자에게 새 정보를 요청하세요.");
   }
-  if (new Date(match.endTime).getTime() < Date.now()) {
-    throw new Error("로그인 정보가 만료되었습니다. 관리자에게 새 정보를 요청하세요.");
-  }
 }
 
 async function invalidateOperatorCredentials(managerId: string): Promise<void> {

@@ -94,7 +94,7 @@ export default function MatchDetailPage() {
   const adStartTimeRef = useRef<number | null>(null);
   const [isStartingPrediction, setIsStartingPrediction] = useState(false);
   const [isStoppingPrediction, setIsStoppingPrediction] = useState(false);
-  const [isNextBatterLoading, setIsNextBatterLoading] = useState(false);
+  const [advanceBusy, setAdvanceBusy] = useState<"next" | "switch" | "pitcher" | null>(null);
   const [startToggleAt, setStartToggleAt] = useState(0);
   const [toggleTick, setToggleTick] = useState(0);
   const [showPredictionDisabledPopup, setShowPredictionDisabledPopup] =
@@ -376,11 +376,38 @@ export default function MatchDetailPage() {
           pongTimeoutRef.current = null;
         }
 
-        // 세션 종료 (4005) 또는 세션 없음 (4006) - 재시도 없이 즉시 로그인 페이지로
-        if (event.code === 4005 || event.code === 4006) {
+        // 세션 종료 (4005) — 사용자 앱과 같이 토큰 갱신 후 재연결. 진짜 만료일 때만 로그아웃.
+        if (event.code === 4005) {
+          if (sessionExpiredRef.current || duplicateLoginRef.current || isUnmountingRef.current) {
+            return;
+          }
+          console.log("[Manager WS] 4005 — 토큰 갱신 후 재연결 시도");
+          reconnectTimeoutRef.current = setTimeout(async () => {
+            if (
+              sessionExpiredRef.current ||
+              duplicateLoginRef.current ||
+              isUnmountingRef.current
+            ) {
+              return;
+            }
+            const ok = await refreshAccessToken();
+            if (!ok) {
+              if (sessionExpiredRef.current) return;
+              sessionExpiredRef.current = true;
+              console.log("[Manager WS] 4005 갱신 실패, 로그인 페이지로 이동");
+              window.dispatchEvent(new CustomEvent("manager-session-expired"));
+              return;
+            }
+            void connectFnRef.current?.();
+          }, 400);
+          return;
+        }
+
+        // 세션 없음 (4006) - 재시도 없이 로그인 페이지로
+        if (event.code === 4006) {
           if (sessionExpiredRef.current) return;
           sessionExpiredRef.current = true;
-          console.log("[Manager WS] 세션 만료/종료, 로그인 페이지로 이동:", event.code);
+          console.log("[Manager WS] 세션 없음, 로그인 페이지로 이동:", event.code);
           window.dispatchEvent(new CustomEvent("manager-session-expired"));
           return;
         }
@@ -726,14 +753,15 @@ export default function MatchDetailPage() {
   const handleAdvanceRound = async (
     path: string,
     failMessage: string,
+    action: "next" | "switch" | "pitcher",
     options?: { onSuccess?: (data: Record<string, unknown>) => void },
   ) => {
-    if (isNextBatterLoading) return;
+    if (advanceBusy) return;
     if (isAdPlaying) {
       handleStopAd();
       return;
     }
-    setIsNextBatterLoading(true);
+    setAdvanceBusy(action);
     try {
       const res = await managerFetch(path, { method: "POST" });
       const data = await res.json();
@@ -751,7 +779,7 @@ export default function MatchDetailPage() {
     } catch {
       toast({ variant: "destructive", description: failMessage });
     } finally {
-      setIsNextBatterLoading(false);
+      setAdvanceBusy(null);
     }
   };
 
@@ -767,6 +795,7 @@ export default function MatchDetailPage() {
     void handleAdvanceRound(
       `/api/manager/control/${id}/round/next-batter`,
       "다음 타자 처리에 실패했습니다.",
+      "next",
     );
   };
 
@@ -775,9 +804,16 @@ export default function MatchDetailPage() {
       toast({ description: "공수교대 시에는 투수 교체 대신 공수 교대를 사용하세요." });
       return;
     }
+    if (Boolean(match?.needsAdvanceAfterResult || match?.isResultSent) && !isAdPlaying) {
+      toast({
+        description: "결과 전송 후에는 다음 타자를 눌러주세요. 같은 타석에서 투수만 바꿀 때 투수교체를 사용하세요.",
+      });
+      return;
+    }
     void handleAdvanceRound(
       `/api/manager/control/${id}/round/pitcher-change`,
       "투수 교체 처리에 실패했습니다.",
+      "pitcher",
       {
         onSuccess: () => {
           setStartToggleAt(0);
@@ -795,6 +831,7 @@ export default function MatchDetailPage() {
     void handleAdvanceRound(
       `/api/manager/control/${id}/round/switch-half`,
       "공수교대 처리에 실패했습니다.",
+      "switch",
       {
         onSuccess: () => {
           threeOutsSpokenRef.current = false;
@@ -960,22 +997,27 @@ export default function MatchDetailPage() {
     Boolean(match.predictionStopTime) &&
     blockAdvance;
   const blockAdvanceActions = blockAdvance || predictionRunning;
-  /** 공수교대(3아웃) 제외 — 예측 시작·중지 중에도 투수 교체 가능 */
+  const anyAdvanceBusy = Boolean(advanceBusy);
+  /** 공수교대(3아웃) 제외 — 예측 시작·중지 중에도 투수 교체 가능. 결과 전송 후에는 다음 타자. */
   const canPitcherChange =
-    (isMatchLive && !showThreeOutsHint && !isNextBatterLoading) || isAdPlaying;
+    (isMatchLive &&
+      !showThreeOutsHint &&
+      !anyAdvanceBusy &&
+      !awaitAdvanceAfterResult) ||
+    isAdPlaying;
   /** 다음 타자 — 3아웃이면 공수교대만; 결과 대기 중에는 다음타자 가능 */
   const canNextBatter =
     (isMatchLive &&
       !showThreeOutsHint &&
-      !isNextBatterLoading &&
+      !anyAdvanceBusy &&
       !blockAdvanceActions) ||
     isAdPlaying;
   /** 공수 교대 — 결과 대기 중이 아니어야 함(미결과면 먼저 결과) */
   const canSwitchHalf =
-    (isMatchLive && !isNextBatterLoading && !blockAdvanceActions) || isAdPlaying;
+    (isMatchLive && !anyAdvanceBusy && !blockAdvanceActions) || isAdPlaying;
   /** 대타 — 경기중·예측 중이 아닐 때 (현재 타석 교체) */
   const canSetPinchHitter =
-    isMatchLive && !isNextBatterLoading && !predictionRunning && !isAdPlaying;
+    isMatchLive && !anyAdvanceBusy && !predictionRunning && !isAdPlaying;
 
   return (
     <div className="manager-match-shell bg-white w-full" data-testid="manager-match-detail">
@@ -1251,9 +1293,11 @@ export default function MatchDetailPage() {
               onClick={() => (isAdPlaying ? handleStopAd() : handleNextBatter())}
               disabled={!canNextBatter}
               data-testid="button-next-batter"
-              className="manager-match-bottom-btn bg-[#4285F4]"
+              className={`manager-match-bottom-btn ${
+                isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#4285F4]"
+              }`}
             >
-              {isNextBatterLoading ? "처리중" : "다음\n타자"}
+              {isAdPlaying ? "광고\n종료" : advanceBusy === "next" ? "처리중" : "다음\n타자"}
             </button>
             <button
               type="button"
@@ -1264,16 +1308,18 @@ export default function MatchDetailPage() {
                 isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#E11936]"
               } ${showThreeOutsHint && !isAdPlaying ? "manager-match-bottom-btn--pulse" : ""}`}
             >
-              {isAdPlaying ? "광고\n종료" : isNextBatterLoading ? "처리중" : "공수\n교대"}
+              {isAdPlaying ? "광고\n종료" : advanceBusy === "switch" ? "처리중" : "공수\n교대"}
             </button>
             <button
               type="button"
               onClick={() => (isAdPlaying ? handleStopAd() : handlePitcherChange())}
               disabled={!canPitcherChange}
               data-testid="button-pitcher-change"
-              className="manager-match-bottom-btn bg-[#5C6BC0]"
+              className={`manager-match-bottom-btn ${
+                isAdPlaying ? "bg-[#2A2D2E]" : "bg-[#5C6BC0]"
+              }`}
             >
-              {isNextBatterLoading ? "처리중" : "투수\n교체"}
+              {isAdPlaying ? "광고\n종료" : advanceBusy === "pitcher" ? "처리중" : "투수\n교체"}
             </button>
             <button
               type="button"
