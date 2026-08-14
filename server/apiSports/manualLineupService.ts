@@ -63,13 +63,16 @@ async function hydrateBatters(batters: ManualBatterInput[]): Promise<ManualBatte
       ...batter,
       rosterPlayerId: player.id,
       name: player.name,
-      battingAverage: player.battingAverage,
+      battingAverage:
+        batter.battingAverage != null && String(batter.battingAverage).trim() !== ""
+          ? batter.battingAverage
+          : player.battingAverage,
       hits: player.hits,
       homeRuns: player.homeRuns,
       rbi: player.rbi,
       ops: player.ops,
-      position: player.position,
-      note: player.note,
+      position: batter.position?.trim() || player.position,
+      note: batter.note?.trim() || player.note,
     };
   });
 }
