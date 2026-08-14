@@ -1169,7 +1169,7 @@ export async function setMatchControlMode(matchId: string, mode: MatchControlMod
   ).lean();
   if (!updated) throw new Error("경기를 찾을 수 없습니다.");
 
-  // auto 복귀 시 즉시 1회 동기화 시도 (다음 실황 또는 api-sports)
+  // auto 복귀 시 즉시 1회 동기화 시도 (다음 스포츠 실황)
   if (mode === "auto") {
     try {
       await refreshMatchLiveScoreFromApi(matchId);

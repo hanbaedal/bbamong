@@ -9,6 +9,29 @@ type RelayCache = { gameId: string; fetchedAt: number; situation: LiveScoreSitua
 const relayCache = new Map<string, RelayCache>();
 const relayInflight = new Map<string, Promise<LiveScoreSituation | null>>();
 
+type NaverLineupPlayer = { pcode?: string | number; name?: string };
+type NaverTextOption = {
+  type?: number;
+  text?: string;
+  pitchNum?: number;
+  pitchResult?: string;
+  speed?: string | number;
+  stuff?: string;
+};
+type NaverRelayPayload = {
+  result?: {
+    textRelayData?: {
+      homeOrAway?: string | number;
+      currentGameState?: Record<string, unknown>;
+      homeLineup?: { batter?: NaverLineupPlayer[] };
+      awayLineup?: { batter?: NaverLineupPlayer[] };
+      homeEntry?: { batter?: NaverLineupPlayer[]; pitcher?: NaverLineupPlayer[] };
+      awayEntry?: { batter?: NaverLineupPlayer[]; pitcher?: NaverLineupPlayer[] };
+      textRelays?: Array<{ title?: string; textOptions?: NaverTextOption[] }>;
+    };
+  };
+};
+
 function toCount(value: unknown): number {
   const n = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(n) || n < 0) return 0;
@@ -20,14 +43,71 @@ function occupied(value: unknown): boolean {
   return raw !== "" && raw !== "0";
 }
 
-function parseSituation(payload: unknown): LiveScoreSituation | null {
-  const state =
-    payload && typeof payload === "object"
-      ? ((payload as {
-          result?: { textRelayData?: { currentGameState?: Record<string, unknown> } };
-        }).result?.textRelayData?.currentGameState ?? null)
+function playerNameByCode(
+  players: NaverLineupPlayer[] | undefined,
+  pcode: string,
+): string | null {
+  if (!pcode) return null;
+  const found = (players ?? []).find((row) => String(row.pcode ?? "") === pcode);
+  const name = found?.name?.trim();
+  return name || null;
+}
+
+function pitchResultKo(result?: string): string {
+  const key = (result ?? "").trim().toUpperCase();
+  if (key === "B") return "볼";
+  if (key === "T" || key === "C") return "스트라이크";
+  if (key === "S") return "헛스윙";
+  if (key === "F") return "파울";
+  if (key === "H") return "타격";
+  return "";
+}
+
+function parseLastPitch(
+  relays: Array<{ title?: string; textOptions?: NaverTextOption[] }> | undefined,
+  batterName?: string | null,
+): {
+  pitchLabel: string | null;
+  pitchDetail: string | null;
+} {
+  let last: NaverTextOption | null = null;
+  for (const relay of [...(relays ?? [])].reverse()) {
+    const pitches = (relay.textOptions ?? []).filter(
+      (option) => option.type === 1 && option.pitchNum != null,
+    );
+    if (pitches.length === 0) continue;
+    const title = (relay.title ?? "").replace(/\s+/g, "");
+    const name = (batterName ?? "").replace(/\s+/g, "");
+    if (name && title && !title.includes(name)) continue;
+    last = pitches[pitches.length - 1] ?? null;
+    break;
+  }
+  if (!last) return { pitchLabel: null, pitchDetail: null };
+  const text = (last.text ?? "").trim();
+  const pitchLabel = /^\d+구\s/.test(text)
+    ? text
+    : last.pitchNum != null
+      ? `${last.pitchNum}구${pitchResultKo(last.pitchResult) ? ` ${pitchResultKo(last.pitchResult)}` : ""}`
       : null;
+  const speed = String(last.speed ?? "").trim();
+  const stuff = (last.stuff ?? "").trim();
+  const pitchDetail = speed && stuff ? `${speed}km/h ${stuff}` : stuff || null;
+  return { pitchLabel, pitchDetail };
+}
+
+export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | null {
+  const relay =
+    payload && typeof payload === "object" ? (payload as NaverRelayPayload).result?.textRelayData : null;
+  const state = relay?.currentGameState;
   if (!state || typeof state !== "object") return null;
+
+  const batterId = String(state.batter ?? "").trim();
+  const battingAway = String(relay?.homeOrAway ?? "0") !== "1";
+  const lineup = battingAway ? relay?.awayLineup?.batter : relay?.homeLineup?.batter;
+  const entry = battingAway ? relay?.awayEntry?.batter : relay?.homeEntry?.batter;
+  const batterName = playerNameByCode(lineup, batterId) || playerNameByCode(entry, batterId);
+  const pitch = parseLastPitch(relay?.textRelays, batterName);
+
   return {
     balls: toCount(state.ball),
     strikes: toCount(state.strike),
@@ -35,6 +115,9 @@ function parseSituation(payload: unknown): LiveScoreSituation | null {
     first: occupied(state.base1),
     second: occupied(state.base2),
     third: occupied(state.base3),
+    batterName,
+    pitchLabel: pitch.pitchLabel,
+    pitchDetail: pitch.pitchDetail,
   };
 }
 
@@ -64,7 +147,7 @@ export async function fetchNaverLiveSituation(cpGameId?: string | null): Promise
     if (!res.ok) {
       throw new Error(`네이버 문자중계 응답 ${res.status}`);
     }
-    const situation = parseSituation(await res.json());
+    const situation = parseNaverLiveSituation(await res.json());
     relayCache.set(gameId, { gameId, fetchedAt: Date.now(), situation });
     return situation;
   })().finally(() => {

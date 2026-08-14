@@ -34,7 +34,7 @@ export interface LiveScoreboard {
   syncedAt: string;
 }
 
-/** 실시간 볼카운트·아웃·주자 */
+/** 실시간 볼카운트·아웃·주자·타석 */
 export interface LiveScoreSituation {
   balls: number;
   strikes: number;
@@ -42,6 +42,11 @@ export interface LiveScoreSituation {
   first: boolean;
   second: boolean;
   third: boolean;
+  batterName?: string | null;
+  /** 예: "1구 볼" */
+  pitchLabel?: string | null;
+  /** 예: "143km/h 체인지업" */
+  pitchDetail?: string | null;
 }
 
 /** 팀 시즌 성적 (다음 스포츠 순위표) */
