@@ -675,31 +675,25 @@ export default function RealtimeGameMonitoring() {
     }
   };
 
-  const handleAdToggle = async () => {
-    if (!selectedMatch || isAdLoading) return;
+  const handleAdStop = async () => {
+    if (!selectedMatch || isAdLoading || !isAdPlaying) return;
 
     setIsAdLoading(true);
     try {
-      const endpoint = isAdPlaying
-        ? `/api/admin/matches/${selectedMatch.id}/ad/stop`
-        : `/api/admin/matches/${selectedMatch.id}/ad/start`;
-
-      const response = await apiRequest("POST", endpoint);
+      const response = await apiRequest(
+        "POST",
+        `/api/admin/matches/${selectedMatch.id}/ad/stop`,
+      );
 
       if (response.ok) {
-        if (isAdPlaying) {
-          setIsAdPlaying(false);
-          setAdElapsedTime(0);
-        } else {
-          setIsAdPlaying(true);
-          setAdElapsedTime(0);
-        }
+        setIsAdPlaying(false);
+        setAdElapsedTime(0);
       }
     } catch (error) {
-      console.error("Error toggling ad:", error);
+      console.error("Error stopping ad:", error);
       toast({
         title: "오류",
-        description: "광고 재생에 실패했습니다.",
+        description: "광고 중지에 실패했습니다.",
         variant: "destructive",
       });
     } finally {
@@ -1031,17 +1025,18 @@ export default function RealtimeGameMonitoring() {
                     </button>
                     <button
                       type="button"
-                      onClick={handleAdToggle}
-                      disabled={isMatchCompleted || isAdLoading}
+                      onClick={handleAdStop}
+                      disabled={isMatchCompleted || isAdLoading || !isAdPlaying}
                       className={cn(
                         "px-2 py-1 text-[11px] rounded font-medium text-white whitespace-nowrap",
-                        isMatchCompleted || isAdLoading
+                        isMatchCompleted || isAdLoading || !isAdPlaying
                           ? "bg-[#BDBDBD] cursor-not-allowed"
                           : "bg-[#81C784] hover:bg-[#66BB6A]",
                       )}
-                      data-testid="button-ad-toggle"
+                      data-testid="button-ad-stop"
+                      title="광고는 운영자 공수교대·투수교체에서만 시작됩니다."
                     >
-                      {isAdPlaying ? `광고 ${formatAdTime(adElapsedTime)}` : "광고"}
+                      {isAdPlaying ? `광고 종료 ${formatAdTime(adElapsedTime)}` : "광고"}
                     </button>
                     <button
                       type="button"

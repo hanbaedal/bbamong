@@ -939,7 +939,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         gamePhase,
         message: `다음 타자(라운드 ${updatedMatch.currentRound})`,
       });
-      // 다음 타자마다 배너 미전송 — 투수교체·공수교대만 배너
+      // 광고 시작 없음 — 전면광고는 공수교대·투수교체만
 
       return res.json({
         success: true,
@@ -1183,6 +1183,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         gamePhase,
         message: `대타 ${pinchHitter.playerName}이(가) 타석에 나옵니다.`,
       });
+      // 광고 시작 없음 — 전면광고는 공수교대·투수교체만
 
       return res.json({
         success: true,
@@ -1362,42 +1363,11 @@ export async function managerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 광고 시작 (매니저 전용)
-  app.post("/api/manager/matches/:id/ad/start", async (req, res) => {
-    try {
-      const decoded = await requirePpamongOperatorAuth(req, res);
-      if (!decoded) return;
-
-      const { id } = req.params;
-      
-      // 경기가 매니저에게 할당되었는지 확인
-      const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
-      if (!match) {
-        return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
-      }
-
-      // 광고 상태 업데이트
-      broadcastManager.setAdPlaying(id, true);
-      const matchState = broadcastManager.getMatchState(id);
-
-      // SSE로 광고 시작 이벤트 전송
-      broadcastManager.sendToMatch(id, "ad_started", {
-        matchId: id,
-        message: "광고가 시작되었습니다.",
-        adStartedAt: matchState.adStartedAt,
-      });
-
-      return res.json({ 
-        success: true, 
-        message: "광고가 시작되었습니다."
-      });
-    } catch (error) {
-      if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
-        return res.status(401).json({ error: "인증이 만료되었습니다." });
-      }
-      console.error("Start ad error:", error);
-      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
-    }
+  // 광고 시작은 공수교대·투수교체만 — 별도 시작 API 없음
+  app.post("/api/manager/matches/:id/ad/start", async (_req, res) => {
+    return res.status(400).json({
+      error: "광고는 공수교대·투수교체에서만 시작됩니다.",
+    });
   });
 
   // 광고 중지 (매니저 전용)
