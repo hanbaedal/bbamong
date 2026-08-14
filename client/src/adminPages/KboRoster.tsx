@@ -77,6 +77,45 @@ export default function KboRosterPage() {
 
   const players = data?.players ?? [];
 
+  const importMutation = useMutation({
+    mutationFn: async (scope: "team" | "all") => {
+      const res = await apiRequest("POST", "/api/admin/kbo-players/import-api-sports", {
+        scope,
+        team,
+        season,
+      });
+      return res.json() as Promise<{
+        message: string;
+        season: number;
+        teams: Array<{
+          team: string;
+          created: number;
+          updated: number;
+          deactivated: number;
+          skippedPitchers: number;
+          fetched: number;
+          error?: string;
+        }>;
+      }>;
+    },
+    onSuccess: (result) => {
+      const created = result.teams.reduce((sum, row) => sum + row.created, 0);
+      const updated = result.teams.reduce((sum, row) => sum + row.updated, 0);
+      const errors = result.teams.filter((row) => row.error);
+      const summary = `${result.season}시즌 ${created}명 추가, ${updated}명 갱신`;
+      toast({
+        variant: errors.length ? "destructive" : "default",
+        description: errors.length
+          ? `${summary}. 일부 팀 실패: ${errors.map((row) => row.team).join(", ")}`
+          : `${summary}. 이름은 API 표기를 따릅니다. 특징은 직접 입력하세요.`,
+      });
+      void queryClient.invalidateQueries({ queryKey: ["/api/admin/kbo-players"] });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", description: error.message });
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -168,7 +207,30 @@ export default function KboRosterPage() {
           <p className="text-xs text-[#888] pb-2">
             {team} {season} · {activeCount}명 활성 / {players.length}명
           </p>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={importMutation.isPending}
+            onClick={() => importMutation.mutate("team")}
+            data-testid="button-import-kbo-team"
+          >
+            {importMutation.isPending ? "불러오는 중…" : "API에서 이 팀 불러오기"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={importMutation.isPending}
+            onClick={() => importMutation.mutate("all")}
+            data-testid="button-import-kbo-all"
+          >
+            10구단 모두 불러오기
+          </Button>
         </div>
+        <p className="text-xs text-[#888] mb-4">
+          API-SPORTS에서 구단 선수단·시즌 타격 기록을 가져와 저장합니다. KBO·구단 공식 사이트는
+          수집하지 않습니다. 이름은 API 표기(영문일 수 있음)이며, 다시 불러와도 직접 고친 이름·특징은
+          유지됩니다. 타격 기록이 없는 투수는 건너뜁니다.
+        </p>
 
         <form
           className="rounded-lg border border-[#E9E9E9] p-3 mb-4 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2 items-end"

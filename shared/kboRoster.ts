@@ -20,6 +20,72 @@ export function isKboBatterPosition(value: string): value is KboBatterPosition {
   return (KBO_BATTER_POSITIONS as readonly string[]).includes(value);
 }
 
+const API_POSITION_ALIASES: Record<string, KboBatterPosition> = {
+  p: "투수",
+  pitcher: "투수",
+  sp: "투수",
+  rp: "투수",
+  투수: "투수",
+  c: "포수",
+  catcher: "포수",
+  포수: "포수",
+  "1b": "1루수",
+  "1루": "1루수",
+  "1루수": "1루수",
+  firstbase: "1루수",
+  "first base": "1루수",
+  "first baseman": "1루수",
+  "2b": "2루수",
+  "2루": "2루수",
+  "2루수": "2루수",
+  secondbase: "2루수",
+  "second base": "2루수",
+  "second baseman": "2루수",
+  "3b": "3루수",
+  "3루": "3루수",
+  "3루수": "3루수",
+  thirdbase: "3루수",
+  "third base": "3루수",
+  "third baseman": "3루수",
+  ss: "유격수",
+  shortstop: "유격수",
+  유격수: "유격수",
+  lf: "좌익수",
+  "left field": "좌익수",
+  "left fielder": "좌익수",
+  leftfielder: "좌익수",
+  좌익수: "좌익수",
+  좌익: "좌익수",
+  cf: "중견수",
+  "center field": "중견수",
+  "center fielder": "중견수",
+  centerfielder: "중견수",
+  중견수: "중견수",
+  중견: "중견수",
+  rf: "우익수",
+  "right field": "우익수",
+  "right fielder": "우익수",
+  rightfielder: "우익수",
+  우익수: "우익수",
+  우익: "우익수",
+  of: "좌익수",
+  outfield: "좌익수",
+  outfielder: "좌익수",
+  dh: "지명타자",
+  "designated hitter": "지명타자",
+  designatedhitter: "지명타자",
+  지명타자: "지명타자",
+  지명: "지명타자",
+  if: "지명타자",
+  infielder: "지명타자",
+};
+
+export function mapApiPositionToKbo(raw?: string | null): KboBatterPosition {
+  const key = (raw ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!key) return "지명타자";
+  return API_POSITION_ALIASES[key] ?? API_POSITION_ALIASES[key.replace(/\./g, "")] ?? "지명타자";
+}
+
 /** 관리자 선수단 + 운영자 선택 목록 */
 export interface KboRosterPlayer {
   id: string;
@@ -35,6 +101,7 @@ export interface KboRosterPlayer {
   /** 특징 */
   note: string;
   active: boolean;
+  apiSportsPlayerId?: number | null;
   updatedAt: string;
 }
 

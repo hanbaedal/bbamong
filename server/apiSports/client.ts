@@ -48,7 +48,16 @@ function getApiKey(): string {
   return key;
 }
 
-async function apiSportsFetch<T>(path: string, params: Record<string, string | number>): Promise<T> {
+type ApiSportsEnvelope<T> = {
+  errors?: unknown;
+  response?: T;
+  paging?: { current?: number; total?: number };
+};
+
+async function apiSportsFetchEnvelope<T>(
+  path: string,
+  params: Record<string, string | number>,
+): Promise<{ response: T; paging: { current: number; total: number } }> {
   const started = Date.now();
   const url = new URL(`${API_SPORTS_BASE_URL}${path}`);
   for (const [key, value] of Object.entries(params)) {
@@ -69,7 +78,7 @@ async function apiSportsFetch<T>(path: string, params: Record<string, string | n
     throw new Error(message);
   }
 
-  const body = (await response.json()) as { errors?: unknown; response?: T };
+  const body = (await response.json()) as ApiSportsEnvelope<T>;
   if (body.errors && Object.keys(body.errors as object).length > 0) {
     const message = `API-SPORTS error: ${JSON.stringify(body.errors)}`;
     // 미제공 엔드포인트는 헬스 lastError를 오염시키지 않음
@@ -80,7 +89,20 @@ async function apiSportsFetch<T>(path: string, params: Record<string, string | n
   }
 
   markApiSportsSuccess(latencyMs);
-  return body.response as T;
+  const current = Number(body.paging?.current);
+  const total = Number(body.paging?.total);
+  return {
+    response: body.response as T,
+    paging: {
+      current: Number.isFinite(current) && current > 0 ? current : 1,
+      total: Number.isFinite(total) && total > 0 ? total : 1,
+    },
+  };
+}
+
+async function apiSportsFetch<T>(path: string, params: Record<string, string | number>): Promise<T> {
+  const { response } = await apiSportsFetchEnvelope<T>(path, params);
+  return response;
 }
 
 /** 라인업·통계 등 선택 엔드포인트 — 실패 시 null (quota/404/미제공) */
@@ -233,9 +255,64 @@ export async function fetchGameStatistics(gameId: number): Promise<unknown | nul
   return null;
 }
 
-/** 팀 로스터 + 시즌 통계 */
+/** 리그 구단 목록 */
+export async function fetchLeagueTeams(
+  leagueId: number,
+  season: number,
+): Promise<Array<{ id: number; name: string }>> {
+  const rows = await apiSportsFetchOptional<unknown[]>("/teams", { league: leagueId, season });
+  if (!rows?.length) return [];
+
+  const teams: Array<{ id: number; name: string }> = [];
+  for (const item of rows) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const nested = row.team && typeof row.team === "object" ? (row.team as Record<string, unknown>) : row;
+    const idRaw = nested.id;
+    const nameRaw = nested.name;
+    const id = typeof idRaw === "number" ? idRaw : Number.parseInt(String(idRaw ?? ""), 10);
+    const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
+    if (!Number.isFinite(id) || id <= 0 || !name) continue;
+    teams.push({ id, name });
+  }
+  return teams;
+}
+
+/** 팀 로스터 + 시즌 통계 (1페이지 — 라인업 조회용) */
 export async function fetchTeamPlayers(teamId: number, season: number): Promise<unknown[] | null> {
   return apiSportsFetchOptional<unknown[]>("/players", { team: teamId, season });
+}
+
+/** 팀 로스터 전체 페이지 (관리자 선수단 가져오기 — 구단당 수 회) */
+export async function fetchTeamPlayersAllPages(
+  teamId: number,
+  season: number,
+): Promise<unknown[] | null> {
+  if (isEndpointCircuitOpen("/players")) return null;
+
+  const all: unknown[] = [];
+  const maxPages = 8;
+  try {
+    for (let page = 1; page <= maxPages; page++) {
+      const { response, paging } = await apiSportsFetchEnvelope<unknown[]>("/players", {
+        team: teamId,
+        season,
+        page,
+      });
+      const rows = Array.isArray(response) ? response : [];
+      all.push(...rows);
+      if (page >= paging.total || rows.length === 0) break;
+    }
+    return all;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (isMissingEndpointError(message)) {
+      openEndpointCircuit("/players");
+      return all.length ? all : null;
+    }
+    console.warn(`[ApiSports] optional /players skipped: ${message}`);
+    return all.length ? all : null;
+  }
 }
 
 /** 선수 시즌 통계 */

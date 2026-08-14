@@ -705,6 +705,7 @@ const kboPlayerSchema = new Schema(
     ops: { type: String, default: null },
     note: { type: String, default: "" },
     active: { type: Boolean, default: true },
+    apiSportsPlayerId: { type: Number, default: null },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
   },
@@ -712,6 +713,14 @@ const kboPlayerSchema = new Schema(
 );
 kboPlayerSchema.index({ team: 1, season: 1, active: 1 });
 kboPlayerSchema.index({ team: 1, season: 1, name: 1 }, { unique: true });
+kboPlayerSchema.index(
+  { season: 1, apiSportsPlayerId: 1 },
+  {
+    unique: true,
+    name: "season_apiSportsPlayerId_partial",
+    partialFilterExpression: { apiSportsPlayerId: { $gt: 0 } },
+  },
+);
 export const KboPlayerModel = mongoose.model("KboPlayer", kboPlayerSchema);
 
 export type MongoUser = InferSchemaType<typeof userSchema>;

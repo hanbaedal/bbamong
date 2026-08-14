@@ -9,6 +9,7 @@ import {
   listKboPlayers,
   updateKboPlayer,
 } from "../kboRoster/kboRosterService";
+import { importKboRosterFromApiSports } from "../kboRoster/importFromApiSports";
 
 const writeSchema = z.object({
   team: z.string().refine(isKboTeamShort, "KBO 10구단 약칭이 아닙니다."),
@@ -74,6 +75,29 @@ export function adminKboRosterRoutes(app: Express) {
       return res.json({ message: "선수를 삭제했습니다." });
     } catch (error) {
       const message = error instanceof Error ? error.message : "선수 삭제에 실패했습니다.";
+      return res.status(400).json({ error: message });
+    }
+  });
+
+  app.post("/api/admin/kbo-players/import-api-sports", adminAuthMiddleware, async (req, res) => {
+    try {
+      const body = z
+        .object({
+          scope: z.enum(["team", "all"]).default("team"),
+          team: z.string().optional(),
+          season: z.number().int().min(2000).max(2100).optional(),
+        })
+        .parse(req.body ?? {});
+      const result = await importKboRosterFromApiSports(body);
+      return res.json({
+        message: "API-SPORTS 선수단을 저장했습니다.",
+        ...result,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "입력 값이 올바르지 않습니다." });
+      }
+      const message = error instanceof Error ? error.message : "선수단 가져오기에 실패했습니다.";
       return res.status(400).json({ error: message });
     }
   });
