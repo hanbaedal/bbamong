@@ -104,6 +104,7 @@ export function useLandscapePredictionFlow(
   /** 결과 연출 중에 prediction_started가 온 경우, 연출 종료 후 picking으로 */
   const wantPickingAfterResultRef = useRef(false);
   const resultDismissScheduledRef = useRef(false);
+  const successRunTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onMatchEndedRef = useRef(options?.onMatchEnded);
   onMatchEndedRef.current = options?.onMatchEnded;
 
@@ -134,6 +135,26 @@ export function useLandscapePredictionFlow(
     setResultCountdown(null);
   }, []);
 
+  const clearSuccessRunTimer = useCallback(() => {
+    if (successRunTimerRef.current) {
+      clearTimeout(successRunTimerRef.current);
+      successRunTimerRef.current = null;
+    }
+  }, []);
+
+  const beginSuccessPresentation = useCallback(() => {
+    clearSuccessRunTimer();
+    setScreenPhase("success_announce");
+    successRunTimerRef.current = setTimeout(() => {
+      successRunTimerRef.current = null;
+      if (screenPhaseRef.current === "success_running" || screenPhaseRef.current === "success_celebrate") {
+        return;
+      }
+      if (!resultShownRef.current) return;
+      setScreenPhase("success_running");
+    }, SUCCESS_ANNOUNCE_MS);
+  }, [clearSuccessRunTimer]);
+
   const clearEventTimers = useCallback(() => {
     if (eventTimerRef.current) {
       clearTimeout(eventTimerRef.current);
@@ -149,6 +170,7 @@ export function useLandscapePredictionFlow(
   const goToWaitStart = useCallback(() => {
     clearResultTimers();
     clearEventTimers();
+    clearSuccessRunTimer();
     pendingRoundNextRef.current = null;
     pendingInterstitialRef.current = false;
     wantPickingAfterResultRef.current = false;
@@ -165,7 +187,7 @@ export function useLandscapePredictionFlow(
     setPredictionEnabled(false);
     setEventSubtitle("");
     setScreenPhase("wait_start");
-  }, [clearResultTimers, clearEventTimers]);
+  }, [clearResultTimers, clearEventTimers, clearSuccessRunTimer]);
 
   const handleMatchEnded = useCallback(() => {
     if (matchEndedRef.current) return;
@@ -359,6 +381,7 @@ export function useLandscapePredictionFlow(
     (pending: PendingRoundNext) => {
       clearResultTimers();
       clearEventTimers();
+      clearSuccessRunTimer();
       clearResultPresentationState();
       setEventSubtitle("");
 
@@ -391,6 +414,7 @@ export function useLandscapePredictionFlow(
     [
       clearResultTimers,
       clearEventTimers,
+      clearSuccessRunTimer,
       clearResultPresentationState,
       scheduleEventDismiss,
       flushPendingInterstitial,
@@ -403,6 +427,7 @@ export function useLandscapePredictionFlow(
       acknowledgedResultIdRef.current = lastResultPredictionIdRef.current;
     }
     clearResultTimers();
+    clearSuccessRunTimer();
 
     const pending = pendingRoundNextRef.current;
     pendingRoundNextRef.current = null;
@@ -415,7 +440,7 @@ export function useLandscapePredictionFlow(
     const goPicking = wantPickingAfterResultRef.current || predictionEnabledRef.current;
     wantPickingAfterResultRef.current = false;
     setScreenPhase(goPicking ? "picking" : "wait_start");
-  }, [clearResultTimers, clearResultPresentationState, applyRoundNextAdvance]);
+  }, [clearResultTimers, clearSuccessRunTimer, clearResultPresentationState, applyRoundNextAdvance]);
 
   const scheduleResultDismiss = useCallback(
     (ms: number) => {
@@ -491,7 +516,8 @@ export function useLandscapePredictionFlow(
           resultShownRef.current = true;
           setPredictionResult(data.status as PredictionResult);
           setLastWonAmount(data.wonAmount ?? 0);
-          setScreenPhase(data.status === "success" ? "success_announce" : "fail");
+          if (data.status === "success") beginSuccessPresentation();
+          else setScreenPhase("fail");
           activeBetRef.current = null;
         } else {
           if (presenting) return;
@@ -518,7 +544,7 @@ export function useLandscapePredictionFlow(
         setScreenPhase("wait_start");
       }
     },
-    [rememberActiveBet],
+    [rememberActiveBet, beginSuccessPresentation],
   );
 
   const checkPredictionStatus = useCallback(async () => {
@@ -611,7 +637,8 @@ export function useLandscapePredictionFlow(
             if (user && data.status === "success" && data.wonAmount > 0) {
               setUser({ ...user, points: (user.points ?? 0) + data.wonAmount });
             }
-            setScreenPhase(data.status === "success" ? "success_announce" : "fail");
+          if (data.status === "success") beginSuccessPresentation();
+          else setScreenPhase("fail");
           }
         } catch {
           /* ignore */
@@ -620,17 +647,11 @@ export function useLandscapePredictionFlow(
     }, 2000);
 
     return () => clearInterval(id);
-  }, [screenPhase, predictionResult, selectedMatch?.id, user, setUser]);
+  }, [screenPhase, predictionResult, selectedMatch?.id, user, setUser, beginSuccessPresentation]);
 
   const handleRunComplete = useCallback(() => {
     setScreenPhase("success_celebrate");
   }, []);
-
-  useEffect(() => {
-    if (screenPhase !== "success_announce") return;
-    const t = setTimeout(() => setScreenPhase("success_running"), SUCCESS_ANNOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [screenPhase]);
 
   useEffect(() => {
     if (screenPhase !== "success_celebrate" && screenPhase !== "fail") {
@@ -664,18 +685,20 @@ export function useLandscapePredictionFlow(
       setSelectedPrediction(bet.prediction);
       activeBetRef.current = null;
 
-      if (isSuccess && user) {
-        const won = data.wonAmount ?? calculateFixedOddsPayout(bet.amount, bet.prediction);
-        setLastWonAmount(won);
-        if (won > 0) setUser({ ...user, points: (user.points ?? 0) + won });
-        setScreenPhase("success_announce");
+      if (isSuccess) {
+        if (user) {
+          const won = data.wonAmount ?? calculateFixedOddsPayout(bet.amount, bet.prediction);
+          setLastWonAmount(won);
+          if (won > 0) setUser({ ...user, points: (user.points ?? 0) + won });
+        }
+        beginSuccessPresentation();
       } else {
         setScreenPhase("fail");
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
     },
-    [user, setUser, isWaitingForResult, checkPredictionStatus],
+    [user, setUser, isWaitingForResult, checkPredictionStatus, beginSuccessPresentation],
   );
 
   const wsHandlers: WSEventHandlers = {
@@ -766,7 +789,8 @@ export function useLandscapePredictionFlow(
         resultShownRef.current = true;
         setPredictionResult(data.status);
         setLastWonAmount(data.wonAmount ?? 0);
-        setScreenPhase(data.status === "success" ? "success_announce" : "fail");
+        if (data.status === "success") beginSuccessPresentation();
+        else setScreenPhase("fail");
         return;
       }
 
@@ -777,7 +801,7 @@ export function useLandscapePredictionFlow(
         amount: data.amount ?? DEFAULT_BET_AMOUNT,
       });
       setScreenPhase("wait_result");
-    }, [rememberActiveBet]),
+    }, [rememberActiveBet, beginSuccessPresentation]),
 
     onPredictionCancelled: useCallback(
       (data: { message?: string }) => {

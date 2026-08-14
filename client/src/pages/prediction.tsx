@@ -220,7 +220,7 @@ export default function PredictionPage() {
     };
   }, [gameDayPhase, displayMatch, nowMs]);
 
-  const flowMatch = gameDayPhase === "live" ? selectedMatch : null;
+  const flowMatch = selectedMatch;
 
   const { data: currentSideBets } = useQuery<SideBetsMeResponse>({
     queryKey: ["/api/live-match/matches", displayMatch?.id, "side-bets/me"],
