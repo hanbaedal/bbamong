@@ -32,6 +32,12 @@ export function buildAdminMenuSections(isSuperAdmin: boolean): AdminMenuSection[
           iconKey: "adMatchIcon",
         },
         {
+          id: "today-lineups",
+          label: "오늘의 선발명단",
+          path: "/admin/today-lineups",
+          iconKey: "adMatchIcon",
+        },
+        {
           id: "basic-work-management",
           label: "업무 관리",
           iconKey: "adTermIcon",
