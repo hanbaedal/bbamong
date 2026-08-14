@@ -11,8 +11,6 @@ export const GAME_HOME_TEAM_COLOR = "#1A6DFF";
 
 interface GameTopScorePanelProps {
   matchTitle: string;
-  stadiumName: string;
-  teamNamesLine?: string | null;
   headToHead?: HeadToHeadDisplayParts | null;
   /** @deprecated 문자열 폴백 — headToHead 우선 */
   headToHeadLine?: string | null;
@@ -21,14 +19,10 @@ interface GameTopScorePanelProps {
   isLoading?: boolean;
   battingHalf?: InningHalf | null;
   onMatchTitleClick?: () => void;
-  onStadiumNameClick?: () => void;
   matchSelectEnabled?: boolean;
-  stadiumSelectEnabled?: boolean;
-  onAwayTeamClick?: () => void;
-  onHomeTeamClick?: () => void;
 }
 
-const titleShadow = "drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]";
+const titleShadow = "drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]";
 const clickable =
   "hover:text-[#CDFF00] transition-colors underline-offset-2 hover:underline cursor-pointer";
 
@@ -52,7 +46,7 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
 
   return (
     <div
-      className="mt-0.5 min-w-[9.5rem] max-w-[11.5rem] rounded-md bg-black/55 px-1.5 py-1 text-[10px] sm:text-xs leading-[1.25] text-white/95 backdrop-blur-[2px] pointer-events-none"
+      className="mt-0.5 w-[11.5rem] rounded-md bg-black/55 px-1.5 py-1 text-[10px] sm:text-xs leading-[1.25] text-white/95 backdrop-blur-[2px] pointer-events-none"
       data-testid="current-batter-stats"
     >
       {batter.isPinchHitter ? (
@@ -65,10 +59,10 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
       ) : null}
       <p className="truncate font-semibold">{nameValue}</p>
       <p className="mb-0.5 text-white/70">{batter.season} 시즌</p>
-      <div className="grid grid-cols-4 gap-x-1 gap-y-0.5">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
         {cells.map(({ label, value }) => (
-          <div key={label} className="min-w-0">
-            <p className="text-[9px] text-white/65 leading-none">{label}</p>
+          <div key={label} className="flex min-w-0 items-baseline justify-between gap-2">
+            <p className="shrink-0 text-[9px] text-white/65 leading-none">{label}</p>
             <p className="truncate font-semibold tabular-nums">{value}</p>
           </div>
         ))}
@@ -84,7 +78,7 @@ function HeadToHeadLine({ parts }: { parts: HeadToHeadDisplayParts }) {
   if (parts.empty) {
     return (
       <p
-        className={`mt-0.5 text-[10px] sm:text-xs font-normal text-white/80 whitespace-nowrap ${titleShadow}`}
+        className={`mt-0.5 text-right text-[10px] sm:text-[11px] font-normal text-white/80 whitespace-nowrap ${titleShadow}`}
         data-testid="game-match-head-to-head"
       >
         {parts.season} 상대전적 —
@@ -94,7 +88,7 @@ function HeadToHeadLine({ parts }: { parts: HeadToHeadDisplayParts }) {
 
   return (
     <p
-      className={`mt-0.5 text-[10px] sm:text-xs font-semibold whitespace-nowrap ${titleShadow}`}
+      className={`mt-0.5 text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap ${titleShadow}`}
       data-testid="game-match-head-to-head"
     >
       <span className="text-white/85 font-normal">{parts.season} 상대전적 </span>
@@ -111,8 +105,6 @@ function HeadToHeadLine({ parts }: { parts: HeadToHeadDisplayParts }) {
 
 export default function GameTopScorePanel({
   matchTitle,
-  stadiumName,
-  teamNamesLine,
   headToHead = null,
   headToHeadLine,
   scoreboard,
@@ -120,18 +112,12 @@ export default function GameTopScorePanel({
   isLoading,
   battingHalf = null,
   onMatchTitleClick,
-  onStadiumNameClick,
   matchSelectEnabled = false,
-  stadiumSelectEnabled = false,
-  onAwayTeamClick,
-  onHomeTeamClick,
 }: GameTopScorePanelProps) {
-  const displayStadiumName = stadiumName.trim() || null;
   return (
     <>
-      {/* 상단 중앙: 제 N경기 + 경기장 이름 — 바깥(좌)으로 약 1글자 */}
       <div
-        className="absolute top-2 sm:top-2.5 left-1/2 z-20 text-center text-white pointer-events-none max-w-[50%] -translate-x-[calc(50%+1ch)]"
+        className="absolute top-2 sm:top-2.5 left-1/2 z-20 -translate-x-1/2 text-center text-white pointer-events-none max-w-[46%]"
         data-testid="game-match-header"
       >
         {matchSelectEnabled && onMatchTitleClick ? (
@@ -151,82 +137,8 @@ export default function GameTopScorePanel({
             {matchTitle}
           </p>
         )}
-
-        {displayStadiumName ? (
-          matchSelectEnabled && onStadiumNameClick ? (
-            <button
-              type="button"
-              onClick={onStadiumNameClick}
-              className={`pointer-events-auto block w-full mt-0.5 text-xs sm:text-sm font-normal text-white whitespace-nowrap ${titleShadow} ${clickable}`}
-              data-testid="game-stadium-name"
-            >
-              {displayStadiumName}
-            </button>
-          ) : (
-            <p
-              className={`mt-0.5 text-xs sm:text-sm font-normal text-white whitespace-nowrap ${titleShadow}`}
-              data-testid="game-stadium-name"
-            >
-              {displayStadiumName}
-            </p>
-          )
-        ) : null}
-
-        {headToHead ? (
-          <p
-            className={`mt-0.5 text-xs sm:text-sm font-semibold whitespace-nowrap ${titleShadow}`}
-            data-testid="game-match-teams"
-          >
-            {onAwayTeamClick ? (
-              <button
-                type="button"
-                onClick={onAwayTeamClick}
-                className={`pointer-events-auto ${clickable}`}
-                style={{ color: GAME_AWAY_TEAM_COLOR }}
-                data-testid="game-team-away"
-              >
-                {headToHead.awayName}
-              </button>
-            ) : (
-              <span style={{ color: GAME_AWAY_TEAM_COLOR }}>{headToHead.awayName}</span>
-            )}
-            <span className="text-white/70 font-normal"> : </span>
-            {onHomeTeamClick ? (
-              <button
-                type="button"
-                onClick={onHomeTeamClick}
-                className={`pointer-events-auto ${clickable}`}
-                style={{ color: GAME_HOME_TEAM_COLOR }}
-                data-testid="game-team-home"
-              >
-                {headToHead.homeName}
-              </button>
-            ) : (
-              <span style={{ color: GAME_HOME_TEAM_COLOR }}>{headToHead.homeName}</span>
-            )}
-          </p>
-        ) : teamNamesLine ? (
-          <p
-            className={`mt-0.5 text-xs sm:text-sm font-normal text-white/95 whitespace-nowrap ${titleShadow}`}
-            data-testid="game-match-teams"
-          >
-            {teamNamesLine}
-          </p>
-        ) : null}
-
-        {headToHead ? (
-          <HeadToHeadLine parts={headToHead} />
-        ) : headToHeadLine ? (
-          <p
-            className={`mt-0.5 text-[10px] sm:text-xs font-normal text-white/80 whitespace-nowrap ${titleShadow}`}
-            data-testid="game-match-head-to-head"
-          >
-            {headToHeadLine}
-          </p>
-        ) : null}
       </div>
 
-      {/* 우측: 스코어보드 + 현재 타자 기록 */}
       <div
         className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-0 pointer-events-none ${scorePanelTop}`}
         data-testid="game-top-score-panel"
@@ -243,6 +155,16 @@ export default function GameTopScorePanel({
             />
           )}
         </div>
+        {!isLoading && headToHead ? (
+          <HeadToHeadLine parts={headToHead} />
+        ) : !isLoading && headToHeadLine ? (
+          <p
+            className={`mt-0.5 text-right text-[10px] sm:text-[11px] font-normal text-white/80 whitespace-nowrap ${titleShadow}`}
+            data-testid="game-match-head-to-head"
+          >
+            {headToHeadLine}
+          </p>
+        ) : null}
         {!isLoading && currentBatter ? (
           <div className="origin-top-right mt-0.5">
             <BatterStatsBlock batter={currentBatter} />

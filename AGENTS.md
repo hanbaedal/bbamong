@@ -42,9 +42,9 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 ### Live scoreboard (Daum vs operator)
 - KBO 일정 자동 등록·실시간 스코어는 **다음 스포츠**만 쓴다 (득점·안타·실책·볼넷·이닝표·팀 로고). 볼·스트라이크·아웃·루상 주자·상대전적은 네이버(문자중계 `relay` / preview `seasonVsResult`). **API-SPORTS는 사용하지 않는다.**
 - 선발명단은 관리자 「오늘의 선발명단」(다음+네이버) 또는 운영자 수동 타순. API-SPORTS 라인업 폴백 없음.
-- 예측 화면 좌상단 공지 배지 자리에는 **경기 진행 위젯**(이닝 초/말, 팀 점수, 다이아몬드, B-S / OUT, 타자·구종)을 둔다. 배경은 투명. 공지사항은 설정 메뉴에서만 본다.
-- 팀명 클릭 → 다음 스포츠 시즌 성적 모달 (순위·승무패·승률·타율·평균자책·승차). 운영자 타순 입력은 팀명 옆 「타순」 버튼.
-- 예측 개인기록은 타율·홈런·안타·타점·득점·도루·출루율·OPS.
+- 예측 화면 좌상단 공지 배지 자리에는 **경기 진행 위젯**(이닝 초/말, 팀 점수, 구장명, 다이아몬드, B-S / OUT, 타자·구종)을 둔다. 배경은 투명. 가운데 헤더는 `제 N경기`만. 공지사항은 설정 메뉴에서만 본다.
+- 왼쪽 위젯 팀명 클릭 → 화면 가운데 시즌 성적 모달 (순위·승무패·승률·타율·평균자책·승차, 닫기). 구장은 왼쪽 팀명 하단(클릭 시 경기장 선택). 상대전적은 우측 스코어보드 바로 아래. 운영자 타순 입력은 팀명 옆 「타순」 버튼.
+- 예측 개인기록은 스코어보드·상대전적 아래 4행 2열(타율·홈런 / 안타·타점 / 득점·도루 / 출루율·OPS).
 - 예측 안타/아웃·공수교대는 운영자 조작이다. 다음 점수는 **스코어보드 표시**만 채운다. “N회 초/말” 표시는 운영자 `gameInning` / `inningHalf`를 우선한다 (`shared/matchPhaseDisplay.ts`). 진행 위젯은 TV 실황(다음/네이버)을 쓴다.
 - During `matchStatus === "ongoing"` and `controlMode === "auto"`, live polls **do overwrite** `liveScoreboard` scores/inning tables. `controlMode === "manual"` (운영자/관리자 점수 보정) keeps operator scores until they turn auto back on. 주자·볼카운트는 manual이어도 실황을 갱신한다.
 - Operators/admins can PATCH scores (`/api/manager/matches/:id/scoreboard`, `/api/admin/matches/:id/scoreboard`) which sets `controlMode: "manual"`. `lockManual: false` (또는 관리자 「수동」 끄기) returns to auto.
