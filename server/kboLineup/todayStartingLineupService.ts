@@ -4,6 +4,7 @@ import { listKboPlayers, resolveMatchTeamShort } from "../kboRoster/kboRosterSer
 import { MatchModel } from "../UserStorage/db";
 import { getKstDateString, getKstDayRange } from "../utils/dateUtils";
 import { fetchTodayStartingLineupGames } from "./fetchTodayStartingLineups";
+import { persistMatchDaumGameId } from "../daumLive/daumLiveScoreService";
 import type {
   TodayLineupApplyResult,
   TodayLineupBatter,
@@ -231,6 +232,7 @@ export async function applyTodayStartingLineups(input: {
         away,
         side,
       });
+      await persistMatchDaumGameId(game.ppamongMatchId, game.daumGameId);
       results.push({
         daumGameId: game.daumGameId,
         matchId: game.ppamongMatchId,

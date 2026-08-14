@@ -1,32 +1,16 @@
 import { mapApiPositionToKbo } from "@shared/kboRoster";
-import { resolveKboTeamShortName } from "@shared/kboHomeStadium";
 import { formatBattingAverage } from "@shared/batterDisplay";
 import type { TodayLineupBatter, TodayLineupGame, TodayLineupSide } from "@shared/todayStartingLineup";
+import {
+  DAUM_USER_AGENT,
+  daumTeamName,
+  daumTeamShort,
+  fetchDaumKboGameList,
+  type DaumTeamBlock,
+} from "../daumLive/daumHermesClient";
 
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const DAUM_LIST_URL = "https://sports.daum.net/prx/hermes/api/game/list.json";
 const NAVER_GAME_BASE = "https://api-gw.sports.naver.com/schedule/games";
 const FETCH_TIMEOUT_MS = 20_000;
-
-type DaumTeamBlock = {
-  team?: {
-    nameKo?: string;
-    name?: string;
-    shortNameKo?: string;
-    shortName?: string;
-  };
-};
-
-type DaumGame = {
-  gameId?: number;
-  cpGameId?: string;
-  startTime?: string;
-  gameStatus?: string;
-  gameUrl?: string;
-  home?: DaumTeamBlock;
-  away?: DaumTeamBlock;
-};
 
 type NaverBatter = {
   batOrder?: number;
@@ -49,7 +33,7 @@ function compactName(name: string): string {
 async function fetchJson(url: string, referer: string): Promise<unknown> {
   const res = await fetch(url, {
     headers: {
-      "User-Agent": USER_AGENT,
+      "User-Agent": DAUM_USER_AGENT,
       Accept: "application/json",
       "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
       Referer: referer,
@@ -69,10 +53,8 @@ function formatStartTime(raw?: string): string {
 }
 
 function teamFromDaum(block?: DaumTeamBlock): { teamShort: string; teamName: string } {
-  const name = block?.team?.nameKo || block?.team?.name || "";
-  const shortRaw = block?.team?.shortNameKo || block?.team?.shortName || name;
-  const teamShort = resolveKboTeamShortName(shortRaw) || resolveKboTeamShortName(name) || shortRaw.trim();
-  return { teamShort, teamName: name.trim() || teamShort };
+  const teamShort = daumTeamShort(block);
+  return { teamShort, teamName: daumTeamName(block) || teamShort };
 }
 
 function toBatter(input: {
@@ -222,14 +204,8 @@ async function fetchNaverSides(naverGameId: string): Promise<{
   };
 }
 
-export async function fetchDaumKboGames(dateYmd: string): Promise<DaumGame[]> {
-  const url = `${DAUM_LIST_URL}?date=${encodeURIComponent(dateYmd)}&leagueCode=kbo`;
-  const payload = await fetchJson(url, "https://sports.daum.net/");
-  const list =
-    payload && typeof payload === "object" && Array.isArray((payload as { list?: unknown }).list)
-      ? ((payload as { list: DaumGame[] }).list)
-      : [];
-  return list.filter((game) => Number.isFinite(Number(game.gameId)));
+export async function fetchDaumKboGames(dateYmd: string) {
+  return fetchDaumKboGameList(dateYmd);
 }
 
 export async function fetchTodayStartingLineupGames(dateKey: string): Promise<TodayLineupGame[]> {
