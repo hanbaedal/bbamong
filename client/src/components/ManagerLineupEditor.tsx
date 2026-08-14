@@ -40,6 +40,14 @@ function emptyRows(): BatterRow[] {
   }));
 }
 
+function nextEmptyOrder(rows: BatterRow[], afterOrder: number): number | null {
+  for (let step = 1; step <= 9; step++) {
+    const order = ((afterOrder - 1 + step) % 9) + 1;
+    if (!rows[order - 1]?.name.trim()) return order;
+  }
+  return null;
+}
+
 function rowsFromSnapshot(
   side: LineupSide,
   lineup: ManagerLineupSnapshot | null | undefined,
@@ -96,7 +104,10 @@ export default function ManagerLineupEditor({
   );
   const [saving, setSaving] = useState(false);
   const [activeSide, setActiveSide] = useState<LineupSide>(initialSide);
-  const [pickerOrder, setPickerOrder] = useState<number | null>(null);
+  const [pickerOrder, setPickerOrder] = useState<number | null>(() => {
+    const rows = rowsFromSnapshot(initialSide, initialLineup, initialStats);
+    return rows.every((row) => !row.name.trim()) ? 1 : null;
+  });
   const [players, setPlayers] = useState<KboRosterPlayer[]>([]);
   const [loadingPlayers, setLoadingPlayers] = useState(false);
 
@@ -145,6 +156,16 @@ export default function ManagerLineupEditor({
     ? activeRows.find((row) => row.battingOrder === pickerOrder)
     : undefined;
 
+  const takenOrders = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const row of activeRows) {
+      if (row.rosterPlayerId && row.battingOrder !== pickerOrder) {
+        map[row.rosterPlayerId] = row.battingOrder;
+      }
+    }
+    return map;
+  }, [activeRows, pickerOrder]);
+
   const handlePick = (player: KboRosterPlayer) => {
     if (pickerOrder == null) return;
     const taken = activeRows.find(
@@ -157,19 +178,19 @@ export default function ManagerLineupEditor({
       });
       return;
     }
-    setActiveRows((prev) =>
-      prev.map((row) =>
-        row.battingOrder === pickerOrder
-          ? {
-              ...row,
-              name: player.name,
-              rosterPlayerId: player.id,
-              position: player.position,
-            }
-          : row,
-      ),
+    const fillingEmpty = !pickingRow?.name.trim();
+    const nextRows = activeRows.map((row) =>
+      row.battingOrder === pickerOrder
+        ? {
+            ...row,
+            name: player.name,
+            rosterPlayerId: player.id,
+            position: player.position,
+          }
+        : row,
     );
-    setPickerOrder(null);
+    setActiveRows(nextRows);
+    setPickerOrder(fillingEmpty ? nextEmptyOrder(nextRows, pickerOrder) : null);
   };
 
   const clearRow = (order: number) => {
@@ -232,7 +253,7 @@ export default function ManagerLineupEditor({
           <div>
             <h2 className="text-sm font-bold text-gray-900">{teamLabel} · 주전 타순</h2>
             <p className="text-[11px] text-gray-500">
-              이름 칸을 눌러 선수를 선택하세요 · {namedCount}/9
+              선수를 고르면 다음 타순으로 이어집니다 · {namedCount}/9
             </p>
           </div>
           <button
@@ -303,17 +324,20 @@ export default function ManagerLineupEditor({
             className="flex-1 h-10 rounded-lg bg-[#1A6DFF] text-sm font-semibold text-white disabled:opacity-50"
             data-testid="button-lineup-save"
           >
-            {saving ? "저장 중…" : "저장"}
+            {saving ? "저장 중…" : namedCount === 9 ? "저장" : `저장 (${namedCount}/9)`}
           </button>
         </footer>
       </div>
 
       {pickerOrder != null ? (
         <ManagerRosterPicker
+          key={pickerOrder}
           teamLabel={`${teamLabel} ${pickerOrder}번`}
+          hint={`${namedCount}/9 · 고르면 다음 빈 타순으로 이어집니다`}
           players={players}
           loading={loadingPlayers}
           selectedId={pickingRow?.rosterPlayerId}
+          takenOrders={takenOrders}
           onSelect={handlePick}
           onClose={() => setPickerOrder(null)}
         />
