@@ -155,6 +155,44 @@ export interface ParsedPlayerBattingStats {
   ops: string | null;
 }
 
+function pickBattingFields(source: Record<string, unknown>): ParsedPlayerBattingStats {
+  return {
+    battingAverage: formatBattingAverage(
+      (source.average ?? source.avg ?? source.battingAverage ?? source.AVG) as string | number | null,
+    ),
+    hits: extractInt(source.hits ?? source.h ?? source.totalHits ?? source.H),
+    homeRuns: extractInt(
+      source.homeRuns ??
+        source.homeruns ??
+        source.home_run ??
+        source.home_runs ??
+        source.hr ??
+        source.HR,
+    ),
+    rbi: extractInt(source.rbi ?? source.runsBattedIn ?? source.RBI),
+    ops: formatOps(
+      (source.ops ?? source.onBasePlusSlugging ?? source.OPS ?? source.on_base_plus_slugging) as
+        | string
+        | number
+        | null,
+    ),
+  };
+}
+
+function mergeBattingStats(
+  current: ParsedPlayerBattingStats,
+  next: ParsedPlayerBattingStats | null,
+): ParsedPlayerBattingStats {
+  if (!next) return current;
+  return {
+    battingAverage: current.battingAverage ?? next.battingAverage,
+    hits: current.hits ?? next.hits,
+    homeRuns: current.homeRuns ?? next.homeRuns,
+    rbi: current.rbi ?? next.rbi,
+    ops: current.ops ?? next.ops,
+  };
+}
+
 function extractBattingFieldsFromBlock(block: Record<string, unknown>): ParsedPlayerBattingStats {
   const statsList = Array.isArray(block.statistics)
     ? block.statistics
@@ -162,11 +200,13 @@ function extractBattingFieldsFromBlock(block: Record<string, unknown>): ParsedPl
       ? block.stats
       : null;
 
-  let avg: string | null = null;
-  let hits: number | null = null;
-  let homeRuns: number | null = null;
-  let rbi: number | null = null;
-  let ops: string | null = null;
+  let merged: ParsedPlayerBattingStats = {
+    battingAverage: null,
+    hits: null,
+    homeRuns: null,
+    rbi: null,
+    ops: null,
+  };
 
   if (statsList) {
     for (const item of statsList) {
@@ -175,52 +215,17 @@ function extractBattingFieldsFromBlock(block: Record<string, unknown>): ParsedPl
       const type = String(stat.type ?? stat.group ?? "").toLowerCase();
       if (type && !type.includes("bat") && type !== "hitting") continue;
 
-      avg =
-        avg ??
-        formatBattingAverage(
-          (stat.average ?? stat.avg ?? stat.battingAverage ?? stat.AVG) as string | number | null,
-        );
-      hits = hits ?? extractInt(stat.hits ?? stat.h ?? stat.totalHits ?? stat.H);
-      homeRuns =
-        homeRuns ?? extractInt(stat.homeRuns ?? stat.home_run ?? stat.home_runs ?? stat.hr ?? stat.HR);
-      rbi = rbi ?? extractInt(stat.rbi ?? stat.runsBattedIn ?? stat.RBI);
-      ops =
-        ops ??
-        formatOps(
-          (stat.ops ?? stat.onBasePlusSlugging ?? stat.OPS ?? stat.on_base_plus_slugging) as
-            | string
-            | number
-            | null,
-        );
+      merged = mergeBattingStats(merged, pickBattingFields(stat));
+      const nestedBatting = asRecord(stat.batting) ?? asRecord(stat.hitting);
+      if (nestedBatting) merged = mergeBattingStats(merged, pickBattingFields(nestedBatting));
     }
   }
 
   const batting = asRecord(block.batting) ?? asRecord(block.hitting);
-  if (batting) {
-    avg =
-      avg ??
-      formatBattingAverage(
-        (batting.average ?? batting.avg ?? batting.battingAverage) as string | number | null,
-      );
-    hits = hits ?? extractInt(batting.hits ?? batting.h ?? batting.totalHits);
-    homeRuns =
-      homeRuns ?? extractInt(batting.homeRuns ?? batting.home_run ?? batting.home_runs ?? batting.hr);
-    rbi = rbi ?? extractInt(batting.rbi ?? batting.runsBattedIn);
-    ops = ops ?? formatOps((batting.ops ?? batting.onBasePlusSlugging) as string | number | null);
-  }
+  if (batting) merged = mergeBattingStats(merged, pickBattingFields(batting));
+  merged = mergeBattingStats(merged, pickBattingFields(block));
 
-  avg =
-    avg ??
-    formatBattingAverage(
-      (block.average ?? block.avg ?? block.battingAverage) as string | number | null,
-    );
-  hits = hits ?? extractInt(block.hits ?? block.h ?? block.totalHits);
-  homeRuns =
-    homeRuns ?? extractInt(block.homeRuns ?? block.home_run ?? block.home_runs ?? block.hr);
-  rbi = rbi ?? extractInt(block.rbi ?? block.runsBattedIn);
-  ops = ops ?? formatOps((block.ops ?? block.onBasePlusSlugging) as string | number | null);
-
-  return { battingAverage: avg, hits, homeRuns, rbi, ops };
+  return merged;
 }
 
 function extractAverageFromStatsBlock(block: Record<string, unknown>): string | null {
@@ -270,4 +275,69 @@ export function collectLineupPlayerIds(lineup: MatchLineupSnapshot): number[] {
   const ids = new Set<number>();
   for (const p of [...lineup.home, ...lineup.away]) ids.add(p.playerId);
   return Array.from(ids);
+}
+
+export interface ParsedRosterBatter {
+  apiSportsPlayerId: number;
+  name: string;
+  positionRaw: string;
+  battingAverage: string | null;
+  hits: number | null;
+  homeRuns: number | null;
+  rbi: number | null;
+  ops: string | null;
+}
+
+function extractPositionRaw(row: Record<string, unknown>): string {
+  const player = asRecord(row.player);
+  const statsList = Array.isArray(row.statistics)
+    ? row.statistics
+    : Array.isArray(row.stats)
+      ? row.stats
+      : [];
+  const firstStat = asRecord(statsList[0]);
+  const candidates = [
+    row.position,
+    row.pos,
+    player?.position,
+    player?.pos,
+    asRecord(row.games)?.position,
+    firstStat?.position,
+    asRecord(firstStat?.games)?.position,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+/** /players?team=&season= 응답 → 시즌 타자 명단 */
+export function parseApiSportsTeamRoster(raw: unknown): ParsedRosterBatter[] {
+  if (!raw) return [];
+  const rows = Array.isArray(raw) ? raw : [raw];
+  const byId = new Map<number, ParsedRosterBatter>();
+
+  for (const item of rows) {
+    const row = asRecord(item);
+    if (!row) continue;
+    const playerId = extractPlayerId(row);
+    const name = extractPlayerName(row);
+    if (!playerId || !name) continue;
+
+    const stats = extractBattingFieldsFromBlock(row);
+    const nested = asRecord(row.player);
+    const nestedStats = nested ? extractBattingFieldsFromBlock(nested) : null;
+    byId.set(playerId, {
+      apiSportsPlayerId: playerId,
+      name,
+      positionRaw: extractPositionRaw(row),
+      battingAverage: stats.battingAverage ?? nestedStats?.battingAverage ?? null,
+      hits: stats.hits ?? nestedStats?.hits ?? null,
+      homeRuns: stats.homeRuns ?? nestedStats?.homeRuns ?? null,
+      rbi: stats.rbi ?? nestedStats?.rbi ?? null,
+      ops: stats.ops ?? nestedStats?.ops ?? null,
+    });
+  }
+
+  return Array.from(byId.values());
 }

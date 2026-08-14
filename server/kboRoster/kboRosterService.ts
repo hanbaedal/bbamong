@@ -36,6 +36,7 @@ type LeanPlayer = {
   note?: string | null;
   active?: boolean;
   updatedAt?: Date | string;
+  apiSportsPlayerId?: number | null;
 };
 
 function currentSeason(): number {
@@ -68,6 +69,7 @@ function toPublic(doc: LeanPlayer): KboRosterPlayer {
     ops: formatOps(doc.ops ?? null),
     note: doc.note?.trim() || "",
     active: doc.active !== false,
+    apiSportsPlayerId: typeof doc.apiSportsPlayerId === "number" ? doc.apiSportsPlayerId : null,
     updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : new Date().toISOString(),
   };
 }
@@ -152,7 +154,7 @@ export async function updateKboPlayer(
   try {
     const updated = await KboPlayerModel.findOneAndUpdate(
       { id },
-      { ...data, updatedAt: new Date() },
+      { $set: { ...data, updatedAt: new Date() } },
       { new: true },
     ).lean();
     if (!updated) throw new Error("선수를 찾을 수 없습니다.");
