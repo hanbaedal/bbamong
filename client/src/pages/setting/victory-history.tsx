@@ -116,8 +116,7 @@ export default function VictoryHistoryPage() {
           ) : data ? (
             <div className="flex flex-col p-4"><span className="text-[#BFBFBF] text-[12px]">예측 전적</span>
             <div className="text-[#E9E9E9] text-[28px] font-bold leading-[140%] tracking-tight mt-1">
-              {data.statistics.total}전 {data.statistics.wins}승
-                  {data.statistics.losses}패
+              {data.statistics.total}전 {data.statistics.wins}승 {data.statistics.losses}패
             </div></div>
           ) : (
             <div className="text-[#E9E9E9] text-[28px] font-bold leading-[140%] tracking-tight mt-1">
