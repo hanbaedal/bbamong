@@ -29,8 +29,6 @@ export interface WSEventHandlers {
   onPinchHitterCleared?: (data: any) => void;
   onScoreboardUpdate?: (data: any) => void;
   onRewardedAdOffer?: (data: any) => void | Promise<void>;
-  onBannerAdShow?: (data: any) => void;
-  onBannerAdHide?: (data: any) => void;
   onError?: (error: Error) => void;
   onReconnecting?: (attempt: number) => void;
 }
@@ -251,10 +249,7 @@ export function useMatchWebSocket({
               handlersRef.current.onRewardedAdOffer?.(message.data);
               break;
             case "banner_ad_show":
-              handlersRef.current.onBannerAdShow?.(message.data);
-              break;
             case "banner_ad_hide":
-              handlersRef.current.onBannerAdHide?.(message.data);
               break;
             case "login_attempt":
               notifyUserLoginAttemptSafe();

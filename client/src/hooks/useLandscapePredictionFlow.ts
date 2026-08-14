@@ -852,10 +852,6 @@ export function useLandscapePredictionFlow(
       pendingRewardKeyRef.current = data?.rewardKey ?? `${data?.matchId ?? "match"}:${Date.now()}`;
     }, []),
 
-    // 게임에서 배너 광고는 사용하지 않음 (하위 호환 이벤트만 무시)
-    onBannerAdShow: useCallback(() => {}, []),
-    onBannerAdHide: useCallback(() => {}, []),
-
     onAdStarted: useCallback(
       async (data: { matchId?: string }) => {
         // 결과 연출·대기 중이면 전면광고 보류 → 교체/공수 이벤트 적용 시 재생
