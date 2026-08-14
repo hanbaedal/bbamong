@@ -110,16 +110,16 @@
 
 @keyframes pyamong-hop-thrice {
   0%,
-  16.66%,
-  33.33%,
-  50%,
+  30%,
+  60%,
+  90%,
   100% {
     transform: translate(-50%, -50%) translateY(0) scale(1);
   }
-  8.33%,
-  25%,
-  41.66% {
-    transform: translate(-50%, -50%) translateY(-28px) scale(1.06);
+  15%,
+  45%,
+  75% {
+    transform: translate(-50%, -50%) translateY(-28px) scale(1.08);
   }
 }
 
@@ -129,16 +129,16 @@
 
 @keyframes pyamong-hop-thrice-home {
   0%,
-  16.66%,
-  33.33%,
-  50%,
+  30%,
+  60%,
+  90%,
   100% {
     transform: translateY(0) scale(1);
   }
-  8.33%,
-  25%,
-  41.66% {
-    transform: translateY(-28px) scale(1.06);
+  15%,
+  45%,
+  75% {
+    transform: translateY(-28px) scale(1.08);
   }
 }
 
