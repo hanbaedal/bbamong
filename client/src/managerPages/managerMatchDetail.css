@@ -373,21 +373,25 @@
   gap: clamp(4px, 1.2vw, 6px);
 }
 
-.manager-match-result-grid {
+.manager-match-result-row {
   display: flex;
   flex-direction: row;
   justify-content: space-evenly;
   align-items: center;
-  gap: clamp(10px, 3vw, 18px);
+  gap: clamp(12px, 3.4vw, 22px);
 }
 
 .manager-match-result-btn {
-  flex: 0 0 auto;
-  width: clamp(48px, 13vw, 64px);
-  height: clamp(48px, 13vw, 64px);
-  min-width: clamp(48px, 13vw, 64px);
+  box-sizing: border-box;
+  flex: 0 0 clamp(52px, 14vw, 68px);
+  width: clamp(52px, 14vw, 68px);
+  height: clamp(52px, 14vw, 68px);
+  min-width: clamp(52px, 14vw, 68px);
+  min-height: clamp(52px, 14vw, 68px);
+  max-width: clamp(52px, 14vw, 68px);
+  max-height: clamp(52px, 14vw, 68px);
+  padding: 0;
   aspect-ratio: 1;
-  max-height: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -395,7 +399,7 @@
   font-size: clamp(13px, 3.4vw, 16px);
   font-weight: 700;
   color: #201e22;
-  line-height: 1.1;
+  line-height: 1;
   border: 1px solid #e9e9e9;
 }
 
@@ -410,13 +414,13 @@
 
 .manager-match-result-confirm {
   width: 100%;
-  height: clamp(52px, 14vw, 68px);
-  margin-top: clamp(4px, 1.2vw, 8px);
-  border-radius: 12px;
+  height: clamp(64px, 17vw, 80px);
+  margin-top: clamp(6px, 1.6vw, 10px);
+  border-radius: 14px;
   border: none;
   background: #201e22;
   color: #fff;
-  font-size: clamp(16px, 4.2vw, 20px);
+  font-size: clamp(18px, 5vw, 22px);
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.02em;
@@ -556,14 +560,18 @@
 
   .manager-match-result-btn {
     font-size: 13px;
-    width: 46px;
-    height: 46px;
-    min-width: 46px;
+    flex-basis: 50px;
+    width: 50px;
+    height: 50px;
+    min-width: 50px;
+    min-height: 50px;
+    max-width: 50px;
+    max-height: 50px;
   }
 
   .manager-match-result-confirm {
-    height: 50px;
-    font-size: 16px;
+    height: 60px;
+    font-size: 18px;
   }
 
   .manager-match-bottom-btn {

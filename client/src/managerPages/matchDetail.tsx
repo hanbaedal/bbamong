@@ -1250,7 +1250,7 @@ export default function MatchDetailPage() {
 
         <div className="manager-match-results">
           <h3 className="manager-match-section-title">예측 결과</h3>
-          <div className="manager-match-result-grid">
+          <div className="manager-match-result-row">
             {RESULT_BUTTONS.map((label) => (
               <button
                 key={label}
