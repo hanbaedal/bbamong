@@ -7,7 +7,6 @@ import {
   syncOperatorMatchAssignments,
 } from "../managerOperatorService";
 import {
-  backfillSeasonMatchesBeforeToday,
   reconcileStuckPregameOngoingStatuses,
   reconcileStuckPregameSideBetLocks,
   refreshMatchFromApiAtEnd,
@@ -53,7 +52,6 @@ async function findEarliestTodayStartMs(): Promise<number | null> {
   const { start: todayStart, end: todayEnd } = getKstDayRange(new Date(`${kstToday}T12:00:00+09:00`));
 
   const matches = await MatchModel.find({
-    apiSportsGameId: { $ne: null },
     matchStatus: { $nin: ["cancelled"] },
     registrationOrder: { $gte: 1, $lte: MAX_DAILY_MATCHES },
     $or: [
@@ -165,7 +163,6 @@ export async function rescheduleTodayMatchTimers(): Promise<void> {
   const { start: todayStart, end: todayEnd } = getKstDayRange(new Date(`${kstToday}T12:00:00+09:00`));
 
   const matches = await MatchModel.find({
-    apiSportsGameId: { $ne: null },
     matchStatus: { $nin: ["completed", "cancelled"] },
     registrationOrder: { $gte: 1, $lte: MAX_DAILY_MATCHES },
     $or: [
@@ -225,7 +222,7 @@ async function maybeRunMissedDailySync(): Promise<void> {
   const kstToday = getKstDateString();
   const linkedCount = await MatchModel.countDocuments({
     matchDate: kstToday,
-    apiSportsGameId: { $ne: null },
+    daumGameId: { $ne: null },
   });
 
   if (linkedCount === 0) {
@@ -239,22 +236,11 @@ async function maybeRunMissedDailySync(): Promise<void> {
 }
 
 async function runStartupMatchManagementSync(): Promise<void> {
-  await backfillSeasonMatchesBeforeToday();
   await refreshStalePastMatchScores();
   await maybeRunMissedDailySync();
 }
 
 export function startMatchManagementSchedule(): void {
-  const hasApiKey = Boolean(process.env.API_SPORTS_KEY?.trim());
-
-  if (!hasApiKey) {
-    console.log("[MatchMgmtSchedule] API_SPORTS_KEY 없음 — api-sports 일일 동기화 비활성, 다음 실황 폴링만 시작");
-    void scheduleLiveScoreSync().catch((error) => {
-      console.error("[MatchMgmtSchedule] daum live sync failed:", error);
-    });
-    return;
-  }
-
   if (cancelDailySchedule) return;
 
   const hour = Number.isFinite(dailyHourKst) ? Math.min(23, Math.max(0, dailyHourKst)) : 9;
@@ -267,7 +253,7 @@ export function startMatchManagementSchedule(): void {
   });
 
   console.log(
-    `[MatchMgmtSchedule] daily KST ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} · hourly pregame until first start · start=status · end=score · live=API-ON matches`,
+    `[MatchMgmtSchedule] daily KST ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} · hourly pregame until first start · live=실황연동 ON matches (다음 스포츠)`,
   );
 }
 

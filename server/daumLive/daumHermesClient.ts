@@ -28,13 +28,22 @@ export type DaumScoreBlock = {
   inning?: string;
 };
 
+export type DaumFieldBlock = {
+  nameKo?: string;
+  name?: string;
+  shortNameKo?: string;
+  shortName?: string;
+};
+
 export type DaumListGame = {
   gameId?: number;
   cpGameId?: string;
+  startDate?: string;
   startTime?: string;
   gameStatus?: string;
   periodType?: string;
   gameUrl?: string;
+  field?: DaumFieldBlock;
   home?: DaumTeamBlock;
   away?: DaumTeamBlock;
   homeScore?: DaumScoreBlock;
@@ -152,6 +161,31 @@ export function daumTeamLogo(block?: DaumTeamBlock): string | null {
   if (raw.startsWith("//")) return `https:${raw}`;
   if (raw.startsWith("http://")) return `https://${raw.slice("http://".length)}`;
   return raw;
+}
+
+/** 다음 list.json startDate(YYYYMMDD) + startTime(HHmm) → KST Date */
+export function daumGameStartDate(game: DaumListGame, fallbackDateYmd: string): Date {
+  const rawDate = String(game.startDate ?? "").replace(/-/g, "");
+  const dateKey = /^\d{8}$/.test(rawDate)
+    ? rawDate
+    : fallbackDateYmd.replace(/-/g, "");
+  const isoDate = /^\d{8}$/.test(dateKey)
+    ? `${dateKey.slice(0, 4)}-${dateKey.slice(4, 6)}-${dateKey.slice(6, 8)}`
+    : fallbackDateYmd;
+  const digits = String(game.startTime ?? "1800").replace(/\D/g, "").padStart(4, "0").slice(0, 4);
+  const hour = digits.slice(0, 2);
+  const minute = digits.slice(2, 4);
+  const parsed = new Date(`${isoDate}T${hour}:${minute}:00+09:00`);
+  return Number.isFinite(parsed.getTime())
+    ? parsed
+    : new Date(`${fallbackDateYmd}T18:00:00+09:00`);
+}
+
+export function daumVenueName(game: DaumListGame): string | null {
+  const field = game.field;
+  const raw =
+    field?.shortNameKo || field?.shortName || field?.nameKo || field?.name || "";
+  return raw.trim() || null;
 }
 
 export function findDaumGameForMatch(

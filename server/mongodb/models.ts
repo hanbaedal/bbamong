@@ -70,7 +70,7 @@ const matchSchema = new Schema(
     apiSportsAwayTeam: { type: String, default: null },
     apiSportsHomeTeamId: { type: Number, default: null },
     apiSportsAwayTeamId: { type: Number, default: null },
-    /** API-SPORTS teams.*.logo URL */
+    /** 다음 스포츠 팀 로고 URL */
     apiSportsHomeTeamLogo: { type: String, default: null },
     apiSportsAwayTeamLogo: { type: String, default: null },
     liveScoreboard: { type: Schema.Types.Mixed, default: null },

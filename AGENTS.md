@@ -18,7 +18,7 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 ### Lint / typecheck / test / build
 - There is **no ESLint config and no test framework** in this repo. The only "lint" is `npm run check` (`tsc`), which currently reports **many pre-existing type errors** and is **not a clean gate** — dev runs through `tsx` (no typecheck) and is unaffected.
 - Production build is `npm run build` (Vite + esbuild); dev should use `npm run dev`, not the build.
-- External integrations (Kakao/Google/Apple OAuth, SOLAPI SMS, API-SPORTS live scores, Cloudflare R2 / GCS storage, AdMob, legacy Postgres sync) are all optional and disabled/stubbed when their env vars are unset.
+- External integrations (Kakao/Google/Apple OAuth, SOLAPI SMS, Cloudflare R2 / GCS storage, AdMob, legacy Postgres sync) are all optional and disabled/stubbed when their env vars are unset. **KBO 일정·실황·상대전적·로고는 다음 스포츠(+네이버)만 사용한다. API-SPORTS 키는 필요 없다.**
 
 ### Delivery preference (owner)
 - When a change set is done: **push to GitHub, open/update the PR, mark ready, and squash-merge to `main`** in the same turn unless the user asks to keep it draft or hold merge. Do not leave finished work as unmerged open PRs by default.
@@ -37,10 +37,11 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - **사용자 광고 UX**: 5초 후 X로 끄기 가능(보상 없음). **운영자가 광고를 중지할 때까지** 보고 있으면 500P. 15초 자동 보상 없음. 5초 만에 끄면 보상 없음.
 
 ### Admin schedule team logos
-- Admin 경기관리 리스트는 API-SPORTS `teams.*.logo` URL을 원형으로 표시한다 (실패 시 약칭 이니셜 폴백). 관리자 전용 UI용이며, 사용자 앱에 공식 엠블럼을 확대 배포하기 전에는 별도 권리 검토가 필요하다.
+- Admin 경기관리 리스트는 다음 스포츠 `team.imageUrl`을 원형으로 표시한다 (실패 시 약칭 이니셜 폴백). 관리자 전용 UI용이며, 사용자 앱에 공식 엠블럼을 확대 배포하기 전에는 별도 권리 검토가 필요하다.
 
 ### Live scoreboard (Daum vs operator)
-- KBO 실시간 스코어는 **다음 스포츠**만 폴링한다 (득점·안타·실책·볼넷·이닝표). 볼·스트라이크·아웃·루상 주자는 네이버 문자중계 `relay`의 `currentGameState`. **API-SPORTS 실황 폴링/폴백은 하지 않는다** (일정 import 등 다른 용도는 유지).
+- KBO 일정 자동 등록·실시간 스코어는 **다음 스포츠**만 쓴다 (득점·안타·실책·볼넷·이닝표·팀 로고). 볼·스트라이크·아웃·루상 주자·상대전적은 네이버(문자중계 `relay` / preview `seasonVsResult`). **API-SPORTS는 사용하지 않는다.**
+- 선발명단은 관리자 「오늘의 선발명단」(다음+네이버) 또는 운영자 수동 타순. API-SPORTS 라인업 폴백 없음.
 - 예측 화면 좌상단 공지 배지 자리에는 **경기 진행 위젯**(이닝 초/말, 팀 점수, 다이아몬드, B-S / OUT, 타자·구종)을 둔다. 배경은 투명. 공지사항은 설정 메뉴에서만 본다.
 - 팀명 클릭 → 다음 스포츠 시즌 성적 모달 (순위·승무패·승률·타율·평균자책·승차). 운영자 타순 입력은 팀명 옆 「타순」 버튼.
 - 예측 개인기록은 타율·홈런·안타·타점·득점·도루·출루율·OPS.

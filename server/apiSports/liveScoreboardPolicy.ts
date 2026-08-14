@@ -47,6 +47,10 @@ export function resolveScoreboardForApiWrite(
   return incoming;
 }
 
+export function buildInningKey(scoreboard: LiveScoreboard): string {
+  return `${scoreboard.statusShort}:${scoreboard.homeScore}:${scoreboard.awayScore}:${scoreboard.inning ?? "na"}`;
+}
+
 /** 운영자 공수교대 시 스코어보드 이닝 라벨을 운영자 페이즈에 맞춤 (수동 잠금 없이) */
 export function overlayOperatorInningOnScoreboard(
   existing: LiveScoreboard | null | undefined,

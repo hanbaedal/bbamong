@@ -31,7 +31,7 @@ export const MANAGER_GUIDE_STEPS: ManagerGuideStep[] = [
     title: "스코어보드 확인",
     summary: "상단 스코어·이닝을 중계와 맞춰 확인합니다.",
     bullets: [
-      "API-SPORTS 이닝·점수 자동 표시",
+      "다음 스포츠 이닝·점수 자동 표시",
       "연동이 없으면 자동 종료·점수 미반영",
       "비상 수동 모드 시 빨간 안내 표시",
     ],

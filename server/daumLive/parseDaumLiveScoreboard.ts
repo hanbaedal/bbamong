@@ -52,7 +52,12 @@ export function mapDaumGameStatus(gameStatus?: string | null): {
 } {
   const status = (gameStatus ?? "").trim().toUpperCase();
   if (status === "READY") return { statusShort: "NS", statusLong: "Not Started" };
-  if (status === "RESULT" || status === "FINAL") return { statusShort: "FT", statusLong: "Game Finished" };
+  if (status === "PLAY" || status === "LIVE" || status === "INPLAY") {
+    return { statusShort: "IN", statusLong: "In Progress" };
+  }
+  if (status === "END" || status === "RESULT" || status === "FINAL" || status === "FINISHED") {
+    return { statusShort: "FT", statusLong: "Game Finished" };
+  }
   if (status === "CANCEL" || status === "CANCELED" || status === "CANCELLED") {
     return { statusShort: "CAN", statusLong: "Cancelled" };
   }
