@@ -124,6 +124,7 @@ export function resolveMatchManagementStatusDisplay(input: {
   homeScore?: number | null;
   awayScore?: number | null;
   inning?: number | null;
+  startTime?: Date | string | null;
 }): string {
   const inningLabel = input.inningLabel?.trim();
 
@@ -133,6 +134,17 @@ export function resolveMatchManagementStatusDisplay(input: {
 
   // API 시작 전 + 이닝 진행 없음 → DB ongoing이어도 경기전 (실황 우선)
   if (isGameNotStarted(input.statusShort) && !hasLiveInningProgress(input)) {
+    return "경기전";
+  }
+
+  const startMs = input.startTime ? new Date(input.startTime).getTime() : Number.NaN;
+  const startNotReached = Number.isFinite(startMs) && Date.now() < startMs;
+  if (
+    startNotReached &&
+    !hasLiveInningProgress(input) &&
+    input.matchStatus !== "completed" &&
+    input.matchStatus !== "cancelled"
+  ) {
     return "경기전";
   }
 

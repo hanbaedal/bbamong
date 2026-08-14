@@ -48,5 +48,5 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - **예측 게임은 운영자 조작이 본체**다. 다음/네이버 실황은 참고 표시일 뿐이며 타순·공수교대·예측 시작/결과를 바꾸지 않는다. 운영자 공수교대가 `liveScoreboard` 이닝을 덮어쓰지 않는다. “N회 초/말” 예측 UI는 운영자 `gameInning` / `inningHalf`를 우선한다 (`shared/matchPhaseDisplay.ts`). 진행 위젯은 TV 실황(다음/네이버)을 쓴다.
 - During `matchStatus === "ongoing"` and `controlMode === "auto"`, live polls **do overwrite** `liveScoreboard` scores/inning tables (Daum). `controlMode === "manual"` (운영자/관리자 점수 보정) keeps operator scores until they turn auto back on. 주자·볼카운트는 manual이어도 네이버 실황을 갱신한다. 네이버 폴링이 비면 직전 `situation`을 유지한다.
 - Operators/admins can PATCH scores (`/api/manager/matches/:id/scoreboard`, `/api/admin/matches/:id/scoreboard`) which sets `controlMode: "manual"`. `lockManual: false` (또는 관리자 「수동」 끄기) returns to auto.
-- **`matchStatus` vs 예측 오픈**: 「예측 시작」은 `predictionEnabled`/`sideBetsLocked`만 켠다. `matchStatus: ongoing`은 실황(다음 스포츠) 근거로만 올린다. 시작 전(`NS`)이면 `scheduled`로 되돌린다(ongoing 고착 방지). UI「경기중」도 시작 전을 우선한다.
+- **`matchStatus` vs 예측 오픈**: 「예측 시작」은 `predictionEnabled`/`sideBetsLocked`만 켠다. `matchStatus: ongoing`은 실황(다음 스포츠) 근거로만 올린다. 시작 전(`NS`·다음 `BEFORE`/`READY`)이면 `scheduled`로 되돌린다(ongoing 고착 방지). UI「경기중」도 시작 전을 우선한다. 다음 `BEFORE`는 진행이 아니다.
 - 관리자 `/admin/operators/list`의 **실황 ON/OFF**는 다음·네이버 실황 + 회원 게임 연동이다. API-SPORTS가 아니다. 기본은 1경기만 ON.

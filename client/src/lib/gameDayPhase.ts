@@ -80,6 +80,10 @@ function classifyMatchTerminal(match: GameMatchItem): GameTerminalKind | "playab
     statusShort: match.liveScoreboard?.statusShort,
     statusLong: match.liveScoreboard?.statusLong,
     inningLabel: match.liveScoreboard?.inningLabel,
+    homeScore: match.liveScoreboard?.homeScore,
+    awayScore: match.liveScoreboard?.awayScore,
+    inning: match.liveScoreboard?.inning,
+    startTime: match.startTime,
   });
 
   if (/\d+회/.test(display) || display === "경기중" || display === "경기전") {

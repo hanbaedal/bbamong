@@ -19,7 +19,12 @@ import {
 } from "@shared/apiSportsStatus";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
 import { LIVE_SCORE_NS_GATE_POLL_MS, LIVE_SCORE_SYNC_START_BEFORE_MS } from "./constants";
-import { isStaleFinishedScoreboard, isStalePostponedScoreboard, isMisclassifiedTerminalStatus } from "@shared/matchManagementStatus";
+import {
+  hasLiveInningProgress,
+  isStaleFinishedScoreboard,
+  isStalePostponedScoreboard,
+  isMisclassifiedTerminalStatus,
+} from "@shared/matchManagementStatus";
 import { refreshMatchHeadToHeadIfDue } from "./h2hService";
 import {
   API_PLACEHOLDER_STADIUM_NAME,
@@ -138,9 +143,14 @@ export async function reconcileStuckPregameOngoingStatuses(
     if ((match.outsInHalf ?? 0) > 0) continue;
 
     const sb = match.liveScoreboard as LiveScoreboard | null | undefined;
-    if (!sb || !isGameNotStarted(sb.statusShort)) continue;
-    if (sb.inning != null) continue;
-    if (/\d+회/.test(sb.inningLabel ?? "") && !/종료|연기|취소/.test(sb.inningLabel ?? "")) {
+    const noLiveInning =
+      !sb ||
+      (sb.inning == null &&
+        !hasLiveInningProgress({ inning: sb.inning, inningLabel: sb.inningLabel }));
+    const pregameFeed = !sb || isGameNotStarted(sb.statusShort) || noLiveInning;
+    if (!pregameFeed) continue;
+    if (sb?.inning != null) continue;
+    if (/\d+회/.test(sb?.inningLabel ?? "") && !/종료|연기|취소/.test(sb?.inningLabel ?? "")) {
       continue;
     }
 
@@ -306,6 +316,13 @@ export function resolveMatchStatusFromScoreboard(
     }
   }
   if (isGameLiveStatus(scoreboard.statusShort) || scoreboard.inning !== null) {
+    const liveInning = hasLiveInningProgress({
+      inning: scoreboard.inning,
+      inningLabel: scoreboard.inningLabel,
+    });
+    if (!hasStartTimeReached(startTime) && !liveInning) {
+      return "scheduled";
+    }
     return "ongoing";
   }
   if (hasStartTimeReached(startTime)) {

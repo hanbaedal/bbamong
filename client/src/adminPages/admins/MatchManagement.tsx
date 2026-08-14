@@ -104,6 +104,7 @@ function matchStatusDisplay(match: MatchRow): string {
     homeScore: match.liveScoreboard?.homeScore,
     awayScore: match.liveScoreboard?.awayScore,
     inning: match.liveScoreboard?.inning,
+    startTime: match.startTime,
   });
 }
 
