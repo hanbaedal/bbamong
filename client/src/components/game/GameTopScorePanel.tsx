@@ -24,6 +24,8 @@ interface GameTopScorePanelProps {
   onStadiumNameClick?: () => void;
   matchSelectEnabled?: boolean;
   stadiumSelectEnabled?: boolean;
+  onAwayTeamClick?: () => void;
+  onHomeTeamClick?: () => void;
 }
 
 const titleShadow = "drop-shadow-[0_1px_4px_rgba(0,0,0,0.85)]";
@@ -34,25 +36,23 @@ const clickable =
 const scorePanelTop = "top-[calc(0.375rem+1.35rem)] sm:top-[calc(0.5rem+1.35rem)]";
 
 function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
-  const seasonLabel = `${batter.season} 타율`;
   const nameValue = batter.position
     ? `${formatStatDisplay(batter.playerName)} · ${batter.position}`
     : formatStatDisplay(batter.playerName);
-  const rows: { label: string; value: string; indent?: boolean }[] = [
-    { label: "타자 이름", value: nameValue },
-    { label: seasonLabel, value: formatStatDisplay(batter.battingAverage) },
-    { label: "안타", value: formatStatCount(batter.hits), indent: true },
-    { label: "홈런", value: formatStatCount(batter.homeRuns), indent: true },
-    { label: "타점", value: formatStatCount(batter.rbi), indent: true },
-    { label: "OPS", value: formatStatDisplay(batter.ops), indent: true },
+  const cells: { label: string; value: string }[] = [
+    { label: "타율", value: formatStatDisplay(batter.battingAverage) },
+    { label: "홈런", value: formatStatCount(batter.homeRuns) },
+    { label: "안타", value: formatStatCount(batter.hits) },
+    { label: "타점", value: formatStatCount(batter.rbi) },
+    { label: "득점", value: formatStatCount(batter.runs) },
+    { label: "도루", value: formatStatCount(batter.stolenBases) },
+    { label: "출루율", value: formatStatDisplay(batter.onBasePercentage) },
+    { label: "OPS", value: formatStatDisplay(batter.ops) },
   ];
-  if (batter.note?.trim()) {
-    rows.push({ label: "특징", value: batter.note.trim() });
-  }
 
   return (
     <div
-      className="mt-0.5 min-w-[7.5rem] max-w-[8.75rem] rounded-md bg-black/55 px-1.5 py-1 text-[10px] sm:text-xs leading-[1.25] text-white/95 backdrop-blur-[2px] pointer-events-none"
+      className="mt-0.5 min-w-[9.5rem] max-w-[11.5rem] rounded-md bg-black/55 px-1.5 py-1 text-[10px] sm:text-xs leading-[1.25] text-white/95 backdrop-blur-[2px] pointer-events-none"
       data-testid="current-batter-stats"
     >
       {batter.isPinchHitter ? (
@@ -63,15 +63,19 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
           대타가 나옵니다
         </p>
       ) : null}
-      {rows.map(({ label, value, indent }) => (
-        <div
-          key={label}
-          className={`grid grid-cols-[auto_minmax(0,1fr)] gap-x-1 ${indent ? "pl-1" : ""}`}
-        >
-          <span className="text-white/80 whitespace-nowrap">{label}</span>
-          <span className="text-right font-semibold tabular-nums truncate">{value}</span>
-        </div>
-      ))}
+      <p className="truncate font-semibold">{nameValue}</p>
+      <p className="mb-0.5 text-white/70">{batter.season} 시즌</p>
+      <div className="grid grid-cols-4 gap-x-1 gap-y-0.5">
+        {cells.map(({ label, value }) => (
+          <div key={label} className="min-w-0">
+            <p className="text-[9px] text-white/65 leading-none">{label}</p>
+            <p className="truncate font-semibold tabular-nums">{value}</p>
+          </div>
+        ))}
+      </div>
+      {batter.note?.trim() ? (
+        <p className="mt-0.5 truncate text-white/80">특징 {batter.note.trim()}</p>
+      ) : null}
     </div>
   );
 }
@@ -119,6 +123,8 @@ export default function GameTopScorePanel({
   onStadiumNameClick,
   matchSelectEnabled = false,
   stadiumSelectEnabled = false,
+  onAwayTeamClick,
+  onHomeTeamClick,
 }: GameTopScorePanelProps) {
   const displayStadiumName = stadiumName.trim() || null;
   return (
@@ -171,9 +177,33 @@ export default function GameTopScorePanel({
             className={`mt-0.5 text-xs sm:text-sm font-semibold whitespace-nowrap ${titleShadow}`}
             data-testid="game-match-teams"
           >
-            <span style={{ color: GAME_AWAY_TEAM_COLOR }}>{headToHead.awayName}</span>
+            {onAwayTeamClick ? (
+              <button
+                type="button"
+                onClick={onAwayTeamClick}
+                className={`pointer-events-auto ${clickable}`}
+                style={{ color: GAME_AWAY_TEAM_COLOR }}
+                data-testid="game-team-away"
+              >
+                {headToHead.awayName}
+              </button>
+            ) : (
+              <span style={{ color: GAME_AWAY_TEAM_COLOR }}>{headToHead.awayName}</span>
+            )}
             <span className="text-white/70 font-normal"> : </span>
-            <span style={{ color: GAME_HOME_TEAM_COLOR }}>{headToHead.homeName}</span>
+            {onHomeTeamClick ? (
+              <button
+                type="button"
+                onClick={onHomeTeamClick}
+                className={`pointer-events-auto ${clickable}`}
+                style={{ color: GAME_HOME_TEAM_COLOR }}
+                data-testid="game-team-home"
+              >
+                {headToHead.homeName}
+              </button>
+            ) : (
+              <span style={{ color: GAME_HOME_TEAM_COLOR }}>{headToHead.homeName}</span>
+            )}
           </p>
         ) : teamNamesLine ? (
           <p

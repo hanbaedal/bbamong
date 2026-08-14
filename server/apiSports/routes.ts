@@ -24,6 +24,7 @@ import type {
   CurrentBatterPreview,
   MatchLineupSnapshot,
   MatchPlayerStatsEntry,
+  MatchTeamSeasonStats,
   PinchHitterSnapshot,
 } from "@shared/apiSportsTypes";
 
@@ -143,6 +144,8 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
           awayHits: z.number().int().min(0).max(99).optional(),
           homeErrors: z.number().int().min(0).max(99).optional(),
           awayErrors: z.number().int().min(0).max(99).optional(),
+          homeWalks: z.number().int().min(0).max(99).optional(),
+          awayWalks: z.number().int().min(0).max(99).optional(),
           inning: z.number().int().min(1).max(20).nullable().optional(),
           inningHalf: z.enum(["top", "bottom"]).nullable().optional(),
           lockManual: z.boolean().optional(),
@@ -165,10 +168,30 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
       const matchId = req.params.id;
       const match = await MatchModel.findOne({ id: matchId })
         .select(
-          "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter",
+          "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter matchTeamSeasonStats",
         )
         .lean();
       if (!match) return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
+
+      let teamSeasonStats = (match.matchTeamSeasonStats as MatchTeamSeasonStats | null) ?? null;
+      if (!teamSeasonStats?.home && !teamSeasonStats?.away) {
+        try {
+          const { refreshMatchSeasonContext } = await import("../daumLive/daumSeasonStatsService");
+          teamSeasonStats = await refreshMatchSeasonContext(matchId);
+          if (teamSeasonStats) {
+            const refreshed = await MatchModel.findOne({ id: matchId })
+              .select("matchPlayerStats matchTeamSeasonStats")
+              .lean();
+            if (refreshed?.matchPlayerStats) {
+              match.matchPlayerStats = refreshed.matchPlayerStats as Record<string, MatchPlayerStatsEntry>;
+            }
+            teamSeasonStats =
+              (refreshed?.matchTeamSeasonStats as MatchTeamSeasonStats | null) ?? teamSeasonStats;
+          }
+        } catch (error) {
+          console.warn(`[Scoreboard] season stats ${matchId}:`, error);
+        }
+      }
 
       let currentBatter: CurrentBatterPreview | null = null;
       const scoreboardHalf = match.liveScoreboard?.inningHalf ?? null;
@@ -193,6 +216,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
         controlMode: match.controlMode ?? "auto",
         linked: Boolean(match.apiSportsGameId),
         currentBatter,
+        teamSeasonStats,
       });
     } catch (error) {
       console.error("scoreboard error:", error);

@@ -186,5 +186,19 @@ export async function saveManualMatchLineup(
     throw new Error("경기를 찾을 수 없습니다.");
   }
 
+  try {
+    const { refreshMatchSeasonContext } = await import("../daumLive/daumSeasonStatsService");
+    await refreshMatchSeasonContext(matchId, { force: true });
+    const refreshed = await MatchModel.findOne({ id: matchId }).select("matchPlayerStats").lean();
+    if (refreshed?.matchPlayerStats) {
+      return {
+        matchLineup,
+        matchPlayerStats: refreshed.matchPlayerStats as Record<string, MatchPlayerStatsEntry>,
+      };
+    }
+  } catch (error) {
+    console.warn(`[ManualLineup] daum season stats ${matchId}:`, error);
+  }
+
   return { matchLineup, matchPlayerStats };
 }

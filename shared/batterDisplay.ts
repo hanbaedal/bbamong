@@ -29,6 +29,26 @@ export function formatBattingAverage(value: string | number | null | undefined):
   return trimmed;
 }
 
+/** 시즌 타율·출루율 등 — "0.327" (요청 표기) */
+export function formatSeasonRate(
+  value: string | number | null | undefined,
+  digits = 3,
+): string | null {
+  if (value == null || value === "") return null;
+  const num =
+    typeof value === "number" ? value : Number.parseFloat(String(value).trim().replace(/^\./, "0."));
+  if (!Number.isFinite(num) || num < 0) return null;
+  return num.toFixed(digits);
+}
+
+/** 평균자책 — "4.76" */
+export function formatEra(value: string | number | null | undefined): string | null {
+  if (value == null || value === "") return null;
+  const num = typeof value === "number" ? value : Number.parseFloat(String(value).trim());
+  if (!Number.isFinite(num) || num < 0) return null;
+  return num.toFixed(2);
+}
+
 /** OPS 등 — ".812" / "1.012" */
 export function formatOps(value: string | number | null | undefined): string | null {
   if (value == null || value === "") return null;
@@ -72,6 +92,9 @@ export interface PlayerStatsForBatterPreview {
   homeRuns?: number | null;
   rbi?: number | null;
   ops?: string | null;
+  runs?: number | null;
+  stolenBases?: number | null;
+  onBasePercentage?: string | null;
   position?: string | null;
   note?: string | null;
 }
@@ -92,6 +115,9 @@ function emptyBatterPreview(orderLabel: string, season: number): CurrentBatterPr
     homeRuns: null,
     rbi: null,
     ops: null,
+    runs: null,
+    stolenBases: null,
+    onBasePercentage: null,
     position: null,
     note: null,
     season,
@@ -113,11 +139,15 @@ function applyPinchHitter(
   return {
     orderLabel: base.orderLabel,
     playerName: pinch.playerName.trim(),
-    battingAverage: formatBattingAverage(pinch.battingAverage),
+    battingAverage: formatSeasonRate(pinch.battingAverage) ?? formatBattingAverage(pinch.battingAverage),
     hits: pinch.hits ?? null,
     homeRuns: pinch.homeRuns ?? null,
     rbi: pinch.rbi ?? null,
-    ops: formatOps(pinch.ops),
+    ops: formatSeasonRate(pinch.ops) ?? formatOps(pinch.ops),
+    runs: pinch.runs ?? null,
+    stolenBases: pinch.stolenBases ?? null,
+    onBasePercentage:
+      formatSeasonRate(pinch.onBasePercentage) ?? formatBattingAverage(pinch.onBasePercentage),
     position: pinch.position ?? null,
     note: pinch.note ?? null,
     season: pinch.season || base.season,
@@ -169,11 +199,18 @@ export function resolveCurrentBatterPreview(input: {
   const base: CurrentBatterPreview = {
     orderLabel,
     playerName: player.name,
-    battingAverage: formatBattingAverage(stats?.battingAverage ?? null),
+    battingAverage:
+      formatSeasonRate(stats?.battingAverage ?? null) ??
+      formatBattingAverage(stats?.battingAverage ?? null),
     hits: stats?.hits ?? null,
     homeRuns: stats?.homeRuns ?? null,
     rbi: stats?.rbi ?? null,
-    ops: formatOps(stats?.ops ?? null),
+    ops: formatSeasonRate(stats?.ops ?? null) ?? formatOps(stats?.ops ?? null),
+    runs: stats?.runs ?? null,
+    stolenBases: stats?.stolenBases ?? null,
+    onBasePercentage:
+      formatSeasonRate(stats?.onBasePercentage ?? null) ??
+      formatBattingAverage(stats?.onBasePercentage ?? null),
     position: stats?.position ?? null,
     note: stats?.note ?? null,
     season: input.season,

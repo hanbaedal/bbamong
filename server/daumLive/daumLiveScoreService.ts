@@ -3,6 +3,7 @@ import { getKstDateString } from "../utils/dateUtils";
 import { resolveMatchTeamShort } from "../kboRoster/kboRosterService";
 import { fetchDaumKboGameList, findDaumGameForMatch } from "./daumHermesClient";
 import { parseDaumLiveScoreboard } from "./parseDaumLiveScoreboard";
+import { fetchNaverLiveSituation } from "./naverRelayClient";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 
 type MatchForDaum = {
@@ -33,9 +34,16 @@ export async function resolveDaumLiveScoreboard(match: MatchForDaum): Promise<{
     awayTeam: resolveMatchTeamShort(match, "away"),
   });
   if (!found?.gameId) return null;
+  const scoreboard = parseDaumLiveScoreboard(found);
+  try {
+    scoreboard.situation = await fetchNaverLiveSituation(found.cpGameId);
+  } catch (error) {
+    console.warn("[DaumLive] naver situation failed:", error);
+    scoreboard.situation = null;
+  }
   return {
     daumGameId: Number(found.gameId),
-    scoreboard: parseDaumLiveScoreboard(found),
+    scoreboard,
   };
 }
 

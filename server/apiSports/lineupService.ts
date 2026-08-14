@@ -240,6 +240,9 @@ export function buildCurrentBatterPreviewFromMatch(
       homeRuns?: number | null;
       rbi?: number | null;
       ops?: string | null;
+      runs?: number | null;
+      stolenBases?: number | null;
+      onBasePercentage?: string | null;
     }
   > = {};
   for (const [playerId, entry] of Object.entries(match.matchPlayerStats ?? {})) {
@@ -249,6 +252,11 @@ export function buildCurrentBatterPreviewFromMatch(
       homeRuns: entry.homeRuns ?? null,
       rbi: entry.rbi ?? null,
       ops: entry.ops ?? null,
+      runs: entry.runs ?? null,
+      stolenBases: entry.stolenBases ?? null,
+      onBasePercentage: entry.onBasePercentage ?? null,
+      position: entry.position ?? null,
+      note: entry.note ?? null,
     };
   }
 

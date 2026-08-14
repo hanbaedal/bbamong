@@ -36,6 +36,7 @@ import {
 import { resolveScoreboardForApiWrite } from "./liveScoreboardPolicy";
 import { formatInningWithHalf, parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
 import { resolveDaumLiveScoreboard } from "../daumLive/daumLiveScoreService";
+import { refreshMatchSeasonContext } from "../daumLive/daumSeasonStatsService";
 
 const MAX_DAILY_MATCHES = 5;
 
@@ -932,12 +933,10 @@ async function updateMatchScoreFromApiGame(
   return nextStatus;
 }
 
-/** ② 경기 시작 시각 — api-sports 1회 → 경기상태만 (운영자 API 폴링 ON일 때만) */
+/** ② 경기 시작 시각 — 다음 스포츠 실황 1회 (운영자 실황 연동 ON일 때만) */
 export async function refreshMatchFromApiAtStart(matchId: string): Promise<void> {
-  if (!process.env.API_SPORTS_KEY?.trim()) return;
-
   const match = await MatchModel.findOne({ id: matchId }).lean();
-  if (!match?.apiSportsGameId) return;
+  if (!match) return;
   if (match.matchStatus === "completed" || match.matchStatus === "cancelled") return;
 
   const order = match.registrationOrder ?? 0;
@@ -946,49 +945,24 @@ export async function refreshMatchFromApiAtStart(matchId: string): Promise<void>
   }
 
   try {
-    const game = await fetchGameById(match.apiSportsGameId);
-    if (!game) return;
-
-    const nextStatus = await updateMatchStatusFromApiGame(match, game);
-    console.log(`[MatchMgmtSchedule] start ${match.name} (${matchId}) → ${nextStatus}`);
-
-    await refreshMatchLineupIfDue(
-      matchId,
-      {
-        id: matchId,
-        registrationOrder: match.registrationOrder,
-        apiSportsGameId: match.apiSportsGameId,
-        startTime: match.startTime,
-        gameInning: match.gameInning,
-        inningHalf: match.inningHalf,
-        batterIndexInHalf: match.batterIndexInHalf,
-        matchLineup: match.matchLineup as MatchLineupSnapshot | null | undefined,
-        matchPlayerStats: match.matchPlayerStats as Record<string, MatchPlayerStatsEntry> | null | undefined,
-      },
-      [game.teams.home.id, game.teams.away.id].filter((id) => Number.isFinite(id) && id > 0),
-    );
-
-    await refreshMatchHeadToHeadIfDue(matchId, {
-      id: matchId,
-      registrationOrder: match.registrationOrder,
-      startTime: match.startTime,
-      apiSportsAwayTeamId: game.teams.away.id,
-      apiSportsHomeTeamId: game.teams.home.id,
-      matchHeadToHead: match.matchHeadToHead as MatchHeadToHeadSnapshot | null | undefined,
-    });
+    const daum = await resolveDaumLiveScoreboard(match);
+    if (daum) {
+      await persistIncomingLiveScoreboard(match, daum.scoreboard, { daumGameId: daum.daumGameId });
+      void refreshMatchSeasonContext(matchId).catch((error) => {
+        console.warn(`[MatchMgmtSchedule] start season stats ${matchId}:`, error);
+      });
+      console.log(`[MatchMgmtSchedule] start ${match.name} (${matchId}) → daum`);
+      return;
+    }
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown sync error";
-    markApiSportsError(message);
-    throw error;
+    console.warn(`[MatchMgmtSchedule] start daum ${matchId}:`, error);
   }
 }
 
-/** ③ 경기 종료 시각 — api-sports 1회 → 스코어만 갱신 (운영자 API 폴링 ON일 때만) */
+/** ③ 경기 종료 시각 — 다음 스포츠 스코어 1회 (운영자 실황 연동 ON일 때만) */
 export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
-  if (!process.env.API_SPORTS_KEY?.trim()) return;
-
   const match = await MatchModel.findOne({ id: matchId }).lean();
-  if (!match?.apiSportsGameId) return;
+  if (!match) return;
   if (match.matchStatus === "completed" || match.matchStatus === "cancelled") return;
 
   const order = match.registrationOrder ?? 0;
@@ -997,57 +971,17 @@ export async function refreshMatchFromApiAtEnd(matchId: string): Promise<void> {
   }
 
   try {
-    const game = await fetchGameById(match.apiSportsGameId);
-    if (!game) return;
-
+    const daum = await resolveDaumLiveScoreboard(match);
+    if (!daum) return;
     const previousStatus = match.matchStatus ?? "scheduled";
-    const nextStatus = await updateMatchScoreFromApiGame(match, game);
-
-    if (nextStatus === "completed" && previousStatus !== "completed") {
-      if (match.predictionEnabled) {
-        console.log(
-          `[MatchMgmtSchedule] defer end complete ${match.name} (${matchId}) — prediction still open`,
-        );
-        return;
-      }
-      const openRound = await RoundStatisticsModel.findOne({
-        matchId,
-        roundNumber: match.currentRound,
-        isPredictionStarted: true,
-        isResultSent: false,
-      })
-        .select("id")
-        .lean();
-      if (openRound) {
-        console.log(
-          `[MatchMgmtSchedule] defer end complete ${match.name} (${matchId}) — round result not sent`,
-        );
-        return;
-      }
-      const { match: ended } = await finalizeMatchEnd(matchId);
-      broadcastManager.sendToMatch(matchId, "end", {
-        matchId,
-        message: "경기가 종료되었습니다.",
-        matchStatus: ended.matchStatus,
-      });
-      console.log(`[MatchMgmtSchedule] end ${ended.name} (${matchId}) → completed (score updated)`);
-      return;
-    }
-
-    console.log(`[MatchMgmtSchedule] end ${match.name} (${matchId}) → score updated (${nextStatus})`);
-
-    await refreshMatchHeadToHeadIfDue(matchId, {
-      id: matchId,
-      registrationOrder: match.registrationOrder,
-      startTime: match.startTime,
-      apiSportsAwayTeamId: game.teams.away.id,
-      apiSportsHomeTeamId: game.teams.home.id,
-      matchHeadToHead: match.matchHeadToHead as MatchHeadToHeadSnapshot | null | undefined,
+    const shouldStop = await persistIncomingLiveScoreboard(match, daum.scoreboard, {
+      daumGameId: daum.daumGameId,
     });
+    console.log(
+      `[MatchMgmtSchedule] end ${match.name} (${matchId}) → daum${shouldStop ? " stop" : ""} (was ${previousStatus})`,
+    );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown sync error";
-    markApiSportsError(message);
-    throw error;
+    console.warn(`[MatchMgmtSchedule] end daum ${matchId}:`, error);
   }
 }
 
@@ -1211,63 +1145,20 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
   try {
     const daum = await resolveDaumLiveScoreboard(match);
     if (daum) {
-      return await persistIncomingLiveScoreboard(match, daum.scoreboard, {
+      const shouldStop = await persistIncomingLiveScoreboard(match, daum.scoreboard, {
         daumGameId: daum.daumGameId,
       });
+      void refreshMatchSeasonContext(matchId).catch((error) => {
+        console.warn(`[LiveScoreSync] season stats ${matchId}:`, error);
+      });
+      return shouldStop;
     }
   } catch (error) {
     console.warn(`[LiveScoreSync] daum tick failed (${matchId}):`, error);
   }
 
-  if (!process.env.API_SPORTS_KEY?.trim() || !match.apiSportsGameId) {
-    return false;
-  }
-
-  try {
-    const game = await fetchGameById(match.apiSportsGameId);
-    if (!game) return false;
-
-    const incoming = parseLiveScoreboard(game);
-    const shouldStop = await persistIncomingLiveScoreboard(match, incoming, apiSportsTeamsUpdate(game, incoming));
-    if (shouldStop || isGameNotStarted(incoming.statusShort)) {
-      return shouldStop;
-    }
-
-    void refreshMatchLineupIfDue(
-      matchId,
-      {
-        id: matchId,
-        registrationOrder: match.registrationOrder,
-        apiSportsGameId: match.apiSportsGameId,
-        startTime: match.startTime,
-        gameInning: match.gameInning,
-        inningHalf: match.inningHalf,
-        batterIndexInHalf: match.batterIndexInHalf,
-        matchLineup: match.matchLineup as MatchLineupSnapshot | null | undefined,
-        matchPlayerStats: match.matchPlayerStats as Record<string, MatchPlayerStatsEntry> | null | undefined,
-      },
-      [game.teams.home.id, game.teams.away.id].filter((id) => Number.isFinite(id) && id > 0),
-    ).catch((err) => {
-      console.warn(`[LiveScoreSync] lineup refresh ${matchId}:`, err);
-    });
-
-    void refreshMatchHeadToHeadIfDue(matchId, {
-      id: matchId,
-      registrationOrder: match.registrationOrder,
-      startTime: match.startTime,
-      apiSportsAwayTeamId: game.teams.away.id,
-      apiSportsHomeTeamId: game.teams.home.id,
-      matchHeadToHead: match.matchHeadToHead as MatchHeadToHeadSnapshot | null,
-    }).catch((err) => {
-      console.warn(`[LiveScoreSync] h2h refresh ${matchId}:`, err);
-    });
-
-    return shouldStop;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown sync error";
-    markApiSportsError(message);
-    throw error;
-  }
+  console.warn(`[LiveScoreSync] daum miss ${matchId} — API-SPORTS 실황 폴백 없음`);
+  return false;
 }
 
 export async function setMatchControlMode(matchId: string, mode: MatchControlMode) {
@@ -1297,6 +1188,8 @@ export type LiveScoreboardPatchInput = {
   awayHits?: number;
   homeErrors?: number;
   awayErrors?: number;
+  homeWalks?: number;
+  awayWalks?: number;
   homeInnings?: InningRunsMap;
   awayInnings?: InningRunsMap;
   inning?: number | null;
@@ -1352,6 +1245,8 @@ export async function patchMatchLiveScoreboard(matchId: string, patch: LiveScore
     awayHits: patch.awayHits ?? existing?.awayHits ?? 0,
     homeErrors: patch.homeErrors ?? existing?.homeErrors ?? 0,
     awayErrors: patch.awayErrors ?? existing?.awayErrors ?? 0,
+    homeWalks: patch.homeWalks ?? existing?.homeWalks ?? 0,
+    awayWalks: patch.awayWalks ?? existing?.awayWalks ?? 0,
     homeInnings: patch.homeInnings ?? existing?.homeInnings,
     awayInnings: patch.awayInnings ?? existing?.awayInnings,
     inning: nextInning,
@@ -1362,6 +1257,7 @@ export async function patchMatchLiveScoreboard(matchId: string, patch: LiveScore
         : (existing?.inningLabel ?? ""),
     statusShort: existing?.statusShort ?? "IN",
     statusLong: existing?.statusLong ?? "In Progress",
+    situation: existing?.situation ?? null,
     syncedAt: new Date().toISOString(),
   };
 

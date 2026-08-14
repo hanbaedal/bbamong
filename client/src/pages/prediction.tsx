@@ -56,6 +56,7 @@ import { Capacitor } from "@capacitor/core";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
+import TeamSeasonStatsModal from "@/components/TeamSeasonStatsModal";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
 
@@ -88,6 +89,7 @@ export default function PredictionPage() {
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [stadiumModalOpen, setStadiumModalOpen] = useState(false);
   const [sideBetModalOpen, setSideBetModalOpen] = useState(false);
+  const [teamStatsSide, setTeamStatsSide] = useState<"home" | "away" | null>(null);
   const [sideBetAction, setSideBetAction] = useState<SideBetActionTarget | null>(null);
   const [sideBetResult, setSideBetResult] = useState<{
     lines: SideBetResultLine[];
@@ -651,10 +653,13 @@ export default function PredictionPage() {
         sideBetSummary={sideBetSummary}
         onSideBetWinnerClick={() => openSideBetSheet("winner")}
         onSideBetScoreClick={() => openSideBetSheet("score")}
+        onAwayTeamClick={() => setTeamStatsSide("away")}
+        onHomeTeamClick={() => setTeamStatsSide("home")}
         noticeSuppressed={
           matchModalOpen ||
           stadiumModalOpen ||
           sideBetModalOpen ||
+          teamStatsSide != null ||
           flow.screenPhase === "ad_playing" ||
           flow.adSessionState !== "idle" ||
           flow.showAdOverlay
@@ -691,6 +696,23 @@ export default function PredictionPage() {
           setSideBetAction(null);
         }}
       />
+
+      {teamStatsSide ? (
+        <TeamSeasonStatsModal
+          open
+          teamName={
+            teamStatsSide === "away"
+              ? matchHeaderLines.headToHead?.awayName || "원정팀"
+              : matchHeaderLines.headToHead?.homeName || "홈팀"
+          }
+          stats={
+            (teamStatsSide === "away"
+              ? scoreboardData?.teamSeasonStats?.away
+              : scoreboardData?.teamSeasonStats?.home) ?? null
+          }
+          onClose={() => setTeamStatsSide(null)}
+        />
+      ) : null}
 
       {sideBetResult ? (
         <SideBetResultOverlay

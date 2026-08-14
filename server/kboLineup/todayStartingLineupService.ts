@@ -233,6 +233,10 @@ export async function applyTodayStartingLineups(input: {
         side,
       });
       await persistMatchDaumGameId(game.ppamongMatchId, game.daumGameId);
+      const { refreshMatchSeasonContext } = await import("../daumLive/daumSeasonStatsService");
+      await refreshMatchSeasonContext(game.ppamongMatchId, { force: true }).catch((error) => {
+        console.warn(`[TodayLineup] season stats ${game.ppamongMatchId}:`, error);
+      });
       results.push({
         daumGameId: game.daumGameId,
         matchId: game.ppamongMatchId,

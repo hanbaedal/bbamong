@@ -22,6 +22,7 @@ export function useLiveScoreboard(matchId?: string | null, options?: LiveScorebo
     controlMode: string;
     linked: boolean;
     currentBatter: CurrentBatterPreview | null;
+    teamSeasonStats?: import("@shared/apiSportsTypes").MatchTeamSeasonStats | null;
   }>({
     queryKey: ["/api/matches", matchId, "scoreboard"],
     enabled: Boolean(matchId),

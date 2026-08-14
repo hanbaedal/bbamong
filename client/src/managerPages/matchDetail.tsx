@@ -7,7 +7,7 @@ import { useManagerAssets } from "@/contexts/ManagerAssetContext";
 import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
-import ManagerOperatorScorePanel from "@/components/ManagerOperatorScorePanel";
+import TeamSeasonStatsModal from "@/components/TeamSeasonStatsModal";
 import ManagerLineupEditor, { type LineupSide } from "@/components/ManagerLineupEditor";
 import ManagerPinchHitterEditor from "@/components/ManagerPinchHitterEditor";
 import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
@@ -101,6 +101,7 @@ export default function MatchDetailPage() {
     useState(false);
   const [showAdPlayingPopup, setShowAdPlayingPopup] = useState(false);
   const [lineupEditorSide, setLineupEditorSide] = useState<LineupSide | null>(null);
+  const [teamStatsSide, setTeamStatsSide] = useState<"home" | "away" | null>(null);
   const [pinchEditorOpen, setPinchEditorOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const [managerId, setManagerId] = useState<string | null>(null);
@@ -1084,7 +1085,8 @@ export default function MatchDetailPage() {
             homeLineupCount={match.matchLineup?.home?.length ?? 0}
             awayTeamFallback={awayTeamName}
             homeTeamFallback={homeTeamName}
-            onTeamClick={(side) => setLineupEditorSide(side)}
+            onTeamClick={(side) => setTeamStatsSide(side)}
+            onLineupClick={(side) => setLineupEditorSide(side)}
             onSaveScores={async ({ awayScore, homeScore }) => {
               if (!id) return;
               try {
@@ -1409,6 +1411,19 @@ export default function MatchDetailPage() {
               queryKey: ["/api/matches", id, "scoreboard"],
             });
           }}
+        />
+      ) : null}
+
+      {teamStatsSide && match ? (
+        <TeamSeasonStatsModal
+          open
+          teamName={teamStatsSide === "away" ? awayTeamName : homeTeamName}
+          stats={
+            (teamStatsSide === "away"
+              ? scoreboardPayload?.teamSeasonStats?.away
+              : scoreboardPayload?.teamSeasonStats?.home) ?? null
+          }
+          onClose={() => setTeamStatsSide(null)}
         />
       ) : null}
 

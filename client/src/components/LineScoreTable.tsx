@@ -5,7 +5,7 @@ import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 const INNING_COLUMNS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
 function cellRuns(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "";
+  if (value === null || value === undefined) return "-";
   return String(value);
 }
 
@@ -42,9 +42,14 @@ export default function LineScoreTable({
     return a.localeCompare(b);
   });
 
-  const inningColumns = fixedInningColumns || dynamicColumns.length === 0
-    ? INNING_COLUMNS
-    : dynamicColumns;
+  const extraColumns = dynamicColumns.filter((key) => {
+    const n = Number.parseInt(key, 10);
+    return Number.isFinite(n) && n > 9;
+  });
+  const inningColumns =
+    fixedInningColumns || dynamicColumns.length === 0
+      ? [...INNING_COLUMNS, ...extraColumns]
+      : dynamicColumns;
 
   const awayScore = scoreboard?.awayScore ?? 0;
   const homeScore = scoreboard?.homeScore ?? 0;
@@ -52,6 +57,8 @@ export default function LineScoreTable({
   const homeHits = scoreboard?.homeHits ?? 0;
   const awayErrors = scoreboard?.awayErrors ?? 0;
   const homeErrors = scoreboard?.homeErrors ?? 0;
+  const awayWalks = scoreboard?.awayWalks ?? 0;
+  const homeWalks = scoreboard?.homeWalks ?? 0;
   const { awayLabel, homeLabel } = getScoreboardDisplayTeamLabels(scoreboard);
 
   const transparent = variant === "transparent";
@@ -103,6 +110,9 @@ export default function LineScoreTable({
             <th className={`${thBase} px-1 py-1.5 font-semibold text-center`}>
               E
             </th>
+            <th className={`${thBase} px-1 py-1.5 font-semibold text-center`}>
+              B
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -118,6 +128,7 @@ export default function LineScoreTable({
             </td>
             <td className={`${awayTdBase} px-1 py-1.5 text-center`}>{awayHits}</td>
             <td className={`${awayTdBase} px-1 py-1.5 text-center`}>{awayErrors}</td>
+            <td className={`${awayTdBase} px-1 py-1.5 text-center`}>{awayWalks}</td>
           </tr>
           <tr>
             <td className={`${homeTdBase} px-2 py-1.5 font-semibold truncate max-w-[4.5rem]`}>{homeLabel}</td>
@@ -131,6 +142,7 @@ export default function LineScoreTable({
             </td>
             <td className={`${homeTdBase} px-1 py-1.5 text-center`}>{homeHits}</td>
             <td className={`${homeTdBase} px-1 py-1.5 text-center`}>{homeErrors}</td>
+            <td className={`${homeTdBase} px-1 py-1.5 text-center`}>{homeWalks}</td>
           </tr>
         </tbody>
       </table>

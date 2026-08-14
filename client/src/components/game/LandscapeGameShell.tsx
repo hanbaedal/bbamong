@@ -12,7 +12,7 @@ import GameBetModal from "./GameBetModal";
 import GameResultBanner from "./GameResultBanner";
 import GameEventOverlay from "./GameEventOverlay";
 import GameAdOverlay from "./GameAdOverlay";
-import GameNoticeBanner from "./GameNoticeBanner";
+import GameLiveSituationWidget from "./GameLiveSituationWidget";
 import ConfirmPopup from "@/components/customUi/confirmPopup";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
 import { useUser } from "@/contexts/UserContext";
@@ -75,7 +75,9 @@ interface LandscapeGameShellProps {
   sideBetSummary?: SideBetBottomSummary | null;
   onSideBetWinnerClick?: () => void;
   onSideBetScoreClick?: () => void;
-  /** 경기/경기장 선택 모달 등 — 뒤 레이어 공지 배지 숨김 */
+  onAwayTeamClick?: () => void;
+  onHomeTeamClick?: () => void;
+  /** 경기/경기장 선택 모달 등 — 진행 위젯 숨김 */
   noticeSuppressed?: boolean;
 }
 
@@ -128,6 +130,8 @@ export default function LandscapeGameShell({
   sideBetSummary = null,
   onSideBetWinnerClick,
   onSideBetScoreClick,
+  onAwayTeamClick,
+  onHomeTeamClick,
   noticeSuppressed = false,
 }: LandscapeGameShellProps) {
   const { isGuest } = useUser();
@@ -144,7 +148,7 @@ export default function LandscapeGameShell({
       data-testid="landscape-game-shell"
     >
       <GameFieldViewport>
-        <GameNoticeBanner suppressed={noticeSuppressed} />
+        <GameLiveSituationWidget scoreboard={scoreboard} hidden={noticeSuppressed} />
         {emptyMessage ? (
           <div className="absolute inset-0 flex items-center justify-center z-10 px-6">
             <p className="text-white text-center text-sm drop-shadow-lg">{emptyMessage}</p>
@@ -165,6 +169,8 @@ export default function LandscapeGameShell({
               onStadiumNameClick={onStadiumNameClick}
               matchSelectEnabled={matchSelectEnabled}
               stadiumSelectEnabled={stadiumSelectEnabled}
+              onAwayTeamClick={onAwayTeamClick}
+              onHomeTeamClick={onHomeTeamClick}
             />
 
             {pregameCountdown ? (
