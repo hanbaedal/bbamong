@@ -3,18 +3,23 @@ import type { KboRosterPlayer } from "@shared/kboRoster";
 
 interface ManagerRosterPickerProps {
   teamLabel: string;
+  hint?: string;
   players: KboRosterPlayer[];
   loading?: boolean;
   selectedId?: string;
+  /** 다른 타순에 이미 들어간 선수 */
+  takenOrders?: Record<string, number>;
   onSelect: (player: KboRosterPlayer) => void;
   onClose: () => void;
 }
 
 export default function ManagerRosterPicker({
   teamLabel,
+  hint,
   players,
   loading = false,
   selectedId,
+  takenOrders,
   onSelect,
   onClose,
 }: ManagerRosterPickerProps) {
@@ -38,11 +43,14 @@ export default function ManagerRosterPicker({
     >
       <div className="w-full max-w-md max-h-[85dvh] overflow-hidden rounded-xl bg-white shadow-xl flex flex-col">
         <header className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100">
-          <h3 className="text-sm font-bold text-gray-900">{teamLabel} 선수 선택</h3>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-gray-900">{teamLabel} 선수 선택</h3>
+            {hint ? <p className="text-[11px] text-gray-500 mt-0.5">{hint}</p> : null}
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-sm text-gray-500 px-2 py-1"
+            className="shrink-0 text-sm text-gray-500 px-2 py-1"
             data-testid="button-roster-picker-close"
           >
             닫기
@@ -68,13 +76,20 @@ export default function ManagerRosterPicker({
             </p>
           ) : (
             <ul>
-              {filtered.map((player) => (
+              {filtered.map((player) => {
+                const takenOrder = takenOrders?.[player.id];
+                const taken = takenOrder != null;
+                return (
                 <li key={player.id}>
                   <button
                     type="button"
                     onClick={() => onSelect(player)}
                     className={`w-full text-left px-3 py-2.5 border-b border-gray-50 ${
-                      selectedId === player.id ? "bg-[#EEF4FF]" : "bg-white"
+                      selectedId === player.id
+                        ? "bg-[#EEF4FF]"
+                        : taken
+                          ? "bg-gray-50"
+                          : "bg-white"
                     }`}
                     data-testid={`button-roster-player-${player.id}`}
                   >
@@ -93,6 +108,11 @@ export default function ManagerRosterPicker({
                           {player.batsThrows}
                         </span>
                       ) : null}
+                      {taken ? (
+                        <span className="ml-1.5 text-xs font-medium text-gray-400">
+                          {takenOrder}번
+                        </span>
+                      ) : null}
                     </span>
                     <span className="block text-[11px] text-gray-500 tabular-nums">
                       타율 {player.battingAverage || "—"} · 안타 {player.hits ?? "—"} · 홈런{" "}
@@ -103,7 +123,8 @@ export default function ManagerRosterPicker({
                     ) : null}
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>
