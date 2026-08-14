@@ -62,7 +62,7 @@ export function isMatchStartedForSideBets(
   return Number.isFinite(startMs) && nowMs >= startMs;
 }
 
-/** API 폴링 ON + 마감 전 + 경기 시작 전 + 종료·취소 아님 */
+/** 실황 연동 ON + 마감 전 + 경기 시작 전 + 종료·취소 아님 */
 export function isSideBetActionEnabled(match: GameMatchItem, nowMs = Date.now()): boolean {
   if (!match.sideBetEnabled) return false;
   if (match.sideBetsLocked) return false;

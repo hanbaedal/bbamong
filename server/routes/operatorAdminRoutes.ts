@@ -53,12 +53,12 @@ export async function operatorAdminRoutes(app: Express): Promise<void> {
       await setOperatorApiSyncEnabled(id, enabled);
       const data = await listOperatorAccounts();
       res.json({
-        message: enabled ? "API 동기화가 켜졌습니다." : "API 동기화가 꺼졌습니다.",
         ...data,
+        message: enabled ? "실황 연동이 켜졌습니다." : "실황 연동이 꺼졌습니다.",
       });
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "동기화 설정 변경에 실패했습니다.";
-      console.error("운영자 API 동기화 설정 실패:", error);
+      const message = error instanceof Error ? error.message : "실황 연동 설정 변경에 실패했습니다.";
+      console.error("운영자 실황 연동 설정 실패:", error);
       res.status(400).json({ message });
     }
   });

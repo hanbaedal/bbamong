@@ -183,7 +183,7 @@ export default function ManagerListPage() {
         platform,
         counts: result.counts ?? counts,
       });
-      toast({ description: result.message ?? "API 동기화 설정이 변경되었습니다." });
+      toast({ description: result.message ?? "실황 연동 설정이 변경되었습니다." });
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : "동기화 설정 변경에 실패했습니다.";
@@ -247,6 +247,7 @@ export default function ManagerListPage() {
       )}
       <label
         className="inline-flex items-center gap-1 ml-0.5 text-[10px] text-[#666] cursor-pointer whitespace-nowrap shrink-0"
+        title="다음·네이버 실황 및 회원 게임 연동"
         data-testid={`operator-api-sync-${index}`}
       >
         <Switch
@@ -255,7 +256,7 @@ export default function ManagerListPage() {
           onCheckedChange={(enabled) => apiSyncMutation.mutate({ id: op.id, enabled })}
           className="scale-[0.72] data-[state=checked]:bg-[#81C784]"
         />
-        <span className="tabular-nums">API {op.apiSyncEnabled ? "ON" : "OFF"}</span>
+        <span className="tabular-nums">실황 {op.apiSyncEnabled ? "ON" : "OFF"}</span>
       </label>
     </div>
   );
