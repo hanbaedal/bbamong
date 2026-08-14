@@ -721,48 +721,11 @@ export async function adminRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 광고 시작 (관리자 전용)
-  app.post("/api/admin/matches/:id/ad/start", async (req, res) => {
-    try {
-      const accessToken = req.cookies?.adminAccessToken;
-
-      if (!accessToken) {
-        return res.status(401).json({ error: "로그인이 필요합니다." });
-      }
-
-      const decoded = verifyAccessToken(accessToken);
-
-      if (!decoded) {
-        return res.status(403).json({ error: "관리자 권한이 필요합니다." });
-      }
-
-      const { id } = req.params;
-      
-      // 경기 존재 여부 확인
-      const match = await adminMatchStorage.getMatchById(id);
-      if (!match) {
-        return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
-      }
-
-      // 광고 상태 업데이트
-      broadcastManager.setAdPlaying(id, true);
-      const matchState = broadcastManager.getMatchState(id);
-
-      // SSE로 광고 시작 이벤트 전송
-      broadcastManager.sendToMatch(id, "ad_started", {
-        matchId: id,
-        message: "광고가 시작되었습니다.",
-        adStartedAt: matchState.adStartedAt,
-      });
-
-      return res.json({ 
-        success: true, 
-        message: "광고가 시작되었습니다."
-      });
-    } catch (error) {
-      console.error("Start ad error:", error);
-      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
-    }
+  // 광고 시작은 운영자 공수교대·투수교체만 — 관리자 별도 시작 없음
+  app.post("/api/admin/matches/:id/ad/start", async (_req, res) => {
+    return res.status(400).json({
+      error: "광고는 운영자 공수교대·투수교체에서만 시작됩니다.",
+    });
   });
 
   // 광고 상태 조회 (인증 필요)
