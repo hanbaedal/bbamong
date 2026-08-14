@@ -118,6 +118,8 @@ export default function MatchDetailPage() {
   const sessionExpiredRef = useRef(false);
   const duplicateLoginRef = useRef(false);
   const isUnmountingRef = useRef(false);
+  /** 버튼 직후 로컬 반영분과 겹치는 WS GET 중복 방지 */
+  const skipRemoteDetailUntilRef = useRef(0);
   const threeOutsSpokenRef = useRef(false);
   const matchEndedLogoutRef = useRef(false);
   const HEARTBEAT_INTERVAL = 25000; // 25초마다 ping
@@ -484,6 +486,9 @@ export default function MatchDetailPage() {
   }, [id, managerId, toast, logoutOnMatchEnded]);
 
   const fetchMatchDetail = useCallback(async (isPolling = false) => {
+    if (!isPolling && Date.now() < skipRemoteDetailUntilRef.current) {
+      return;
+    }
     try {
       const response = await managerFetch(
         `/api/manager/matches/${id}?_=${Date.now()}`
@@ -775,7 +780,33 @@ export default function MatchDetailPage() {
         setAdElapsedTime(0);
       }
       options?.onSuccess?.(data);
-      await fetchMatchDetail();
+      const phase = data.gamePhase as {
+        gameInning?: number;
+        inningHalf?: string;
+        batterIndexInHalf?: number;
+        currentRound?: number;
+      } | undefined;
+      skipRemoteDetailUntilRef.current = Date.now() + 2000;
+      setMatch((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          currentRound: (data.currentRound as number | undefined) ?? phase?.currentRound ?? prev.currentRound,
+          gameInning: phase?.gameInning ?? prev.gameInning,
+          inningHalf: phase?.inningHalf ?? prev.inningHalf,
+          batterIndexInHalf: phase?.batterIndexInHalf ?? prev.batterIndexInHalf,
+          predictionEnabled: false,
+          predictionStartTime: undefined,
+          predictionStopTime: undefined,
+          needsResultBeforeAdvance: false,
+          needsAdvanceAfterResult: false,
+          isResultSent: false,
+          showThreeOutsHint: false,
+          outsInHalf: action === "switch" ? 0 : prev.outsInHalf,
+          pinchHitter: null,
+        };
+      });
+      void fetchMatchDetail(true);
     } catch {
       toast({ variant: "destructive", description: failMessage });
     } finally {

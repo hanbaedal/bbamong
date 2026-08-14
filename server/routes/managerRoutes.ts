@@ -88,6 +88,34 @@ function emitPinchCleared(matchId: string, pinchCleared: boolean) {
   });
 }
 
+/** 운영자 HTTP는 통계 집계를 기다리지 않음. 유저 round_next는 즉시, 모니터 통계는 이후 stats_update. */
+function broadcastRoundNextThenStats(
+  matchId: string,
+  payload: {
+    currentRound: number;
+    predictionEnabled: boolean;
+    advanceType: string;
+    gamePhase: ReturnType<typeof buildGamePhasePayload>;
+    message: string;
+    skippedResult?: boolean;
+  },
+) {
+  broadcastManager.sendToMatch(matchId, "round_next", {
+    matchId,
+    ...payload,
+  });
+  void getMatchOverallStatistics(matchId)
+    .then((overallStats) => {
+      broadcastManager.sendToMatch(matchId, "stats_update", {
+        matchId,
+        overallStats,
+      });
+    })
+    .catch((error) => {
+      console.error("[Manager] round advance stats_update failed:", error);
+    });
+}
+
 function clearManagerAuthCookies(res: Response): void {
   res.clearCookie("managerAccessToken", { path: "/" });
   res.clearCookie("managerRefreshToken", { path: "/" });
@@ -918,7 +946,6 @@ export async function managerRoutes(app: Express): Promise<void> {
       await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
 
       const { match: updatedMatch, pinchCleared } = await advanceToNextBatter(id);
-      const overallStats = await getMatchOverallStatistics(id);
       const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
       emitPinchCleared(id, pinchCleared);
@@ -932,11 +959,9 @@ export async function managerRoutes(app: Express): Promise<void> {
         });
       }
 
-      broadcastManager.sendToMatch(id, "round_next", {
-        matchId: id,
+      broadcastRoundNextThenStats(id, {
         currentRound: updatedMatch.currentRound,
         predictionEnabled: updatedMatch.predictionEnabled,
-        overallStats,
         advanceType: "next_batter",
         gamePhase,
         message: `다음 타자(라운드 ${updatedMatch.currentRound})`,
@@ -987,7 +1012,6 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       const { match: updatedMatch, predictionAutoStopped, skippedResult, pinchCleared } =
         await advancePitcherChange(id);
-      const overallStats = await getMatchOverallStatistics(id);
       const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
       emitPinchCleared(id, pinchCleared);
@@ -1010,11 +1034,9 @@ export async function managerRoutes(app: Express): Promise<void> {
         });
       }
 
-      broadcastManager.sendToMatch(id, "round_next", {
-        matchId: id,
+      broadcastRoundNextThenStats(id, {
         currentRound: updatedMatch.currentRound,
         predictionEnabled: updatedMatch.predictionEnabled,
-        overallStats,
         advanceType: "pitcher_change",
         skippedResult,
         gamePhase,
@@ -1304,7 +1326,6 @@ export async function managerRoutes(app: Express): Promise<void> {
       await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
 
       const { match: updatedMatch, pinchCleared } = await advanceInningHalf(id);
-      const overallStats = await getMatchOverallStatistics(id);
       const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
       emitPinchCleared(id, pinchCleared);
@@ -1318,11 +1339,9 @@ export async function managerRoutes(app: Express): Promise<void> {
         });
       }
 
-      broadcastManager.sendToMatch(id, "round_next", {
-        matchId: id,
+      broadcastRoundNextThenStats(id, {
         currentRound: updatedMatch.currentRound,
         predictionEnabled: updatedMatch.predictionEnabled,
-        overallStats,
         advanceType: "switch_half",
         gamePhase,
         message: `공수교대 — ${gamePhase.displayLabel}`,
