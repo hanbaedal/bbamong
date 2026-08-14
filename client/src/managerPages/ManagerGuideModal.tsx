@@ -24,7 +24,7 @@ export const MANAGER_GUIDE_STEPS: ManagerGuideStep[] = [
     bullets: [
       "「입장 가능」인 경기만 선택",
       "경기 전·경기 중에 운영 가능",
-      "API 폴링이 켜진 경기만 회원 게임 연동",
+      "실황이 켜진 경기만 회원 게임 연동",
     ],
   },
   {

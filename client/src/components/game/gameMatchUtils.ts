@@ -28,7 +28,7 @@ export interface GameMatchItem {
   matchStatus: string;
   predictionEnabled?: boolean;
   registrationOrder?: number;
-  /** 관리자 API 폴링 ON/OFF와 동일 (opN) */
+/** 관리자 실황 연동 ON/OFF와 동일 (opN, 다음·네이버) */
   sideBetEnabled?: boolean;
   sideBetsLocked?: boolean;
   liveScoreboard?: Pick<LiveScoreboard, "statusShort" | "statusLong" | "inningLabel"> | null;
@@ -206,7 +206,7 @@ export function getGameMatchSelectDisabledReason(match: GameMatchItem): string |
   }
 }
 
-/** API 폴링 ON + 경기전·경기중만 선택 가능 */
+/** 실황 연동 ON + 경기전·경기중만 선택 가능 */
 export function isMatchSelectableForGame(match: GameMatchItem, _nowMs = Date.now()): boolean {
   return getGameMatchSelectDisabledReason(match) === null;
 }

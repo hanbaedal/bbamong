@@ -855,7 +855,7 @@ export default function RealtimeGameMonitoring() {
             platform={platform}
             counts={platformCounts}
             onChange={setPlatform}
-            ppamongSublabel="KBO · API 연동 경기"
+            ppamongSublabel="KBO · 실황 연동 경기"
             badminton9Sublabel="PG 레거시 경기"
             countLabel="경기"
           />
