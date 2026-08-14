@@ -4,6 +4,8 @@ import { isKboTeamShort } from "./kboHomeStadium";
 export const KBO_BATTER_POSITIONS = [
   "투수",
   "포수",
+  "내야수",
+  "외야수",
   "1루수",
   "2루수",
   "3루수",
@@ -68,16 +70,18 @@ const API_POSITION_ALIASES: Record<string, KboBatterPosition> = {
   rightfielder: "우익수",
   우익수: "우익수",
   우익: "우익수",
-  of: "좌익수",
-  outfield: "좌익수",
-  outfielder: "좌익수",
+  of: "외야수",
+  outfield: "외야수",
+  outfielder: "외야수",
+  외야수: "외야수",
   dh: "지명타자",
   "designated hitter": "지명타자",
   designatedhitter: "지명타자",
   지명타자: "지명타자",
   지명: "지명타자",
-  if: "지명타자",
-  infielder: "지명타자",
+  if: "내야수",
+  infielder: "내야수",
+  내야수: "내야수",
 };
 
 export function mapApiPositionToKbo(raw?: string | null): KboBatterPosition {
@@ -93,6 +97,10 @@ export interface KboRosterPlayer {
   season: number;
   name: string;
   position: string;
+  /** 등번호 */
+  jerseyNumber: string;
+  /** 투타유형 (우투우타 등) */
+  batsThrows: string;
   battingAverage: string | null;
   hits: number | null;
   homeRuns: number | null;

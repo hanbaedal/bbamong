@@ -9,13 +9,15 @@ import {
   listKboPlayers,
   updateKboPlayer,
 } from "../kboRoster/kboRosterService";
-import { importKboRosterFromApiSports } from "../kboRoster/importFromApiSports";
+import { importKboRosterFromRegister } from "../kboRoster/importFromKboRegister";
 
 const writeSchema = z.object({
   team: z.string().refine(isKboTeamShort, "KBO 10구단 약칭이 아닙니다."),
   season: z.number().int().min(2000).max(2100),
   name: z.string().trim().min(1).max(40),
   position: z.string().refine(isKboBatterPosition, "올바른 포지션이 아닙니다."),
+  jerseyNumber: z.string().trim().max(4).optional(),
+  batsThrows: z.string().trim().max(20).optional(),
   battingAverage: z.union([z.string(), z.number()]).nullable().optional(),
   hits: z.number().int().min(0).max(999).nullable().optional(),
   homeRuns: z.number().int().min(0).max(999).nullable().optional(),
@@ -79,7 +81,7 @@ export function adminKboRosterRoutes(app: Express) {
     }
   });
 
-  app.post("/api/admin/kbo-players/import-api-sports", adminAuthMiddleware, async (req, res) => {
+  app.post("/api/admin/kbo-players/import-kbo-register", adminAuthMiddleware, async (req, res) => {
     try {
       const body = z
         .object({
@@ -88,9 +90,9 @@ export function adminKboRosterRoutes(app: Express) {
           season: z.number().int().min(2000).max(2100).optional(),
         })
         .parse(req.body ?? {});
-      const result = await importKboRosterFromApiSports(body);
+      const result = await importKboRosterFromRegister(body);
       return res.json({
-        message: "API-SPORTS 선수단을 저장했습니다.",
+        message: "KBO 1군 등록 명단을 저장했습니다.",
         ...result,
       });
     } catch (error) {

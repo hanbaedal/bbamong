@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 type FormState = {
   name: string;
   position: string;
+  jerseyNumber: string;
+  batsThrows: string;
   battingAverage: string;
   hits: string;
   homeRuns: string;
@@ -25,7 +27,9 @@ type FormState = {
 
 const emptyForm = (): FormState => ({
   name: "",
-  position: "지명타자",
+  position: "내야수",
+  jerseyNumber: "",
+  batsThrows: "",
   battingAverage: "",
   hits: "",
   homeRuns: "",
@@ -45,7 +49,9 @@ function parseOptionalInt(value: string): number | null {
 function playerToForm(player: KboRosterPlayer): FormState {
   return {
     name: player.name,
-    position: player.position || "지명타자",
+    position: player.position || "내야수",
+    jerseyNumber: player.jerseyNumber ?? "",
+    batsThrows: player.batsThrows ?? "",
     battingAverage: player.battingAverage ?? "",
     hits: player.hits != null ? String(player.hits) : "",
     homeRuns: player.homeRuns != null ? String(player.homeRuns) : "",
@@ -79,7 +85,7 @@ export default function KboRosterPage() {
 
   const importMutation = useMutation({
     mutationFn: async (scope: "team" | "all") => {
-      const res = await apiRequest("POST", "/api/admin/kbo-players/import-api-sports", {
+      const res = await apiRequest("POST", "/api/admin/kbo-players/import-kbo-register", {
         scope,
         team,
         season,
@@ -92,7 +98,6 @@ export default function KboRosterPage() {
           created: number;
           updated: number;
           deactivated: number;
-          skippedPitchers: number;
           fetched: number;
           error?: string;
         }>;
@@ -101,13 +106,15 @@ export default function KboRosterPage() {
     onSuccess: (result) => {
       const created = result.teams.reduce((sum, row) => sum + row.created, 0);
       const updated = result.teams.reduce((sum, row) => sum + row.updated, 0);
+      const deactivated = result.teams.reduce((sum, row) => sum + row.deactivated, 0);
       const errors = result.teams.filter((row) => row.error);
       const summary = `${result.season}시즌 ${created}명 추가, ${updated}명 갱신`;
+      const extra = deactivated ? `, ${deactivated}명 말소` : "";
       toast({
         variant: errors.length ? "destructive" : "default",
         description: errors.length
-          ? `${summary}. 일부 팀 실패: ${errors.map((row) => row.team).join(", ")}`
-          : `${summary}. 이름은 API 표기를 따릅니다. 특징은 직접 입력하세요.`,
+          ? `${summary}${extra}. 일부 팀 실패: ${errors.map((row) => row.team).join(", ")}`
+          : `${summary}${extra}`,
       });
       void queryClient.invalidateQueries({ queryKey: ["/api/admin/kbo-players"] });
     },
@@ -123,6 +130,8 @@ export default function KboRosterPage() {
         season,
         name: form.name.trim(),
         position: form.position,
+        jerseyNumber: form.jerseyNumber.trim(),
+        batsThrows: form.batsThrows.trim(),
         battingAverage: form.battingAverage.trim() || null,
         hits: parseOptionalInt(form.hits),
         homeRuns: parseOptionalInt(form.homeRuns),
@@ -169,7 +178,7 @@ export default function KboRosterPage() {
 
   return (
     <AdminLayout>
-      <AdminPageShell title="팀별 타자 등록">
+      <AdminPageShell title="KBO 선수단">
         <div className="flex flex-wrap gap-1.5 mb-3">
           {KBO_TEAM_SHORT_LIST.map((short) => (
             <button
@@ -214,7 +223,7 @@ export default function KboRosterPage() {
             onClick={() => importMutation.mutate("team")}
             data-testid="button-import-kbo-team"
           >
-            {importMutation.isPending ? "불러오는 중…" : "API에서 이 팀 불러오기"}
+            {importMutation.isPending ? "불러오는 중…" : "이 팀 1군 불러오기"}
           </Button>
           <Button
             type="button"
@@ -226,11 +235,6 @@ export default function KboRosterPage() {
             10구단 모두 불러오기
           </Button>
         </div>
-        <p className="text-xs text-[#888] mb-4">
-          API-SPORTS에서 구단 선수단·시즌 타격 기록을 가져와 저장합니다. KBO·구단 공식 사이트는
-          수집하지 않습니다. 이름은 API 표기(영문일 수 있음)이며, 다시 불러와도 직접 고친 이름·특징은
-          유지됩니다. 타격 기록이 없는 투수는 건너뜁니다.
-        </p>
 
         <form
           className="rounded-lg border border-[#E9E9E9] p-3 mb-4 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2 items-end"
@@ -263,6 +267,27 @@ export default function KboRosterPage() {
                 </option>
               ))}
             </select>
+          </label>
+          <label className="block">
+            <span className="block text-xs text-[#666] mb-1">등번호</span>
+            <Input
+              className={fieldClass}
+              value={form.jerseyNumber}
+              onChange={(e) => setForm((prev) => ({ ...prev, jerseyNumber: e.target.value }))}
+              maxLength={4}
+              data-testid="input-kbo-player-jersey"
+            />
+          </label>
+          <label className="block">
+            <span className="block text-xs text-[#666] mb-1">투타유형</span>
+            <Input
+              className={fieldClass}
+              value={form.batsThrows}
+              onChange={(e) => setForm((prev) => ({ ...prev, batsThrows: e.target.value }))}
+              placeholder="우투우타"
+              maxLength={20}
+              data-testid="input-kbo-player-bats-throws"
+            />
           </label>
           <label className="block">
             <span className="block text-xs text-[#666] mb-1">시즌타율</span>
@@ -351,8 +376,10 @@ export default function KboRosterPage() {
           <table className={adminTableClass}>
             <thead className="bg-[#FAFAFA] text-left text-xs text-[#666]">
               <tr>
+                <th className="px-3 py-2">등번호</th>
                 <th className="px-3 py-2">이름</th>
                 <th className="px-3 py-2">포지션</th>
+                <th className="px-3 py-2">투타</th>
                 <th className="px-3 py-2">타율</th>
                 <th className="px-3 py-2">안타</th>
                 <th className="px-3 py-2">홈런</th>
@@ -366,21 +393,23 @@ export default function KboRosterPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="px-3 py-8 text-center text-sm text-[#888]">
+                  <td colSpan={12} className="px-3 py-8 text-center text-sm text-[#888]">
                     불러오는 중…
                   </td>
                 </tr>
               ) : players.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-3 py-8 text-center text-sm text-[#888]">
+                  <td colSpan={12} className="px-3 py-8 text-center text-sm text-[#888]">
                     {team} {season} 등록된 선수가 없습니다.
                   </td>
                 </tr>
               ) : (
                 players.map((player) => (
                   <tr key={player.id} className="border-t border-[#F0F0F0]">
+                    <td className="px-3 py-2 tabular-nums">{player.jerseyNumber || "—"}</td>
                     <td className="px-3 py-2 font-medium">{player.name}</td>
                     <td className="px-3 py-2">{player.position}</td>
+                    <td className="px-3 py-2">{player.batsThrows || "—"}</td>
                     <td className="px-3 py-2 tabular-nums">{player.battingAverage || "—"}</td>
                     <td className="px-3 py-2 tabular-nums">{player.hits ?? "—"}</td>
                     <td className="px-3 py-2 tabular-nums">{player.homeRuns ?? "—"}</td>
