@@ -109,6 +109,7 @@ export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | 
   const batterName = playerNameByCode(lineup, batterId) || playerNameByCode(entry, batterId);
   const pitch = parseLastPitch(relay?.textRelays, batterName);
 
+  // currentGameState 에도 homeScore/awayScore/hit/error 가 있으나 점수는 다음이 주인.
   return {
     balls: toCount(state.ball),
     strikes: toCount(state.strike),
