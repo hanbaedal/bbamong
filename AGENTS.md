@@ -39,13 +39,13 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 ### Admin schedule team logos
 - Admin 경기관리 리스트는 다음 스포츠 `team.imageUrl`을 원형으로 표시한다 (실패 시 약칭 이니셜 폴백). 관리자 전용 UI용이며, 사용자 앱에 공식 엠블럼을 확대 배포하기 전에는 별도 권리 검토가 필요하다.
 
-### Live scoreboard (Daum vs operator)
-- KBO 일정 자동 등록·실시간 스코어는 **다음 스포츠**만 쓴다 (득점·안타·실책·볼넷·이닝표·팀 로고). 볼·스트라이크·아웃·루상 주자·상대전적은 네이버(문자중계 `relay` / preview `seasonVsResult`). **API-SPORTS는 사용하지 않는다.**
-- 선발명단은 관리자 「오늘의 선발명단」(다음+네이버) 또는 운영자 수동 타순. API-SPORTS 라인업 폴백 없음.
-- 예측 화면 좌상단 공지 배지 자리에는 **경기 진행 위젯**(이닝 초/말, 팀 점수, 다이아몬드, B-S / OUT, 타자·구종)을 둔다. 배경은 투명. 공지사항은 설정 메뉴에서만 본다.
+### Live scoreboard (Daum vs Naver vs operator)
+- KBO 일정 자동 등록·실시간 **점수**는 **다음 스포츠**만 쓴다 (득점·안타·실책·볼넷·이닝표·팀 로고). **주자·볼-스트라이크·아웃·타자·구종·상대전적**은 **네이버**(문자중계 `relay` / preview `seasonVsResult`). 같은 필드(점수 vs 주자)를 두 소스에서 섞거나 보정하지 않는다. **API-SPORTS는 사용하지 않는다.**
+- 선발명단은 관리자 「오늘의 선발명단」(다음으로 경기 찾고, 네이버로 타순) 또는 운영자 수동 타순. API-SPORTS 라인업 폴백 없음.
+- 예측 화면 좌상단 공지 배지 자리에는 **경기 진행 위젯**(이닝 초/말·팀 점수는 다음, 다이아몬드·B-S·OUT·타자·구종은 네이버)을 둔다. 배경은 투명. 공지사항은 설정 메뉴에서만 본다. 네이버 타석이 없으면 위젯은 점수만 보여주고 `0-0 0 OUT`을 가짜로 채우지 않는다.
 - 팀명 클릭 → 다음 스포츠 시즌 성적 모달 (순위·승무패·승률·타율·평균자책·승차). 운영자 타순 입력은 팀명 옆 「타순」 버튼.
 - 예측 개인기록은 타율·홈런·안타·타점·득점·도루·출루율·OPS.
-- 예측 안타/아웃·공수교대는 운영자 조작이다. 다음 점수는 **스코어보드 표시**만 채운다. “N회 초/말” 표시는 운영자 `gameInning` / `inningHalf`를 우선한다 (`shared/matchPhaseDisplay.ts`). 진행 위젯은 TV 실황(다음/네이버)을 쓴다.
-- During `matchStatus === "ongoing"` and `controlMode === "auto"`, live polls **do overwrite** `liveScoreboard` scores/inning tables. `controlMode === "manual"` (운영자/관리자 점수 보정) keeps operator scores until they turn auto back on. 주자·볼카운트는 manual이어도 실황을 갱신한다.
+- **예측 게임은 운영자 조작이 본체**다. 다음/네이버 실황은 참고 표시일 뿐이며 타순·공수교대·예측 시작/결과를 바꾸지 않는다. 운영자 공수교대가 `liveScoreboard` 이닝을 덮어쓰지 않는다. “N회 초/말” 예측 UI는 운영자 `gameInning` / `inningHalf`를 우선한다 (`shared/matchPhaseDisplay.ts`). 진행 위젯은 TV 실황(다음/네이버)을 쓴다.
+- During `matchStatus === "ongoing"` and `controlMode === "auto"`, live polls **do overwrite** `liveScoreboard` scores/inning tables (Daum). `controlMode === "manual"` (운영자/관리자 점수 보정) keeps operator scores until they turn auto back on. 주자·볼카운트는 manual이어도 네이버 실황을 갱신한다. 네이버 폴링이 비면 직전 `situation`을 유지한다.
 - Operators/admins can PATCH scores (`/api/manager/matches/:id/scoreboard`, `/api/admin/matches/:id/scoreboard`) which sets `controlMode: "manual"`. `lockManual: false` (또는 관리자 「수동」 끄기) returns to auto.
 - **`matchStatus` vs 예측 오픈**: 「예측 시작」은 `predictionEnabled`/`sideBetsLocked`만 켠다. `matchStatus: ongoing`은 실황(다음 스포츠) 근거로만 올린다. 시작 전(`NS`)이면 `scheduled`로 되돌린다(ongoing 고착 방지). UI「경기중」도 시작 전을 우선한다.

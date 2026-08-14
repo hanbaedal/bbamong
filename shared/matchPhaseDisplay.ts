@@ -35,8 +35,8 @@ export function inferInningHalfFromRuns(
 }
 
 /**
- * 스코어보드·운영자 DB를 합쳐 실제 표시용 회/초말 결정.
- * 운영자 gameInning/inningHalf 를 최우선 (TV·현장 기준). 없을 때만 API status·이닝표.
+ * 예측 UI용 회/초말. 운영자 gameInning/inningHalf 가 본체.
+ * 없을 때만 다음 스코어보드 이닝표. 진행 위젯은 이 함수를 쓰지 않고 다음 보드를 그대로 표시한다.
  */
 export function resolveScoreboardInningPhase(input: {
   gameInning?: number | null;

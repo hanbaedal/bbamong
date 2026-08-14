@@ -1,3 +1,4 @@
+/** 예측 참고용 TV 위젯. 이닝·점수는 다음, 다이아몬드·카운트·타자는 네이버. */
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import { kboTeamPrimaryColor } from "@shared/kboTeamColors";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
@@ -77,19 +78,21 @@ export default function GameLiveSituationWidget({
         />
       </div>
 
-      <div className="ml-1.5 flex flex-col items-center justify-center px-0.5">
-        <div className="relative h-[26px] w-[30px]">
-          <BaseDiamond occupied={Boolean(situation?.second)} className="left-1/2 top-0 -translate-x-1/2" />
-          <BaseDiamond occupied={Boolean(situation?.third)} className="left-0 top-[9px]" />
-          <BaseDiamond occupied={Boolean(situation?.first)} className="right-0 top-[9px]" />
+      {situation ? (
+        <div className="ml-1.5 flex flex-col items-center justify-center px-0.5">
+          <div className="relative h-[26px] w-[30px]">
+            <BaseDiamond occupied={Boolean(situation.first)} className="right-0 top-[9px]" />
+            <BaseDiamond occupied={Boolean(situation.second)} className="left-1/2 top-0 -translate-x-1/2" />
+            <BaseDiamond occupied={Boolean(situation.third)} className="left-0 top-[9px]" />
+          </div>
+          <div className="mt-0.5 flex items-baseline gap-1.5 whitespace-nowrap">
+            <span className="text-[10px] font-semibold leading-none tabular-nums">
+              {balls} - {strikes}
+            </span>
+            <span className="text-[9px] font-bold leading-none tracking-wide">{outs} OUT</span>
+          </div>
         </div>
-        <div className="mt-0.5 flex items-baseline gap-1.5 whitespace-nowrap">
-          <span className="text-[10px] font-semibold leading-none tabular-nums">
-            {balls} - {strikes}
-          </span>
-          <span className="text-[9px] font-bold leading-none tracking-wide">{outs} OUT</span>
-        </div>
-      </div>
+      ) : null}
 
       {showBatter ? (
         <div className="ml-2 flex min-w-0 max-w-[13rem] items-center gap-1.5">

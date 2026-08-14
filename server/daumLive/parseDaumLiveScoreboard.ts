@@ -79,6 +79,10 @@ function scoreTotals(block?: DaumScoreBlock): { run: number; hit: number; error:
   };
 }
 
+/**
+ * 다음 스포츠 list.json → 점수·이닝·R/H/E/B 전용.
+ * situation(주자·카운트)은 넣지 않는다 — 네이버 relay 가 주인.
+ */
 export function parseDaumLiveScoreboard(game: DaumListGame): LiveScoreboard {
   const period = parseDaumPeriod(game.periodType);
   const mapped = mapDaumGameStatus(game.gameStatus);
