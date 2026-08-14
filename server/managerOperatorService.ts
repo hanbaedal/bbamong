@@ -395,6 +395,13 @@ export function resolveOperatorMatchPhaseFromTodayMatch(
     return "경기전";
   }
 
+  const startNotReached = Date.now() < new Date(match.startTime).getTime();
+  if (startNotReached && !hasLiveInningProgress(staleInput)) {
+    if (match.matchStatus !== "completed" && match.matchStatus !== "cancelled") {
+      return "경기전";
+    }
+  }
+
   if (match.matchStatus === "completed") {
     return "경기종료";
   }

@@ -27,10 +27,18 @@ export function isGameFinished(statusShort: string | null | undefined): boolean 
   return short === "FT" || short === "FIN" || short === "AOT" || short === "END" || short === "RESULT";
 }
 
-/** 시작 전 */
+/** 시작 전 (다음 스포츠 BEFORE/READY 포함 — 진행으로 오인 금지) */
 export function isGameNotStarted(statusShort: string | null | undefined): boolean {
   const short = normalizeApiStatusShort(statusShort);
-  return short === "NS" || short === "TBD" || short === "SCHEDULED";
+  return (
+    short === "NS" ||
+    short === "TBD" ||
+    short === "SCHEDULED" ||
+    short === "BEFORE" ||
+    short === "READY" ||
+    short === "WAIT" ||
+    short === "PRE"
+  );
 }
 
 /** NS/TBD·종료·연기가 아니면 live(진행)로 간주 */

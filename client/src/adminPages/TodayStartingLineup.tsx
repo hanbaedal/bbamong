@@ -22,6 +22,7 @@ function kstTodayKey(): string {
 function gameStatusLabel(status: string): string {
   const map: Record<string, string> = {
     READY: "예정",
+    BEFORE: "예정",
     PLAY: "진행",
     RESULT: "종료",
     CANCEL: "취소",

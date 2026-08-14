@@ -29,13 +29,27 @@ export function parseDaumInningRuns(raw?: string | null): InningRunsMap {
   return map;
 }
 
+const DAUM_PREGAME_STATUSES = new Set([
+  "READY",
+  "BEFORE",
+  "SCHEDULED",
+  "WAIT",
+  "PRE",
+  "NS",
+  "TBD",
+  "NOTSTARTED",
+  "NOT_STARTED",
+]);
+
+const DAUM_LIVE_STATUSES = new Set(["PLAY", "LIVE", "INPLAY", "INGAME", "ING", "START", "STARTED"]);
+
 export function parseDaumPeriod(
   periodType?: string | null,
 ): { inning: number | null; inningHalf: InningHalf | null; statusShort: string } {
   const raw = (periodType ?? "").trim().toUpperCase();
   const match = raw.match(/^([TB])(\d{1,2})$/);
   if (!match) {
-    return { inning: null, inningHalf: null, statusShort: raw || "IN" };
+    return { inning: null, inningHalf: null, statusShort: "" };
   }
   const inningHalf: InningHalf = match[1] === "B" ? "bottom" : "top";
   const inning = Number.parseInt(match[2], 10);
@@ -51,8 +65,10 @@ export function mapDaumGameStatus(gameStatus?: string | null): {
   statusLong: string;
 } {
   const status = (gameStatus ?? "").trim().toUpperCase();
-  if (status === "READY") return { statusShort: "NS", statusLong: "Not Started" };
-  if (status === "PLAY" || status === "LIVE" || status === "INPLAY") {
+  if (!status || DAUM_PREGAME_STATUSES.has(status)) {
+    return { statusShort: "NS", statusLong: "Not Started" };
+  }
+  if (DAUM_LIVE_STATUSES.has(status)) {
     return { statusShort: "IN", statusLong: "In Progress" };
   }
   if (status === "END" || status === "RESULT" || status === "FINAL" || status === "FINISHED") {
@@ -67,7 +83,7 @@ export function mapDaumGameStatus(gameStatus?: string | null): {
   if (status === "DELAY" || status === "POSTPONE" || status === "POSTPONED") {
     return { statusShort: "PST", statusLong: "Postponed" };
   }
-  return { statusShort: "IN", statusLong: "In Progress" };
+  return { statusShort: "NS", statusLong: "Not Started" };
 }
 
 function scoreTotals(block?: DaumScoreBlock): { run: number; hit: number; error: number; walks: number } {
@@ -90,14 +106,25 @@ export function parseDaumLiveScoreboard(game: DaumListGame): LiveScoreboard {
   const away = scoreTotals(game.awayScore);
   const homeInnings = parseDaumInningRuns(game.homeScore?.inning);
   const awayInnings = parseDaumInningRuns(game.awayScore?.inning);
-  const statusShort =
-    mapped.statusShort === "IN" && period.statusShort ? period.statusShort : mapped.statusShort;
-  const inning = mapped.statusShort === "NS" ? null : period.inning;
-  const inningHalf = mapped.statusShort === "NS" ? null : period.inningHalf;
+  const rawStatus = (game.gameStatus ?? "").trim().toUpperCase();
+  const explicitPregame = DAUM_PREGAME_STATUSES.has(rawStatus);
+  const isPregame = explicitPregame || (mapped.statusShort === "NS" && period.inning == null);
+  let statusShort = mapped.statusShort;
+  if (isPregame) {
+    statusShort = "NS";
+  } else if (
+    period.inning != null &&
+    period.statusShort &&
+    (mapped.statusShort === "IN" || mapped.statusShort === "NS")
+  ) {
+    statusShort = period.statusShort;
+  }
+  const inning = isPregame ? null : period.inning;
+  const inningHalf = isPregame ? null : period.inningHalf;
   const inningLabel =
-    mapped.statusShort === "FT"
+    mapped.statusShort === "FT" || statusShort === "FT"
       ? "경기 종료"
-      : mapped.statusShort === "NS"
+      : isPregame || statusShort === "NS"
         ? "시작 전"
         : inning != null && inningHalf
           ? formatInningWithHalf(inning, inningHalf)
