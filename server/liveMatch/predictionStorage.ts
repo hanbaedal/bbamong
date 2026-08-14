@@ -20,9 +20,6 @@ import {
   type MemberPlatform,
   buildUserPlatformMatchForAgg,
 } from "../utils/memberPlatform";
-import { overlayOperatorInningOnScoreboard } from "../apiSports/liveScoreboardPolicy";
-import type { LiveScoreboard } from "@shared/apiSportsTypes";
-import { parseInningHalf } from "@shared/gamePhaseTypes";
 
 /**
  * 운영자 컨트롤용 — ongoing만 허용.
@@ -859,7 +856,7 @@ export async function advancePitcherChange(
   }
 }
 
-/** 공수교대 — 초/말 전환, 상대 팀 타순 커서 이어서 */
+/** 공수교대 — 예측 타순 초/말만 전환. TV liveScoreboard 이닝은 다음 실황이 주인. */
 export async function advanceInningHalf(
   matchId: string,
 ): Promise<{ match: Match; predictionAutoStopped: boolean; pinchCleared: boolean }> {
@@ -872,19 +869,12 @@ export async function advanceInningHalf(
 
   const { predictionAutoStopped } = await nextRound(matchId);
 
-  const overlay = overlayOperatorInningOnScoreboard(
-    (before as { liveScoreboard?: LiveScoreboard | null }).liveScoreboard,
-    nextPhase.gameInning,
-    parseInningHalf(nextPhase.inningHalf),
-  );
-
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },
     {
       $set: {
         ...nextPhase,
         outsInHalf: 0,
-        ...(overlay ? { liveScoreboard: overlay } : {}),
       },
       $unset: { pinchHitter: 1 },
     },

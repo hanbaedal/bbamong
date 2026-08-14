@@ -125,12 +125,12 @@ export default function GameLiveSituationWidget({
         ) : null}
       </div>
 
-      {showLiveBits ? (
+      {showLiveBits && situation ? (
         <div className="ml-1.5 flex h-[36px] flex-col items-center justify-center px-0.5 sm:h-[40px]">
           <div className="relative h-[26px] w-[30px]">
-            <BaseDiamond occupied={Boolean(situation?.second)} className="left-1/2 top-0 -translate-x-1/2" />
-            <BaseDiamond occupied={Boolean(situation?.third)} className="left-0 top-[9px]" />
-            <BaseDiamond occupied={Boolean(situation?.first)} className="right-0 top-[9px]" />
+            <BaseDiamond occupied={Boolean(situation.second)} className="left-1/2 top-0 -translate-x-1/2" />
+            <BaseDiamond occupied={Boolean(situation.third)} className="left-0 top-[9px]" />
+            <BaseDiamond occupied={Boolean(situation.first)} className="right-0 top-[9px]" />
           </div>
           <div className="mt-0.5 flex items-baseline gap-1.5 whitespace-nowrap">
             <span className="text-[10px] font-semibold leading-none tabular-nums">

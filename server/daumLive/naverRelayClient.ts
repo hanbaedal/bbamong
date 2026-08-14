@@ -95,6 +95,7 @@ function parseLastPitch(
   return { pitchLabel, pitchDetail };
 }
 
+/** 네이버 문자중계 → 주자·카운트·타자·구종 전용. 점수·이닝은 파싱하지 않는다. */
 export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | null {
   const relay =
     payload && typeof payload === "object" ? (payload as NaverRelayPayload).result?.textRelayData : null;
@@ -108,6 +109,7 @@ export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | 
   const batterName = playerNameByCode(lineup, batterId) || playerNameByCode(entry, batterId);
   const pitch = parseLastPitch(relay?.textRelays, batterName);
 
+  // currentGameState 에도 homeScore/awayScore/hit/error 가 있으나 점수는 다음이 주인.
   return {
     balls: toCount(state.ball),
     strikes: toCount(state.strike),
