@@ -37,6 +37,7 @@ interface MatchRow {
   matchStatus: string;
   matchDate?: string | null;
   apiSportsGameId?: number | null;
+  daumGameId?: number | null;
   apiSportsHomeTeam?: string | null;
   apiSportsAwayTeam?: string | null;
   apiSportsHomeTeamLogo?: string | null;
@@ -178,7 +179,7 @@ export default function MatchManagement() {
     linked: number;
     deduped?: number;
     cleared?: number;
-    source?: "cache" | "api";
+    source?: "cache" | "api" | "daum";
   } | null>(null);
 
   const { data: stadiums } = useQuery<Stadium[]>({
@@ -268,16 +269,17 @@ export default function MatchManagement() {
       if (linked === 0) {
         if (cleared > 0) {
           toast({
-            description: `${dateKey} API 경기 없음 · DB orphan ${cleared}건 정리`,
+            description: `${dateKey} 다음 경기 없음 · DB orphan ${cleared}건 정리`,
           });
         } else if (!options?.silentEmpty) {
           toast({
             variant: "destructive",
-            description: `${dateKey} API 경기가 없습니다. (키·시즌·리그 확인)`,
+            description: `${dateKey} 다음 스포츠 경기가 없습니다.`,
           });
         }
       } else {
-        const sourceLabel = source === "cache" ? "DB 캐시" : source === "api" ? "API 조회" : "동기화";
+        const sourceLabel =
+          source === "daum" ? "다음 스포츠" : source === "cache" ? "DB 캐시" : source === "api" ? "API 조회" : "동기화";
         const dedupedPart = deduped > 0 ? ` · 중복 제거 ${deduped}` : "";
         toast({
           description: `${dateKey} ${sourceLabel} · 신규 ${created} · 갱신 ${updated} · 연결 ${linked}${dedupedPart}`,
@@ -289,11 +291,9 @@ export default function MatchManagement() {
       toast({
         variant: "destructive",
         description:
-          message.includes("API_SPORTS_KEY")
-            ? "Replit Secrets에 API_SPORTS_KEY가 없습니다."
-            : message.includes("Free plans")
-              ? "Free 플랜은 현재 시즌 조회가 불가합니다. Pro 키를 확인하세요."
-              : `일정 불러오기 실패: ${message}`,
+          message.includes("다음 스포츠")
+            ? message
+            : `일정 불러오기 실패: ${message}`,
       });
       throw err;
     } finally {
@@ -330,7 +330,7 @@ export default function MatchManagement() {
               onClick={() => void syncDate(selectedDateKey, { forceApi: true })}
               data-testid="button-force-resync"
             >
-              {syncingDate === selectedDateKey ? "불러오는 중..." : "API에서 갱신"}
+              {syncingDate === selectedDateKey ? "불러오는 중..." : "다음에서 갱신"}
             </button>
             <button
               type="button"
@@ -433,11 +433,11 @@ export default function MatchManagement() {
               <p className="text-[11px] text-[#888] mt-0.5">
                 {syncingDate === selectedDateKey
                   ? dayMatches.length > 0
-                    ? "API 갱신 중..."
+                    ? "갱신 중..."
                     : "일정 불러오는 중..."
                   : lastSyncMeta?.date === selectedDateKey
-                    ? `${lastSyncMeta.source === "api" ? "API 반영" : "DB 캐시 반영"} · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}${(lastSyncMeta.deduped ?? 0) > 0 ? ` · 중복 제거 ${lastSyncMeta.deduped}` : ""}`
-                    : "DB 저장 일정 표시 · API 갱신은 「API에서 갱신」 · 오늘은 09:00 자동 sync"}
+                    ? `${lastSyncMeta.source === "daum" ? "다음 스포츠 반영" : lastSyncMeta.source === "api" ? "API 반영" : "DB 캐시 반영"} · 신규 ${lastSyncMeta.created} · 갱신 ${lastSyncMeta.updated} · 연결 ${lastSyncMeta.linked}${(lastSyncMeta.deduped ?? 0) > 0 ? ` · 중복 제거 ${lastSyncMeta.deduped}` : ""}`
+                    : "DB 저장 일정 표시 · 「다음에서 갱신」 · 오늘은 09:00 자동 sync"}
               </p>
             </div>
             <span className="text-xs text-[#6B7280] tabular-nums">
@@ -460,7 +460,7 @@ export default function MatchManagement() {
                     onClick={() => void syncDate(selectedDateKey, { forceApi: true })}
                     className="px-3 py-1.5 text-xs rounded-md border border-[#E0E0E0] hover:border-[#E11936] hover:text-[#E11936] disabled:opacity-50"
                   >
-                    API에서 불러오기
+                    다음에서 불러오기
                   </button>
                 </div>
               </div>
@@ -527,7 +527,7 @@ export default function MatchManagement() {
                             {stadium}
                           </span>
                           <span className="text-[10px] text-[#9CA3AF]">
-                            {match.apiSportsGameId ? "API 연결" : "API 미연결"}
+                            {match.daumGameId || match.apiSportsGameId ? "다음 연결" : "미연결"}
                           </span>
                         </div>
 

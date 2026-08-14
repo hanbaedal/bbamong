@@ -8,7 +8,7 @@ export type InningRunsMap = Record<string, number | null>;
 export interface LiveScoreboard {
   homeTeamName: string;
   awayTeamName: string;
-  /** API-SPORTS teams.*.logo (관리자 일정 등) */
+  /** 다음 스포츠 teams.imageUrl (관리자 일정 등) */
   homeTeamLogo?: string | null;
   awayTeamLogo?: string | null;
   homeScore: number;
@@ -82,6 +82,7 @@ export interface ApiSportsHealthStatus {
 
 export interface ApiSportsTodayGame {
   apiSportsGameId: number;
+  daumGameId?: number;
   date: string;
   time: string;
   homeTeamName: string;

@@ -251,8 +251,8 @@ export default function RealtimeGameMonitoring() {
       toast({
         description:
           nextMode === "manual"
-            ? "비상 수동 제어 모드로 전환했습니다. (API 점수 덮어쓰기 잠금)"
-            : "자동 API 동기화 모드로 복귀했습니다. (경기 중 점수는 여전히 보존)",
+            ? "비상 수동 제어 모드로 전환했습니다. (실황 점수 덮어쓰기 잠금)"
+            : "자동 실황 동기화 모드로 복귀했습니다.",
       });
     } catch {
       toast({ variant: "destructive", description: "제어 모드 변경에 실패했습니다." });
@@ -288,7 +288,7 @@ export default function RealtimeGameMonitoring() {
       });
       const body = await result.json();
       toast({
-        description: `API 일정: 신규 ${body.created ?? 0} · 갱신 ${body.updated ?? 0} · 연결 ${body.linked ?? 0}`,
+        description: `다음 스포츠 일정: 신규 ${body.created ?? 0} · 갱신 ${body.updated ?? 0} · 연결 ${body.linked ?? 0}`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/matches"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stadiums"] });
@@ -296,10 +296,7 @@ export default function RealtimeGameMonitoring() {
       const message = err instanceof Error ? err.message : String(err);
       toast({
         variant: "destructive",
-        description:
-          message.includes("API_SPORTS_KEY")
-            ? "Replit Secrets에 API_SPORTS_KEY가 없습니다. 추가 후 Redeploy 하세요."
-            : `API-SPORTS 동기화 실패: ${message}`,
+        description: `일정 동기화 실패: ${message}`,
       });
     } finally {
       setIsSyncingApi(false);
@@ -1009,7 +1006,7 @@ export default function RealtimeGameMonitoring() {
                       disabled={isSyncingApi}
                       className="px-2 py-1 text-[11px] rounded border border-[#E9E9E9] hover:border-[#E11936] hover:text-[#E11936] disabled:opacity-50 whitespace-nowrap"
                     >
-                      {isSyncingApi ? "동기화…" : "API 등록"}
+                      {isSyncingApi ? "동기화…" : "다음 등록"}
                     </button>
                     <button
                       type="button"
@@ -1065,7 +1062,7 @@ export default function RealtimeGameMonitoring() {
                           apiHealth?.healthy ? "bg-green-500" : "bg-red-500",
                         )}
                       />
-                      API {apiHealth?.healthy ? "정상" : "오류"} {apiHealth?.latencyMs ?? "-"}ms
+                      다음 {apiHealth?.healthy ? "정상" : "오류"} {apiHealth?.latencyMs ?? "-"}ms
                     </span>
                   </div>
                   {apiHealth?.lastError && (

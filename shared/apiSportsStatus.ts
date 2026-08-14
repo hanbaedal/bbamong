@@ -24,7 +24,7 @@ export function isGamePostponedOrCancelled(statusShort: string | null | undefine
 export function isGameFinished(statusShort: string | null | undefined): boolean {
   const short = normalizeApiStatusShort(statusShort);
   if (isGamePostponedOrCancelled(short)) return false;
-  return short === "FT" || short === "FIN" || short === "AOT";
+  return short === "FT" || short === "FIN" || short === "AOT" || short === "END" || short === "RESULT";
 }
 
 /** 시작 전 */

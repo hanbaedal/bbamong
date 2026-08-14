@@ -5,11 +5,10 @@ import { userAuthMiddleware } from "../middleware/userAuth";
 import { MatchModel, PredictionModel } from "../UserStorage/db";
 import { getKstDateString } from "../utils/dateUtils";
 import { PREDICTION_ODDS } from "@shared/predictionOdds";
-import { getApiSportsHealth } from "./healthState";
-import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
+import { LIVE_SCORE_SYNC_INTERVAL_MS } from "./constants";
+import { fetchDaumKboGameList } from "../daumLive/daumHermesClient";
 import {
   importSeasonMatchesFromApiSports,
-  linkMatchToApiSports,
   mapTodayGames,
   reconcileStuckPregameSideBetLocks,
   setMatchControlMode,
@@ -30,17 +29,26 @@ import type {
 
 export async function apiSportsRoutes(app: Express): Promise<void> {
   app.get("/api/api-sports/health", async (_req, res) => {
-    res.json(getApiSportsHealth());
+    res.json({
+      healthy: true,
+      source: "daum",
+      lastSuccessAt: new Date().toISOString(),
+      lastErrorAt: null,
+      lastError: null,
+      pollIntervalMs: LIVE_SCORE_SYNC_INTERVAL_MS,
+      latencyMs: null,
+      apiKeyConfigured: false,
+    });
   });
 
   app.get("/api/api-sports/today-games", adminAuthMiddleware, async (req, res) => {
     try {
       const date = (req.query.date as string) || getKstDateString();
-      const { games, source } = await getScheduleGamesForDate(date);
-      res.json({ games: mapTodayGames(games), source });
+      const games = await fetchDaumKboGameList(date.replace(/-/g, ""));
+      res.json({ games: mapTodayGames(games, date), source: "daum" });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "API-SPORTS 조회 실패";
-      res.status(502).json({ error: message, health: getApiSportsHealth() });
+      const message = error instanceof Error ? error.message : "다음 스포츠 일정 조회 실패";
+      res.status(502).json({ error: message });
     }
   });
 
@@ -50,13 +58,15 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
         .object({ season: z.number().int().optional() })
         .parse(req.body ?? {});
       const season = body.season ?? new Date().getFullYear();
-      const result = await importSeasonScheduleToCache(season);
+      const result = await importSeasonMatchesFromApiSports(season, { forceApi: true });
+      await syncOperatorMatchAssignments();
+      await rescheduleTodayMatchTimers();
       res.json({
-        message: `${season}시즌 일정 적재 완료 (API 호출 ${result.daysFetchedFromApi}일)`,
+        message: `${season}시즌 다음 스포츠 일정 Match 등록 완료 (경기 있는 날 ${result.daysSynced}일)`,
         ...result,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "시즌 일정 적재 실패";
+      const message = error instanceof Error ? error.message : "시즌 일정 등록 실패";
       res.status(502).json({ error: message });
     }
   });
@@ -72,8 +82,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
         .parse(req.body ?? {});
       const season = body.season ?? new Date().getFullYear();
       const result = await importSeasonMatchesFromApiSports(season, {
-        prefetchScheduleCache: body.prefetchScheduleCache,
-        forceApi: body.forceApi,
+        forceApi: body.forceApi ?? true,
       });
       await syncOperatorMatchAssignments();
       await rescheduleTodayMatchTimers();
@@ -93,7 +102,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
         .object({ date: z.string().optional(), forceApi: z.boolean().optional() })
         .parse(req.body ?? {});
       const targetDate = body.date ?? getKstDateString();
-      const result = await syncTodayGamesFromApiSports(targetDate, { forceApi: body.forceApi });
+      const result = await syncTodayGamesFromApiSports(targetDate, { forceApi: body.forceApi ?? true });
       await reconcileStuckPregameSideBetLocks(targetDate);
       await syncOperatorMatchAssignments();
       if (body.forceApi || targetDate === getKstDateString()) {
@@ -103,20 +112,6 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
     } catch (error) {
       const message = error instanceof Error ? error.message : "동기화 실패";
       res.status(502).json({ error: message });
-    }
-  });
-
-  app.post("/api/admin/matches/:id/link-api-sports", adminAuthMiddleware, async (req, res) => {
-    try {
-      const { apiSportsGameId } = z.object({ apiSportsGameId: z.number().int().positive() }).parse(req.body);
-      const match = await linkMatchToApiSports(req.params.id, apiSportsGameId);
-      res.json({ success: true, match });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      const message = error instanceof Error ? error.message : "연결 실패";
-      res.status(400).json({ error: message });
     }
   });
 
@@ -168,7 +163,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
       const matchId = req.params.id;
       const match = await MatchModel.findOne({ id: matchId })
         .select(
-          "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter matchTeamSeasonStats",
+          "id registrationOrder liveScoreboard apiSportsHomeTeam apiSportsAwayTeam apiSportsHomeTeamId apiSportsAwayTeamId controlMode apiSportsGameId daumGameId startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter matchTeamSeasonStats",
         )
         .lean();
       if (!match) return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
@@ -214,7 +209,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
         matchId: match.id,
         scoreboard: match.liveScoreboard ?? null,
         controlMode: match.controlMode ?? "auto",
-        linked: Boolean(match.apiSportsGameId),
+        linked: Boolean(match.daumGameId || match.apiSportsGameId),
         currentBatter,
         teamSeasonStats,
       });
@@ -246,7 +241,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
       });
 
       res.json({
-        matchId: match.id,
+        matchId: req.params.matchId,
         currentRound: match.currentRound,
         predictionEnabled: match.predictionEnabled,
         distribution: buckets,

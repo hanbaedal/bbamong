@@ -157,3 +157,48 @@ export async function fetchNaverLiveSituation(cpGameId?: string | null): Promise
   relayInflight.set(gameId, request);
   return request;
 }
+
+type H2hCache = { gameId: string; fetchedAt: number; awayWins: number; homeWins: number };
+const H2H_CACHE_MS = 30 * 60_000;
+const h2hCache = new Map<string, H2hCache>();
+
+/** 네이버 preview `seasonVsResult` — 원정(aw)·홈(hw) 시즌 상대 승수 */
+export async function fetchNaverSeasonHeadToHead(
+  cpGameId?: string | null,
+): Promise<{ awayWins: number; homeWins: number } | null> {
+  const gameId = daumCpGameIdToNaverGameId(cpGameId);
+  if (!gameId) return null;
+
+  const cached = h2hCache.get(gameId);
+  const now = Date.now();
+  if (cached && now - cached.fetchedAt < H2H_CACHE_MS) {
+    return { awayWins: cached.awayWins, homeWins: cached.homeWins };
+  }
+
+  const url = `${NAVER_GAME_BASE}/${encodeURIComponent(gameId)}/preview`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": DAUM_USER_AGENT,
+      Accept: "application/json",
+      "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+      Referer: "https://m.sports.naver.com/",
+    },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    throw new Error(`네이버 상대전적 응답 ${res.status}`);
+  }
+  const payload = (await res.json()) as {
+    result?: {
+      previewData?: {
+        seasonVsResult?: { aw?: number; hw?: number };
+      };
+    };
+  };
+  const vs = payload.result?.previewData?.seasonVsResult;
+  const awayWins = Number(vs?.aw);
+  const homeWins = Number(vs?.hw);
+  if (!Number.isFinite(awayWins) || !Number.isFinite(homeWins)) return null;
+  h2hCache.set(gameId, { gameId, fetchedAt: Date.now(), awayWins, homeWins });
+  return { awayWins, homeWins };
+}

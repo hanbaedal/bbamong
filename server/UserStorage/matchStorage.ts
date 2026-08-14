@@ -116,20 +116,8 @@ export class MatchStorage {
       enriched.map(async (m) => {
         const row = m as Match & {
           matchHeadToHead?: MatchHeadToHeadSnapshot | null;
-          apiSportsGameId?: number | null;
         };
-        if (!row.apiSportsGameId && (!row.apiSportsAwayTeamId || !row.apiSportsHomeTeamId)) {
-          return row;
-        }
-        const snapshot = await refreshMatchHeadToHeadIfDue(row.id, {
-          id: row.id,
-          registrationOrder: resolveRegistrationOrder(row),
-          startTime: row.startTime,
-          apiSportsGameId: row.apiSportsGameId,
-          apiSportsAwayTeamId: row.apiSportsAwayTeamId,
-          apiSportsHomeTeamId: row.apiSportsHomeTeamId,
-          matchHeadToHead: row.matchHeadToHead ?? null,
-        });
+        const snapshot = await refreshMatchHeadToHeadIfDue(row.id);
         return snapshot ? { ...row, matchHeadToHead: snapshot } : row;
       }),
     );

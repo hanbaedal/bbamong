@@ -3,50 +3,51 @@ import { MatchModel, StadiumModel, PredictionModel, RoundStatisticsModel, getNex
 import { finalizeMatchEnd } from "../liveMatch/sideBetStorage";
 import { broadcastManager } from "../liveMatch/broadcastManager";
 import { addKstDays, getKstDateString, getKstDayRange } from "../utils/dateUtils";
-import { fetchGameById, apiSportsTeamIdsFromGame, type ApiSportsGameResponse } from "./client";
-import { markApiSportsError } from "./healthState";
 import type {
   ApiSportsTodayGame,
   InningRunsMap,
   LiveScoreboard,
   MatchControlMode,
-  MatchHeadToHeadSnapshot,
-  MatchLineupSnapshot,
-  MatchPlayerStatsEntry,
 } from "@shared/apiSportsTypes";
 import {
-  buildInningKey,
+  isConfirmedPostponedMatch,
   isGameFinished,
   isGameLiveStatus,
+  isGameNotStarted,
   isGamePostponedOrCancelled,
-  parseLiveScoreboard,
-} from "./scoreboardParser";
-import { getScheduleGamesForDate, importSeasonScheduleToCache } from "./scheduleCache";
+  normalizeApiStatusShort,
+} from "@shared/apiSportsStatus";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
-import { isConfirmedPostponedMatch, isGameNotStarted, normalizeApiStatusShort } from "@shared/apiSportsStatus";
 import { LIVE_SCORE_NS_GATE_POLL_MS, LIVE_SCORE_SYNC_START_BEFORE_MS } from "./constants";
 import { isStaleFinishedScoreboard, isStalePostponedScoreboard, isMisclassifiedTerminalStatus } from "@shared/matchManagementStatus";
-import { refreshMatchLineupIfDue } from "./lineupService";
 import { refreshMatchHeadToHeadIfDue } from "./h2hService";
 import {
   API_PLACEHOLDER_STADIUM_NAME,
   formatKboTeamShortName,
   resolveVenueNameFromApiSportsGame,
 } from "@shared/kboHomeStadium";
-import { resolveScoreboardForApiWrite } from "./liveScoreboardPolicy";
+import { buildInningKey, resolveScoreboardForApiWrite } from "./liveScoreboardPolicy";
 import { formatInningWithHalf, parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
+import {
+  daumGameStartDate,
+  daumTeamLogo,
+  daumVenueName,
+  fetchDaumKboGameList,
+  type DaumListGame,
+} from "../daumLive/daumHermesClient";
+import { parseDaumLiveScoreboard } from "../daumLive/parseDaumLiveScoreboard";
 import { resolveDaumLiveScoreboard } from "../daumLive/daumLiveScoreService";
 import { refreshMatchSeasonContext } from "../daumLive/daumSeasonStatsService";
 
 const MAX_DAILY_MATCHES = 5;
 
-function apiSportsTeamsUpdate(game: ApiSportsGameResponse, scoreboard: LiveScoreboard) {
+function daumTeamsUpdate(game: DaumListGame, scoreboard: LiveScoreboard) {
   return {
+    daumGameId: Number(game.gameId),
     apiSportsHomeTeam: formatKboTeamShortName(scoreboard.homeTeamName),
     apiSportsAwayTeam: formatKboTeamShortName(scoreboard.awayTeamName),
-    apiSportsHomeTeamLogo: game.teams.home.logo ?? scoreboard.homeTeamLogo ?? null,
-    apiSportsAwayTeamLogo: game.teams.away.logo ?? scoreboard.awayTeamLogo ?? null,
-    ...apiSportsTeamIdsFromGame(game),
+    apiSportsHomeTeamLogo: daumTeamLogo(game.home) ?? scoreboard.homeTeamLogo ?? null,
+    apiSportsAwayTeamLogo: daumTeamLogo(game.away) ?? scoreboard.awayTeamLogo ?? null,
   };
 }
 
@@ -252,25 +253,6 @@ export async function reconcileStuckPregameSideBetLocks(
   return fixed;
 }
 
-function gameStartDate(game: ApiSportsGameResponse): Date {
-  if (game.timestamp && Number.isFinite(game.timestamp)) {
-    // API-SPORTS timestamp is unix seconds
-    return new Date(game.timestamp * 1000);
-  }
-  if (game.date && game.time) {
-    return new Date(`${game.date.slice(0, 10)}T${game.time}:00+09:00`);
-  }
-  return new Date(`${getKstDateString()}T18:00:00+09:00`);
-}
-
-function matchStatusFromApi(statusShort: string): string {
-  const short = (statusShort || "").toUpperCase();
-  if (isGamePostponedOrCancelled(short)) return "cancelled";
-  if (isGameFinished(short)) return "completed";
-  if (short === "NS" || short === "TBD") return "scheduled";
-  return "ongoing";
-}
-
 function hasStartTimeReached(startTime?: Date | null): boolean {
   if (!startTime) return false;
   return Date.now() >= new Date(startTime).getTime();
@@ -353,16 +335,23 @@ async function ensureStadiumByName(name: string): Promise<number> {
   const existing = await StadiumModel.findOne({ name: trimmed }).lean();
   if (existing) return existing.id;
 
-  const id = await getNextSequence("stadium");
-  try {
-    await StadiumModel.create({ id, name: trimmed });
-    return id;
-  } catch {
-    // 동시 생성 시 유니크 충돌 → 재조회
-    const again = await StadiumModel.findOne({ name: trimmed }).lean();
-    if (again) return again.id;
-    throw new Error(`구장 생성 실패: ${trimmed}`);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const id = await getNextSequence("stadium");
+    const idTaken = await StadiumModel.findOne({ id }).lean();
+    if (idTaken) continue;
+    try {
+      await StadiumModel.create({ id, name: trimmed });
+      return id;
+    } catch (error) {
+      const again = await StadiumModel.findOne({ name: trimmed }).lean();
+      if (again) return again.id;
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt === 7) {
+        throw new Error(`구장 생성 실패: ${trimmed} (${message})`);
+      }
+    }
   }
+  throw new Error(`구장 생성 실패: ${trimmed}`);
 }
 
 function extractMatchOrder(name: string): number {
@@ -407,13 +396,13 @@ async function dedupeDailyMatchesForDate(
     if (group.length <= 1) continue;
 
     const ranked = [...group].sort((a, b) => {
-      const aApi = (a as { apiSportsGameId?: number | null }).apiSportsGameId;
-      const bApi = (b as { apiSportsGameId?: number | null }).apiSportsGameId;
-      const aActive = aApi != null && activeApiIds.has(aApi) ? 1 : 0;
-      const bActive = bApi != null && activeApiIds.has(bApi) ? 1 : 0;
+      const aDaum = (a as { daumGameId?: number | null }).daumGameId;
+      const bDaum = (b as { daumGameId?: number | null }).daumGameId;
+      const aActive = aDaum != null && activeApiIds.has(aDaum) ? 1 : 0;
+      const bActive = bDaum != null && activeApiIds.has(bDaum) ? 1 : 0;
       if (bActive !== aActive) return bActive - aActive;
-      const aHas = aApi != null ? 1 : 0;
-      const bHas = bApi != null ? 1 : 0;
+      const aHas = aDaum != null ? 1 : 0;
+      const bHas = bDaum != null ? 1 : 0;
       if (bHas !== aHas) return bHas - aHas;
       return String(a.id).localeCompare(String(b.id));
     });
@@ -428,7 +417,7 @@ async function dedupeDailyMatchesForDate(
   }
 
   if (removed > 0) {
-    console.log(`[ApiSportsSync] ${targetDate} 중복 경기 ${removed}건 정리`);
+    console.log(`[MatchSync] ${targetDate} 중복 경기 ${removed}건 정리`);
   }
 
   return removed;
@@ -454,43 +443,50 @@ async function clearOrphanMatchesForDate(targetDate: string): Promise<number> {
   }
 
   if (removed > 0) {
-    console.log(`[ApiSportsSync] ${targetDate} API 경기 없음 — orphan ${removed}건 제거`);
+    console.log(`[MatchSync] ${targetDate} 다음 경기 없음 — orphan ${removed}건 제거`);
   }
 
   return removed;
 }
 
-function venueNameFromGame(game: ApiSportsGameResponse): string {
+function venueNameFromDaumGame(game: DaumListGame, scoreboard: LiveScoreboard): string {
   return resolveVenueNameFromApiSportsGame({
-    apiVenueName: game.venue?.name,
-    homeTeamName: game.teams.home.name,
+    apiVenueName: daumVenueName(game),
+    homeTeamName: scoreboard.homeTeamName,
   });
 }
 
-export function mapTodayGames(games: ApiSportsGameResponse[]): ApiSportsTodayGame[] {
+function formatDaumClock(game: DaumListGame): string {
+  const digits = String(game.startTime ?? "").replace(/\D/g, "").padStart(4, "0").slice(0, 4);
+  if (digits.length !== 4) return "";
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
+}
+
+export function mapTodayGames(games: DaumListGame[], matchDate: string): ApiSportsTodayGame[] {
   return games
     .slice()
-    .sort((a, b) => a.timestamp - b.timestamp)
+    .sort((a, b) => daumGameStartDate(a, matchDate).getTime() - daumGameStartDate(b, matchDate).getTime())
     .map((game) => {
-      const scoreboard = parseLiveScoreboard(game);
+      const scoreboard = parseDaumLiveScoreboard(game);
+      const daumGameId = Number(game.gameId);
       return {
-        apiSportsGameId: game.id,
-        date: game.date,
-        time: game.time,
-        homeTeamName: game.teams.home.name,
-        awayTeamName: game.teams.away.name,
-        statusShort: game.status.short,
-        statusLong: game.status.long,
+        apiSportsGameId: daumGameId,
+        daumGameId,
+        date: matchDate,
+        time: formatDaumClock(game),
+        homeTeamName: scoreboard.homeTeamName,
+        awayTeamName: scoreboard.awayTeamName,
+        statusShort: scoreboard.statusShort,
+        statusLong: scoreboard.statusLong,
         homeScore: scoreboard.homeScore,
         awayScore: scoreboard.awayScore,
-        venueName: venueNameFromGame(game),
+        venueName: venueNameFromDaumGame(game, scoreboard),
       };
     });
 }
 
 /**
- * 해당일 KBO 일정을 API에서 읽어 DB에 자동 등록(최대 5경기)하고 연결합니다.
- * 수기 등록 없이 사용 가능. 이미 있으면 시각·팀·API ID를 갱신합니다.
+ * 해당일 KBO 일정을 다음 스포츠에서 읽어 DB에 자동 등록(최대 5경기)하고 연결합니다.
  */
 export async function syncTodayGamesFromApiSports(
   date?: string,
@@ -502,28 +498,29 @@ export async function syncTodayGamesFromApiSports(
   deduped: number;
   cleared?: number;
   games: ApiSportsTodayGame[];
-  source: "cache" | "api";
+  source: "daum";
 }> {
   const targetDate = date ?? getKstDateString();
   const isPastDate = targetDate < getKstDateString();
-  const { games: apiGames, source } = await getScheduleGamesForDate(targetDate, {
-    forceApi: options?.forceApi,
-  });
-
-  const sortedApi = apiGames
+  const daumGames = await fetchDaumKboGameList(targetDate.replace(/-/g, ""));
+  const sorted = daumGames
     .slice()
-    .sort((a, b) => a.timestamp - b.timestamp)
+    .sort(
+      (a, b) => daumGameStartDate(a, targetDate).getTime() - daumGameStartDate(b, targetDate).getTime(),
+    )
     .slice(0, MAX_DAILY_MATCHES);
-  const mapped = mapTodayGames(sortedApi);
+  const mapped = mapTodayGames(sorted, targetDate);
 
-  if (sortedApi.length === 0) {
+  if (sorted.length === 0) {
     const cleared =
       options?.forceApi === true ? await clearOrphanMatchesForDate(targetDate) : 0;
-    return { created: 0, updated: 0, linked: 0, deduped: 0, cleared, games: [], source };
+    return { created: 0, updated: 0, linked: 0, deduped: 0, cleared, games: [], source: "daum" };
   }
 
-  const activeApiIds = new Set(sortedApi.map((g) => g.id));
-  const dedupedBefore = await dedupeDailyMatchesForDate(targetDate, activeApiIds);
+  const activeDaumIds = new Set(
+    sorted.map((game) => Number(game.gameId)).filter((id) => Number.isFinite(id) && id > 0),
+  );
+  const dedupedBefore = await dedupeDailyMatchesForDate(targetDate, activeDaumIds);
 
   const { startOfDay, endOfDay } = dayRangeForMatchDate(targetDate);
 
@@ -531,10 +528,10 @@ export async function syncTodayGamesFromApiSports(
     $or: [{ matchDate: targetDate }, { matchDate: null, startTime: { $gte: startOfDay, $lte: endOfDay } }],
   }).lean();
 
-  const byApiId = new Map(
+  const byDaumId = new Map(
     internalMatches
-      .filter((m) => (m as { apiSportsGameId?: number | null }).apiSportsGameId != null)
-      .map((m) => [(m as { apiSportsGameId: number }).apiSportsGameId, m]),
+      .filter((m) => (m as { daumGameId?: number | null }).daumGameId != null)
+      .map((m) => [(m as { daumGameId: number }).daumGameId, m]),
   );
   const byRegistrationOrder = new Map(
     internalMatches
@@ -542,34 +539,46 @@ export async function syncTodayGamesFromApiSports(
       .map((m) => [(m as { registrationOrder: number }).registrationOrder, m]),
   );
   const byName = new Map(internalMatches.map((m) => [m.name, m]));
+  const usedMatchIds = new Set<string>();
+
+  const takeExisting = (
+    ...candidates: Array<(typeof internalMatches)[number] | null | undefined>
+  ) => {
+    for (const candidate of candidates) {
+      if (!candidate?.id || usedMatchIds.has(candidate.id)) continue;
+      return candidate;
+    }
+    return null;
+  };
 
   let created = 0;
   let updated = 0;
   let linked = 0;
 
-  for (let i = 0; i < sortedApi.length; i++) {
-    const external = sortedApi[i];
-    const scoreboard = parseLiveScoreboard(external);
+  for (let i = 0; i < sorted.length; i++) {
+    const external = sorted[i];
+    const scoreboard = parseDaumLiveScoreboard(external);
+    const daumGameId = Number(external.gameId);
     const matchName = `${i + 1}경기`;
-    const startTime = gameStartDate(external);
+    const startTime = daumGameStartDate(external, targetDate);
     const endTime = new Date(startTime.getTime() + 4 * 60 * 60 * 1000);
-    const matchStatus = matchStatusFromApi(external.status.short);
-    const stadiumId = await ensureStadiumByName(venueNameFromGame(external));
+    const stadiumId = await ensureStadiumByName(venueNameFromDaumGame(external, scoreboard));
 
     const order = i + 1;
-    const existing =
-      byApiId.get(external.id) ??
-      byRegistrationOrder.get(order) ??
-      byName.get(matchName) ??
-      null;
+    const existing = takeExisting(
+      byDaumId.get(daumGameId),
+      byRegistrationOrder.get(order),
+      byName.get(matchName),
+    );
+    if (existing) usedMatchIds.add(existing.id);
 
-    if (options?.skipExisting && existing?.apiSportsGameId === external.id) {
+    if (options?.skipExisting && existing?.daumGameId === daumGameId) {
       linked += 1;
       continue;
     }
 
     const resolvedStatus = resolveMatchStatusFromScoreboard(
-      existing?.matchStatus ?? matchStatus,
+      existing?.matchStatus ?? "scheduled",
       scoreboard,
       startTime,
     );
@@ -603,6 +612,7 @@ export async function syncTodayGamesFromApiSports(
       typeof existing.liveScoreboard.awayScore !== "number" ||
       existing.matchStatus !== "ongoing";
 
+    const daumChanged = existing?.daumGameId !== daumGameId;
     const payload = {
       name: matchName,
       stadiumId,
@@ -611,13 +621,11 @@ export async function syncTodayGamesFromApiSports(
       endTime,
       matchStatus: resolvedStatus,
       registrationOrder: order,
-      apiSportsGameId: external.id,
-      ...apiSportsTeamsUpdate(external, scoreboard),
-      liveScoreboard: useFreshScoreboard
-        ? scoreboard
-        : existing!.liveScoreboard,
+      ...daumTeamsUpdate(external, scoreboard),
+      liveScoreboard: useFreshScoreboard ? scoreboard : existing!.liveScoreboard,
       lastInningKey: existing?.lastInningKey ?? buildInningKey(scoreboard),
       controlMode: existing?.controlMode ?? "auto",
+      ...(daumChanged ? { matchHeadToHead: null } : {}),
       sideBetsLocked: resolveSideBetsLocked({
         previouslyLocked: existing?.sideBetsLocked,
         predictionEnabled: existing?.predictionEnabled,
@@ -632,22 +640,35 @@ export async function syncTodayGamesFromApiSports(
       await MatchModel.updateOne({ id: existing.id }, payload);
       updated += 1;
       linked += 1;
-      byApiId.set(external.id, { ...existing, ...payload });
+      byDaumId.set(daumGameId, { ...existing, ...payload });
       byRegistrationOrder.set(order, { ...existing, ...payload });
       byName.set(matchName, { ...existing, ...payload });
+      void refreshMatchHeadToHeadIfDue(existing.id).catch((error) => {
+        console.warn(`[H2H] sync ${existing.id}:`, error);
+      });
+      void refreshMatchSeasonContext(existing.id).catch((error) => {
+        console.warn(`[SeasonStats] sync ${existing.id}:`, error);
+      });
     } else {
+      const createdId = randomUUID();
       await MatchModel.create({
-        id: randomUUID(),
+        id: createdId,
         currentRound: 1,
         predictionEnabled: false,
         ...payload,
       });
       created += 1;
       linked += 1;
+      void refreshMatchHeadToHeadIfDue(createdId).catch((error) => {
+        console.warn(`[H2H] sync ${createdId}:`, error);
+      });
+      void refreshMatchSeasonContext(createdId).catch((error) => {
+        console.warn(`[SeasonStats] sync ${createdId}:`, error);
+      });
     }
   }
 
-  const dedupedAfter = await dedupeDailyMatchesForDate(targetDate, activeApiIds);
+  const dedupedAfter = await dedupeDailyMatchesForDate(targetDate, activeDaumIds);
 
   return {
     created,
@@ -655,12 +676,12 @@ export async function syncTodayGamesFromApiSports(
     linked,
     deduped: dedupedBefore + dedupedAfter,
     games: mapped,
-    source,
+    source: "daum",
   };
 }
 
 function currentSeasonYear(): number {
-  const fromEnv = Number(process.env.API_SPORTS_SEASON || "");
+  const fromEnv = Number(process.env.KBO_SEASON || process.env.API_SPORTS_SEASON || "");
   if (Number.isFinite(fromEnv) && fromEnv > 2000) return fromEnv;
   return Number(getKstDateString().slice(0, 4));
 }
@@ -681,8 +702,7 @@ const SEASON_IMPORT_DAY_DELAY_MS = Math.max(
 );
 
 /**
- * 시즌 전체(기본 3/1~10/31) 날짜별 Match DB 등록 — 경기관리 달력용
- * prefetchScheduleCache=true 이면 ApiSportsScheduleCache 선적재 후 Match 등록(API 절약)
+ * 시즌 전체(기본 3/1~10/31) 날짜별 Match DB 등록 — 경기관리 달력용 (다음 스포츠)
  */
 export async function importSeasonMatchesFromApiSports(
   season?: number,
@@ -698,11 +718,7 @@ export async function importSeasonMatchesFromApiSports(
   linked: number;
 }> {
   const targetSeason = season ?? currentSeasonYear();
-  const prefetchScheduleCache = options?.prefetchScheduleCache !== false;
-
-  if (prefetchScheduleCache) {
-    await importSeasonScheduleToCache(targetSeason);
-  }
+  void options?.prefetchScheduleCache;
 
   let cursor = seasonRangeStart(targetSeason);
   const end = seasonRangeEnd(targetSeason);
@@ -710,7 +726,6 @@ export async function importSeasonMatchesFromApiSports(
   let daysChecked = 0;
   let daysSynced = 0;
   let daysEmpty = 0;
-  let daysFromApi = 0;
   let created = 0;
   let updated = 0;
   let linked = 0;
@@ -718,17 +733,9 @@ export async function importSeasonMatchesFromApiSports(
   while (cursor <= end) {
     daysChecked += 1;
 
-    let result = await syncTodayGamesFromApiSports(cursor, {
-      forceApi: options?.forceApi ?? false,
+    const result = await syncTodayGamesFromApiSports(cursor, {
+      forceApi: options?.forceApi ?? true,
     });
-
-    if (result.games.length === 0 && !options?.forceApi) {
-      result = await syncTodayGamesFromApiSports(cursor, { forceApi: true });
-    }
-
-    if (result.source === "api") {
-      daysFromApi += 1;
-    }
 
     if (result.games.length === 0) {
       daysEmpty += 1;
@@ -747,7 +754,7 @@ export async function importSeasonMatchesFromApiSports(
   }
 
   console.log(
-    `[MatchMgmt] season ${targetSeason} Match import: days ${daysSynced}/${daysChecked}, created ${created}, updated ${updated}, apiDays ${daysFromApi}`,
+    `[MatchMgmt] season ${targetSeason} Match import: days ${daysSynced}/${daysChecked}, created ${created}, updated ${updated}`,
   );
 
   return {
@@ -755,7 +762,7 @@ export async function importSeasonMatchesFromApiSports(
     daysChecked,
     daysSynced,
     daysEmpty,
-    daysFromApi,
+    daysFromApi: daysSynced,
     created,
     updated,
     linked,
@@ -784,14 +791,14 @@ export async function backfillSeasonMatchesBeforeToday(season?: number): Promise
   while (cursor < today) {
     const existingCount = await MatchModel.countDocuments({
       matchDate: cursor,
-      apiSportsGameId: { $ne: null },
+      $or: [{ daumGameId: { $ne: null } }, { apiSportsGameId: { $ne: null } }],
     });
 
     const staleCount =
       existingCount > 0
         ? await MatchModel.countDocuments({
             matchDate: cursor,
-            apiSportsGameId: { $ne: null },
+            $or: [{ daumGameId: { $ne: null } }, { apiSportsGameId: { $ne: null } }],
             matchStatus: { $in: ["scheduled", "ongoing"] },
           })
         : 0;
@@ -844,7 +851,7 @@ export async function refreshStalePastMatchScores(lookbackDays = 14): Promise<{
     const date = addKstDays(today, -i);
     const staleCount = await MatchModel.countDocuments({
       matchDate: date,
-      apiSportsGameId: { $ne: null },
+      $or: [{ daumGameId: { $ne: null } }, { apiSportsGameId: { $ne: null } }],
       matchStatus: { $in: ["scheduled", "ongoing"] },
     });
     if (staleCount === 0) continue;
@@ -858,79 +865,6 @@ export async function refreshStalePastMatchScores(lookbackDays = 14): Promise<{
   }
 
   return { daysRefreshed, updated };
-}
-
-async function updateMatchStatusFromApiGame(
-  match: {
-    id: string;
-    matchStatus?: string;
-    startTime?: Date | null;
-    liveScoreboard?: LiveScoreboard | null;
-    controlMode?: string | null;
-  },
-  game: ApiSportsGameResponse,
-): Promise<string> {
-  const incoming = parseLiveScoreboard(game);
-  const scoreboard = resolveScoreboardForApiWrite(match, incoming);
-  const previousStatus = match.matchStatus ?? "scheduled";
-  const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, incoming, match.startTime);
-
-  await MatchModel.updateOne(
-    { id: match.id },
-    {
-      matchStatus: nextStatus,
-      // 상태만 갱신해도 점수·이닝은 반드시 포함 (부분 merge 시 총점이 비는 문제 방지)
-      // 단, 라이브 중·수동 모드에서는 기존 점수/이닝 표를 유지
-      liveScoreboard: scoreboard,
-      ...apiSportsTeamsUpdate(game, incoming),
-      lastInningKey: buildInningKey(scoreboard),
-    },
-  );
-
-  await syncOperatorAccountForMatch(match.id);
-  return nextStatus;
-}
-
-async function updateMatchScoreFromApiGame(
-  match: {
-    id: string;
-    matchStatus?: string;
-    sideBetsLocked?: boolean;
-    predictionEnabled?: boolean;
-    startTime?: Date | null;
-    liveScoreboard?: LiveScoreboard | null;
-    controlMode?: string | null;
-  },
-  game: ApiSportsGameResponse,
-): Promise<string> {
-  const incoming = parseLiveScoreboard(game);
-  const scoreboard = resolveScoreboardForApiWrite(match, incoming);
-  const nextStatus = resolveMatchStatusFromScoreboard(
-    match.matchStatus ?? "scheduled",
-    incoming,
-    match.startTime,
-  );
-
-  await MatchModel.updateOne(
-    { id: match.id },
-    {
-      matchStatus: nextStatus,
-      liveScoreboard: scoreboard,
-      ...apiSportsTeamsUpdate(game, incoming),
-      lastInningKey: buildInningKey(scoreboard),
-      sideBetsLocked: resolveSideBetsLocked({
-        previouslyLocked: match.sideBetsLocked,
-        predictionEnabled: match.predictionEnabled,
-        matchStatus: nextStatus,
-        statusShort: incoming.statusShort,
-        inning: incoming.inning,
-        startTime: match.startTime,
-      }),
-    },
-  );
-
-  await syncOperatorAccountForMatch(match.id);
-  return nextStatus;
 }
 
 /** ② 경기 시작 시각 — 다음 스포츠 실황 1회 (운영자 실황 연동 ON일 때만) */
@@ -1019,9 +953,9 @@ function shouldFetchLiveScoreFromApi(
 }
 
 /**
- * live sync — 다음 스포츠 실황 우선, 없으면 api-sports
- * 해당 registrationOrder 슬롯 운영자 API 폴링 ON일 때만 호출
- * @returns true면 live sync 중단(종료·취소·API OFF·대상 아님)
+ * live sync — 다음 스포츠 실황만 저장
+ * 해당 registrationOrder 슬롯 운영자 실황 연동 ON일 때만 호출
+ * @returns true면 live sync 중단(종료·취소·연동 OFF·대상 아님)
  */
 async function persistIncomingLiveScoreboard(
   match: {
@@ -1151,13 +1085,16 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
       void refreshMatchSeasonContext(matchId).catch((error) => {
         console.warn(`[LiveScoreSync] season stats ${matchId}:`, error);
       });
+      void refreshMatchHeadToHeadIfDue(matchId).catch((error) => {
+        console.warn(`[LiveScoreSync] h2h ${matchId}:`, error);
+      });
       return shouldStop;
     }
   } catch (error) {
     console.warn(`[LiveScoreSync] daum tick failed (${matchId}):`, error);
   }
 
-  console.warn(`[LiveScoreSync] daum miss ${matchId} — API-SPORTS 실황 폴백 없음`);
+  console.warn(`[LiveScoreSync] daum miss ${matchId}`);
   return false;
 }
 
@@ -1274,35 +1211,5 @@ export async function patchMatchLiveScoreboard(matchId: string, patch: LiveScore
 
   const updated = await MatchModel.findOneAndUpdate({ id: matchId }, update, { new: true }).lean();
   if (!updated) throw new Error("경기를 찾을 수 없습니다.");
-  return updated;
-}
-
-export async function linkMatchToApiSports(matchId: string, apiSportsGameId: number) {
-  const game = await fetchGameById(apiSportsGameId);
-  if (!game) throw new Error("API-SPORTS 경기를 찾을 수 없습니다.");
-
-  const scoreboard = parseLiveScoreboard(game);
-  const updated = await MatchModel.findOneAndUpdate(
-    { id: matchId },
-    {
-      apiSportsGameId,
-      ...apiSportsTeamsUpdate(game, scoreboard),
-      liveScoreboard: scoreboard,
-      lastInningKey: buildInningKey(scoreboard),
-    },
-    { new: true },
-  ).lean();
-
-  if (!updated) throw new Error("경기를 찾을 수 없습니다.");
-
-  await refreshMatchHeadToHeadIfDue(matchId, {
-    id: matchId,
-    registrationOrder: (updated as { registrationOrder?: number | null }).registrationOrder,
-    startTime: updated.startTime,
-    apiSportsAwayTeamId: game.teams.away.id,
-    apiSportsHomeTeamId: game.teams.home.id,
-    matchHeadToHead: updated.matchHeadToHead as MatchHeadToHeadSnapshot | null | undefined,
-  });
-
   return updated;
 }
