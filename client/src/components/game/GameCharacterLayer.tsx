@@ -321,7 +321,7 @@ export default function GameCharacterLayer({
         </div>
       )}
 
-      {phase === "success_running" && fieldSize.width > 0 && !homeRunTossing && (
+      {phase === "success_running" && !homeRunTossing && (
         <div
           className="absolute z-[20] pointer-events-none"
           style={{
