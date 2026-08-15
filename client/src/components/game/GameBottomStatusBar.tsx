@@ -112,7 +112,7 @@ export default function GameBottomStatusBar({
       </div>
 
       {headToHead ? (
-        <div className="pointer-events-none absolute left-[calc(50%+10ch)] bottom-1.5 sm:bottom-2 -translate-x-1/2">
+        <div className="pointer-events-none absolute left-[calc(50%+12ch)] bottom-1.5 sm:bottom-2 -translate-x-1/2">
           <HeadToHeadCenter parts={headToHead} />
         </div>
       ) : null}

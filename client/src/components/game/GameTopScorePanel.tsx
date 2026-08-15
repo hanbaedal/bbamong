@@ -84,46 +84,42 @@ export default function GameTopScorePanel({
   onMatchTitleClick,
   matchSelectEnabled = false,
 }: GameTopScorePanelProps) {
-  const titleClass = `text-sm sm:text-base font-bold leading-tight whitespace-nowrap ${titleShadow}`;
+  const titleClass = `text-sm sm:text-base font-bold leading-none whitespace-nowrap text-white ${titleShadow}`;
 
   return (
     <div
-      className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-0 pointer-events-none ${scorePanelTop}`}
+      className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-0 pointer-events-none text-white ${scorePanelTop}`}
       data-testid="game-top-score-panel"
     >
-      <div className="flex w-max max-w-full items-start gap-1.5" data-testid="game-match-header">
-        {/* 스코어표 3행 중 2행(원정) 왼쪽에 「제 n경기」 */}
-        <div className="grid grid-rows-3 self-stretch items-center shrink-0">
-          <div aria-hidden className="min-h-[0.75rem]" />
+      <div className="relative w-max max-w-full" data-testid="game-match-header">
+        {/* 스코어표 3행 중 2행(원정) 바로 왼쪽 */}
+        <div className="absolute right-full top-[36%] z-10 mr-1.5 -translate-y-1/2">
           {matchSelectEnabled && onMatchTitleClick ? (
             <button
               type="button"
               onClick={onMatchTitleClick}
-              className={`pointer-events-auto text-right ${titleClass} ${clickable}`}
+              className={`pointer-events-auto ${titleClass} ${clickable}`}
               data-testid="game-match-title"
             >
               {matchTitle}
             </button>
           ) : (
-            <p className={`text-right ${titleClass}`} data-testid="game-match-title">
+            <p className={titleClass} data-testid="game-match-title">
               {matchTitle}
             </p>
           )}
-          <div aria-hidden className="min-h-[0.75rem]" />
         </div>
-        <div className="min-w-0">
-          <div style={{ zoom: 0.7 }}>
-            {isLoading ? (
-              <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
-            ) : (
-              <LineScoreTableLandscape
-                scoreboard={scoreboard}
-                className="max-w-full"
-                compact
-                battingHalf={battingHalf}
-              />
-            )}
-          </div>
+        <div style={{ zoom: 0.7 }}>
+          {isLoading ? (
+            <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
+          ) : (
+            <LineScoreTableLandscape
+              scoreboard={scoreboard}
+              className="max-w-full"
+              compact
+              battingHalf={battingHalf}
+            />
+          )}
         </div>
       </div>
       {!isLoading && currentBatter ? (
