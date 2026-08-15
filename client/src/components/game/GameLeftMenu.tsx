@@ -17,7 +17,7 @@ const ITEMS: { id: GameMenuAction; label: string; Icon: typeof Home }[] = [
 export default function GameLeftMenu({ activePanel, onSelect }: GameLeftMenuProps) {
   return (
     <nav
-      className="absolute left-0 top-0 bottom-0 z-30 flex flex-col items-center justify-center gap-2.5 py-3 px-1.5 w-[52px] sm:w-[56px] pointer-events-auto"
+      className="absolute left-0 top-0 bottom-0 z-30 flex translate-y-6 flex-col items-center justify-center gap-2.5 py-3 px-1.5 w-[52px] sm:w-[56px] sm:translate-y-7 pointer-events-auto"
       data-testid="game-left-menu"
     >
       {ITEMS.map(({ id, label, Icon }) => {

@@ -74,29 +74,25 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
   );
 }
 
+const headToHeadClass = `relative -translate-y-[2.5em] mt-0.5 text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap text-white ${titleShadow}`;
+
 function HeadToHeadLine({ parts }: { parts: HeadToHeadDisplayParts }) {
   if (parts.empty) {
     return (
-      <p
-        className={`mt-0.5 text-right text-[10px] sm:text-[11px] font-normal text-white/80 whitespace-nowrap ${titleShadow}`}
-        data-testid="game-match-head-to-head"
-      >
+      <p className={`${headToHeadClass} font-normal`} data-testid="game-match-head-to-head">
         {parts.season} 상대전적 —
       </p>
     );
   }
 
   return (
-    <p
-      className={`mt-0.5 text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap ${titleShadow}`}
-      data-testid="game-match-head-to-head"
-    >
-      <span className="text-white/85 font-normal">{parts.season} 상대전적 </span>
-      <span style={{ color: GAME_AWAY_TEAM_COLOR }}>
+    <p className={headToHeadClass} data-testid="game-match-head-to-head">
+      <span className="font-normal">{parts.season} 상대전적 </span>
+      <span>
         {parts.awayName} {parts.awayWins}승
       </span>
-      <span className="text-white/70 font-normal"> : </span>
-      <span style={{ color: GAME_HOME_TEAM_COLOR }}>
+      <span className="font-normal"> : </span>
+      <span>
         {parts.homeName} {parts.homeWins}승
       </span>
     </p>
@@ -158,10 +154,7 @@ export default function GameTopScorePanel({
         {!isLoading && headToHead ? (
           <HeadToHeadLine parts={headToHead} />
         ) : !isLoading && headToHeadLine ? (
-          <p
-            className={`mt-0.5 text-right text-[10px] sm:text-[11px] font-normal text-white/80 whitespace-nowrap ${titleShadow}`}
-            data-testid="game-match-head-to-head"
-          >
+          <p className={`${headToHeadClass} font-normal`} data-testid="game-match-head-to-head">
             {headToHeadLine}
           </p>
         ) : null}
