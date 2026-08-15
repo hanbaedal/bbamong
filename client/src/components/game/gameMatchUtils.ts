@@ -18,6 +18,7 @@ import {
 } from "@shared/matchTeamDisplay";
 import { resolveOperatorMatchPhase } from "@shared/operatorMatchStatus";
 import { MATCH_STATUS_LABEL } from "@shared/matchStatusLabels";
+import { isStartingLineupReady } from "@shared/todayStartingLineup";
 
 export interface GameMatchItem {
   id: string;
@@ -35,6 +36,8 @@ export interface GameMatchItem {
   sideBetEnabled?: boolean;
   sideBetsLocked?: boolean;
   liveScoreboard?: Pick<LiveScoreboard, "statusShort" | "statusLong" | "inningLabel"> | null;
+  startingLineupReady?: boolean;
+  matchLineup?: { home?: unknown[] | null; away?: unknown[] | null } | null;
 }
 
 export function formatMatchTitle(name: string): string {
@@ -197,8 +200,15 @@ function resolveMatchStatusDisplay(match: GameMatchItem): string {
       return MATCH_STATUS_LABEL.live;
     case "경기전":
     default:
-      return MATCH_STATUS_LABEL.scheduled;
+      return hasPublishedStartingLineup(match)
+        ? MATCH_STATUS_LABEL.scheduled
+        : MATCH_STATUS_LABEL.upcoming;
   }
+}
+
+function hasPublishedStartingLineup(match: GameMatchItem): boolean {
+  if (match.startingLineupReady === true) return true;
+  return isStartingLineupReady(match.matchLineup);
 }
 
 /** 경기 선택 모달 — 진행 상태 라벨 */
@@ -246,10 +256,13 @@ export function formatGameMatchSelectDetail(
   if (!match) return MATCH_STATUS_LABEL.noMatchToday;
   const stadium = getDisplayStadiumName(match.stadiumName, match.homeTeamName);
   const teams = formatGameMatchSelectTeamLine(match);
-  const status = getGameMatchSelectDisabledReason(match) ?? formatMatchStatusLabel(match, nowMs);
-  if (stadium && teams) return `${stadium}, ${teams} ${status}`;
-  if (teams) return `${teams} ${status}`;
-  return status;
+  const status = formatMatchStatusLabel(match, nowMs);
+  const disabled = getGameMatchSelectDisabledReason(match);
+  const statusPart =
+    disabled && disabled !== status ? `${status} · ${disabled}` : status;
+  if (stadium && teams) return `${stadium}, ${teams} ${statusPart}`;
+  if (teams) return `${teams} ${statusPart}`;
+  return statusPart;
 }
 
 /** 실황 연동 ON + 경기전·경기중만 선택 가능 */

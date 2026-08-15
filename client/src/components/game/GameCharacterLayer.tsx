@@ -28,6 +28,7 @@ import {
 import { StadiumFieldMarker, useStadiumFieldSize } from "./StadiumFieldContext";
 import GameThoughtBubble from "./GameThoughtBubble";
 import { PYAMONG_BATTER_WIDTH, PYAMONG_WAIT_RESULT_WIDTH } from "./gameLayoutSizes";
+import { kboTeamOutlineFilter } from "@shared/kboTeamColors";
 import "./gameAnimations.css";
 
 /** 주루 달리기 스프라이트 프레임 (우측을 바라보는 포즈) */
@@ -39,24 +40,36 @@ interface GameCharacterLayerProps {
   gameDayPhase: GameDayPhase;
   gameDayOverlayKind?: GameDayOverlayKind | null;
   selectedPrediction: PredictionOption | null;
-  /** 초=원정(빨강) / 말=홈(청색) 틴트 */
   battingHalf?: InningHalf | null;
+  awayTeamName?: string | null;
+  homeTeamName?: string | null;
   /** 대타 타석 — 대기 말풍선 안내 */
   isPinchHitter?: boolean;
   onRunComplete?: () => void;
 }
 
-function pyamongSpriteClass(
+function pyamongSpriteClass(extra = ""): string {
+  return extra ? `game-sprite ${extra}` : "game-sprite";
+}
+
+function battingTeamName(
   battingHalf: InningHalf | null | undefined,
-  extra = "",
-): string {
-  const tint =
-    battingHalf === "top"
-      ? "game-sprite game-sprite-tint-away"
-      : battingHalf === "bottom"
-        ? "game-sprite game-sprite-tint-home"
-        : "game-sprite";
-  return extra ? `${tint} ${extra}` : tint;
+  awayTeamName?: string | null,
+  homeTeamName?: string | null,
+): string | null {
+  if (battingHalf === "top") return awayTeamName?.trim() || null;
+  if (battingHalf === "bottom") return homeTeamName?.trim() || null;
+  return null;
+}
+
+function pyamongRimStyle(
+  battingHalf: InningHalf | null | undefined,
+  awayTeamName?: string | null,
+  homeTeamName?: string | null,
+): { filter: string } | undefined {
+  const team = battingTeamName(battingHalf, awayTeamName, homeTeamName);
+  if (!team) return undefined;
+  return { filter: kboTeamOutlineFilter(team) };
 }
 
 export default function GameCharacterLayer({
@@ -65,9 +78,15 @@ export default function GameCharacterLayer({
   gameDayOverlayKind = null,
   selectedPrediction,
   battingHalf = null,
+  awayTeamName = null,
+  homeTeamName = null,
   isPinchHitter = false,
   onRunComplete,
 }: GameCharacterLayerProps) {
+  const rimStyle = pyamongRimStyle(battingHalf, awayTeamName, homeTeamName);
+  const pregameRimStyle = awayTeamName
+    ? { filter: kboTeamOutlineFilter(awayTeamName) }
+    : undefined;
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
   const [runFrameIdx, setRunFrameIdx] = useState(0);
   const [runFaceRight, setRunFaceRight] = useState(true);
@@ -143,8 +162,8 @@ export default function GameCharacterLayer({
             <img
               src={pyamongStandsWaiting}
               alt=""
-              className="w-[min(16vw,120px)] h-auto game-sprite animate-pyamong-idle shrink-0 drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
-              style={{ transformOrigin: "bottom center" }}
+              className="w-[min(16vw,120px)] h-auto game-sprite animate-pyamong-idle shrink-0"
+              style={{ transformOrigin: "bottom center", ...pregameRimStyle }}
               data-testid="char-pyamong-stands-waiting"
             />
           </div>
@@ -228,11 +247,8 @@ export default function GameCharacterLayer({
             <img
               src={batterWaiting}
               alt=""
-              className={pyamongSpriteClass(
-                battingHalf,
-                "h-auto animate-pyamong-idle shrink-0",
-              )}
-              style={{ width: PYAMONG_BATTER_WIDTH, transformOrigin: "bottom center" }}
+              className={pyamongSpriteClass("h-auto animate-pyamong-idle shrink-0")}
+              style={{ width: PYAMONG_BATTER_WIDTH, transformOrigin: "bottom center", ...rimStyle }}
               data-testid="char-pyamong-waiting"
             />
             <GameThoughtBubble
@@ -260,8 +276,8 @@ export default function GameCharacterLayer({
                 <img
                   src={pyamongBatterReady}
                   alt=""
-                  className={pyamongSpriteClass(battingHalf, "h-auto animate-pyamong-idle")}
-                  style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center" }}
+                  className={pyamongSpriteClass("h-auto animate-pyamong-idle")}
+                  style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center", ...rimStyle }}
                   data-testid="char-batter-waiting"
                 />
               </div>
@@ -288,7 +304,7 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {phase === "success_running" && fieldSize.width > 0 && batTossing && (
+      {phase === "success_running" && batTossing && (
         <>
           <div
             className="absolute z-[21] pointer-events-none"
@@ -302,10 +318,8 @@ export default function GameCharacterLayer({
             <img
               src={pyamongBatToss}
               alt=""
-              className={pyamongSpriteClass(
-                battingHalf,
-                "w-[min(9vw,72px)] h-auto animate-home-run-toss-pose",
-              )}
+              className={pyamongSpriteClass("w-[min(9vw,72px)] h-auto animate-home-run-toss-pose")}
+              style={rimStyle}
               data-testid="char-pyamong-bat-toss"
             />
           </div>
@@ -358,10 +372,8 @@ export default function GameCharacterLayer({
             <img
               src={PYAMONG_RUN_FRAMES[runFrameIdx]}
               alt=""
-              className={pyamongSpriteClass(
-                battingHalf,
-                "w-[min(7vw,64px)] h-auto animate-pyamong-run",
-              )}
+              className={pyamongSpriteClass("w-[min(7vw,64px)] h-auto animate-pyamong-run")}
+              style={rimStyle}
               data-testid="char-pyamong-running-sprite"
             />
           </div>
@@ -374,10 +386,8 @@ export default function GameCharacterLayer({
             <img
               src={pyamongSuccess}
               alt=""
-              className={pyamongSpriteClass(
-                battingHalf,
-                "w-[min(10vw,78px)] h-auto animate-pyamong-success-home",
-              )}
+              className={pyamongSpriteClass("w-[min(10vw,78px)] h-auto animate-pyamong-success-home")}
+              style={rimStyle}
               data-testid="char-pyamong-success-announce"
             />
           </div>
@@ -398,11 +408,11 @@ export default function GameCharacterLayer({
               src={pyamongSuccess}
               alt=""
               className={pyamongSpriteClass(
-                battingHalf,
                 `w-[min(10vw,78px)] h-auto ${
                   runTarget === "홈런" ? "animate-pyamong-hop-home" : "animate-pyamong-hop"
                 }`,
               )}
+              style={rimStyle}
               data-testid="char-pyamong-success"
             />
           </div>
@@ -424,10 +434,8 @@ export default function GameCharacterLayer({
             <img
               src={pyamongWaiting}
               alt=""
-              className={pyamongSpriteClass(
-                battingHalf,
-                "w-[min(12vw,96px)] h-auto animate-pyamong-sigh opacity-95",
-              )}
+              className={pyamongSpriteClass("w-[min(12vw,96px)] h-auto animate-pyamong-sigh opacity-95")}
+              style={rimStyle}
               data-testid="char-batter-fail"
             />
           </div>
@@ -444,10 +452,9 @@ export default function GameCharacterLayer({
               src={pyamongWaiting}
               alt=""
               className={pyamongSpriteClass(
-                battingHalf,
                 "w-[min(14vw,110px)] h-auto animate-pyamong-pitcher-change shrink-0",
               )}
-              style={{ transformOrigin: "bottom center" }}
+              style={{ transformOrigin: "bottom center", ...rimStyle }}
               data-testid="char-pyamong-pitcher-change"
             />
             <GameThoughtBubble text="투수가 교체됩니다!" className="mb-[min(4vw,28px)]" />
@@ -461,11 +468,8 @@ export default function GameCharacterLayer({
             <img
               src={pyamongWaiting}
               alt=""
-              className={pyamongSpriteClass(
-                battingHalf,
-                "w-[min(11vw,88px)] h-auto animate-pyamong-idle shrink-0",
-              )}
-              style={{ transformOrigin: "bottom center" }}
+              className={pyamongSpriteClass("w-[min(11vw,88px)] h-auto animate-pyamong-idle shrink-0")}
+              style={{ transformOrigin: "bottom center", ...rimStyle }}
               data-testid="char-pyamong-inning-switch"
             />
           </div>

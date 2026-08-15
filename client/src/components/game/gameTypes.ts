@@ -20,7 +20,7 @@ export type PredictionResult = "pending" | "success" | "fail";
 /** 투수 교체·공수 교대 연출 표시 시간 */
 export const GAME_EVENT_SHOW_MS = 5000;
 
-/** 예측 성공 직후 「예측 성공」 축하를 먼저 보여주는 시간 */
+/** 주루 후 「예측 성공」 배너 (레거시 타이머 — 배트 연출이 먼저) */
 export const SUCCESS_ANNOUNCE_MS = 2000;
 
 /** 주루 도착 후 제자리 점프 3회 */
