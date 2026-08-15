@@ -201,6 +201,7 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
           matchPlayerStats:
             (match.matchPlayerStats as Record<string, MatchPlayerStatsEntry> | null) ?? null,
           pinchHitter: (match.pinchHitter as PinchHitterSnapshot | null) ?? null,
+          liveBatterName: match.liveScoreboard?.situation?.batterName ?? null,
         },
         inningHalf,
       );

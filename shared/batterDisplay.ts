@@ -106,6 +106,29 @@ function pickLineupSide(
   return inningHalf === "top" ? lineup.away : lineup.home;
 }
 
+/** 실황/라인업 이름 비교 — 공백·대소문자 무시 */
+export function normalizeBatterName(name: string): string {
+  return name.replace(/\s+/g, "").toLowerCase();
+}
+
+/** 실황 타자명 → 공격 측 라인업 매칭 (정확 → 포함) */
+export function findLineupBatterByName(
+  side: LineupBatterEntry[],
+  liveName: string,
+): LineupBatterEntry | null {
+  const target = normalizeBatterName(liveName);
+  if (!target || side.length === 0) return null;
+  const sorted = [...side].sort((a, b) => a.battingOrder - b.battingOrder);
+  const exact = sorted.find((p) => normalizeBatterName(p.name) === target);
+  if (exact) return exact;
+  return (
+    sorted.find((p) => {
+      const n = normalizeBatterName(p.name);
+      return n.length > 0 && (target.includes(n) || n.includes(target));
+    }) ?? null
+  );
+}
+
 function emptyBatterPreview(orderLabel: string, season: number): CurrentBatterPreview {
   return {
     orderLabel,
@@ -157,6 +180,7 @@ function applyPinchHitter(
 
 /**
  * 운영자 gamePhase 타순(batterIndexInHalf) + API 라인업 → 현재 타자
+ * liveBatterName(실황)이 있으면 공격 측 라인업에서 이름 매칭을 우선
  * batterIndexInHalf는 1-based, 라인업은 battingOrder 기준
  * pinchHitter가 현재 타석과 일치하면 대타로 덮어씀
  */
@@ -167,33 +191,40 @@ export function resolveCurrentBatterPreview(input: {
   playerStats?: Record<string, PlayerStatsForBatterPreview> | null;
   season: number;
   pinchHitter?: PinchHitterSnapshot | null;
+  /** 네이버/다음 실황 현재 타자명 — 있으면 라인업·스탯 매칭 우선 */
+  liveBatterName?: string | null;
 }): CurrentBatterPreview {
-  const battingOrder = wrapBatterOrder(input.batterIndexInHalf);
-  const orderLabel = `${battingOrder}번째 타자`;
+  let battingOrder = wrapBatterOrder(input.batterIndexInHalf);
+  const liveName = input.liveBatterName?.trim() || "";
   const lineup = input.lineup;
-  if (!lineup || (lineup.home.length === 0 && lineup.away.length === 0)) {
-    return applyPinchHitter(
-      emptyBatterPreview(orderLabel, input.season),
-      input.pinchHitter,
-      input.inningHalf,
-      battingOrder,
-    );
-  }
-
-  const side = pickLineupSide(lineup, input.inningHalf);
+  const hasLineup = Boolean(lineup && (lineup.home.length > 0 || lineup.away.length > 0));
+  const side = hasLineup ? pickLineupSide(lineup!, input.inningHalf) : [];
   const sorted = [...side].sort((a, b) => a.battingOrder - b.battingOrder);
-  if (sorted.length === 0) {
-    return applyPinchHitter(
-      emptyBatterPreview(orderLabel, input.season),
-      input.pinchHitter,
-      input.inningHalf,
-      battingOrder,
-    );
+  const otherSide = hasLineup
+    ? pickLineupSide(lineup!, input.inningHalf === "top" ? "bottom" : "top")
+    : [];
+
+  let player: LineupBatterEntry | null = null;
+  if (liveName && hasLineup) {
+    player = findLineupBatterByName(sorted, liveName);
+    if (!player) player = findLineupBatterByName(otherSide, liveName);
+    if (player) battingOrder = wrapBatterOrder(player.battingOrder);
   }
 
-  const player =
-    sorted.find((p) => wrapBatterOrder(p.battingOrder) === battingOrder) ??
-    sorted[(battingOrder - 1) % sorted.length];
+  const orderLabel = `${battingOrder}번 타자`;
+
+  if (sorted.length === 0 && !player) {
+    const empty = emptyBatterPreview(orderLabel, input.season);
+    if (liveName) empty.playerName = liveName;
+    return applyPinchHitter(empty, input.pinchHitter, input.inningHalf, battingOrder);
+  }
+
+  if (!player) {
+    player =
+      sorted.find((p) => wrapBatterOrder(p.battingOrder) === battingOrder) ??
+      sorted[(battingOrder - 1) % sorted.length];
+  }
+
   const stats = input.playerStats?.[String(player.playerId)];
 
   const base: CurrentBatterPreview = {
