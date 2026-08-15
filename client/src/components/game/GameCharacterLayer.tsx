@@ -17,6 +17,8 @@ import type { InningHalf } from "@shared/gamePhaseTypes";
 import { getRunDurationSec, SUCCESS_BAT_TOSS_MS } from "./fieldPositions";
 import {
   BASE_IMAGE_POINTS,
+  BATTER_BOX_LEFT_IMAGE,
+  BATTER_BOX_RIGHT_IMAGE,
   getRunFacingRight,
   getRunPathImagePoints,
   HOME_PLATE_IMAGE,
@@ -28,6 +30,7 @@ import {
 import { StadiumFieldMarker, useStadiumFieldSize } from "./StadiumFieldContext";
 import GameThoughtBubble from "./GameThoughtBubble";
 import { PYAMONG_BATTER_WIDTH, PYAMONG_WAIT_RESULT_WIDTH } from "./gameLayoutSizes";
+import type { BatterHandSide } from "@shared/batterHandedness";
 import "./gameAnimations.css";
 
 /** 주루 달리기 스프라이트 프레임 (우측을 바라보는 포즈) */
@@ -39,8 +42,10 @@ interface GameCharacterLayerProps {
   gameDayPhase: GameDayPhase;
   gameDayOverlayKind?: GameDayOverlayKind | null;
   selectedPrediction: PredictionOption | null;
-  /** 초=원정(빨강) / 말=홈(삼성 블루) */
+  /** 초=원정(빨강) / 말=홈(삼성 블루) — 왼쪽 ▲/▼ 과 동일 */
   battingHalf?: InningHalf | null;
+  /** 좌타/우타 — 없으면 우타 */
+  batsSide?: BatterHandSide | null;
   /** 대타 타석 — 대기 말풍선 안내 */
   isPinchHitter?: boolean;
   onRunComplete?: () => void;
@@ -59,15 +64,23 @@ function pyamongSpriteClass(
   return extra ? `${tint} ${extra}` : tint;
 }
 
+function batterBoxPoint(side: BatterHandSide | null | undefined) {
+  return side === "left" ? BATTER_BOX_LEFT_IMAGE : BATTER_BOX_RIGHT_IMAGE;
+}
+
 export default function GameCharacterLayer({
   phase,
   gameDayPhase,
   gameDayOverlayKind = null,
   selectedPrediction,
   battingHalf = null,
+  batsSide = null,
   isPinchHitter = false,
   onRunComplete,
 }: GameCharacterLayerProps) {
+  const handSide: BatterHandSide = batsSide === "left" ? "left" : "right";
+  const isLeftHanded = handSide === "left";
+  const batterPoint = batterBoxPoint(handSide);
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
   const [runFrameIdx, setRunFrameIdx] = useState(0);
   const [runFaceRight, setRunFaceRight] = useState(true);
@@ -220,21 +233,27 @@ export default function GameCharacterLayer({
       )}
 
       {gameDayPhase === "live" && phase === "wait_start" && (
-        <StadiumFieldMarker point={HOME_PLATE_IMAGE} center={false}>
+        <StadiumFieldMarker point={batterPoint} center={false}>
           <div
             className="flex flex-row items-end gap-1 sm:gap-2 pointer-events-none"
-            style={{ transform: "translate(-45%, -92%)" }}
+            style={{ transform: "translate(-50%, -92%)" }}
           >
-            <img
-              src={batterWaiting}
-              alt=""
-              className={pyamongSpriteClass(
-                battingHalf,
-                "h-auto animate-pyamong-idle shrink-0",
-              )}
-              style={{ width: PYAMONG_BATTER_WIDTH, transformOrigin: "bottom center" }}
-              data-testid="char-pyamong-waiting"
-            />
+            <div
+              className={isLeftHanded ? "game-pyamong-face-pitcher-left" : "game-pyamong-face-pitcher"}
+              style={isLeftHanded ? { transform: "scaleX(-1) rotate(38deg)" } : undefined}
+            >
+              <img
+                src={pyamongBatterReady}
+                alt=""
+                className={pyamongSpriteClass(
+                  battingHalf,
+                  "h-auto animate-pyamong-idle shrink-0",
+                )}
+                style={{ width: PYAMONG_BATTER_WIDTH, transformOrigin: "bottom center" }}
+                data-testid="char-pyamong-waiting"
+                data-bats-side={handSide}
+              />
+            </div>
             <GameThoughtBubble
               lines={
                 isPinchHitter
@@ -250,13 +269,22 @@ export default function GameCharacterLayer({
       )}
 
       {phase === "wait_result" && (
-        <StadiumFieldMarker point={HOME_PLATE_IMAGE} center={false}>
+        <StadiumFieldMarker point={batterPoint} center={false}>
           <div
             className="relative flex flex-row items-end gap-2 sm:gap-3 pointer-events-none"
-            style={{ transform: "translate(-42%, -100%)" }}
+            style={{ transform: "translate(-50%, -100%)" }}
           >
             <div className="relative shrink-0">
-              <div className="game-pyamong-face-pitcher">
+              <div
+                className={isLeftHanded ? undefined : "game-pyamong-face-pitcher"}
+                style={
+                  isLeftHanded
+                    ? { transform: "scaleX(-1) rotate(38deg)", transformOrigin: "42% 82%" }
+                    : undefined
+                }
+                data-testid="char-batter-box"
+                data-bats-side={handSide}
+              >
                 <img
                   src={pyamongBatterReady}
                   alt=""

@@ -4,6 +4,7 @@ import type {
   MatchLineupSnapshot,
   PinchHitterSnapshot,
 } from "./apiSportsTypes";
+import { parseBatterHandSide } from "./batterHandedness";
 import { wrapBatterOrder, type InningHalf } from "./gamePhaseTypes";
 
 /** 타율 표시 — ".285" 또는 "0.285" → ".285" */
@@ -97,6 +98,7 @@ export interface PlayerStatsForBatterPreview {
   onBasePercentage?: string | null;
   position?: string | null;
   note?: string | null;
+  batsThrows?: string | null;
 }
 
 function pickLineupSide(
@@ -145,6 +147,7 @@ function emptyBatterPreview(orderLabel: string, season: number): CurrentBatterPr
     note: null,
     season,
     isPinchHitter: false,
+    batsSide: null,
   };
 }
 
@@ -175,6 +178,7 @@ function applyPinchHitter(
     note: pinch.note ?? null,
     season: pinch.season || base.season,
     isPinchHitter: true,
+    batsSide: base.batsSide ?? null,
   };
 }
 
@@ -246,6 +250,7 @@ export function resolveCurrentBatterPreview(input: {
     note: stats?.note ?? null,
     season: input.season,
     isPinchHitter: false,
+    batsSide: parseBatterHandSide(stats?.batsThrows ?? null),
   };
 
   return applyPinchHitter(base, input.pinchHitter, input.inningHalf, battingOrder);

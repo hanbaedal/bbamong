@@ -173,6 +173,8 @@ export interface CurrentBatterPreview {
   season: number;
   /** 운영자가 설정한 대타 타석 */
   isPinchHitter?: boolean;
+  /** 좌타/우타 — 없으면 UI 기본 우타 */
+  batsSide?: "left" | "right" | null;
 }
 
 /** 운영자 대타 입력 — 현재 타석만 적용 */

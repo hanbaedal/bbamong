@@ -10,20 +10,23 @@ export const GAME_HOME_TEAM_COLOR = "#1A6DFF";
 
 interface GameTopScorePanelProps {
   matchTitle: string;
+  stadiumName?: string | null;
   scoreboard: LiveScoreboard | null;
   currentBatter?: CurrentBatterPreview | null;
   isLoading?: boolean;
   battingHalf?: InningHalf | null;
   onMatchTitleClick?: () => void;
   matchSelectEnabled?: boolean;
+  stadiumSelectEnabled?: boolean;
+  onStadiumNameClick?: () => void;
 }
 
 const titleShadow = "drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]";
 const clickable =
   "hover:text-[#CDFF00] transition-colors underline-offset-2 hover:underline cursor-pointer";
 
-/** compact 스코어표 1행 높이 — 한 칸 아래 이동 */
-const scorePanelTop = "top-[calc(0.375rem+1.35rem)] sm:top-[calc(0.5rem+1.35rem)]";
+/** 스코어표 — 한 줄 위 (기존 +1.35rem 오프셋 제거) */
+const scorePanelTop = "top-2 sm:top-2.5";
 
 function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
   const nameValue = batter.position
@@ -77,14 +80,18 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
 
 export default function GameTopScorePanel({
   matchTitle,
+  stadiumName = null,
   scoreboard,
   currentBatter = null,
   isLoading,
   battingHalf = null,
   onMatchTitleClick,
   matchSelectEnabled = false,
+  stadiumSelectEnabled = false,
+  onStadiumNameClick,
 }: GameTopScorePanelProps) {
   const titleClass = `text-sm sm:text-base font-bold leading-none whitespace-nowrap text-white ${titleShadow}`;
+  const displayStadium = stadiumName?.trim() || null;
 
   return (
     <div
@@ -92,8 +99,8 @@ export default function GameTopScorePanel({
       data-testid="game-top-score-panel"
     >
       <div className="relative w-max max-w-full" data-testid="game-match-header">
-        {/* 스코어표 3행 중 2행(원정) 바로 왼쪽 */}
-        <div className="absolute right-full top-[36%] z-10 mr-1.5 -translate-y-1/2">
+        {/* 스코어표 원정 행 왼쪽 — 제n경기 + 바로 아래 구장명 */}
+        <div className="absolute right-full top-[36%] z-10 mr-1.5 -translate-y-1/2 flex flex-col items-end gap-0.5">
           {matchSelectEnabled && onMatchTitleClick ? (
             <button
               type="button"
@@ -108,6 +115,25 @@ export default function GameTopScorePanel({
               {matchTitle}
             </p>
           )}
+          {displayStadium ? (
+            stadiumSelectEnabled && onStadiumNameClick ? (
+              <button
+                type="button"
+                onClick={onStadiumNameClick}
+                className={`pointer-events-auto text-[10px] sm:text-[11px] leading-tight text-white/90 whitespace-nowrap ${titleShadow} ${clickable}`}
+                data-testid="game-stadium-name"
+              >
+                {displayStadium}
+              </button>
+            ) : (
+              <p
+                className={`text-[10px] sm:text-[11px] leading-tight text-white/90 whitespace-nowrap ${titleShadow}`}
+                data-testid="game-stadium-name"
+              >
+                {displayStadium}
+              </p>
+            )
+          ) : null}
         </div>
         <div style={{ zoom: 0.7 }}>
           {isLoading ? (

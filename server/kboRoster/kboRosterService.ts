@@ -214,3 +214,17 @@ export function resolveMatchTeamShort(
   const short = resolveKboTeamShortName(raw);
   return short && isKboTeamShort(short) ? short : null;
 }
+
+/** 현재 타자명으로 선수단 투타 유형 조회 (최신 시즌 우선) */
+export async function findBatsThrowsByPlayerName(
+  name: string | null | undefined,
+): Promise<string | null> {
+  const trimmed = name?.trim();
+  if (!trimmed) return null;
+  const row = await KboPlayerModel.findOne({ name: trimmed, active: { $ne: false } })
+    .sort({ season: -1 })
+    .select("batsThrows")
+    .lean();
+  const bats = (row as { batsThrows?: string } | null)?.batsThrows?.trim();
+  return bats || null;
+}
