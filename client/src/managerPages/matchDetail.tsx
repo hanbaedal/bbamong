@@ -729,6 +729,7 @@ export default function MatchDetailPage() {
   };
 
   const handleConfirmResult = async () => {
+    setSuggestedAutoResult(null);
     if (!selectedResult || isSubmitting) return;
 
     setIsSubmitting(true);
