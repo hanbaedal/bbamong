@@ -292,7 +292,7 @@ export async function processLiveAutoOperator(
       Boolean(prevPitcher) &&
       normalizeBatterName(pitcherName) !== normalizeBatterName(prevPitcher!);
 
-    // 결과 제안 — 중지 후·미전송
+    // 결과 제안 — 중지 후·미전송. 자동 확정은 아웃 증가(아웃) 또는 타자 교체 직후 홈런만.
     if (suggested) {
       const round = match.currentRound ?? 1;
       const key = `${round}:${suggested}:${batterName || prevBatter || ""}`;
@@ -305,7 +305,9 @@ export async function processLiveAutoOperator(
           batterName: batterName || prevBatter,
           message: `실황 추정 결과: ${suggested}`,
         });
-        if (suggested === "아웃" || suggested === "홈런") {
+        const canAutoOut = suggested === "아웃" && prevOuts != null && outs > prevOuts;
+        const canAutoHr = suggested === "홈런" && (batterChanged || (prevOuts != null && outs === prevOuts));
+        if (canAutoOut || canAutoHr) {
           await tryApplySuggestedResult(matchId, round, suggested);
         }
       }
