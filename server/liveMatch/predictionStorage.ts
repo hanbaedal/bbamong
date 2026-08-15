@@ -585,7 +585,11 @@ export async function stopRound(matchId: string): Promise<Match> {
     await session.commitTransaction();
     return updatedMatch as Match;
   } catch (error) {
-    await session.abortTransaction();
+    try {
+      await session.abortTransaction();
+    } catch {
+      /* ignore abort errors */
+    }
     throw error;
   } finally {
     session.endSession();
