@@ -206,14 +206,15 @@ def write_mall() -> Path:
 
 
 def write_db() -> Path:
-    doc = new_doc("빠몽이 DB 구조 설명서", "MongoDB 중심 · PostgreSQL 레거시 동기화")
+    doc = new_doc("빠몽이 DB 구조 설명서", "운영 DB = MongoDB 전용")
     add_section(
         doc,
         "1. 개요",
         [
-            "운영 기본 저장소는 MongoDB입니다.",
-            "일부 레거시 데이터는 PostgreSQL에 있으며, 슈퍼바이저 「디비 백업하기」에서 PG→Mongo 동기화·내보내기를 할 수 있습니다.",
-            "상세 ERD는 docs/db-erd.md를 참고합니다.",
+            "빠몽이(PPAMONG)의 운영·런타임 데이터베이스는 MongoDB만 사용합니다.",
+            "서버는 MONGODB_URI 없이 기동하지 않습니다. 회원·경기·예측·몰·관리자 데이터는 모두 MongoDB 컬렉션에 저장됩니다.",
+            "구제품(빠던9 등)이 쓰던 PostgreSQL은 빠몽이 운영 DB가 아닙니다. 일상 운영·백업·복구는 MongoDB 기준입니다.",
+            "컬렉션 관계는 docs/db-erd.md(구 ERD는 참고용)와 본 문서의 표를 함께 보세요.",
         ],
     )
     add_table(
@@ -245,10 +246,11 @@ def write_db() -> Path:
     )
     add_section(
         doc,
-        "3. 백업·동기화",
+        "3. 백업",
         [
             "슈퍼바이저 → 시스템 운영 → 디비 백업하기",
-            "테이블별 Mongo 내보내기, PostgreSQL→Mongo 동기화 지원",
+            "MongoDB 컬렉션/테이블별 내보내기(백업)를 사용합니다.",
+            "관리자 화면에 남아 있는 PostgreSQL 가져오기 메뉴는 구제품 일회성 이전용이며, 빠몽이 정상 운영에 필요하지 않습니다.",
         ],
     )
     footer_note(doc)

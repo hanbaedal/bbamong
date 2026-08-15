@@ -51,7 +51,7 @@ export const SYSTEM_MANUALS: SystemManualEntry[] = [
     category: "db",
     audience: "DB",
     title: "빠몽이 DB 구조 설명서",
-    description: "주요 컬렉션·테이블·관계(ERD) 요약",
+    description: "MongoDB 전용 주요 컬렉션·관계 요약",
     fileName: "빠몽이_DB구조_설명서.docx",
   },
 ];
