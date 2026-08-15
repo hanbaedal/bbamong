@@ -447,7 +447,11 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (manager.status === "비활성화") {
         res.clearCookie("managerAccessToken", { path: "/" });
         res.clearCookie("managerRefreshToken", { path: "/" });
-        return res.status(403).json({ error: "비활성화된 계정입니다.", deactivated: true });
+        return res.status(403).json({
+          error: "담당 경기가 종료되었습니다.",
+          deactivated: true,
+          matchEnded: true,
+        });
       }
 
       if (!canAccessPpamongOperator(manager.username, manager.userType)) {
@@ -659,7 +663,11 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       const manager = await adminStorage.getAdminUserById(decoded.adminId);
       if (manager?.status === "비활성화") {
-        return res.status(403).json({ error: "비활성화된 계정입니다. 경기 진행이 불가합니다.", deactivated: true });
+        return res.status(403).json({
+          error: "담당 경기가 종료되었습니다.",
+          deactivated: true,
+          matchEnded: true,
+        });
       }
 
       const { id } = req.params;

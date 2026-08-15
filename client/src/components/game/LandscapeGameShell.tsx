@@ -239,6 +239,18 @@ export default function LandscapeGameShell({
                 countdown={eventCountdown}
               />
             )}
+
+            {screenPhase === "match_ended" && (
+              <div
+                className="absolute inset-0 z-[50] flex items-center justify-center pointer-events-none"
+                data-testid="overlay-match-ended"
+              >
+                <div className="absolute inset-0 bg-black/65" />
+                <p className="relative text-white text-[clamp(2rem,8vw,4.5rem)] font-black tracking-tight drop-shadow-lg">
+                  경기종료
+                </p>
+              </div>
+            )}
           </>
         )}
       </GameFieldViewport>

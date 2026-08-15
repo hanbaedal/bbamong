@@ -64,7 +64,7 @@ async function handleManagerAuthFailure(res: Response | null): Promise<void> {
   if (res) {
     try {
       const body = await res.clone().json();
-      matchEnded = body.matchEnded === true;
+      matchEnded = body.matchEnded === true || body.deactivated === true;
     } catch {
       /* ignore */
     }

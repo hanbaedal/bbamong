@@ -157,10 +157,10 @@ function applyPinchHitter(
   inningHalf: InningHalf,
   batterIndexInHalf: number,
 ): CurrentBatterPreview {
-  if (!pinch?.playerName?.trim()) return { ...base, isPinchHitter: false };
+  if (!pinch?.playerName?.trim()) return base;
   const pinchHalf = pinch.inningHalf === "bottom" ? "bottom" : "top";
-  if (pinchHalf !== inningHalf) return { ...base, isPinchHitter: false };
-  if (pinch.batterIndexInHalf !== batterIndexInHalf) return { ...base, isPinchHitter: false };
+  if (pinchHalf !== inningHalf) return base;
+  if (pinch.batterIndexInHalf !== batterIndexInHalf) return base;
 
   return {
     orderLabel: base.orderLabel,
@@ -199,6 +199,7 @@ export function resolveCurrentBatterPreview(input: {
   liveBatterName?: string | null;
 }): CurrentBatterPreview {
   let battingOrder = wrapBatterOrder(input.batterIndexInHalf);
+  const slotOrder = battingOrder;
   const liveName = input.liveBatterName?.trim() || "";
   const lineup = input.lineup;
   const hasLineup = Boolean(lineup && (lineup.home.length > 0 || lineup.away.length > 0));
@@ -207,6 +208,8 @@ export function resolveCurrentBatterPreview(input: {
   const otherSide = hasLineup
     ? pickLineupSide(lineup!, input.inningHalf === "top" ? "bottom" : "top")
     : [];
+  const slotExpected =
+    sorted.find((p) => wrapBatterOrder(p.battingOrder) === slotOrder) ?? null;
 
   let player: LineupBatterEntry | null = null;
   if (liveName && hasLineup) {
@@ -215,18 +218,46 @@ export function resolveCurrentBatterPreview(input: {
     if (player) battingOrder = wrapBatterOrder(player.battingOrder);
   }
 
-  const orderLabel = `${battingOrder}번 타자`;
+  const orderLabel = `${slotOrder}번 타자`;
+  const liveIsPinch = Boolean(
+    liveName &&
+      slotExpected?.name &&
+      normalizeBatterName(slotExpected.name) !== normalizeBatterName(liveName),
+  );
+
+  // 실황 타자가 선발 라인업에 없음 → 대타. 선발 이름으로 덮지 않음
+  if (liveName && !player) {
+    const empty = emptyBatterPreview(orderLabel, input.season);
+    empty.playerName = liveName;
+    empty.isPinchHitter = true;
+    const withPinch = applyPinchHitter(empty, input.pinchHitter, input.inningHalf, slotOrder);
+    if (withPinch.isPinchHitter && withPinch.playerName) return withPinch;
+    return {
+      ...empty,
+      playerName: liveName,
+      isPinchHitter: true,
+      position:
+        slotExpected && input.playerStats?.[String(slotExpected.playerId)]?.position
+          ? input.playerStats[String(slotExpected.playerId)]!.position!
+          : null,
+    };
+  }
 
   if (sorted.length === 0 && !player) {
     const empty = emptyBatterPreview(orderLabel, input.season);
     if (liveName) empty.playerName = liveName;
-    return applyPinchHitter(empty, input.pinchHitter, input.inningHalf, battingOrder);
+    return applyPinchHitter(empty, input.pinchHitter, input.inningHalf, slotOrder);
   }
 
   if (!player) {
     player =
-      sorted.find((p) => wrapBatterOrder(p.battingOrder) === battingOrder) ??
-      sorted[(battingOrder - 1) % sorted.length];
+      slotExpected ?? sorted[(slotOrder - 1) % Math.max(sorted.length, 1)] ?? null;
+  }
+
+  if (!player) {
+    const empty = emptyBatterPreview(orderLabel, input.season);
+    if (liveName) empty.playerName = liveName;
+    return applyPinchHitter(empty, input.pinchHitter, input.inningHalf, slotOrder);
   }
 
   const stats = input.playerStats?.[String(player.playerId)];
@@ -249,9 +280,9 @@ export function resolveCurrentBatterPreview(input: {
     position: stats?.position ?? null,
     note: stats?.note ?? null,
     season: input.season,
-    isPinchHitter: false,
+    isPinchHitter: liveIsPinch,
     batsSide: parseBatterHandSide(stats?.batsThrows ?? null),
   };
 
-  return applyPinchHitter(base, input.pinchHitter, input.inningHalf, battingOrder);
+  return applyPinchHitter(base, input.pinchHitter, input.inningHalf, slotOrder);
 }

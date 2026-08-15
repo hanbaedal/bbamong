@@ -390,7 +390,13 @@ export async function processLiveAutoOperator(
           batterStableChanged &&
           prevOuts != null &&
           outs === prevOuts;
-        if (canAutoOut || canAutoHr) {
+        // 1루타·포볼·데드볼 → 예측「1루」: 아웃 유지 + 타자 교체(안정화) 시 자동 확정
+        const canAutoFirst =
+          suggested === "1루" &&
+          prevOuts != null &&
+          outs === prevOuts &&
+          batterStableChanged;
+        if (canAutoOut || canAutoHr || canAutoFirst) {
           await tryApplySuggestedResult(matchId, round, suggested);
         }
       }
@@ -549,8 +555,20 @@ export async function processLiveAutoOperator(
                 matchId,
                 expectedName: expected.name,
                 liveName: batterName,
-                message: `대타 후보: 예정 ${expected.name} → 실황 ${batterName}`,
+                message: `대타: 예정 ${expected.name} → 실황 ${batterName}`,
               });
+              try {
+                const { setMatchPinchHitter } = await import("../apiSports/pinchHitterService");
+                const pinch = await setMatchPinchHitter(matchId, { playerName: batterName });
+                broadcastManager.sendToMatch(matchId, "pinch_hitter_set", {
+                  matchId,
+                  pinchHitter: pinch,
+                  message: `대타 ${batterName}`,
+                  source: "live_auto",
+                });
+              } catch (pinchErr) {
+                console.warn(`[LiveAuto] pinch set failed ${matchId}:`, pinchErr);
+              }
             }
           }
 

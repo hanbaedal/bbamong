@@ -46,6 +46,7 @@ export default function ManagerHomePage() {
   const [guideOpen, setGuideOpen] = useState(false);
   const { toast } = useToast();
   const matchEndedLogoutRef = useRef(false);
+  const [showMatchEndedBanner, setShowMatchEndedBanner] = useState(false);
 
   // 경기 목록 조회 - 항상 최신 데이터 유지
   const { data: matches = [], isLoading: isLoadingMatches } = useQuery<Match[]>({
@@ -155,13 +156,17 @@ export default function ManagerHomePage() {
     );
     if (assignedEnded) {
       matchEndedLogoutRef.current = true;
-      toast({
-        variant: "destructive",
-        description: "담당 경기가 종료되어 로그아웃됩니다.",
-      });
-      dispatchManagerMatchEnded();
+      try {
+        sessionStorage.setItem("manager-match-ended-message", "담당 경기가 종료되어 로그아웃됩니다.");
+      } catch {
+        /* ignore */
+      }
+      setShowMatchEndedBanner(true);
+      window.setTimeout(() => {
+        dispatchManagerMatchEnded("담당 경기가 종료되어 로그아웃됩니다.");
+      }, 10_000);
     }
-  }, [matches, isLoadingMatches, toast]);
+  }, [matches, isLoadingMatches]);
 
   const fetchManagerInfo = async () => {
     try {
@@ -371,6 +376,17 @@ export default function ManagerHomePage() {
           setLocation("/manager/simulation");
         }}
       />
+
+      {showMatchEndedBanner && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70"
+          data-testid="manager-home-match-ended"
+        >
+          <p className="text-white text-[clamp(2rem,10vw,3.5rem)] font-black tracking-tight">
+            경기종료
+          </p>
+        </div>
+      )}
     </div>
   );
 }
