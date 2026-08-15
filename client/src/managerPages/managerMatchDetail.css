@@ -98,6 +98,46 @@
   border-color: #d1d5db;
 }
 
+.manager-match-next-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #f3f4f6;
+  font-size: clamp(10px, 2.4vw, 12px);
+  line-height: 1.25;
+}
+
+.manager-match-next-action--urgent {
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+}
+
+.manager-match-next-action-label {
+  flex-shrink: 0;
+  font-weight: 800;
+  color: #92400e;
+}
+
+.manager-match-next-action-text {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.manager-match-next-action-btn {
+  flex-shrink: 0;
+  font-size: clamp(10px, 2.4vw, 12px);
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: #166534;
+  color: #fff;
+}
+
 /* 운영자 경기 상세 — 사용자와 동일한 라인스코어 + 공수 표시 */
 .manager-operator-score {
   border: 1px solid #e5e7eb;

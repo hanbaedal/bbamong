@@ -1,8 +1,9 @@
 /**
- * 포볼/데드볼 → 1루, 대타 실황 이름 우선 — npx tsx scripts/test-live-result-pinch.ts
+ * 포볼/데드볼 → 1루, 대타, 운영자 다음 액션 — npx tsx scripts/test-live-result-pinch.ts
  */
 import { resolveCurrentBatterPreview } from "../shared/batterDisplay";
 import { inferSuggestedResultFromRelays } from "../server/daumLive/naverRelayClient";
+import { deriveOperatorNextAction } from "../shared/operatorNextAction";
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);
@@ -43,6 +44,27 @@ assert(
   ) === "1루",
   "1루타 → 1루",
 );
+assert(
+  inferSuggestedResultFromRelays(
+    [{ textOptions: [{ text: "희생플라이 중견수" }] }],
+    null,
+  ) === "아웃",
+  "희생플라이 → 아웃",
+);
+assert(
+  inferSuggestedResultFromRelays(
+    [{ textOptions: [{ text: "병살타 유격수-2루수" }] }],
+    null,
+  ) === "아웃",
+  "병살 → 아웃",
+);
+assert(
+  inferSuggestedResultFromRelays(
+    [{ textOptions: [{ text: "야수선택으로 출루" }] }],
+    null,
+  ) === "1루",
+  "야수선택 → 1루",
+);
 
 const pinch = resolveCurrentBatterPreview({
   lineup: {
@@ -58,5 +80,14 @@ const pinch = resolveCurrentBatterPreview({
 assert(pinch.playerName === "김태연", `live name ${pinch.playerName}`);
 assert(pinch.isPinchHitter === true, "대타 표시");
 assert(pinch.orderLabel.includes("1번"), pinch.orderLabel);
+
+const next = deriveOperatorNextAction({
+  liveAutoEnabled: true,
+  atBatPhase: "prediction_closed",
+  suggestedResult: "아웃",
+  needsResultBeforeAdvance: true,
+});
+assert(next.kind === "confirm_result", next.kind);
+assert(next.suggestedResult === "아웃", String(next.suggestedResult));
 
 console.log("live-result-pinch OK");
