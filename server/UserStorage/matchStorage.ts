@@ -6,6 +6,7 @@ import { resolveMatchTeamNames, type MatchHeadToHeadRecord, type MatchTeamNameIn
 import { refreshMatchHeadToHeadIfDue } from "../apiSports/h2hService";
 import type { MatchHeadToHeadSnapshot } from "@shared/apiSportsTypes";
 import { reconcileStuckPregameSideBetLocks } from "../apiSports/syncService";
+import { isStartingLineupReady } from "@shared/todayStartingLineup";
 
 function extractMatchNumber(name: string): number {
   const match = name.match(/\d+/);
@@ -43,6 +44,7 @@ export type ClientMatchView = Match & {
   registrationOrder: number;
   sideBetEnabled: boolean;
   sideBetsLocked: boolean;
+  startingLineupReady: boolean;
 };
 
 async function enrichForClient(
@@ -51,6 +53,7 @@ async function enrichForClient(
     registrationOrder?: number | null;
     sideBetsLocked?: boolean;
     matchHeadToHead?: MatchHeadToHeadSnapshot | null;
+    matchLineup?: { home?: unknown[] | null; away?: unknown[] | null } | null;
   },
   syncBySlot: Map<number, boolean>,
 ): Promise<ClientMatchView> {
@@ -76,6 +79,7 @@ async function enrichForClient(
     registrationOrder,
     sideBetEnabled,
     sideBetsLocked: Boolean(match.sideBetsLocked),
+    startingLineupReady: isStartingLineupReady(match.matchLineup),
   };
 }
 

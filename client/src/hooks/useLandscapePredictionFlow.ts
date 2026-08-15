@@ -16,7 +16,7 @@ import type {
   PredictionResult,
   RoundAdvanceType,
 } from "@/components/game/gameTypes";
-import { GAME_EVENT_SHOW_MS, SUCCESS_ANNOUNCE_MS, SUCCESS_HOP_MS, isSuccessPresentationPhase } from "@/components/game/gameTypes";
+import { GAME_EVENT_SHOW_MS, SUCCESS_HOP_MS, isSuccessPresentationPhase } from "@/components/game/gameTypes";
 import { speakGameVoice, USER_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
 
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
@@ -144,15 +144,8 @@ export function useLandscapePredictionFlow(
 
   const beginSuccessPresentation = useCallback(() => {
     clearSuccessRunTimer();
-    setScreenPhase("success_announce");
-    successRunTimerRef.current = setTimeout(() => {
-      successRunTimerRef.current = null;
-      if (screenPhaseRef.current === "success_running" || screenPhaseRef.current === "success_celebrate") {
-        return;
-      }
-      if (!resultShownRef.current) return;
-      setScreenPhase("success_running");
-    }, SUCCESS_ANNOUNCE_MS);
+    // 배트 연출·주루를 먼저 보여 주고, 도착 후 축하 배너를 띄운다
+    setScreenPhase("success_running");
   }, [clearSuccessRunTimer]);
 
   const clearEventTimers = useCallback(() => {

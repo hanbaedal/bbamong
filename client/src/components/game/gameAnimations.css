@@ -4,17 +4,11 @@
 }
 
 /**
- * 빠몽이 몸 전체 컬러 틴트 (옷 에셋 교체 아님).
- * 노란 기본 스프라이트를 초=원정(빨강) / 말=홈(파랑)으로 재채색.
+ * 레거시 전신 틴트 — 예측 캐릭터는 팀색 테두리(kboTeamOutlineFilter)를 쓴다.
  */
-.game-sprite-tint-away {
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45)) sepia(0.85) saturate(4.2) hue-rotate(-35deg)
-    brightness(0.98);
-}
-
+.game-sprite-tint-away,
 .game-sprite-tint-home {
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45)) sepia(0.7) saturate(3.8) hue-rotate(170deg)
-    brightness(0.95);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
 }
 
 @keyframes pyamong-idle-bob {

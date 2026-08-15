@@ -36,6 +36,13 @@ export type TodayLineupGame = {
   ppamongMatchStatus: string | null;
 };
 
+/** 양팀 선발 9명이 타순에 있으면 선발명단 공개로 본다 */
+export function isStartingLineupReady(
+  lineup?: { home?: unknown[] | null; away?: unknown[] | null } | null,
+): boolean {
+  return (lineup?.home?.length ?? 0) >= 9 && (lineup?.away?.length ?? 0) >= 9;
+}
+
 export type TodayLineupApplyResult = {
   daumGameId: number;
   matchId: string | null;
