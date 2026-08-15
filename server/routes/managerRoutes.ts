@@ -743,18 +743,72 @@ export async function managerRoutes(app: Express): Promise<void> {
 
   // 예측 중지 (매니저 전용)
   app.post("/api/manager/matches/:id/prediction/stop", async (req, res) => {
+    // #region agent log
+    const _dbgStopRoute = (message: string, data: Record<string, unknown>, hypothesisId: string) => {
+      console.error(`[DBG-STOP] ${message}`, data);
+      try {
+        require("fs").appendFileSync(
+          "/opt/cursor/logs/debug.log",
+          JSON.stringify({
+            location: "managerRoutes.ts:prediction/stop",
+            message,
+            data,
+            timestamp: Date.now(),
+            hypothesisId,
+            runId: "stop-500",
+          }) + "\n",
+        );
+      } catch {
+        /* ignore log IO */
+      }
+    };
+    // #endregion
     try {
       const decoded = await requirePpamongOperatorAuth(req, res);
       if (!decoded) return;
 
       const { id } = req.params;
+      // #region agent log
+      _dbgStopRoute("route enter", { matchId: id, adminId: decoded.adminId }, "B");
+      // #endregion
       
       // 경기가 매니저에게 할당되었는지 확인
       const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
       if (!match) {
+        // #region agent log
+        _dbgStopRoute("route 404 not found/unauthorized", { matchId: id }, "B");
+        // #endregion
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
-      await assertMatchLiveForControls(id);
+      // #region agent log
+      _dbgStopRoute(
+        "route match loaded before assert",
+        {
+          matchId: id,
+          matchStatus: (match as { matchStatus?: string }).matchStatus,
+          predictionEnabled: (match as { predictionEnabled?: boolean }).predictionEnabled,
+          currentRound: (match as { currentRound?: number }).currentRound,
+          name: (match as { name?: string }).name,
+        },
+        "E",
+      );
+      // #endregion
+      try {
+        await assertMatchLiveForControls(id);
+      } catch (assertErr: any) {
+        // #region agent log
+        _dbgStopRoute(
+          "assertMatchLiveForControls threw",
+          {
+            matchId: id,
+            message: assertErr?.message,
+            stack: assertErr?.stack ?? String(assertErr),
+          },
+          "E",
+        );
+        // #endregion
+        throw assertErr;
+      }
 
       const updatedMatch = await stopRound(id);
       if (!updatedMatch) {
@@ -767,6 +821,9 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: "예측이 중지되었습니다.",
       });
 
+      // #region agent log
+      _dbgStopRoute("route success", { matchId: id, currentRound: updatedMatch.currentRound }, "C");
+      // #endregion
       return res.json({
         success: true,
         message: "예측이 중지되었습니다.",
@@ -776,6 +833,36 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
         return res.status(401).json({ error: "인증이 만료되었습니다." });
       }
+      // #region agent log
+      console.error(`[DBG-STOP] route catch FULL`, {
+        name: error?.name,
+        message: error?.message,
+        code: error?.code,
+        errorLabels: error?.errorLabels,
+        stack: error?.stack ?? String(error),
+      });
+      try {
+        require("fs").appendFileSync(
+          "/opt/cursor/logs/debug.log",
+          JSON.stringify({
+            location: "managerRoutes.ts:prediction/stop:catch",
+            message: "route catch FULL",
+            data: {
+              name: error?.name,
+              message: error?.message,
+              code: error?.code ?? null,
+              errorLabels: error?.errorLabels ?? null,
+              stack: error?.stack ?? String(error),
+            },
+            timestamp: Date.now(),
+            hypothesisId: "A",
+            runId: "stop-500",
+          }) + "\n",
+        );
+      } catch {
+        /* ignore */
+      }
+      // #endregion
       console.error("Stop prediction error:", error);
       const message = error?.message || "";
       if (
@@ -784,8 +871,14 @@ export async function managerRoutes(app: Express): Promise<void> {
         message.includes("경기를 찾을 수 없습니다") ||
         message.includes("경기전에")
       ) {
+        // #region agent log
+        console.error(`[DBG-STOP] route mapping to 400`, { message });
+        // #endregion
         return res.status(400).json({ error: message });
       }
+      // #region agent log
+      console.error(`[DBG-STOP] route mapping to 500 (unmapped message)`, { message });
+      // #endregion
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   });
