@@ -1,8 +1,8 @@
-# DB 구조 및 ERD
+# DB 구조 및 ERD (레거시 참고)
 
-> **DB**: PostgreSQL (Neon Database serverless)  
-> **ORM**: Drizzle ORM  
-> **Schema 파일**: `shared/schema.ts`
+> **주의**: 빠몽이 **운영 DB는 MongoDB**입니다. 이 문서는 구제품(PostgreSQL/Drizzle) 시절 ERD 참고용이며, 런타임에 사용하지 않습니다.  
+> **운영**: MongoDB (Mongoose) — `server/mongodb/`, `MONGODB_URI` 필수  
+> **레거시 스키마 파일**: `shared/schema.ts` / `drizzle.config.ts` (마이그레이션 도구용, 기동에 불필요)
 
 ---
 
