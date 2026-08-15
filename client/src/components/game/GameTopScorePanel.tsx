@@ -75,7 +75,7 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
 }
 
 const headToHeadClass =
-  "text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap text-white [text-shadow:0_0_3px_#000,0_1px_2px_#000]";
+  "-translate-y-[2.5em] text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap text-white [text-shadow:0_0_3px_#000,0_1px_2px_#000]";
 
 function HeadToHeadLine({ parts }: { parts: HeadToHeadDisplayParts }) {
   if (parts.empty) {
@@ -154,12 +154,12 @@ export default function GameTopScorePanel({
             )}
           </div>
           {!isLoading && headToHead ? (
-            <div className="absolute right-0 top-full -translate-y-[2.5em]">
+            <div className="absolute right-0 top-full">
               <HeadToHeadLine parts={headToHead} />
             </div>
           ) : !isLoading && headToHeadLine ? (
             <p
-              className={`${headToHeadClass} absolute right-0 top-full`}
+              className={`${headToHeadClass} absolute right-0 top-full -translate-y-[2.5em]`}
               data-testid="game-match-head-to-head"
             >
               {headToHeadLine}
