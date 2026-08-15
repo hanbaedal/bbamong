@@ -25,6 +25,9 @@ const timersByMatch = new Map<string, { start?: NodeJS.Timeout; end?: NodeJS.Tim
 let cancelDailySchedule: (() => void) | null = null;
 let hourlyPregameTimer: NodeJS.Timeout | null = null;
 let hourlyPregameRunning = false;
+let lineupAutoTimer: NodeJS.Timeout | null = null;
+let lineupAutoRunning = false;
+const LINEUP_AUTO_INTERVAL_MS = 15 * 60 * 1000;
 
 function clearMatchTimers(matchId: string) {
   const timers = timersByMatch.get(matchId);
@@ -44,6 +47,71 @@ function clearHourlyPregameTimer() {
     clearTimeout(hourlyPregameTimer);
     hourlyPregameTimer = null;
   }
+}
+
+function clearLineupAutoTimer() {
+  if (lineupAutoTimer) {
+    clearTimeout(lineupAutoTimer);
+    lineupAutoTimer = null;
+  }
+}
+
+async function hasUnstartedTodayMatches(): Promise<boolean> {
+  const kstToday = getKstDateString();
+  const { start: todayStart, end: todayEnd } = getKstDayRange(new Date(`${kstToday}T12:00:00+09:00`));
+  const now = Date.now();
+  const matches = await MatchModel.find({
+    matchStatus: { $nin: ["completed", "cancelled"] },
+    registrationOrder: { $gte: 1, $lte: MAX_DAILY_MATCHES },
+    $or: [
+      { matchDate: kstToday },
+      { matchDate: null, startTime: { $gte: todayStart, $lte: todayEnd } },
+    ],
+  })
+    .select("startTime")
+    .lean();
+
+  return matches.some((match) => {
+    if (!match.startTime) return true;
+    const startMs = new Date(match.startTime).getTime();
+    return !Number.isFinite(startMs) || startMs > now;
+  });
+}
+
+/** 선발 9명이 공개되면 운영자 타순에 자동 적용 (15분 간격, 첫 경기 시작 후에도 미시작 경기가 있으면 계속) */
+export async function runTodayLineupAutoApply(): Promise<void> {
+  if (lineupAutoRunning) return;
+  lineupAutoRunning = true;
+  try {
+    const { applyReadyTodayStartingLineups } = await import("../kboLineup/todayStartingLineupService");
+    const result = await applyReadyTodayStartingLineups();
+    const applied = result.results.filter((row) => row.applied).length;
+    console.log(
+      `[MatchMgmtSchedule] lineup auto ${result.date}: applied ${applied}/${result.results.length}`,
+    );
+  } finally {
+    lineupAutoRunning = false;
+  }
+}
+
+export async function scheduleTodayLineupAutoApply(): Promise<void> {
+  clearLineupAutoTimer();
+  if (!(await hasUnstartedTodayMatches())) {
+    console.log("[MatchMgmtSchedule] lineup auto idle — no unstarted matches");
+    return;
+  }
+  lineupAutoTimer = setTimeout(() => {
+    void runTodayLineupAutoApply()
+      .catch((error) => {
+        console.error("[MatchMgmtSchedule] lineup auto failed:", error);
+      })
+      .finally(() => {
+        void scheduleTodayLineupAutoApply();
+      });
+  }, LINEUP_AUTO_INTERVAL_MS);
+  console.log(
+    `[MatchMgmtSchedule] lineup auto next in ${Math.round(LINEUP_AUTO_INTERVAL_MS / 60_000)}m`,
+  );
 }
 
 /** 오늘 연결 경기 중 가장 빠른 시작 시각 (없으면 null) */
@@ -138,6 +206,9 @@ export async function runHourlyPregameMatchSync(): Promise<void> {
     );
     await syncOperatorMatchAssignments();
     await rescheduleTodayMatchTimers();
+    await runTodayLineupAutoApply().catch((error) => {
+      console.error("[MatchMgmtSchedule] hourly lineup auto failed:", error);
+    });
   } finally {
     hourlyPregameRunning = false;
   }
@@ -216,6 +287,7 @@ export async function rescheduleTodayMatchTimers(): Promise<void> {
   console.log(`[MatchMgmtSchedule] scheduled start/end for ${matches.length} match(es)`);
   await scheduleLiveScoreSync();
   await scheduleHourlyPregameSync();
+  await scheduleTodayLineupAutoApply();
 }
 
 async function maybeRunMissedDailySync(): Promise<void> {
@@ -252,8 +324,18 @@ export function startMatchManagementSchedule(): void {
     console.error("[MatchMgmtSchedule] startup sync failed:", error);
   });
 
+  setTimeout(() => {
+    void runTodayLineupAutoApply()
+      .catch((error) => {
+        console.error("[MatchMgmtSchedule] startup lineup auto failed:", error);
+      })
+      .finally(() => {
+        void scheduleTodayLineupAutoApply();
+      });
+  }, 20_000);
+
   console.log(
-    `[MatchMgmtSchedule] daily KST ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} · hourly pregame until first start · live=실황연동 ON matches (다음 스포츠)`,
+    `[MatchMgmtSchedule] daily KST ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} · hourly pregame until first start · lineup auto 15m · live=실황연동 ON matches (다음 스포츠)`,
   );
 }
 
@@ -261,6 +343,7 @@ export function stopMatchManagementSchedule(): void {
   cancelDailySchedule?.();
   cancelDailySchedule = null;
   clearHourlyPregameTimer();
+  clearLineupAutoTimer();
   clearAllMatchTimers();
   stopLiveScoreSync();
 }

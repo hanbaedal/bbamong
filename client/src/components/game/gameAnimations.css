@@ -254,6 +254,59 @@
   animation: home-run-toss-pose 0.85s ease-out forwards;
 }
 
+/**
+ * 홈플레이트 빠몽이 — 몸(우측 프로파일)이 마운드(화면 위)를 향하도록 기울임.
+ * 헤드가 카메라를 보는 에셋을 그대로 쓰므로 완전 후면은 아님.
+ */
+.game-pyamong-face-pitcher {
+  transform: rotate(-38deg);
+  transform-origin: 58% 82%;
+}
+
+@keyframes success-bat-fill-screen {
+  0% {
+    transform: translate(-42%, 18%) rotate(-28deg) scale(0.18);
+    opacity: 1;
+  }
+  28% {
+    transform: translate(-18%, -8%) rotate(38deg) scale(0.55);
+    opacity: 1;
+  }
+  52% {
+    transform: translate(-50%, -50%) rotate(-10deg) scale(1.15);
+    opacity: 1;
+  }
+  72% {
+    transform: translate(-50%, -50%) rotate(6deg) scale(2.55);
+    opacity: 1;
+  }
+  82%,
+  100% {
+    transform: translate(-50%, -50%) rotate(0deg) scale(3.2);
+    opacity: 1;
+  }
+}
+
+.animate-success-bat-fill {
+  animation: success-bat-fill-screen 2s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+  transform-origin: center center;
+}
+
+@keyframes success-bat-scrim {
+  0%,
+  35% {
+    opacity: 0;
+  }
+  60%,
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-success-bat-scrim {
+  animation: success-bat-scrim 2s ease-out forwards;
+}
+
 .animate-label-blink {
   animation: label-blink 0.85s ease-in-out infinite;
 }

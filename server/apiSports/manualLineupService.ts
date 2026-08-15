@@ -96,7 +96,7 @@ function playerIdsForSide(side: "home" | "away"): string[] {
     : ["11", "12", "13", "14", "15", "16", "17", "18", "19"];
 }
 
-/** 운영자/관리자 수동 타순·시즌 스탯 저장 (source=manual) */
+/** 운영자/관리자 타순·시즌 스탯 저장 (기본 source=manual) */
 export async function saveManualMatchLineup(
   matchId: string,
   input: {
@@ -104,6 +104,7 @@ export async function saveManualMatchLineup(
     away?: ManualBatterInput[];
     /** 지정 시 해당 팀만 갱신하고 반대 팀은 DB 값 유지 */
     side?: "home" | "away";
+    source?: MatchLineupSnapshot["source"];
   },
 ): Promise<{
   matchLineup: MatchLineupSnapshot;
@@ -151,7 +152,7 @@ export async function saveManualMatchLineup(
     syncedAt,
     home,
     away,
-    source: "manual",
+    source: input.source ?? "manual",
   };
 
   const matchPlayerStats: Record<string, MatchPlayerStatsEntry> = { ...prevStats };
