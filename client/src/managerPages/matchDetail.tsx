@@ -47,6 +47,10 @@ interface Match {
   needsAdvanceAfterResult?: boolean;
   showThreeOutsHint?: boolean;
   isResultSent?: boolean;
+  /** 실황 타석 자동(상태머신) — 기본 true */
+  liveAutoEnabled?: boolean;
+  atBatPhase?: "idle" | "prediction_open" | "prediction_closed" | "result_confirmed";
+  atBatPhaseLabel?: string;
   pinchHitter?: {
     playerName?: string;
     batterIndexInHalf?: number;
@@ -366,6 +370,29 @@ export default function MatchDetailPage() {
               toast({
                 description: data?.message || "대타 후보가 감지되었습니다.",
               });
+              break;
+            case "at_bat_phase":
+              if (data?.phase || data?.phaseLabel) {
+                setMatch((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        atBatPhase: data.phase ?? prev.atBatPhase,
+                        atBatPhaseLabel: data.phaseLabel ?? prev.atBatPhaseLabel,
+                      }
+                    : prev,
+                );
+              }
+              break;
+            case "live_auto_toggled":
+              if (typeof data?.liveAutoEnabled === "boolean") {
+                setMatch((prev) =>
+                  prev ? { ...prev, liveAutoEnabled: data.liveAutoEnabled } : prev,
+                );
+                toast({
+                  description: data.message || (data.liveAutoEnabled ? "실황 자동 ON" : "실황 자동 OFF"),
+                });
+              }
               break;
             case "pinch_hitter_set":
             case "pinch_hitter_cleared":
@@ -703,6 +730,29 @@ export default function MatchDetailPage() {
       });
     } finally {
       setIsStoppingPrediction(false);
+    }
+  };
+
+  const handleToggleLiveAuto = async () => {
+    if (!id || !match) return;
+    const next = match.liveAutoEnabled === false;
+    try {
+      const res = await managerFetch(`/api/manager/matches/${id}/live-auto`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(typeof err?.error === "string" ? err.error : "실황 자동 설정 실패");
+      }
+      setMatch({ ...match, liveAutoEnabled: next });
+      toast({ description: next ? "실황 자동 ON" : "실황 자동 OFF — 수동만" });
+    } catch (err: unknown) {
+      toast({
+        variant: "destructive",
+        description: err instanceof Error ? err.message : "실황 자동 설정에 실패했습니다.",
+      });
     }
   };
 
@@ -1190,6 +1240,29 @@ export default function MatchDetailPage() {
               비상 수동 제어 (점수 API 잠금)
             </p>
           )}
+          <div
+            className="manager-match-phase-row"
+            data-testid="at-bat-phase-row"
+          >
+            <span
+              className="manager-match-phase-badge"
+              data-testid="text-at-bat-phase"
+            >
+              단계: {match.atBatPhaseLabel || "대기"}
+            </span>
+            <button
+              type="button"
+              onClick={() => void handleToggleLiveAuto()}
+              data-testid="button-live-auto-toggle"
+              className={`manager-match-live-auto-btn ${
+                match.liveAutoEnabled !== false
+                  ? "manager-match-live-auto-btn--on"
+                  : "manager-match-live-auto-btn--off"
+              }`}
+            >
+              실황 자동 {match.liveAutoEnabled !== false ? "ON" : "OFF"}
+            </button>
+          </div>
         </div>
 
         <div className="manager-match-controls">
