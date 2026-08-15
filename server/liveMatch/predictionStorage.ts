@@ -501,30 +501,7 @@ export async function startRound(matchId: string): Promise<Match> {
 }
 
 export async function stopRound(matchId: string): Promise<Match> {
-  // #region agent log
-  const _dbgStop = (message: string, data: Record<string, unknown>, hypothesisId: string) => {
-    console.error(`[DBG-STOP] ${message}`, data);
-    try {
-      require("fs").appendFileSync(
-        "/opt/cursor/logs/debug.log",
-        JSON.stringify({
-          location: "predictionStorage.ts:stopRound",
-          message,
-          data,
-          timestamp: Date.now(),
-          hypothesisId,
-          runId: "stop-500",
-        }) + "\n",
-      );
-    } catch {
-      /* ignore log IO */
-    }
-  };
-  // #endregion
   const session = await mongoose.startSession();
-  // #region agent log
-  _dbgStop("stopRound enter", { matchId, hasSession: !!session }, "A");
-  // #endregion
   try {
     session.startTransaction();
 
@@ -537,29 +514,9 @@ export async function stopRound(matchId: string): Promise<Match> {
       .session(session)
       .lean();
 
-    // #region agent log
-    _dbgStop(
-      "stopRound match+stats loaded",
-      {
-        matchId,
-        currentRound,
-        matchStatus: (match as { matchStatus?: string }).matchStatus,
-        predictionEnabled: match.predictionEnabled,
-        hasExisting: !!existing,
-        isPredictionStarted: existing?.isPredictionStarted ?? null,
-        isPredictionStopped: existing?.isPredictionStopped ?? null,
-        statsId: existing?.id ?? null,
-      },
-      "B",
-    );
-    // #endregion
-
     if (existing?.isPredictionStopped) {
       if (!match.predictionEnabled) {
         await session.commitTransaction();
-        // #region agent log
-        _dbgStop("stopRound early idempotent return (already stopped)", { matchId }, "C");
-        // #endregion
         return match as Match;
       }
       const syncedMatch = await MatchModel.findOneAndUpdate(
@@ -569,21 +526,11 @@ export async function stopRound(matchId: string): Promise<Match> {
       ).lean();
       await session.commitTransaction();
       if (!syncedMatch) throw new Error("경기를 찾을 수 없습니다.");
-      // #region agent log
-      _dbgStop("stopRound synced predictionEnabled=false after prior stop", { matchId }, "C");
-      // #endregion
       return syncedMatch as Match;
     }
 
     if (match.predictionEnabled && (!existing || !existing.isPredictionStarted)) {
       const now = new Date();
-      // #region agent log
-      _dbgStop(
-        "stopRound healing missing/unstarted RoundStatistics",
-        { matchId, currentRound, hadExisting: !!existing },
-        "D",
-      );
-      // #endregion
       if (existing) {
         await RoundStatisticsModel.updateOne(
           statsFilter,
@@ -596,9 +543,6 @@ export async function stopRound(matchId: string): Promise<Match> {
         );
       } else {
         const statsId = await getNextSequence("roundStatistics");
-        // #region agent log
-        _dbgStop("stopRound creating RoundStatistics", { matchId, currentRound, statsId }, "D");
-        // #endregion
         await RoundStatisticsModel.create(
           [
             {
@@ -639,47 +583,12 @@ export async function stopRound(matchId: string): Promise<Match> {
     );
 
     await session.commitTransaction();
-    // #region agent log
-    _dbgStop("stopRound commit ok", { matchId, currentRound }, "E");
-    // #endregion
     return updatedMatch as Match;
   } catch (error) {
-    // #region agent log
-    const err = error as Error & { code?: unknown; errorLabels?: string[] };
-    _dbgStop(
-      "stopRound catch BEFORE abort",
-      {
-        matchId,
-        name: err?.name,
-        message: err?.message,
-        code: err?.code ?? null,
-        errorLabels: err?.errorLabels ?? null,
-        stack: err?.stack ?? String(error),
-      },
-      "A",
-    );
-    // #endregion
     try {
       await session.abortTransaction();
-      // #region agent log
-      _dbgStop("stopRound abortTransaction ok", { matchId }, "A");
-      // #endregion
-    } catch (abortErr) {
-      // #region agent log
-      const ae = abortErr as Error;
-      _dbgStop(
-        "stopRound abortTransaction FAILED (masks original if rethrown)",
-        {
-          matchId,
-          abortMessage: ae?.message,
-          abortStack: ae?.stack ?? String(abortErr),
-          originalMessage: (error as Error)?.message,
-        },
-        "A",
-      );
-      // #endregion
-      // Preserve pre-instrumentation behavior: abort failure replaces original error
-      throw abortErr;
+    } catch {
+      /* ignore abort errors */
     }
     throw error;
   } finally {
