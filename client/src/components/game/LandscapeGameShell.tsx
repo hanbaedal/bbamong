@@ -164,7 +164,11 @@ export default function LandscapeGameShell({
               currentBatter={currentBatter}
               scoreboard={scoreboard}
               isLoading={scoreLoading || matchesInitialLoading}
-              battingHalf={inningHalf ?? null}
+              battingHalf={
+                scoreboard?.inningHalf === "top" || scoreboard?.inningHalf === "bottom"
+                  ? scoreboard.inningHalf
+                  : inningHalf ?? null
+              }
               onMatchTitleClick={onMatchTitleClick}
               matchSelectEnabled={matchSelectEnabled}
               stadiumSelectEnabled={stadiumSelectEnabled}
@@ -195,7 +199,11 @@ export default function LandscapeGameShell({
               gameDayPhase={gameDayPhase}
               gameDayOverlayKind={gameDayOverlayKind}
               selectedPrediction={selectedPrediction}
-              battingHalf={inningHalf ?? null}
+              battingHalf={
+                scoreboard?.inningHalf === "top" || scoreboard?.inningHalf === "bottom"
+                  ? scoreboard.inningHalf
+                  : inningHalf ?? null
+              }
               batsSide={currentBatter?.batsSide ?? null}
               isPinchHitter={Boolean(currentBatter?.isPinchHitter)}
               onRunComplete={onRunComplete}
