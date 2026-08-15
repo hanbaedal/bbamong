@@ -15,6 +15,7 @@ import {
   OPERATOR_USERNAMES,
   resolveOperatorSlot,
 } from "../managerOperatorService";
+import { atBatPhaseLabel, deriveAtBatPhase } from "@shared/atBatPhase";
 
 export class MatchConflictError extends Error {
   constructor(message: string) {
@@ -179,6 +180,13 @@ export class AdminMatchStorage implements IAdminMatchStorage {
     /** 결과 전송 후 — 다음 타자/공수교대 대기 (자동 진행 없음) */
     const needsAdvanceAfterResult = Boolean(roundStats?.isResultSent);
 
+    const atBatPhase = deriveAtBatPhase({
+      predictionEnabled: (match as { predictionEnabled?: boolean }).predictionEnabled,
+      isPredictionStarted: roundStats?.isPredictionStarted,
+      isPredictionStopped: roundStats?.isPredictionStopped,
+      isResultSent: roundStats?.isResultSent,
+    });
+
     return {
       ...(match as Match),
       predictionStartTime: roundStats?.predictionStartTime ?? null,
@@ -189,6 +197,9 @@ export class AdminMatchStorage implements IAdminMatchStorage {
       needsAdvanceAfterResult,
       outsInHalf,
       showThreeOutsHint: outsInHalf >= 3,
+      liveAutoEnabled: (doc.liveAutoEnabled as boolean | undefined) !== false,
+      atBatPhase,
+      atBatPhaseLabel: atBatPhaseLabel(atBatPhase),
       stadium: { id: stadium?.id ?? match.stadiumId, name: stadium?.name ?? "" },
     };
   }

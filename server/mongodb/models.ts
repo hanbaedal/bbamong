@@ -62,6 +62,8 @@ const matchSchema = new Schema(
     matchStatus: { type: String, default: "scheduled" },
     currentRound: { type: Number, default: 1 },
     predictionEnabled: { type: Boolean, default: false },
+    /** 실황 타석 자동(상태머신) ON/OFF — 기본 ON. OFF여도 점수·초/말 표시 동기화는 유지 */
+    liveAutoEnabled: { type: Boolean, default: true },
     registrationOrder: { type: Number, default: null },
     apiSportsGameId: { type: Number, default: null },
     /** 다음 스포츠 경기 ID — 선발명단·실시간 스코어 연동 */
