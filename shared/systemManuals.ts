@@ -35,7 +35,7 @@ export const SYSTEM_MANUALS: SystemManualEntry[] = [
     category: "usage",
     audience: "운영자",
     title: "운영자 설명서",
-    description: "운영자 앱 로그인·예측 시작/중지·결과·대타·광고 흐름",
+    description: "운영자 앱·실황 자동(타석 상태머신)·예외 수동·대타·광고 흐름",
     fileName: "빠몽이_사용설명서_운영자.docx",
   },
   {

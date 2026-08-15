@@ -1,8 +1,9 @@
-# 매니저 앱 매뉴얼
+# 매니저(운영자) 앱 매뉴얼
 
 ## 1. 개요
 
-매니저 앱은 경기 진행을 담당하는 매니저가 실시간으로 경기 결과를 입력하고 관리하는 애플리케이션입니다.
+매니저 앱은 배정된 KBO 경기의 **타석 예측 라운드**를 운영합니다.  
+기본은 **실황 자동(타석 상태머신)** 이 예측 열기·닫기·결과 확정·다음 타자를 진행하고, 운영자는 **예외·보정·비상**만 처리합니다.
 
 ---
 
@@ -11,40 +12,42 @@
 ### 2.1 인증
 
 #### 로그인 (`/manager/login`)
-- 매니저 전용 계정으로 로그인
-- 승인된 매니저만 접속 가능
+- 카카오톡 **로그인 링크**로만 접속 (앱/웹)
+- 같은 계정은 **한 기기만** 사용 가능
+- 관리자 승인·배정이 된 운영자만 경기 상세 진입
 
-#### 회원가입 (`/manager/signup`)
-- 매니저 계정 신청
-- 관리자 승인 후 사용 가능
-
-#### 승인 대기 (`/manager/pending-approval`)
-- 관리자 승인 대기 상태 안내
-- 승인 완료 시 자동으로 홈으로 이동
+#### 회원가입 / 승인 대기
+- 신청 후 관리자 승인 필요 (`/manager/pending-approval`)
 
 ### 2.2 메인 기능
 
 #### 홈 (`/manager/home`)
-- 배정된 경기 목록 확인
-- 오늘의 담당 경기 표시
-- 경기 상태별 필터링
+- 배정된 경기 목록·오늘 담당 경기
 
 #### 경기 상세 (`/manager/match/:id`)
-- 실시간 경기 결과 입력
-- 라운드별 점수 입력
-- 경기 시작/종료 제어
-- 예측 라운드 시작/종료
-- 실시간 참여자 현황 확인
+- **실황 자동 ON/OFF** (기본 ON)
+- 타석 단계 배지 · 실황 추정 결과 제안
+- 수동: 예측 시작/중지 · 결과 전송 · 다음 타자 · 공수교대 · 투수교체 · 대타 · 라인업
+- 광고: 투수교체·공수교대 = 시작 / 예측 시작 = 중지
 
 ### 2.3 경기 진행 워크플로우
 
-1. **경기 선택**: 홈에서 담당 경기 선택
-2. **경기 시작**: "경기 시작" 버튼 클릭
-3. **예측 라운드 시작**: 각 이닝마다 예측 라운드 시작
-4. **결과 입력**: 이닝 종료 후 결과 입력
-5. **예측 라운드 종료**: 결과 확정 및 포인트 정산
-6. **반복**: 9이닝까지 반복
-7. **경기 종료**: 최종 결과 확정
+1. **경기 선택** → 상세 입장 (실황 ON인 경기)
+2. **실황 자동 ON**(권장) — 타석이 열리면 회원 예측 → 자동 마감·결과·다음 타자
+3. **예외 시만 수동**
+   - 애매한 결과 → 「실황 추정」 확인 후 전송 또는 다른 결과 선택
+   - 자동 OFF / 가드 걸림 → 예측시작 → 중지 → 결과 → 다음타자(또는 공수교대)
+4. **투수교체**: 같은 타석 유지(대타 유지). 진행 중 예측은 환불·결과 생략 가능. 광고 시작
+5. **공수교대**: 3아웃 후. 광고 시작
+6. **경기 종료**: 약 10초 「경기종료」 후 로그아웃
+
+### 2.4 결과 선택 의미
+
+| 선택 | 포함 |
+|------|------|
+| **아웃** | 아웃·희생플라이/번트·병살 등(아웃수 증가 시 자동) |
+| **1루** | 1루타·포볼·데드볼 등 |
+| **2루 / 3루 / 홈런** | 해당 진루·홈런 |
 
 ---
 
@@ -66,46 +69,35 @@
 client/src/
 ├── managerPages/
 │   ├── auth/
-│   │   ├── login.tsx           # 매니저 로그인
-│   │   ├── signup.tsx          # 매니저 회원가입
-│   │   └── pending-approval.tsx # 승인 대기
-│   ├── home.tsx                # 매니저 홈
-│   └── matchDetail.tsx         # 경기 상세/진행
-├── ManagerApp.tsx              # 매니저 앱 진입점
+│   ├── home.tsx
+│   └── matchDetail.tsx
+├── ManagerApp.tsx
 └── contexts/
-    └── ManagerAssetContext.tsx # 매니저 에셋 관리
 ```
 
-### 3.3 인증 흐름
+### 3.3 실황·자동 진행
 
-1. **로그인**: POST `/api/manager/login` → JWT 토큰 발급
-2. **승인 체크**: 로그인 시 `isApproved` 필드 확인
-3. **미승인 시**: `/manager/pending-approval`로 리다이렉트
-4. **세션 관리**: Redis 기반 중복 로그인 방지
+- 스코어·이닝: **다음 스포츠** `liveScoreboard` (auto 모드에서 덮어쓰기)
+- 문자중계·주자·볼카운트: **네이버** 릴레이
+- 타석 자동: `server/liveMatch/liveAutoOperator.ts` + `shared/atBatPhase.ts`
+- `liveAutoEnabled === false` → 표시만 동기화, 액션은 수동
+- WS: `at_bat_phase`, `prediction_*`, `round_result`, `ad_*`, `prediction_cancelled` 등
 
-### 3.4 API 엔드포인트
+### 3.4 API (요약)
 
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
-| POST | `/api/manager/login` | 매니저 로그인 |
-| POST | `/api/manager/register` | 매니저 등록 |
-| GET | `/api/manager/matches` | 배정된 경기 목록 |
-| GET | `/api/manager/match/:id` | 경기 상세 정보 |
-| POST | `/api/manager/match/:id/start` | 경기 시작 |
-| POST | `/api/manager/match/:id/end` | 경기 종료 |
-| POST | `/api/manager/match/:id/round/start` | 라운드 시작 |
-| POST | `/api/manager/match/:id/round/result` | 라운드 결과 입력 |
+| POST | `/api/manager/login` | 로그인 |
+| GET | `/api/manager/matches` | 배정 경기 |
+| GET | `/api/manager/match/:id` | 상세 |
+| POST | `/api/manager/match/:id/round/start` | 예측 시작 |
+| POST | `/api/manager/match/:id/round/stop` | 예측 중지 |
+| POST | `/api/manager/match/:id/round/result` | 결과 |
+| PATCH | `/api/manager/matches/:id/live-auto` | 실황 자동 ON/OFF |
+| PATCH | `/api/manager/matches/:id/scoreboard` | 점수 보정 → manual |
 
-### 3.5 WebSocket 이벤트
+### 3.5 권한·세션
 
-매니저가 발생시키는 이벤트:
-- `match_started`: 경기 시작
-- `prediction_started`: 예측 라운드 시작
-- `prediction_result`: 라운드 결과 발표
-- `match_ended`: 경기 종료
-
-### 3.6 권한 체계
-
-- **일반 매니저**: 배정된 경기만 진행 가능
-- **승인 상태**: 관리자 승인 필수
-- **세션 제한**: 동시 로그인 1개로 제한
+- 배정 경기만 진행
+- 동시 로그인 1개 (Redis)
+- 경기 종료 시 지연 후 자격 회수·로그아웃
