@@ -9,6 +9,7 @@ import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import TeamSeasonStatsModal from "@/components/TeamSeasonStatsModal";
 import ManagerLineupEditor, { type LineupSide } from "@/components/ManagerLineupEditor";
+import ManagerOperatorScorePanel from "@/components/ManagerOperatorScorePanel";
 import ManagerPinchHitterEditor from "@/components/ManagerPinchHitterEditor";
 import { setGameImmersiveMode } from "@/lib/systemUiPlugin";
 import { resolveMatchTeamNames } from "@shared/matchTeamDisplay";
