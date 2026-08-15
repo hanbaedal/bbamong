@@ -75,7 +75,7 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
 }
 
 const headToHeadClass =
-  "relative -translate-y-[2.5em] mt-0.5 text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap text-white [text-shadow:0_0_3px_#000,0_1px_2px_#000]";
+  "relative -mt-[2.5em] mb-[2.5em] text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap text-white [text-shadow:0_0_3px_#000,0_1px_2px_#000]";
 
 function HeadToHeadLine({ parts }: { parts: HeadToHeadDisplayParts }) {
   if (parts.empty) {
@@ -140,7 +140,7 @@ export default function GameTopScorePanel({
         className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-0 pointer-events-none ${scorePanelTop}`}
         data-testid="game-top-score-panel"
       >
-        <div className="origin-top-right scale-[0.68] sm:scale-[0.72]">
+        <div className="origin-top-right [zoom:0.68] sm:[zoom:0.72]">
           {isLoading ? (
             <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
           ) : (
