@@ -57,6 +57,7 @@ export default function ManagerHomePage() {
       }
       return response.json();
     },
+    enabled: manager != null,
     staleTime: 0,
     refetchOnWindowFocus: true,
     refetchInterval: (query) => {
@@ -170,7 +171,7 @@ export default function ManagerHomePage() {
         const data = await response.json();
         setManager(data.manager);
       } else if (response.status === 401) {
-        console.log("[ManagerHome] /api/manager/me returned 401, session-expired handled by refreshAccessToken");
+        setLocation("/manager/login");
       } else {
         console.error("Failed to fetch manager info, status:", response.status);
       }
