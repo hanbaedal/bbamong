@@ -89,6 +89,7 @@ export default function MatchDetailPage() {
   const [match, setMatch] = useState<Match | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedResult, setSelectedResult] = useState<string | null>(null);
+  const [suggestedAutoResult, setSuggestedAutoResult] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAdPlaying, setIsAdPlaying] = useState(false);
   const [adElapsedTime, setAdElapsedTime] = useState(0);
@@ -338,6 +339,33 @@ export default function MatchDetailPage() {
               break;
             case "round_next":
               fetchMatchDetail();
+              break;
+            case "scoreboard_update":
+              void queryClient.invalidateQueries({ queryKey: ["live-scoreboard", id] });
+              fetchMatchDetail();
+              break;
+            case "auto_result_suggested":
+              if (data?.suggestedResult) {
+                setSuggestedAutoResult(String(data.suggestedResult));
+                toast({
+                  description:
+                    data.message || `실황 추정 결과: ${data.suggestedResult}`,
+                });
+              }
+              fetchMatchDetail();
+              break;
+            case "auto_action_blocked":
+              toast({
+                variant: "destructive",
+                description: data?.message || "자동 진행을 위해 결과가 필요합니다.",
+              });
+              if (data?.suggestedResult) setSuggestedAutoResult(String(data.suggestedResult));
+              fetchMatchDetail();
+              break;
+            case "auto_pinch_suggested":
+              toast({
+                description: data?.message || "대타 후보가 감지되었습니다.",
+              });
               break;
             case "pinch_hitter_set":
             case "pinch_hitter_cleared":
@@ -701,6 +729,7 @@ export default function MatchDetailPage() {
   };
 
   const handleConfirmResult = async () => {
+    setSuggestedAutoResult(null);
     if (!selectedResult || isSubmitting) return;
 
     setIsSubmitting(true);
@@ -994,7 +1023,8 @@ export default function MatchDetailPage() {
     matchStatus: match.matchStatus,
     gameInning: match.gameInning,
     inningHalf: match.inningHalf,
-    scoreboard: scoreboardPayload?.scoreboard ?? null,
+    scoreboard:
+      scoreboardPayload?.scoreboard ?? match.liveScoreboard ?? null,
   });
   const blockAdvance = Boolean(match.needsResultBeforeAdvance);
   const awaitAdvanceAfterResult = Boolean(
@@ -1253,16 +1283,29 @@ export default function MatchDetailPage() {
 
         <div className="manager-match-results">
           <h3 className="manager-match-section-title">예측 결과</h3>
+          {suggestedAutoResult ? (
+            <p
+              className="manager-match-notice"
+              data-testid="text-auto-result-suggested"
+            >
+              실황 추정: {suggestedAutoResult} — 확인 후 전송하거나 다른 결과를 고르세요
+            </p>
+          ) : null}
           <div className="manager-match-result-row">
             {RESULT_BUTTONS.map((label) => (
               <button
                 key={label}
                 type="button"
-                onClick={() => handleResultSelect(label)}
+                onClick={() => {
+                  setSuggestedAutoResult(null);
+                  handleResultSelect(label);
+                }}
                 disabled={!canSelectResult}
                 data-testid={`button-result-${label}`}
                 className={`manager-match-result-btn ${
-                  selectedResult === label ? "manager-match-result-btn--selected" : ""
+                  selectedResult === label || suggestedAutoResult === label
+                    ? "manager-match-result-btn--selected"
+                    : ""
                 }`}
               >
                 {label}

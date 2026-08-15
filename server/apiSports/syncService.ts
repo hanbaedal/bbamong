@@ -1024,8 +1024,20 @@ async function persistIncomingLiveScoreboard(
 
   await syncOperatorAccountForMatch(matchId);
 
-  if (nextKey !== (match.lastInningKey ?? null)) {
+  const prevSit = match.liveScoreboard?.situation;
+  const nextSit = scoreboard.situation;
+  const situationChanged =
+    (prevSit?.batterName ?? "") !== (nextSit?.batterName ?? "") ||
+    (prevSit?.outs ?? -1) !== (nextSit?.outs ?? -1) ||
+    (prevSit?.pitcherName ?? "") !== (nextSit?.pitcherName ?? "") ||
+    (prevSit?.suggestedResult ?? "") !== (nextSit?.suggestedResult ?? "");
+
+  if (nextKey !== (match.lastInningKey ?? null) || situationChanged) {
     broadcastManager.sendToMatch(matchId, "scoreboard_update", { scoreboard });
+  }
+
+  if (nextStatus === "ongoing") {
+    void runLiveAutoAfterPersist(matchId, scoreboard);
   }
 
   if (notStarted && nextStatus === "scheduled") {
@@ -1071,6 +1083,18 @@ async function persistIncomingLiveScoreboard(
 
   if (isGameFinished(scoreboard.statusShort)) return true;
   return false;
+}
+
+async function runLiveAutoAfterPersist(
+  matchId: string,
+  scoreboard: LiveScoreboard,
+): Promise<void> {
+  try {
+    const { processLiveAutoOperator } = await import("../liveMatch/liveAutoOperator");
+    await processLiveAutoOperator(matchId, scoreboard);
+  } catch (error) {
+    console.warn(`[LiveAuto] process failed ${matchId}:`, error);
+  }
 }
 
 export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boolean> {

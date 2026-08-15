@@ -1,6 +1,7 @@
 import type { InningRunsMap, LiveScoreboard } from "@shared/apiSportsTypes";
 import { formatInningWithHalf, type InningHalf } from "@shared/gamePhaseTypes";
 import { formatKboTeamShortName } from "@shared/kboHomeStadium";
+import { reconcileTeamRuns } from "@shared/liveScoreTotals";
 import {
   daumTeamLogo,
   daumTeamName,
@@ -106,6 +107,8 @@ export function parseDaumLiveScoreboard(game: DaumListGame): LiveScoreboard {
   const away = scoreTotals(game.awayScore);
   const homeInnings = parseDaumInningRuns(game.homeScore?.inning);
   const awayInnings = parseDaumInningRuns(game.awayScore?.inning);
+  const homeRun = reconcileTeamRuns(home.run, homeInnings);
+  const awayRun = reconcileTeamRuns(away.run, awayInnings);
   const rawStatus = (game.gameStatus ?? "").trim().toUpperCase();
   const explicitPregame = DAUM_PREGAME_STATUSES.has(rawStatus);
   const isPregame = explicitPregame || (mapped.statusShort === "NS" && period.inning == null);
@@ -137,8 +140,8 @@ export function parseDaumLiveScoreboard(game: DaumListGame): LiveScoreboard {
     awayTeamName: formatKboTeamShortName(daumTeamShort(game.away) || daumTeamName(game.away)),
     homeTeamLogo: daumTeamLogo(game.home),
     awayTeamLogo: daumTeamLogo(game.away),
-    homeScore: home.run,
-    awayScore: away.run,
+    homeScore: homeRun,
+    awayScore: awayRun,
     homeHits: home.hit,
     awayHits: away.hit,
     homeErrors: home.error,

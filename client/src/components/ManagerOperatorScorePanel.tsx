@@ -3,6 +3,7 @@ import LineScoreTable from "@/components/LineScoreTable";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import { parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
 import { resolveScoreboardInningPhase } from "@shared/matchPhaseDisplay";
+import { reconcileTeamRuns } from "@shared/liveScoreTotals";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 
 interface ManagerOperatorScorePanelProps {
@@ -78,22 +79,26 @@ export default function ManagerOperatorScorePanel({
   const [awayScore, setAwayScore] = useState(0);
   const [homeScore, setHomeScore] = useState(0);
   const [saving, setSaving] = useState(false);
+  /** 사용자가 입력칸을 손대기 전에는 실황 점수를 그대로 따라감 */
+  const [scoreEdited, setScoreEdited] = useState(false);
 
+  const boardAway = reconcileTeamRuns(scoreboard?.awayScore ?? 0, scoreboard?.awayInnings);
+  const boardHome = reconcileTeamRuns(scoreboard?.homeScore ?? 0, scoreboard?.homeInnings);
   const dirty =
-    Boolean(onSaveScores) &&
-    (awayScore !== (scoreboard?.awayScore ?? 0) || homeScore !== (scoreboard?.homeScore ?? 0));
+    Boolean(onSaveScores) && scoreEdited && (awayScore !== boardAway || homeScore !== boardHome);
 
   useEffect(() => {
-    if (dirty) return;
-    setAwayScore(scoreboard?.awayScore ?? 0);
-    setHomeScore(scoreboard?.homeScore ?? 0);
-  }, [scoreboard?.awayScore, scoreboard?.homeScore, scoreboard?.syncedAt, dirty]);
+    if (scoreEdited) return;
+    setAwayScore(boardAway);
+    setHomeScore(boardHome);
+  }, [boardAway, boardHome, scoreboard?.syncedAt, scoreEdited]);
 
   const handleSave = async () => {
     if (!onSaveScores || saving) return;
     setSaving(true);
     try {
       await onSaveScores({ awayScore, homeScore });
+      setScoreEdited(false);
     } finally {
       setSaving(false);
     }
@@ -165,7 +170,10 @@ export default function ManagerOperatorScorePanel({
                 inputMode="numeric"
                 className="manager-operator-score-input"
                 value={awayScore}
-                onChange={(e) => setAwayScore(Math.max(0, Math.min(99, Number(e.target.value) || 0)))}
+                onChange={(e) => {
+                  setScoreEdited(true);
+                  setAwayScore(Math.max(0, Math.min(99, Number(e.target.value) || 0)));
+                }}
                 aria-label="원정 점수"
                 data-testid="input-away-score"
               />
@@ -177,7 +185,10 @@ export default function ManagerOperatorScorePanel({
                 inputMode="numeric"
                 className="manager-operator-score-input"
                 value={homeScore}
-                onChange={(e) => setHomeScore(Math.max(0, Math.min(99, Number(e.target.value) || 0)))}
+                onChange={(e) => {
+                  setScoreEdited(true);
+                  setHomeScore(Math.max(0, Math.min(99, Number(e.target.value) || 0)));
+                }}
                 aria-label="홈 점수"
                 data-testid="input-home-score"
               />

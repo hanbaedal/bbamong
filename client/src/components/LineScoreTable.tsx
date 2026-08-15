@@ -1,5 +1,6 @@
 import type { InningRunsMap, LiveScoreboard } from "@shared/apiSportsTypes";
 import type { InningHalf } from "@shared/gamePhaseTypes";
+import { reconcileTeamRuns } from "@shared/liveScoreTotals";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 
 const INNING_COLUMNS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
@@ -51,8 +52,8 @@ export default function LineScoreTable({
       ? [...INNING_COLUMNS, ...extraColumns]
       : dynamicColumns;
 
-  const awayScore = scoreboard?.awayScore ?? 0;
-  const homeScore = scoreboard?.homeScore ?? 0;
+  const awayScore = reconcileTeamRuns(scoreboard?.awayScore ?? 0, awayInnings);
+  const homeScore = reconcileTeamRuns(scoreboard?.homeScore ?? 0, homeInnings);
   const awayHits = scoreboard?.awayHits ?? 0;
   const homeHits = scoreboard?.homeHits ?? 0;
   const awayErrors = scoreboard?.awayErrors ?? 0;
