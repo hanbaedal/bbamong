@@ -2,7 +2,6 @@ import LineScoreTableLandscape from "./LineScoreTableLandscape";
 import type { CurrentBatterPreview, LiveScoreboard } from "@shared/apiSportsTypes";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 import { formatStatCount, formatStatDisplay } from "@shared/batterDisplay";
-import type { HeadToHeadDisplayParts } from "@shared/matchTeamDisplay";
 
 /** 원정(공격 초) */
 export const GAME_AWAY_TEAM_COLOR = "#E11936";
@@ -11,9 +10,6 @@ export const GAME_HOME_TEAM_COLOR = "#1A6DFF";
 
 interface GameTopScorePanelProps {
   matchTitle: string;
-  headToHead?: HeadToHeadDisplayParts | null;
-  /** @deprecated 문자열 폴백 — headToHead 우선 */
-  headToHeadLine?: string | null;
   scoreboard: LiveScoreboard | null;
   currentBatter?: CurrentBatterPreview | null;
   isLoading?: boolean;
@@ -74,36 +70,8 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
   );
 }
 
-const headToHeadClass =
-  "-translate-y-[2.5em] text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap text-white [text-shadow:0_0_3px_#000,0_1px_2px_#000]";
-
-function HeadToHeadLine({ parts }: { parts: HeadToHeadDisplayParts }) {
-  if (parts.empty) {
-    return (
-      <p className={`${headToHeadClass} font-normal`} data-testid="game-match-head-to-head">
-        {parts.season} 상대전적 —
-      </p>
-    );
-  }
-
-  return (
-    <p className={headToHeadClass} data-testid="game-match-head-to-head">
-      <span className="font-normal">{parts.season} 상대전적 </span>
-      <span>
-        {parts.awayName} {parts.awayWins}승
-      </span>
-      <span className="font-normal"> : </span>
-      <span>
-        {parts.homeName} {parts.homeWins}승
-      </span>
-    </p>
-  );
-}
-
 export default function GameTopScorePanel({
   matchTitle,
-  headToHead = null,
-  headToHeadLine,
   scoreboard,
   currentBatter = null,
   isLoading,
@@ -140,7 +108,7 @@ export default function GameTopScorePanel({
         className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-0 pointer-events-none ${scorePanelTop}`}
         data-testid="game-top-score-panel"
       >
-        <div className="relative w-max max-w-full">
+        <div className="w-max max-w-full">
           <div style={{ zoom: 0.7 }}>
             {isLoading ? (
               <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
@@ -153,18 +121,6 @@ export default function GameTopScorePanel({
               />
             )}
           </div>
-          {!isLoading && headToHead ? (
-            <div className="absolute right-0 top-full">
-              <HeadToHeadLine parts={headToHead} />
-            </div>
-          ) : !isLoading && headToHeadLine ? (
-            <p
-              className={`${headToHeadClass} absolute right-0 top-full -translate-y-[2.5em]`}
-              data-testid="game-match-head-to-head"
-            >
-              {headToHeadLine}
-            </p>
-          ) : null}
         </div>
         {!isLoading && currentBatter ? (
           <div className="origin-top-right mt-0.5">
