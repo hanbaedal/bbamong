@@ -18,6 +18,7 @@ import { startGuestCleanupBatch } from "./guestCleanupBatch";
 import { getRedisClient } from "./redis";
 import { connectMongoDB } from "./UserStorage/db";
 import { ensureSuperAdmin } from "./bootstrapSuperAdmin";
+import { ensureHomePageGameGuide } from "./bootstrapHomePageGuide";
 import { syncMemberDataSourceTags } from "./utils/memberDataSourceSync";
 import { backfillOfficialSupportContent } from "./utils/officialContentBackfill";
 import { ensureOperatorsReady, syncOperatorMatchAssignments } from "./managerOperatorService";
@@ -193,6 +194,7 @@ app.use((req, res, next) => {
     );
   }
   await ensureSuperAdmin();
+  await ensureHomePageGameGuide();
   await ensureOperatorsReady();
   await syncOperatorMatchAssignments();
 

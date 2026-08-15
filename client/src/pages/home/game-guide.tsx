@@ -4,6 +4,11 @@ import { ChevronLeft } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { getFullUrl } from "@/lib/queryClient";
 import { navigateBackOrEmbed, requestHomeEmbedNavigate } from "@/lib/gameEmbed";
+import {
+  DEFAULT_GAME_GUIDE_CONTENT,
+  DEFAULT_GAME_GUIDE_SUMMARY,
+  DEFAULT_GAME_GUIDE_TITLE,
+} from "@shared/defaultGameGuide";
 
 interface HomePageSettings {
   gameGuideTitle: string;
@@ -27,7 +32,7 @@ export default function GameGuidePage() {
   return (
     <div className="h-app-screen bg-[#111111] flex flex-col">
       <PageHeader
-        title={settings?.gameGuideTitle ?? "야구 예측 게임"}
+        title={settings?.gameGuideTitle?.trim() || DEFAULT_GAME_GUIDE_TITLE}
         showSettings={false}
         leftAction={
           <button
@@ -53,13 +58,11 @@ export default function GameGuidePage() {
                 className="w-full max-h-48 object-cover rounded-lg mb-4"
               />
             )}
-            {settings?.gameGuideSummary && (
-              <p className="text-[#CDFF00] text-sm font-medium mb-4">{settings.gameGuideSummary}</p>
-            )}
+            <p className="text-[#CDFF00] text-sm font-medium mb-4">
+              {settings?.gameGuideSummary?.trim() || DEFAULT_GAME_GUIDE_SUMMARY}
+            </p>
             <div className="text-[#D5D5D5] text-sm leading-relaxed whitespace-pre-wrap">
-              {settings?.gameGuideContent?.trim()
-                ? settings.gameGuideContent
-                : "관리자가 게임 설명을 등록하면 이곳에 표시됩니다."}
+              {settings?.gameGuideContent?.trim() || DEFAULT_GAME_GUIDE_CONTENT}
             </div>
             <button
               type="button"

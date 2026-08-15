@@ -210,7 +210,7 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "ui-field",
     stepId: "screen",
-    caption: "가운데 필드: 아웃·1루·2루·3루·홈런 중 하나를 고릅니다. 운영자가 예측을 열었을 때만 선택합니다.",
+    caption: "가운데 필드: 아웃·1루·2루·3루·홈런 중 하나를 고릅니다. 예측이 열린 구간에만 선택합니다. (실황 자동 또는 운영자)",
     durationMs: 7000,
     state: s({
       view: "game-ui",
@@ -249,8 +249,8 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "ui-ad",
     stepId: "screen",
-    caption: "공수교대·투수교체 때 전면 광고가 나올 수 있습니다. 약 5초 후 ×로 끌 수 있고, 끝까지 보면 보상 포인트가 있습니다.",
-    durationMs: 7500,
+    caption: "공수교대·투수교체 때 전면 광고가 나올 수 있습니다. 약 5초 후 ×로 끌 수 있고, 운영자가 광고를 중지할 때까지 보면 보상 포인트가 있습니다. (배너 광고 없음)",
+    durationMs: 8000,
     state: s({
       view: "game-ui",
       matchStatus: "live",
@@ -389,7 +389,7 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "atbat-amount",
     stepId: "atbat",
-    caption: "타석마다 결과를 예측합니다. 먼저 배팅 금액을 고릅니다.",
+    caption: "타석마다 결과를 예측합니다. 먼저 배팅 금액을 고릅니다. (예측이 열린 뒤)",
     durationMs: 6000,
     state: s({
       view: "atbat",
@@ -407,8 +407,8 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "atbat-pick",
     stepId: "atbat",
-    caption: "아웃·1루·2루·3루·홈런 중 하나를 선택합니다. 적중 시 금액×고정배당입니다.",
-    durationMs: 7000,
+    caption: "아웃·1루·2루·3루·홈런 중 하나를 선택합니다. 「1루」는 1루타·포볼·데드볼도 포함합니다. 적중 시 금액×고정배당입니다.",
+    durationMs: 7500,
     state: s({
       view: "atbat",
       practicePoints: 2800,
@@ -426,7 +426,7 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "atbat-wait",
     stepId: "atbat",
-    caption: "결과를 기다립니다.",
+    caption: "실황(또는 운영자) 결과 확정을 기다립니다.",
     durationMs: 5200,
     state: s({
       view: "atbat",
@@ -444,7 +444,7 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "atbat-result",
     stepId: "atbat",
-    caption: "1루 적중! 선택금액 × 배당이 지급됩니다.",
+    caption: "1루 적중! 선택금액 × 배당이 지급됩니다. 이어서 다음 타석이 열릴 수 있습니다.",
     durationMs: 7500,
     state: s({
       view: "atbat",
@@ -464,8 +464,8 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "match-end",
     stepId: "settle",
-    caption: "경기 종료 후 사이드 배팅을 정산합니다.",
-    durationMs: 6500,
+    caption: "경기 종료 후 사이드 배팅을 실황 최종 스코어로 정산합니다. (약 10초 「경기종료」 안내 후 홈으로 이동)",
+    durationMs: 7000,
     state: s({
       view: "settle",
       practicePoints: playPointsAfterAtBat,
@@ -506,7 +506,7 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "outro",
     stepId: "outro",
-    caption: "연습은 여기까지입니다. 실제 경기에 참여하거나 사용설명서를 다시 볼 수 있습니다.",
+    caption: "연습은 여기까지입니다. 실제 경기에 참여하거나 사용설명서·게임 소개를 다시 볼 수 있습니다.",
     durationMs: 9000,
     state: s({
       view: "outro",
