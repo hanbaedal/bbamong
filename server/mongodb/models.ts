@@ -422,7 +422,10 @@ const homePageSettingsSchema = new Schema(
     buttonEnabled: { type: Boolean, default: true },
     showDate: { type: Boolean, default: true },
     gameGuideTitle: { type: String, default: "야구 예측 게임이란?" },
-    gameGuideSummary: { type: String, default: "실시간 경기를 예측하고 포인트를 획득하는 야구 예측 게임입니다." },
+    gameGuideSummary: {
+      type: String,
+      default: "실시간 야구 타석 결과를 맞추고, 선택금액 × 고정배당으로 포인트를 얻는 예측 게임입니다.",
+    },
     gameGuideContent: { type: String, default: "" },
     gameGuideEnabled: { type: Boolean, default: true },
     gameGuideImageUrl: { type: String, default: "" },

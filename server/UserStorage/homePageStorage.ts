@@ -1,6 +1,16 @@
 import { HomePageSettingsModel } from "./db";
 import { goodsStorage } from "./goodsStorage";
 import { resolveShopSectionTitle } from "@shared/shopBranding";
+import {
+  DEFAULT_GAME_GUIDE_CONTENT,
+  DEFAULT_GAME_GUIDE_SUMMARY,
+  DEFAULT_GAME_GUIDE_TITLE,
+} from "@shared/defaultGameGuide";
+
+/** 예전 기본 요약 — getSettings에서도 새 문구로 치환 */
+const LEGACY_GAME_GUIDE_SUMMARIES = new Set([
+  "실시간 경기를 예측하고 포인트를 획득하는 야구 예측 게임입니다.",
+]);
 
 export interface HomePageSettings {
   id: string;
@@ -34,9 +44,9 @@ const DEFAULT_SETTINGS: Omit<HomePageSettings, "updatedAt"> = {
   buttonText: "예측게임 하러가기",
   buttonEnabled: true,
   showDate: true,
-  gameGuideTitle: "야구 예측 게임이란?",
-  gameGuideSummary: "실시간 경기를 예측하고 포인트를 획득하는 야구 예측 게임입니다.",
-  gameGuideContent: "",
+  gameGuideTitle: DEFAULT_GAME_GUIDE_TITLE,
+  gameGuideSummary: DEFAULT_GAME_GUIDE_SUMMARY,
+  gameGuideContent: DEFAULT_GAME_GUIDE_CONTENT,
   gameGuideEnabled: true,
   gameGuideImageUrl: "",
   goodsSectionTitle: "PPAMONG 스포츠몰",
@@ -57,9 +67,18 @@ export class HomePageStorage {
         })
       ).toObject();
     }
+    const rawSummary = String((doc as { gameGuideSummary?: string }).gameGuideSummary ?? "").trim();
+    const rawContent = String((doc as { gameGuideContent?: string }).gameGuideContent ?? "").trim();
+    const rawTitle = String((doc as { gameGuideTitle?: string }).gameGuideTitle ?? "").trim();
     return {
       ...DEFAULT_SETTINGS,
       ...doc,
+      gameGuideTitle: rawTitle || DEFAULT_GAME_GUIDE_TITLE,
+      gameGuideSummary:
+        !rawSummary || LEGACY_GAME_GUIDE_SUMMARIES.has(rawSummary)
+          ? DEFAULT_GAME_GUIDE_SUMMARY
+          : rawSummary,
+      gameGuideContent: rawContent || DEFAULT_GAME_GUIDE_CONTENT,
       updatedAt: doc.updatedAt ?? new Date(),
     } as HomePageSettings;
   }
