@@ -67,8 +67,6 @@ interface LandscapeGameShellProps {
   matchSelectEnabled?: boolean;
   stadiumSelectEnabled?: boolean;
   inningHalf?: "top" | "bottom";
-  awayTeamName?: string | null;
-  homeTeamName?: string | null;
   gameDayPhase?: GameDayPhase;
   gameDayOverlayKind?: GameDayOverlayKind | null;
   onGameTerminalComplete?: () => void;
@@ -123,8 +121,6 @@ export default function LandscapeGameShell({
   matchSelectEnabled,
   stadiumSelectEnabled,
   inningHalf,
-  awayTeamName = null,
-  homeTeamName = null,
   gameDayPhase = "live",
   gameDayOverlayKind = null,
   onGameTerminalComplete,
@@ -204,8 +200,6 @@ export default function LandscapeGameShell({
               gameDayOverlayKind={gameDayOverlayKind}
               selectedPrediction={selectedPrediction}
               battingHalf={inningHalf ?? null}
-              awayTeamName={awayTeamName}
-              homeTeamName={homeTeamName}
               isPinchHitter={Boolean(currentBatter?.isPinchHitter)}
               onRunComplete={onRunComplete}
             />

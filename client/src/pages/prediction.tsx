@@ -638,8 +638,6 @@ export default function PredictionPage() {
         matchSelectEnabled={canSelectMatch}
         stadiumSelectEnabled={canSelectStadium}
         inningHalf={inningHalfForUi}
-        awayTeamName={matchHeaderLines.headToHead?.awayName ?? displayMatch?.awayTeamName}
-        homeTeamName={matchHeaderLines.headToHead?.homeName ?? displayMatch?.homeTeamName}
         gameDayPhase={shellDayPhase}
         gameDayOverlayKind={gameDayOverlayKind}
         onGameTerminalComplete={handleGameTerminalComplete}
