@@ -74,29 +74,26 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
   );
 }
 
+const headToHeadClass =
+  "-translate-y-[2.5em] text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap text-white [text-shadow:0_0_3px_#000,0_1px_2px_#000]";
+
 function HeadToHeadLine({ parts }: { parts: HeadToHeadDisplayParts }) {
   if (parts.empty) {
     return (
-      <p
-        className={`mt-0.5 text-right text-[10px] sm:text-[11px] font-normal text-white/80 whitespace-nowrap ${titleShadow}`}
-        data-testid="game-match-head-to-head"
-      >
+      <p className={`${headToHeadClass} font-normal`} data-testid="game-match-head-to-head">
         {parts.season} 상대전적 —
       </p>
     );
   }
 
   return (
-    <p
-      className={`mt-0.5 text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap ${titleShadow}`}
-      data-testid="game-match-head-to-head"
-    >
-      <span className="text-white/85 font-normal">{parts.season} 상대전적 </span>
-      <span style={{ color: GAME_AWAY_TEAM_COLOR }}>
+    <p className={headToHeadClass} data-testid="game-match-head-to-head">
+      <span className="font-normal">{parts.season} 상대전적 </span>
+      <span>
         {parts.awayName} {parts.awayWins}승
       </span>
-      <span className="text-white/70 font-normal"> : </span>
-      <span style={{ color: GAME_HOME_TEAM_COLOR }}>
+      <span className="font-normal"> : </span>
+      <span>
         {parts.homeName} {parts.homeWins}승
       </span>
     </p>
@@ -143,28 +140,32 @@ export default function GameTopScorePanel({
         className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-0 pointer-events-none ${scorePanelTop}`}
         data-testid="game-top-score-panel"
       >
-        <div className="origin-top-right scale-[0.68] sm:scale-[0.72]">
-          {isLoading ? (
-            <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
-          ) : (
-            <LineScoreTableLandscape
-              scoreboard={scoreboard}
-              className="max-w-full"
-              compact
-              battingHalf={battingHalf}
-            />
-          )}
+        <div className="relative w-max max-w-full">
+          <div style={{ zoom: 0.7 }}>
+            {isLoading ? (
+              <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
+            ) : (
+              <LineScoreTableLandscape
+                scoreboard={scoreboard}
+                className="max-w-full"
+                compact
+                battingHalf={battingHalf}
+              />
+            )}
+          </div>
+          {!isLoading && headToHead ? (
+            <div className="absolute right-0 top-full">
+              <HeadToHeadLine parts={headToHead} />
+            </div>
+          ) : !isLoading && headToHeadLine ? (
+            <p
+              className={`${headToHeadClass} absolute right-0 top-full -translate-y-[2.5em]`}
+              data-testid="game-match-head-to-head"
+            >
+              {headToHeadLine}
+            </p>
+          ) : null}
         </div>
-        {!isLoading && headToHead ? (
-          <HeadToHeadLine parts={headToHead} />
-        ) : !isLoading && headToHeadLine ? (
-          <p
-            className={`mt-0.5 text-right text-[10px] sm:text-[11px] font-normal text-white/80 whitespace-nowrap ${titleShadow}`}
-            data-testid="game-match-head-to-head"
-          >
-            {headToHeadLine}
-          </p>
-        ) : null}
         {!isLoading && currentBatter ? (
           <div className="origin-top-right mt-0.5">
             <BatterStatsBlock batter={currentBatter} />

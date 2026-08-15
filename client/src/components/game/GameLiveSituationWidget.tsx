@@ -177,11 +177,8 @@ function TeamScoreRow({
   nameTestId: string;
 }) {
   const nameClass =
-    "flex min-w-[42px] items-center justify-center px-1.5 text-white sm:min-w-[48px]";
-  const nameStyle = {
-    backgroundColor: color,
-    clipPath: "polygon(0 0, 100% 0, 84% 100%, 0 100%)",
-  } as const;
+    "relative z-[1] flex min-w-[42px] items-center justify-center pl-1.5 pr-1 text-white sm:min-w-[48px]";
+  const nameStyle = { backgroundColor: color } as const;
 
   return (
     <div className="flex h-[17px] items-stretch text-[11px] font-bold leading-none sm:h-[19px] sm:text-xs">
@@ -200,7 +197,12 @@ function TeamScoreRow({
           {name}
         </span>
       )}
-      <span className="-ml-2 flex min-w-[20px] items-center justify-center bg-white px-1.5 text-black tabular-nums">
+      <span
+        aria-hidden
+        className="relative z-[1] -ml-[8px] h-full w-[17px] shrink-0 rounded-full sm:-ml-[9px] sm:w-[19px]"
+        style={nameStyle}
+      />
+      <span className="-ml-[8px] flex min-w-[22px] items-center justify-center bg-white pl-2.5 pr-1.5 text-black tabular-nums sm:-ml-[9px]">
         {typeof score === "number" ? score : "-"}
       </span>
     </div>
