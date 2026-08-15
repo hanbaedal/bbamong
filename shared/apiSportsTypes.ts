@@ -35,6 +35,9 @@ export interface LiveScoreboard {
   syncedAt: string;
 }
 
+/** 예측 결과 후보 (운영자 버튼과 동일) */
+export type LiveSuggestedPredictionResult = "1루" | "2루" | "3루" | "홈런" | "아웃";
+
 /** 실시간 볼카운트·아웃·주자·타석 */
 export interface LiveScoreSituation {
   balls: number;
@@ -44,10 +47,16 @@ export interface LiveScoreSituation {
   second: boolean;
   third: boolean;
   batterName?: string | null;
+  /** 수비 측 투수 (네이버 entry) */
+  pitcherName?: string | null;
   /** 예: "1구 볼" */
   pitchLabel?: string | null;
   /** 예: "143km/h 체인지업" */
   pitchDetail?: string | null;
+  /** 문자중계에서 추정한 타석 결과 (없으면 null) */
+  suggestedResult?: LiveSuggestedPredictionResult | null;
+  /** 대타 후보 — 예정 타자와 실황 이름이 다를 때 클라이언트/자동기가 참고 */
+  pinchCandidateName?: string | null;
 }
 
 /** 팀 시즌 성적 (다음 스포츠 순위표) */

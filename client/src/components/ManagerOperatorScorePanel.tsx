@@ -3,6 +3,7 @@ import LineScoreTable from "@/components/LineScoreTable";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import { parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
 import { resolveScoreboardInningPhase } from "@shared/matchPhaseDisplay";
+import { reconcileTeamRuns } from "@shared/liveScoreTotals";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 
 interface ManagerOperatorScorePanelProps {
@@ -79,15 +80,15 @@ export default function ManagerOperatorScorePanel({
   const [homeScore, setHomeScore] = useState(0);
   const [saving, setSaving] = useState(false);
 
-  const dirty =
-    Boolean(onSaveScores) &&
-    (awayScore !== (scoreboard?.awayScore ?? 0) || homeScore !== (scoreboard?.homeScore ?? 0));
+  const boardAway = reconcileTeamRuns(scoreboard?.awayScore ?? 0, scoreboard?.awayInnings);
+  const boardHome = reconcileTeamRuns(scoreboard?.homeScore ?? 0, scoreboard?.homeInnings);
+  const dirty = Boolean(onSaveScores) && (awayScore !== boardAway || homeScore !== boardHome);
 
   useEffect(() => {
     if (dirty) return;
-    setAwayScore(scoreboard?.awayScore ?? 0);
-    setHomeScore(scoreboard?.homeScore ?? 0);
-  }, [scoreboard?.awayScore, scoreboard?.homeScore, scoreboard?.syncedAt, dirty]);
+    setAwayScore(boardAway);
+    setHomeScore(boardHome);
+  }, [boardAway, boardHome, scoreboard?.syncedAt, dirty]);
 
   const handleSave = async () => {
     if (!onSaveScores || saving) return;

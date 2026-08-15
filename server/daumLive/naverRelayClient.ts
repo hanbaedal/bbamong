@@ -1,4 +1,7 @@
-import type { LiveScoreSituation } from "@shared/apiSportsTypes";
+import type {
+  LiveScoreSituation,
+  LiveSuggestedPredictionResult,
+} from "@shared/apiSportsTypes";
 import { DAUM_USER_AGENT, daumCpGameIdToNaverGameId } from "./daumHermesClient";
 
 const NAVER_GAME_BASE = "https://api-gw.sports.naver.com/schedule/games";
@@ -95,6 +98,46 @@ function parseLastPitch(
   return { pitchLabel, pitchDetail };
 }
 
+function currentPitcherName(
+  relay: NonNullable<NaverRelayPayload["result"]>["textRelayData"],
+  battingAway: boolean,
+): string | null {
+  // 타자가 원정이면 수비=홈 투수
+  const pitchers = battingAway ? relay?.homeEntry?.pitcher : relay?.awayEntry?.pitcher;
+  const name = pitchers?.[0]?.name?.trim();
+  return name || null;
+}
+
+/** 문자중계 최근 문장에서 예측 결과 추정 */
+export function inferSuggestedResultFromRelays(
+  relays: Array<{ title?: string; textOptions?: NaverTextOption[] }> | undefined,
+  batterName?: string | null,
+): LiveSuggestedPredictionResult | null {
+  const name = (batterName ?? "").replace(/\s+/g, "");
+  const texts: string[] = [];
+  for (const relay of [...(relays ?? [])].reverse()) {
+    const title = (relay.title ?? "").replace(/\s+/g, "");
+    if (name && title && !title.includes(name) && !title.includes("결과")) {
+      // 타자명과 무관한 블록은 건너뛰되, 결과 요약은 허용
+    }
+    for (const option of [...(relay.textOptions ?? [])].reverse()) {
+      const text = (option.text ?? "").trim();
+      if (text) texts.push(text);
+    }
+    if (texts.length >= 12) break;
+  }
+  const blob = texts.join(" ");
+  if (!blob) return null;
+  if (/홈\s*런|홈런/.test(blob)) return "홈런";
+  if (/3루\s*타|3루타/.test(blob)) return "3루";
+  if (/2루\s*타|2루타/.test(blob)) return "2루";
+  if (/1루\s*타|내야안타|번트안타|안타|볼넷|사구|몸에\s*맞는|실책/.test(blob)) return "1루";
+  if (/삼진|뜬공|플라이|땅볼|직선타|라이너|병살|아웃|도루자|견제사|터치아웃/.test(blob)) {
+    return "아웃";
+  }
+  return null;
+}
+
 /** 네이버 문자중계 → 주자·카운트·타자·구종 전용. 점수·이닝은 파싱하지 않는다. */
 export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | null {
   const relay =
@@ -108,6 +151,8 @@ export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | 
   const entry = battingAway ? relay?.awayEntry?.batter : relay?.homeEntry?.batter;
   const batterName = playerNameByCode(lineup, batterId) || playerNameByCode(entry, batterId);
   const pitch = parseLastPitch(relay?.textRelays, batterName);
+  const pitcherName = currentPitcherName(relay, battingAway);
+  const suggestedResult = inferSuggestedResultFromRelays(relay?.textRelays, batterName);
 
   // currentGameState 에도 homeScore/awayScore/hit/error 가 있으나 점수는 다음이 주인.
   return {
@@ -118,8 +163,10 @@ export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | 
     second: occupied(state.base2),
     third: occupied(state.base3),
     batterName,
+    pitcherName,
     pitchLabel: pitch.pitchLabel,
     pitchDetail: pitch.pitchDetail,
+    suggestedResult,
   };
 }
 

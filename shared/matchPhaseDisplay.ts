@@ -35,8 +35,8 @@ export function inferInningHalfFromRuns(
 }
 
 /**
- * 예측 UI용 회/초말. 운영자 gameInning/inningHalf 가 본체.
- * 없을 때만 다음 스코어보드 이닝표. 진행 위젯은 이 함수를 쓰지 않고 다음 보드를 그대로 표시한다.
+ * 회/초말 표시. 실황 스코어보드(다음 period)를 우선하고,
+ * 없을 때만 운영자 gameInning/inningHalf·이닝표 추정.
  */
 export function resolveScoreboardInningPhase(input: {
   gameInning?: number | null;
@@ -52,24 +52,23 @@ export function resolveScoreboardInningPhase(input: {
     ? parseInningHalf(typeof input.inningHalf === "string" ? input.inningHalf : input.inningHalf)
     : null;
 
-  if (fromOperator != null && fromOperator > 0 && halfFromOperator) {
-    return { inning: fromOperator, half: halfFromOperator };
+  const halfFromStatus = sb?.inningHalf ? parseInningHalf(sb.inningHalf) : null;
+  const fromStatus = sb?.inning ?? null;
+  if (fromStatus != null && fromStatus > 0 && halfFromStatus) {
+    return { inning: fromStatus, half: halfFromStatus };
   }
 
   const inferred = inferCurrentInningFromRuns(sb?.awayInnings, sb?.homeInnings);
-  const fromStatus = sb?.inning ?? null;
-
   let inning: number | null = null;
   if (inferred != null && fromStatus != null) {
     inning = Math.max(inferred, fromStatus);
   } else {
     inning = inferred ?? fromStatus ?? fromOperator;
   }
-  if (inning == null) return null;
+  if (inning == null || inning <= 0) return null;
 
-  const halfFromStatus = sb?.inningHalf ? parseInningHalf(sb.inningHalf) : null;
   const halfFromRuns = inferInningHalfFromRuns(inning, sb?.awayInnings, sb?.homeInnings);
-  const half = halfFromOperator ?? halfFromStatus ?? halfFromRuns;
+  const half = halfFromStatus ?? halfFromRuns ?? halfFromOperator;
   if (!half) return null;
 
   return { inning, half };
@@ -93,7 +92,7 @@ export function formatMatchInningPhase(input: {
 }
 
 /**
- * 운영자 DB gameInning/inningHalf 우선, 없으면 API 스코어보드(이닝 점수·status)
+ * 실황 스코어보드 이닝 우선, 없으면 운영자 DB gameInning/inningHalf
  */
 export function resolveLiveInningPhaseLabel(input: {
   matchStatus?: string;
