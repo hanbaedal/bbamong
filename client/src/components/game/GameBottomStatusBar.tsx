@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useUser } from "@/contexts/UserContext";
 import { formatKstDisplayDate } from "@/lib/kstDate";
+import type { HeadToHeadDisplayParts } from "@shared/matchTeamDisplay";
 
 export interface SideBetBottomSummary {
   winnerLabel: string | null;
@@ -10,6 +11,7 @@ export interface SideBetBottomSummary {
 
 interface GameBottomStatusBarProps {
   sideBetSummary?: SideBetBottomSummary | null;
+  headToHead?: HeadToHeadDisplayParts | null;
   onWinnerClick?: () => void;
   onScoreClick?: () => void;
 }
@@ -20,9 +22,32 @@ function greetingName(isGuest: boolean, name?: string | null): string {
   return trimmed || "회원";
 }
 
-/** 게임 화면 하단 — 날짜·사이드벳 요약·인사 */
+function HeadToHeadCenter({ parts }: { parts: HeadToHeadDisplayParts }) {
+  if (parts.empty) {
+    return (
+      <p
+        className="text-[10px] sm:text-xs text-white font-medium whitespace-nowrap drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]"
+        data-testid="game-bottom-head-to-head"
+      >
+        {parts.season} 상대전적 —
+      </p>
+    );
+  }
+
+  return (
+    <p
+      className="text-[10px] sm:text-xs text-white font-medium whitespace-nowrap drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]"
+      data-testid="game-bottom-head-to-head"
+    >
+      {parts.season} 상대전적 {parts.awayName} {parts.awayWins}승 : {parts.homeName} {parts.homeWins}승
+    </p>
+  );
+}
+
+/** 게임 화면 하단 — 날짜·사이드벳 · 상대전적 · 인사/포인트 */
 export default function GameBottomStatusBar({
   sideBetSummary = null,
+  headToHead = null,
   onWinnerClick,
   onScoreClick,
 }: GameBottomStatusBarProps) {
@@ -85,6 +110,12 @@ export default function GameBottomStatusBar({
           </>
         ) : null}
       </div>
+
+      {headToHead ? (
+        <div className="pointer-events-none absolute left-1/2 bottom-1.5 sm:bottom-2 -translate-x-1/2">
+          <HeadToHeadCenter parts={headToHead} />
+        </div>
+      ) : null}
 
       <div
         className="flex shrink-0 flex-col items-center text-[10px] sm:text-xs text-white font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]"

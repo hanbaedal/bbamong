@@ -30,7 +30,6 @@ interface LandscapeGameShellProps {
   matchTitle: string;
   stadiumName: string;
   headToHead?: HeadToHeadDisplayParts | null;
-  headToHeadLine?: string | null;
   currentBatter?: CurrentBatterPreview | null;
   scoreboard: LiveScoreboard | null;
   scoreLoading?: boolean;
@@ -86,7 +85,6 @@ export default function LandscapeGameShell({
   matchTitle,
   stadiumName,
   headToHead = null,
-  headToHeadLine,
   currentBatter = null,
   scoreboard,
   scoreLoading,
@@ -169,8 +167,6 @@ export default function LandscapeGameShell({
           <>
             <GameTopScorePanel
               matchTitle={matchTitle}
-              headToHead={headToHead}
-              headToHeadLine={headToHeadLine}
               currentBatter={currentBatter}
               scoreboard={scoreboard}
               isLoading={scoreLoading || matchesInitialLoading}
@@ -246,6 +242,7 @@ export default function LandscapeGameShell({
 
       <GameBottomStatusBar
         sideBetSummary={sideBetSummary}
+        headToHead={headToHead}
         onWinnerClick={onSideBetWinnerClick}
         onScoreClick={onSideBetScoreClick}
       />
