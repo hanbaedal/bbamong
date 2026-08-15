@@ -259,7 +259,7 @@
  * 헤드가 카메라를 보는 에셋을 그대로 쓰므로 완전 후면은 아님.
  */
 .game-pyamong-face-pitcher {
-  transform: rotate(-26deg);
+  transform: rotate(-38deg);
   transform-origin: 58% 82%;
 }
 
