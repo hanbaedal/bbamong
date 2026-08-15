@@ -197,21 +197,23 @@ export function resolveCurrentBatterPreview(input: {
   let battingOrder = wrapBatterOrder(input.batterIndexInHalf);
   const liveName = input.liveBatterName?.trim() || "";
   const lineup = input.lineup;
-  const side =
-    lineup && (lineup.home.length > 0 || lineup.away.length > 0)
-      ? pickLineupSide(lineup, input.inningHalf)
-      : [];
+  const hasLineup = Boolean(lineup && (lineup.home.length > 0 || lineup.away.length > 0));
+  const side = hasLineup ? pickLineupSide(lineup!, input.inningHalf) : [];
   const sorted = [...side].sort((a, b) => a.battingOrder - b.battingOrder);
+  const otherSide = hasLineup
+    ? pickLineupSide(lineup!, input.inningHalf === "top" ? "bottom" : "top")
+    : [];
 
   let player: LineupBatterEntry | null = null;
-  if (liveName && sorted.length > 0) {
+  if (liveName && hasLineup) {
     player = findLineupBatterByName(sorted, liveName);
+    if (!player) player = findLineupBatterByName(otherSide, liveName);
     if (player) battingOrder = wrapBatterOrder(player.battingOrder);
   }
 
   const orderLabel = `${battingOrder}번 타자`;
 
-  if (sorted.length === 0) {
+  if (sorted.length === 0 && !player) {
     const empty = emptyBatterPreview(orderLabel, input.season);
     if (liveName) empty.playerName = liveName;
     return applyPinchHitter(empty, input.pinchHitter, input.inningHalf, battingOrder);
