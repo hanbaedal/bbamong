@@ -13,6 +13,8 @@ type MatchLineupRow = {
   matchLineup?: MatchLineupSnapshot | null;
   matchPlayerStats?: Record<string, MatchPlayerStatsEntry> | null;
   pinchHitter?: import("@shared/apiSportsTypes").PinchHitterSnapshot | null;
+  /** 실황 타자명 (liveScoreboard.situation.batterName) */
+  liveBatterName?: string | null;
 };
 
 export function buildCurrentBatterPreviewFromMatch(
@@ -60,6 +62,7 @@ export function buildCurrentBatterPreviewFromMatch(
     playerStats: statsForResolve,
     season,
     pinchHitter: match.pinchHitter ?? null,
+    liveBatterName: match.liveBatterName ?? null,
   });
 }
 
@@ -68,10 +71,15 @@ export async function getCurrentBatterPreviewForMatch(
 ): Promise<CurrentBatterPreview | null> {
   const match = (await MatchModel.findOne({ id: matchId })
     .select(
-      "id startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter",
+      "id startTime gameInning inningHalf batterIndexInHalf matchLineup matchPlayerStats pinchHitter liveScoreboard",
     )
-    .lean()) as MatchLineupRow | null;
+    .lean()) as (MatchLineupRow & {
+    liveScoreboard?: { situation?: { batterName?: string | null } | null } | null;
+  }) | null;
 
   if (!match) return null;
-  return buildCurrentBatterPreviewFromMatch(match);
+  return buildCurrentBatterPreviewFromMatch({
+    ...match,
+    liveBatterName: match.liveScoreboard?.situation?.batterName ?? null,
+  });
 }

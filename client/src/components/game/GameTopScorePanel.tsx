@@ -53,7 +53,12 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
           대타가 나옵니다
         </p>
       ) : null}
-      <p className="truncate font-semibold">{nameValue}</p>
+      <p className="truncate font-semibold">
+        <span className="text-white/80" data-testid="current-batter-order">
+          {batter.orderLabel}
+        </span>{" "}
+        {nameValue}
+      </p>
       <p className="mb-0.5 text-white/70">{batter.season} 시즌</p>
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
         {cells.map(({ label, value }) => (
@@ -79,36 +84,34 @@ export default function GameTopScorePanel({
   onMatchTitleClick,
   matchSelectEnabled = false,
 }: GameTopScorePanelProps) {
-  return (
-    <>
-      <div
-        className="absolute top-2 sm:top-2.5 left-1/2 z-20 -translate-x-1/2 text-center text-white pointer-events-none max-w-[46%]"
-        data-testid="game-match-header"
-      >
-        {matchSelectEnabled && onMatchTitleClick ? (
-          <button
-            type="button"
-            onClick={onMatchTitleClick}
-            className={`pointer-events-auto block w-full text-lg sm:text-xl font-bold leading-tight whitespace-nowrap ${titleShadow} ${clickable}`}
-            data-testid="game-match-title"
-          >
-            {matchTitle}
-          </button>
-        ) : (
-          <p
-            className={`text-lg sm:text-xl font-bold leading-tight whitespace-nowrap ${titleShadow}`}
-            data-testid="game-match-title"
-          >
-            {matchTitle}
-          </p>
-        )}
-      </div>
+  const titleClass = `text-sm sm:text-base font-bold leading-tight whitespace-nowrap ${titleShadow}`;
 
-      <div
-        className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-0 pointer-events-none ${scorePanelTop}`}
-        data-testid="game-top-score-panel"
-      >
-        <div className="w-max max-w-full">
+  return (
+    <div
+      className={`absolute right-2 sm:right-2.5 z-20 flex flex-col items-end gap-0 pointer-events-none ${scorePanelTop}`}
+      data-testid="game-top-score-panel"
+    >
+      <div className="flex w-max max-w-full items-start gap-1.5" data-testid="game-match-header">
+        {/* 스코어표 3행 중 2행(원정) 왼쪽에 「제 n경기」 */}
+        <div className="grid grid-rows-3 self-stretch items-center shrink-0">
+          <div aria-hidden className="min-h-[0.75rem]" />
+          {matchSelectEnabled && onMatchTitleClick ? (
+            <button
+              type="button"
+              onClick={onMatchTitleClick}
+              className={`pointer-events-auto text-right ${titleClass} ${clickable}`}
+              data-testid="game-match-title"
+            >
+              {matchTitle}
+            </button>
+          ) : (
+            <p className={`text-right ${titleClass}`} data-testid="game-match-title">
+              {matchTitle}
+            </p>
+          )}
+          <div aria-hidden className="min-h-[0.75rem]" />
+        </div>
+        <div className="min-w-0">
           <div style={{ zoom: 0.7 }}>
             {isLoading ? (
               <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
@@ -122,12 +125,12 @@ export default function GameTopScorePanel({
             )}
           </div>
         </div>
-        {!isLoading && currentBatter ? (
-          <div className="origin-top-right mt-0.5">
-            <BatterStatsBlock batter={currentBatter} />
-          </div>
-        ) : null}
       </div>
-    </>
+      {!isLoading && currentBatter ? (
+        <div className="origin-top-right mt-0.5">
+          <BatterStatsBlock batter={currentBatter} />
+        </div>
+      ) : null}
+    </div>
   );
 }
