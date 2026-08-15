@@ -16,7 +16,7 @@ import type {
   PredictionResult,
   RoundAdvanceType,
 } from "@/components/game/gameTypes";
-import { GAME_EVENT_SHOW_MS, SUCCESS_HOP_MS, isSuccessPresentationPhase } from "@/components/game/gameTypes";
+import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, SUCCESS_HOP_MS, isSuccessPresentationPhase } from "@/components/game/gameTypes";
 import { speakGameVoice, USER_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
 
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
@@ -186,11 +186,13 @@ export function useLandscapePredictionFlow(
     if (matchEndedRef.current) return;
     matchEndedRef.current = true;
 
-    const phase = screenPhaseRef.current;
-    const deferExit =
-      phase === "wait_result" ||
-      isSuccessPresentationPhase(phase) ||
-      phase === "fail";
+    pendingInterstitialRef.current = false;
+    adSessionActiveRef.current = false;
+    stopAdSession();
+    setShowAdOverlay(false);
+    setShowBetModal(false);
+    setShowConfirmModal(false);
+    setScreenPhase("match_ended");
 
     const exitGame = () => {
       toast({ description: "경기가 종료되었습니다." });
@@ -201,13 +203,8 @@ export function useLandscapePredictionFlow(
     if (matchEndedTimerRef.current) {
       clearTimeout(matchEndedTimerRef.current);
     }
-
-    if (deferExit) {
-      matchEndedTimerRef.current = setTimeout(exitGame, RESULT_AUTO_MS);
-    } else {
-      exitGame();
-    }
-  }, [toast]);
+    matchEndedTimerRef.current = setTimeout(exitGame, MATCH_ENDED_SHOW_MS);
+  }, [toast, stopAdSession]);
 
   useEffect(() => {
     matchEndedRef.current = false;
@@ -705,6 +702,12 @@ export function useLandscapePredictionFlow(
 
     onPredictionStarted: useCallback(() => {
       void speakGameVoice(USER_GAME_VOICE.predictionStarted);
+      // 예측 시작 = 광고 중지 (보상 없음)
+      pendingInterstitialRef.current = false;
+      adSessionActiveRef.current = false;
+      stopAdSession();
+      setShowAdOverlay(false);
+
       // 결과 연출 중이면 끊지 않고, 끝난 뒤 picking으로 이어감
       if (isInResultPresentation()) {
         setPredictionEnabled(true);
@@ -726,7 +729,7 @@ export function useLandscapePredictionFlow(
       setSelectedPrediction(null);
       setScreenPhase("picking");
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, [isInResultPresentation]),
+    }, [isInResultPresentation, stopAdSession]),
 
     onPredictionEnded: useCallback(() => {
       void speakGameVoice(USER_GAME_VOICE.predictionStopped);

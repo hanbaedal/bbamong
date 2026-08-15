@@ -839,19 +839,23 @@ export async function advancePitcherChange(
       await RoundStatisticsModel.deleteOne(roundStatsQuery(matchId, currentRound), { session });
     }
 
-    const pinchCleared = hadPinchHitter(before as Record<string, unknown>);
+    // 투수교체는 같은 타석 유지 — 대타(pinchHitter)를 지우지 않는다
     const updated = await MatchModel.findOneAndUpdate(
       { id: matchId },
       {
         $set: { currentRound: currentRound + 1, predictionEnabled: false },
-        $unset: { pinchHitter: 1 },
       },
       { new: true, session },
     ).lean();
 
     await session.commitTransaction();
     if (!updated) throw new Error("경기를 찾을 수 없습니다.");
-    return { match: updated as Match, predictionAutoStopped, skippedResult, pinchCleared };
+    return {
+      match: updated as Match,
+      predictionAutoStopped,
+      skippedResult,
+      pinchCleared: false,
+    };
   } catch (error) {
     await session.abortTransaction();
     throw error;

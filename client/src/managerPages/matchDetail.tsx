@@ -128,6 +128,7 @@ export default function MatchDetailPage() {
   /** 버튼 직후 로컬 반영분과 겹치는 WS GET 중복 방지 */
   const skipRemoteDetailUntilRef = useRef(0);
   const threeOutsSpokenRef = useRef(false);
+  const [showMatchEndedOverlay, setShowMatchEndedOverlay] = useState(false);
   const matchEndedLogoutRef = useRef(false);
   const HEARTBEAT_INTERVAL = 25000; // 25초마다 ping
   const PONG_TIMEOUT = 10000; // 10초 내 pong 없으면 재연결
@@ -198,12 +199,11 @@ export default function MatchDetailPage() {
   const logoutOnMatchEnded = useCallback(() => {
     if (matchEndedLogoutRef.current) return;
     matchEndedLogoutRef.current = true;
-    toast({
-      variant: "destructive",
-      description: "담당 경기가 종료되어 로그아웃됩니다.",
-    });
-    dispatchManagerMatchEnded();
-  }, [toast]);
+    setShowMatchEndedOverlay(true);
+    window.setTimeout(() => {
+      dispatchManagerMatchEnded("담당 경기가 종료되어 로그아웃됩니다.");
+    }, 10_000);
+  }, []);
 
   // WebSocket 연결 및 관리
   useEffect(() => {
@@ -569,12 +569,8 @@ export default function MatchDetailPage() {
         console.log("[Manager] 요청 제한 (429) - 무시하고 기존 데이터 유지");
       } else if (response.status === 403) {
         const data = await response.json();
-        if (data.deactivated) {
-          toast({
-            variant: "destructive",
-            description: "비활성화된 계정입니다. 경기 진행이 불가합니다.",
-          });
-          setLocation("/manager/home");
+        if (data.deactivated || data.matchEnded) {
+          logoutOnMatchEnded();
           return;
         }
         toast({
@@ -1496,6 +1492,17 @@ export default function MatchDetailPage() {
       </div>
 
       {/* 예측 미시작 안내 팝업 */}
+      {showMatchEndedOverlay && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70"
+          data-testid="manager-match-ended-overlay"
+        >
+          <p className="text-white text-[clamp(2rem,10vw,3.5rem)] font-black tracking-tight">
+            경기종료
+          </p>
+        </div>
+      )}
+
       {showPredictionDisabledPopup && (
         <AdminConfirmPopup
           title="안내"
