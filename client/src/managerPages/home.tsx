@@ -376,6 +376,17 @@ export default function ManagerHomePage() {
           setLocation("/manager/simulation");
         }}
       />
+
+      {showMatchEndedBanner && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70"
+          data-testid="manager-home-match-ended"
+        >
+          <p className="text-white text-[clamp(2rem,10vw,3.5rem)] font-black tracking-tight">
+            경기종료
+          </p>
+        </div>
+      )}
     </div>
   );
 }
