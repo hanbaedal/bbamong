@@ -180,6 +180,14 @@ function ManagerLoginLinkListener() {
   return null;
 }
 
+function isManagerPublicPath(path: string): boolean {
+  return (
+    path === "/manager/login" ||
+    path === "/manager/signup" ||
+    path === "/manager/pending-approval"
+  );
+}
+
 function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const [isChecking, setIsChecking] = useState(true);
@@ -210,72 +218,66 @@ function AutoLoginWrapper({ children }: { children: React.ReactNode }) {
           });
           return;
         }
-        
-        // 루트 경로 또는 로그인 페이지에서 자동 로그인 체크
-        const shouldCheckAutoLogin = 
-          currentPath === "/" || 
-          currentPath === "" || 
-          currentPath === "/manager" || 
-          currentPath === "/manager/" ||
-          currentPath === "/manager/login";
-        
-        if (shouldCheckAutoLogin) {
-          if (isNative) {
-            const savedRefreshToken = await getManagerRefreshToken();
-            if (savedRefreshToken) {
-              try {
-                const refreshRes = await fetch(getFullUrl("/api/manager/refresh"), {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ refreshToken: savedRefreshToken }),
-                });
-                
-                if (refreshRes.ok) {
-                  const data = await refreshRes.json();
-                  if (data.accessToken && data.refreshToken) {
-                    setManagerAccessToken(data.accessToken);
-                    await saveManagerRefreshToken(data.refreshToken);
-                  }
-                }
-              } catch (error) {
-                console.log("Token refresh failed:", error);
-              }
-            }
-          }
-          
-          const accessToken = isNative ? getManagerAccessToken() : null;
-          const headers: HeadersInit = isNative && accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {};
-          
-          try {
-            const res = await fetch(getFullUrl("/api/manager/me"), {
-              headers,
-              credentials: isNative ? "omit" : "include",
-            });
-            
-            if (res.ok) {
-              const data = await res.json();
-              if (data.manager) {
-                if (data.manager.approvalStatus === "승인") {
-                  setIsChecking(false);
-                  setLocation("/manager/home", { replace: true });
-                  return;
-                } else {
-                  setIsChecking(false);
-                  setLocation("/manager/pending-approval", { replace: true });
-                  return;
+
+        if (isNative) {
+          const savedRefreshToken = await getManagerRefreshToken();
+          if (savedRefreshToken) {
+            try {
+              const refreshRes = await fetch(getFullUrl("/api/manager/refresh"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refreshToken: savedRefreshToken }),
+              });
+
+              if (refreshRes.ok) {
+                const data = await refreshRes.json();
+                if (data.accessToken && data.refreshToken) {
+                  setManagerAccessToken(data.accessToken);
+                  await saveManagerRefreshToken(data.refreshToken);
                 }
               }
+            } catch (error) {
+              console.log("Token refresh failed:", error);
             }
-          } catch (error) {
-            console.log("Auto login check failed:", error);
           }
-          
+        }
+
+        const accessToken = isNative ? getManagerAccessToken() : null;
+        const headers: HeadersInit = isNative && accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+        let manager: { approvalStatus?: string } | null = null;
+
+        try {
+          const res = await fetch(getFullUrl("/api/manager/me"), {
+            headers,
+            credentials: isNative ? "omit" : "include",
+          });
+          if (res.ok) {
+            const data = await res.json();
+            manager = data.manager ?? null;
+          }
+        } catch (error) {
+          console.log("Auto login check failed:", error);
+        }
+
+        if (manager) {
+          if (manager.approvalStatus === "승인") {
+            setIsChecking(false);
+            if (isManagerPublicPath(currentPath) || currentPath === "/manager" || currentPath === "/manager/") {
+              setLocation("/manager/home", { replace: true });
+            }
+            return;
+          }
           setIsChecking(false);
-          setLocation("/manager/login", { replace: true });
+          if (currentPath !== "/manager/pending-approval") {
+            setLocation("/manager/pending-approval", { replace: true });
+          }
           return;
         }
-        
+
         setIsChecking(false);
+        if (!isManagerPublicPath(currentPath)) {
+          setLocation("/manager/login", { replace: true });
+        }
       } catch (error) {
         console.error("checkAutoLogin unexpected error:", error);
         setIsChecking(false);
