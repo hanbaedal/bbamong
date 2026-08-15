@@ -8,7 +8,6 @@ import pyamongRunning2 from "@assets/game/pyamong-running-2.png";
 import pyamongRunning3 from "@assets/game/pyamong-running-3.png";
 import pyamongStandsWaiting from "@assets/game/pyamong-stands-waiting.png";
 import pyamongWaveGoodbye from "@assets/game/pyamong-wave-goodbye.png";
-import batterWaiting from "@assets/game/batter-waiting.png";
 import pyamongBatterReady from "@assets/game/pyamong-batter-ready.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
