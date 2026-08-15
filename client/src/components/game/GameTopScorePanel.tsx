@@ -74,7 +74,8 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
   );
 }
 
-const headToHeadClass = `relative -translate-y-[2.5em] mt-0.5 text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap text-white ${titleShadow}`;
+const headToHeadClass =
+  "relative -translate-y-[2.5em] mt-0.5 text-right text-[10px] sm:text-[11px] font-semibold whitespace-nowrap text-white [text-shadow:0_0_3px_#000,0_1px_2px_#000]";
 
 function HeadToHeadLine({ parts }: { parts: HeadToHeadDisplayParts }) {
   if (parts.empty) {
