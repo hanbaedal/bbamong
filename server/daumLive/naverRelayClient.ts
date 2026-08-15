@@ -131,7 +131,7 @@ export function inferSuggestedResultFromRelays(
   if (/홈\s*런|홈런/.test(blob)) return "홈런";
   if (/3루\s*타|3루타/.test(blob)) return "3루";
   if (/2루\s*타|2루타/.test(blob)) return "2루";
-  // 1루 성공: 1루타·포볼(볼넷)·데드볼(사구) — 예측「1루」와 동일 정산
+  // 1루 성공: 1루타·포볼(볼넷)·데드볼(사구)·실책출루
   if (
     /포\s*볼|볼\s*넷|볼넷|사\s*구|사구|데드\s*볼|데드볼|몸에\s*맞는|고의\s*사구|사사구|walk|hbp/i.test(
       blob,
@@ -139,8 +139,13 @@ export function inferSuggestedResultFromRelays(
   ) {
     return "1루";
   }
-  if (/1루\s*타|내야안타|번트안타|안타|실책/.test(blob)) return "1루";
-  if (/삼진|뜬공|플라이|땅볼|직선타|라이너|병살|아웃|도루자|견제사|터치아웃/.test(blob)) {
+  if (/1루\s*타|내야안타|번트안타|안타|실책\s*출루|야수\s*선택|야수선택/.test(blob)) return "1루";
+  // 아웃: 삼진·플라이·땅볼·병살·희생·인필드플라이 등 (타자 아웃)
+  if (
+    /삼진|뜬공|플라이|희생\s*플라이|희생플라이|희생\s*번트|희생번트|땅볼|직선타|라이너|병살|인필드\s*플라이|터치아웃|도루자|견제사|스트라이크\s*아웃|아웃/.test(
+      blob,
+    )
+  ) {
     return "아웃";
   }
   return null;

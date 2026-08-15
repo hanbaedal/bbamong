@@ -375,28 +375,28 @@ export async function processLiveAutoOperator(
     if (suggested && phase === "prediction_closed") {
       const round = match.currentRound ?? 1;
       const key = `${round}:${suggested}:${batterName || prevBatter || ""}`;
-      if ((await roundNeedsResult(matchId, round)) && state.lastSuggestedResultKey !== key) {
-        state.lastSuggestedResultKey = key;
-        broadcastManager.sendToMatch(matchId, "auto_result_suggested", {
-          matchId,
-          currentRound: round,
-          suggestedResult: suggested,
-          batterName: batterName || prevBatter,
-          message: `실황 추정 결과: ${suggested}`,
-        });
+      if (await roundNeedsResult(matchId, round)) {
+        if (state.lastSuggestedResultKey !== key) {
+          state.lastSuggestedResultKey = key;
+          broadcastManager.sendToMatch(matchId, "auto_result_suggested", {
+            matchId,
+            currentRound: round,
+            suggestedResult: suggested,
+            batterName: batterName || prevBatter,
+            message: `실황 추정 결과: ${suggested}`,
+            oneTapConfirm: true,
+          });
+        }
         const canAutoOut = suggested === "아웃" && prevOuts != null && outs > prevOuts;
-        const canAutoHr =
-          suggested === "홈런" &&
+        const canAutoExtraBase =
+          (suggested === "홈런" ||
+            suggested === "2루" ||
+            suggested === "3루" ||
+            suggested === "1루") &&
           batterStableChanged &&
           prevOuts != null &&
           outs === prevOuts;
-        // 1루타·포볼·데드볼 → 예측「1루」: 아웃 유지 + 타자 교체(안정화) 시 자동 확정
-        const canAutoFirst =
-          suggested === "1루" &&
-          prevOuts != null &&
-          outs === prevOuts &&
-          batterStableChanged;
-        if (canAutoOut || canAutoHr || canAutoFirst) {
+        if (canAutoOut || canAutoExtraBase) {
           await tryApplySuggestedResult(matchId, round, suggested);
         }
       }

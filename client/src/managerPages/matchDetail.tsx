@@ -19,6 +19,7 @@ import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import { resolveLiveInningPhaseLabel } from "@shared/matchPhaseDisplay";
+import { deriveOperatorNextAction } from "@shared/operatorNextAction";
 import { speakGameVoice, OPERATOR_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
 import { useQueryClient } from "@tanstack/react-query";
 import "./managerMatchDetail.css";
@@ -350,10 +351,12 @@ export default function MatchDetailPage() {
               break;
             case "auto_result_suggested":
               if (data?.suggestedResult) {
-                setSuggestedAutoResult(String(data.suggestedResult));
+                const result = String(data.suggestedResult);
+                setSuggestedAutoResult(result);
+                setSelectedResult(result);
                 toast({
                   description:
-                    data.message || `실황 추정 결과: ${data.suggestedResult}`,
+                    data.message || `실황 추정 결과: ${result} — 확인만 누르면 확정`,
                 });
               }
               fetchMatchDetail();
@@ -363,7 +366,10 @@ export default function MatchDetailPage() {
                 variant: "destructive",
                 description: data?.message || "자동 진행을 위해 결과가 필요합니다.",
               });
-              if (data?.suggestedResult) setSuggestedAutoResult(String(data.suggestedResult));
+              if (data?.suggestedResult) {
+                setSuggestedAutoResult(String(data.suggestedResult));
+                setSelectedResult(String(data.suggestedResult));
+              }
               fetchMatchDetail();
               break;
             case "auto_pinch_suggested":
@@ -774,10 +780,8 @@ export default function MatchDetailPage() {
     setSelectedResult(result);
   };
 
-  const handleConfirmResult = async () => {
+  const submitPredictionResult = async (result: string) => {
     setSuggestedAutoResult(null);
-    if (!selectedResult || isSubmitting) return;
-
     setIsSubmitting(true);
     try {
       const response = await managerFetch(`/api/manager/matches/${id}/result`, {
@@ -785,7 +789,7 @@ export default function MatchDetailPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ result: selectedResult }),
+        body: JSON.stringify({ result }),
       });
 
       if (response.ok) {
@@ -801,7 +805,6 @@ export default function MatchDetailPage() {
         if (match) {
           setMatch({
             ...match,
-            // 자동 다음타자 없음 — 라운드 유지, 운영자 버튼 대기
             currentRound: match.currentRound,
             predictionEnabled: false,
             predictionStartTime: undefined,
@@ -830,6 +833,11 @@ export default function MatchDetailPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleConfirmResult = async () => {
+    if (!selectedResult || isSubmitting) return;
+    await submitPredictionResult(selectedResult);
   };
 
   const handleAdvanceRound = async (
@@ -1105,6 +1113,16 @@ export default function MatchDetailPage() {
     !predictionRunning &&
     Boolean(match.predictionStopTime) &&
     blockAdvance;
+  const operatorNext = deriveOperatorNextAction({
+    liveAutoEnabled: match.liveAutoEnabled,
+    atBatPhase: match.atBatPhase,
+    suggestedResult: suggestedAutoResult ?? selectedResult,
+    showThreeOutsHint,
+    needsAdvanceAfterResult: awaitAdvanceAfterResult,
+    needsResultBeforeAdvance: blockAdvance,
+    isAdPlaying,
+    predictionEnabled: match.predictionEnabled,
+  });
   const blockAdvanceActions = blockAdvance || predictionRunning;
   const anyAdvanceBusy = Boolean(advanceBusy);
   /** 공수교대(3아웃) 제외 — 예측 시작·중지 중에도 투수 교체 가능. 결과 전송 후에는 다음 타자. */
@@ -1259,6 +1277,35 @@ export default function MatchDetailPage() {
               실황 자동 {match.liveAutoEnabled !== false ? "ON" : "OFF"}
             </button>
           </div>
+          {operatorNext.kind !== "none" && (
+            <div
+              className={`manager-match-next-action ${
+                operatorNext.kind === "confirm_result" || operatorNext.kind === "switch_half"
+                  ? "manager-match-next-action--urgent"
+                  : ""
+              }`}
+              data-testid="text-operator-next-action"
+            >
+              <span className="manager-match-next-action-label">지금</span>
+              <span className="manager-match-next-action-text">{operatorNext.label}</span>
+              {operatorNext.kind === "confirm_result" &&
+              operatorNext.suggestedResult &&
+              canSelectResult ? (
+                <button
+                  type="button"
+                  className="manager-match-next-action-btn"
+                  data-testid="button-one-tap-confirm-result"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    if (!operatorNext.suggestedResult || isSubmitting) return;
+                    void submitPredictionResult(operatorNext.suggestedResult);
+                  }}
+                >
+                  {isSubmitting ? "전송 중" : "1탭 확정"}
+                </button>
+              ) : null}
+            </div>
+          )}
         </div>
 
         <div className="manager-match-controls">
