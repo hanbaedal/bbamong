@@ -14,7 +14,7 @@ import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
 import type { InningHalf } from "@shared/gamePhaseTypes";
-import { getRunDurationSec, HOME_RUN_BAT_TOSS_MS } from "./fieldPositions";
+import { getRunDurationSec, SUCCESS_BAT_TOSS_MS } from "./fieldPositions";
 import {
   BASE_IMAGE_POINTS,
   getRunFacingRight,
@@ -71,13 +71,13 @@ export default function GameCharacterLayer({
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
   const [runFrameIdx, setRunFrameIdx] = useState(0);
   const [runFaceRight, setRunFaceRight] = useState(true);
-  const [homeRunTossing, setHomeRunTossing] = useState(false);
+  const [batTossing, setBatTossing] = useState(false);
   const fieldSize = useStadiumFieldSize();
   const runTarget = selectedPrediction ?? "1루";
   const isHomeRun = runTarget === "홈런";
   const runPath = useMemo(() => getRunPathImagePoints(runTarget), [runTarget]);
   const runDurationSec = useMemo(() => getRunDurationSec(runTarget), [runTarget]);
-  const batTossMs = isHomeRun ? HOME_RUN_BAT_TOSS_MS : 0;
+  const batTossMs = SUCCESS_BAT_TOSS_MS;
 
   const keyframesCss = useMemo(
     () =>
@@ -92,19 +92,14 @@ export default function GameCharacterLayer({
 
   useEffect(() => {
     if (phase !== "success_running") {
-      setHomeRunTossing(false);
+      setBatTossing(false);
       return;
     }
 
-    if (!isHomeRun) {
-      setHomeRunTossing(false);
-      return;
-    }
-
-    setHomeRunTossing(true);
-    const t = setTimeout(() => setHomeRunTossing(false), HOME_RUN_BAT_TOSS_MS);
+    setBatTossing(true);
+    const t = setTimeout(() => setBatTossing(false), SUCCESS_BAT_TOSS_MS);
     return () => clearTimeout(t);
-  }, [phase, isHomeRun, runTarget]);
+  }, [phase, runTarget]);
 
   useEffect(() => {
     if (phase !== "success_running") return;
@@ -114,7 +109,7 @@ export default function GameCharacterLayer({
   }, [phase, runDurationSec, batTossMs, onRunComplete]);
 
   useEffect(() => {
-    if (phase !== "success_running" || homeRunTossing) {
+    if (phase !== "success_running" || batTossing) {
       setRunFrameIdx(0);
       if (phase !== "success_running") setRunFaceRight(true);
       return;
@@ -133,7 +128,7 @@ export default function GameCharacterLayer({
     };
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [phase, runDurationSec, runPath, homeRunTossing]);
+  }, [phase, runDurationSec, runPath, batTossing]);
 
   return (
     <>
@@ -261,13 +256,15 @@ export default function GameCharacterLayer({
             style={{ transform: "translate(-42%, -100%)" }}
           >
             <div className="relative shrink-0">
-              <img
-                src={pyamongBatterReady}
-                alt=""
-                className={pyamongSpriteClass(battingHalf, "h-auto animate-pyamong-idle")}
-                style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center" }}
-                data-testid="char-batter-waiting"
-              />
+              <div className="game-pyamong-face-pitcher">
+                <img
+                  src={pyamongBatterReady}
+                  alt=""
+                  className={pyamongSpriteClass(battingHalf, "h-auto animate-pyamong-idle")}
+                  style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center" }}
+                  data-testid="char-batter-waiting"
+                />
+              </div>
               <div
                 className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 rounded-xl bg-white/95 text-black text-xs sm:text-sm font-semibold shadow-lg whitespace-nowrap"
                 data-testid="speech-wait-result"
@@ -291,17 +288,17 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {phase === "success_running" && fieldSize.width > 0 && homeRunTossing && (
-        <div
-          className="absolute z-[21] pointer-events-none"
-          style={{
-            left: homePx.left,
-            top: homePx.top,
-            transform: "translate(-50%, -100%)",
-          }}
-          data-testid="char-home-run-bat-toss"
-        >
-          <div className="relative">
+      {phase === "success_running" && fieldSize.width > 0 && batTossing && (
+        <>
+          <div
+            className="absolute z-[21] pointer-events-none"
+            style={{
+              left: homePx.left,
+              top: homePx.top,
+              transform: "translate(-50%, -100%)",
+            }}
+            data-testid="char-success-bat-toss"
+          >
             <img
               src={pyamongBatToss}
               alt=""
@@ -311,17 +308,38 @@ export default function GameCharacterLayer({
               )}
               data-testid="char-pyamong-bat-toss"
             />
-            <img
-              src={baseballBat}
-              alt=""
-              className="absolute left-[55%] top-[8%] w-[min(5.5vw,44px)] h-auto game-sprite animate-home-run-bat-toss"
-              data-testid="prop-home-run-bat"
-            />
           </div>
-        </div>
+          <div
+            className="absolute inset-0 z-[47] pointer-events-none overflow-hidden"
+            data-testid="success-bat-fill-overlay"
+          >
+            <div className="absolute inset-0 animate-success-bat-scrim bg-black/50" />
+            <div className="absolute left-1/2 top-1/2 animate-success-bat-fill">
+              <div className="relative">
+                <img
+                  src={baseballBat}
+                  alt=""
+                  className="w-[min(46vw,320px)] h-auto drop-shadow-[0_8px_24px_rgba(0,0,0,0.65)]"
+                  data-testid="prop-success-bat"
+                />
+                <span
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-[48deg] text-[#2a1206] font-black tracking-[0.18em] whitespace-nowrap"
+                  style={{
+                    fontSize: "clamp(18px, 4.2vw, 36px)",
+                    textShadow:
+                      "0 1px 0 rgba(255,244,220,0.85), 0 0 10px rgba(255,236,200,0.45)",
+                  }}
+                  data-testid="prop-success-bat-label"
+                >
+                  빠던나인
+                </span>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
-      {phase === "success_running" && !homeRunTossing && (
+      {phase === "success_running" && !batTossing && (
         <div
           className="absolute z-[20] pointer-events-none"
           style={{

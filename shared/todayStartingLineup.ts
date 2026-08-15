@@ -31,6 +31,9 @@ export type TodayLineupGame = {
   registrationOrder: number | null;
   ppamongMatchName: string | null;
   alreadyApplied: boolean;
+  /** 운영자가 타순을 직접 넣은 경우 — 자동 적용 금지 */
+  operatorLineupLocked: boolean;
+  ppamongMatchStatus: string | null;
 };
 
 export type TodayLineupApplyResult = {

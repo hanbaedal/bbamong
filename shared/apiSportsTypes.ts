@@ -116,8 +116,12 @@ export interface MatchLineupSnapshot {
   syncedAt: string;
   home: LineupBatterEntry[];
   away: LineupBatterEntry[];
-  /** manual이면 API 라인업 갱신이 덮어쓰지 않음 (KBO 라인업 미제공 대응) */
-  source?: "api" | "manual";
+  /**
+   * api: 외부 실황 라인업
+   * today-lineup: 오늘의 선발명단(다음/네이버) 자동·관리자 적용
+   * manual: 운영자가 직접 고른 타순 — 자동 적용이 덮지 않음
+   */
+  source?: "api" | "manual" | "today-lineup";
 }
 
 /** 선수 시즌 타격 요약 (playerId 문자열 키) */

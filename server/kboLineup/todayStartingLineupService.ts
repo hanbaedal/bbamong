@@ -17,6 +17,7 @@ type LeanMatch = {
   id: string;
   name?: string;
   registrationOrder?: number | null;
+  matchStatus?: string | null;
   apiSportsHomeTeam?: string | null;
   apiSportsAwayTeam?: string | null;
   liveScoreboard?: { homeTeamName?: string | null; awayTeamName?: string | null } | null;
@@ -63,7 +64,7 @@ async function loadDayMatches(dateKey: string): Promise<LeanMatch[]> {
     $or: [{ matchDate: dateKey }, { matchDate: null, startTime: { $gte: start, $lte: end } }],
   })
     .select(
-      "id name registrationOrder apiSportsHomeTeam apiSportsAwayTeam liveScoreboard matchLineup startTime",
+      "id name registrationOrder matchStatus apiSportsHomeTeam apiSportsAwayTeam liveScoreboard matchLineup startTime",
     )
     .sort({ registrationOrder: 1, startTime: 1 })
     .lean();
@@ -78,7 +79,15 @@ function attachPpamongMatch(game: TodayLineupGame, matches: LeanMatch[]): TodayL
     return pair.home === home && pair.away === away;
   });
   if (candidates.length === 0) {
-    return { ...game, ppamongMatchId: null, registrationOrder: null, ppamongMatchName: null, alreadyApplied: false };
+    return {
+      ...game,
+      ppamongMatchId: null,
+      registrationOrder: null,
+      ppamongMatchName: null,
+      alreadyApplied: false,
+      operatorLineupLocked: false,
+      ppamongMatchStatus: null,
+    };
   }
 
   const gameMinutes = game.startTime
@@ -96,10 +105,13 @@ function attachPpamongMatch(game: TodayLineupGame, matches: LeanMatch[]): TodayL
           })[0];
 
   const lineup = picked.matchLineup;
+  const homeCount = lineup?.home?.length ?? 0;
+  const awayCount = lineup?.away?.length ?? 0;
   const alreadyApplied =
-    lineup?.source === "manual" &&
-    (lineup.home?.length ?? 0) >= 9 &&
-    (lineup.away?.length ?? 0) >= 9;
+    (lineup?.source === "manual" || lineup?.source === "today-lineup") &&
+    homeCount >= 9 &&
+    awayCount >= 9;
+  const operatorLineupLocked = lineup?.source === "manual" && (homeCount > 0 || awayCount > 0);
 
   return {
     ...game,
@@ -107,6 +119,8 @@ function attachPpamongMatch(game: TodayLineupGame, matches: LeanMatch[]): TodayL
     registrationOrder: picked.registrationOrder ?? null,
     ppamongMatchName: picked.name ?? null,
     alreadyApplied,
+    operatorLineupLocked,
+    ppamongMatchStatus: picked.matchStatus ?? null,
   };
 }
 
@@ -181,20 +195,9 @@ function toManualBatters(batters: TodayLineupBatter[]): ManualBatterInput[] {
     }));
 }
 
-export async function applyTodayStartingLineups(input: {
-  date?: string | null;
-  matchId?: string | null;
-  daumGameId?: number | null;
-}): Promise<{ date: string; results: TodayLineupApplyResult[] }> {
-  const { date, games } = await getTodayStartingLineups(input.date);
-  const target = games.filter((game) => {
-    if (input.matchId) return game.ppamongMatchId === input.matchId;
-    if (input.daumGameId != null) return game.daumGameId === input.daumGameId;
-    return true;
-  });
-
+async function applyLineupGames(games: TodayLineupGame[]): Promise<TodayLineupApplyResult[]> {
   const results: TodayLineupApplyResult[] = [];
-  for (const game of target) {
+  for (const game of games) {
     const unmatchedNames = [
       ...game.home.batters.filter((b) => b.rosterMatch !== "matched").map((b) => `${game.home.teamShort} ${b.name}`),
       ...game.away.batters.filter((b) => b.rosterMatch !== "matched").map((b) => `${game.away.teamShort} ${b.name}`),
@@ -231,6 +234,7 @@ export async function applyTodayStartingLineups(input: {
         home,
         away,
         side,
+        source: "today-lineup",
       });
       await persistMatchDaumGameId(game.ppamongMatchId, game.daumGameId);
       const { refreshMatchSeasonContext } = await import("../daumLive/daumSeasonStatsService");
@@ -258,5 +262,41 @@ export async function applyTodayStartingLineups(input: {
     }
   }
 
-  return { date, results };
+  return results;
+}
+
+export async function applyTodayStartingLineups(input: {
+  date?: string | null;
+  matchId?: string | null;
+  daumGameId?: number | null;
+}): Promise<{ date: string; results: TodayLineupApplyResult[] }> {
+  const { date, games } = await getTodayStartingLineups(input.date);
+  const target = games.filter((game) => {
+    if (input.matchId) return game.ppamongMatchId === input.matchId;
+    if (input.daumGameId != null) return game.daumGameId === input.daumGameId;
+    return true;
+  });
+  return { date, results: await applyLineupGames(target) };
+}
+
+function isClosedMatchStatus(status?: string | null): boolean {
+  return status === "completed" || status === "cancelled";
+}
+
+/**
+ * 양팀 선발 9명이 공개된 경기만 운영자 타순에 넣는다.
+ * 운영자가 직접 넣은 타순(source=manual)은 덮지 않는다.
+ */
+export async function applyReadyTodayStartingLineups(dateRaw?: string | null): Promise<{
+  date: string;
+  results: TodayLineupApplyResult[];
+}> {
+  const { date, games } = await getTodayStartingLineups(dateRaw);
+  const ready = games.filter((game) => {
+    if (!game.ppamongMatchId) return false;
+    if (game.alreadyApplied || game.operatorLineupLocked) return false;
+    if (isClosedMatchStatus(game.ppamongMatchStatus)) return false;
+    return game.home.batters.length >= 9 && game.away.batters.length >= 9;
+  });
+  return { date, results: await applyLineupGames(ready) };
 }

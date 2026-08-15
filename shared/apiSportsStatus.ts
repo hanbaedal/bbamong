@@ -51,6 +51,16 @@ export function isGameLiveStatus(statusShort: string | null | undefined): boolea
   return true;
 }
 
+export function isGameCancelledStatus(statusShort: string | null | undefined): boolean {
+  const short = normalizeApiStatusShort(statusShort);
+  return short === "CAN" || short === "CANCELLED" || short === "CANCELED" || short === "ABD";
+}
+
+export function isGameSuspendedStatus(statusShort: string | null | undefined): boolean {
+  const short = normalizeApiStatusShort(statusShort);
+  return short === "SUSP" || short === "SUSPENDED";
+}
+
 /** 스코어보드·경기관리 UI용 짧은 한글 라벨 */
 export function apiStatusDisplayLabel(
   statusShort: string | null | undefined,
@@ -60,16 +70,14 @@ export function apiStatusDisplayLabel(
   if (!short) return null;
 
   if (isGameFinished(short)) return "경기 종료";
-  if (short === "CAN" || short === "CANCELLED" || short === "CANCELED" || short === "ABD") {
-    return "취소";
-  }
-  if (short === "SUSP" || short === "SUSPENDED") return "중단";
-  if (isGamePostponedOrCancelled(short)) return "연기";
-  if (isGameNotStarted(short)) return "시작 전";
+  if (isGameCancelledStatus(short)) return "경기 취소";
+  if (isGameSuspendedStatus(short)) return "경기 중단";
+  if (isGamePostponedOrCancelled(short)) return "경기 연기";
+  if (isGameNotStarted(short)) return "경기 전";
 
   const long = (statusLong || "").toLowerCase();
-  if (/postpon/.test(long)) return "연기";
-  if (/cancel/.test(long)) return "취소";
+  if (/postpon/.test(long)) return "경기 연기";
+  if (/cancel/.test(long)) return "경기 취소";
 
   return null;
 }

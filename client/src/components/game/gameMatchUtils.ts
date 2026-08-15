@@ -1,6 +1,8 @@
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import {
+  isGameCancelledStatus,
+  isGameSuspendedStatus,
   normalizeApiStatusShort,
 } from "@shared/apiSportsStatus";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
@@ -15,6 +17,7 @@ import {
   type MatchTeamNameInput,
 } from "@shared/matchTeamDisplay";
 import { resolveOperatorMatchPhase } from "@shared/operatorMatchStatus";
+import { MATCH_STATUS_LABEL } from "@shared/matchStatusLabels";
 
 export interface GameMatchItem {
   id: string;
@@ -149,13 +152,35 @@ export function pickDefaultMatch(
   return sortMatchesByOrder(joinable)[0] ?? null;
 }
 
-/** 경기 선택 모달 — 진행 상태 라벨 */
-export function formatMatchStatusLabel(
-  match: GameMatchItem,
-  nowMs = Date.now(),
+function formatCompactTeamWithWins(name: string, wins: number, hasGames: boolean): string {
+  if (!hasGames || wins <= 0) return name;
+  return `${name}(${wins}승)`;
+}
+
+/** 경기 선택 테이블 — `한화(3승) : 삼성(7승)` */
+export function formatGameMatchSelectTeamLine(
+  match: Pick<GameMatchItem, "awayTeamName" | "homeTeamName" | "headToHead">,
+  liveScoreboard?: MatchTeamNameInput["liveScoreboard"],
 ): string {
+  const { awayTeamName, homeTeamName } = resolveMatchTeamNames({
+    apiSportsAwayTeam: match.awayTeamName,
+    apiSportsHomeTeam: match.homeTeamName,
+    liveScoreboard,
+  });
+  const away = awayTeamName.trim() || "원정팀";
+  const home = homeTeamName.trim() || "홈팀";
+  const headToHead = match.headToHead;
+  if (!headToHead) return formatMatchTeamLine(away, home);
+  const hasGames = headToHead.awayWins + headToHead.homeWins > 0;
+  return `${formatCompactTeamWithWins(away, headToHead.awayWins, hasGames)} : ${formatCompactTeamWithWins(home, headToHead.homeWins, hasGames)}`;
+}
+
+function resolveMatchStatusDisplay(match: GameMatchItem): string {
   const short = normalizeApiStatusShort(match.liveScoreboard?.statusShort);
-  if (short === "SUSP" || short === "SUSPENDED") return "지연";
+  if (isGameCancelledStatus(short) || match.matchStatus === "cancelled") {
+    return MATCH_STATUS_LABEL.cancelled;
+  }
+  if (isGameSuspendedStatus(short)) return MATCH_STATUS_LABEL.suspended;
 
   const phase = resolveOperatorMatchPhase({
     matchStatus: match.matchStatus,
@@ -165,27 +190,34 @@ export function formatMatchStatusLabel(
 
   switch (phase) {
     case "경기종료":
-      return "종료";
+      return MATCH_STATUS_LABEL.finished;
     case "연기됨":
-      return "연기";
+      return MATCH_STATUS_LABEL.postponed;
     case "경기중":
-      return "경기 중";
+      return MATCH_STATUS_LABEL.live;
     case "경기전":
-      if (shouldClientPollMatch(match.startTime, match.matchStatus, undefined, nowMs)) {
-        return "참여 가능";
-      }
-      return "시작 전";
     default:
-      return "시작 전";
+      return MATCH_STATUS_LABEL.scheduled;
   }
 }
 
-/** 경기 선택 불가 사유 (모달 sublabel). 선택 가능하면 null */
+/** 경기 선택 모달 — 진행 상태 라벨 */
+export function formatMatchStatusLabel(
+  match: GameMatchItem,
+  _nowMs = Date.now(),
+): string {
+  return resolveMatchStatusDisplay(match);
+}
+
+/** 경기 선택 불가 사유 (모달 상세). 선택 가능하면 null */
 export function getGameMatchSelectDisabledReason(match: GameMatchItem): string | null {
-  if (!match.sideBetEnabled) return "연동 대기";
+  if (!match.sideBetEnabled) return MATCH_STATUS_LABEL.syncPending;
 
   const short = normalizeApiStatusShort(match.liveScoreboard?.statusShort);
-  if (short === "SUSP" || short === "SUSPENDED") return "지연";
+  if (isGameCancelledStatus(short) || match.matchStatus === "cancelled") {
+    return MATCH_STATUS_LABEL.cancelled;
+  }
+  if (isGameSuspendedStatus(short)) return MATCH_STATUS_LABEL.suspended;
 
   const phase = resolveOperatorMatchPhase({
     matchStatus: match.matchStatus,
@@ -195,15 +227,29 @@ export function getGameMatchSelectDisabledReason(match: GameMatchItem): string |
 
   switch (phase) {
     case "경기종료":
-      return "종료";
+      return MATCH_STATUS_LABEL.finished;
     case "연기됨":
-      return "연기";
+      return MATCH_STATUS_LABEL.postponed;
     case "경기전":
     case "경기중":
       return null;
     default:
-      return "시작 전";
+      return MATCH_STATUS_LABEL.scheduled;
   }
+}
+
+/** 경기 선택 테이블 오른쪽 칸 — `대구, 한화(3승) : 삼성(7승) 경기 전` */
+export function formatGameMatchSelectDetail(
+  match: GameMatchItem | null,
+  nowMs = Date.now(),
+): string {
+  if (!match) return MATCH_STATUS_LABEL.noMatchToday;
+  const stadium = getDisplayStadiumName(match.stadiumName, match.homeTeamName);
+  const teams = formatGameMatchSelectTeamLine(match);
+  const status = getGameMatchSelectDisabledReason(match) ?? formatMatchStatusLabel(match, nowMs);
+  if (stadium && teams) return `${stadium}, ${teams} ${status}`;
+  if (teams) return `${teams} ${status}`;
+  return status;
 }
 
 /** 실황 연동 ON + 경기전·경기중만 선택 가능 */

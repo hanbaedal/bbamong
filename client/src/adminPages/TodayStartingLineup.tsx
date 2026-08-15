@@ -21,12 +21,12 @@ function kstTodayKey(): string {
 
 function gameStatusLabel(status: string): string {
   const map: Record<string, string> = {
-    READY: "예정",
-    BEFORE: "예정",
-    PLAY: "진행",
-    RESULT: "종료",
-    CANCEL: "취소",
-    SUSPEND: "중단",
+    READY: "경기 예정",
+    BEFORE: "경기 예정",
+    PLAY: "경기 중",
+    RESULT: "경기 종료",
+    CANCEL: "경기 취소",
+    SUSPEND: "경기 중단",
   };
   return map[status] ?? status ?? "";
 }
@@ -120,8 +120,8 @@ export default function TodayStartingLineupPage() {
         }
       >
         <p className="text-xs text-[#888] mb-3">
-          다음 스포츠 타자기록(1~9번)을 가져와 운영자 타순에 넣습니다. 대타·정정은 운영자 화면에서 합니다.
-          선발 발표 전에는 비어 있을 수 있습니다.
+          다음·네이버 선발 타순(1~9번)을 가져와 운영자 타순에 넣습니다. 양팀 9명이 공개되면
+          15분마다 자동 적용합니다. 운영자가 직접 넣은 타순은 덮지 않습니다. 대타·정정은 운영자 화면에서 합니다.
         </p>
         {error ? (
           <p className="text-sm text-[#E11936]">{(error as Error).message}</p>

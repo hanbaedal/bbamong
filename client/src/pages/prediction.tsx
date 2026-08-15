@@ -15,10 +15,8 @@ import {
   collectStadiumOptions,
   filterJoinableMatches,
   formatMatchTitle,
-  formatGameMatchTeamLine,
   resolveGameMatchHeaderLines,
-  formatMatchStatusLabel,
-  getGameMatchSelectDisabledReason,
+  formatGameMatchSelectDetail,
   isMatchSelectableForGame,
   sortMatchesByOrder,
   type GameMatchItem,
@@ -474,25 +472,20 @@ export default function PredictionPage() {
   const matchModalItems = useMemo(
     () =>
       buildDailyMatchSlots(orderedMatches).map(({ order, match }) => {
-        const label = `제 ${order}경기`;
+        const label = `제${order}경기`;
         if (!match) {
           return {
             id: `slot-${order}`,
             label,
-            sublabel: "오늘 경기 없음",
+            detail: formatGameMatchSelectDetail(null),
             disabled: true,
           };
         }
-        const stadium = getDisplayStadiumName(match.stadiumName, match.homeTeamName);
-        const teams = formatGameMatchTeamLine(match);
-        const disabledReason = getGameMatchSelectDisabledReason(match);
-        const statusPart = disabledReason ?? formatMatchStatusLabel(match, nowMs);
-        const parts = [stadium, teams, statusPart].filter(Boolean);
         const selectable = isMatchSelectableForGame(match, nowMs);
         return {
           id: match.id,
           label,
-          sublabel: parts.length > 0 ? parts.join(" · ") : undefined,
+          detail: formatGameMatchSelectDetail(match, nowMs),
           disabled: !selectable,
         };
       }),
@@ -668,6 +661,7 @@ export default function PredictionPage() {
       <GameSelectModal
         open={matchModalOpen}
         title="경기 선택"
+        layout="table"
         items={matchModalItems}
         selectedId={selectedMatch?.id ?? null}
         emptyMessage="오늘 등록된 경기가 없습니다."

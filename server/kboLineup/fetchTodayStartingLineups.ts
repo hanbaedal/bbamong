@@ -233,6 +233,8 @@ export async function fetchTodayStartingLineupGames(dateKey: string): Promise<To
         registrationOrder: null,
         ppamongMatchName: null,
         alreadyApplied: false,
+        operatorLineupLocked: false,
+        ppamongMatchStatus: null,
       };
       if (!naverGameId) {
         return { ...base, fetchError: "네이버 경기 ID가 없습니다." };
