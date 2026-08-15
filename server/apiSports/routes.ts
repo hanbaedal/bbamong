@@ -206,6 +206,20 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
         inningHalf,
       );
 
+      if (currentBatter?.playerName && !currentBatter.batsSide) {
+        try {
+          const { findBatsThrowsByPlayerName } = await import("../kboRoster/kboRosterService");
+          const { parseBatterHandSide } = await import("@shared/batterHandedness");
+          const batsThrows = await findBatsThrowsByPlayerName(currentBatter.playerName);
+          currentBatter = {
+            ...currentBatter,
+            batsSide: parseBatterHandSide(batsThrows),
+          };
+        } catch (error) {
+          console.warn(`[Scoreboard] batsThrows ${matchId}:`, error);
+        }
+      }
+
       res.json({
         matchId: match.id,
         scoreboard: match.liveScoreboard ?? null,

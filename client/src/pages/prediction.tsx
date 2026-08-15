@@ -585,11 +585,12 @@ export default function PredictionPage() {
   }, [displayMatch, currentSideBets, winnerBet, scoreBet, nowMs]);
 
   const inningHalfForUi = useMemo(() => {
-    if (gamePhase?.inningHalf != null) {
-      return parseInningHalf(String(gamePhase.inningHalf));
-    }
+    // 왼쪽 실황 위젯(▲/▼)과 빠몽이 틴트를 맞추기 위해 실황 초/말 우선
     if (liveScoreboard?.inningHalf) {
       return parseInningHalf(String(liveScoreboard.inningHalf));
+    }
+    if (gamePhase?.inningHalf != null) {
+      return parseInningHalf(String(gamePhase.inningHalf));
     }
     return undefined;
   }, [gamePhase, liveScoreboard]);

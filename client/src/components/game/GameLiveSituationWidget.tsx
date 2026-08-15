@@ -6,9 +6,6 @@ import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 interface GameLiveSituationWidgetProps {
   scoreboard: LiveScoreboard | null;
   hidden?: boolean;
-  stadiumName?: string | null;
-  stadiumSelectEnabled?: boolean;
-  onStadiumNameClick?: () => void;
   awayFallback?: string | null;
   homeFallback?: string | null;
   onAwayTeamClick?: () => void;
@@ -34,17 +31,13 @@ function BaseDiamond({
 export default function GameLiveSituationWidget({
   scoreboard,
   hidden = false,
-  stadiumName,
-  stadiumSelectEnabled = false,
-  onStadiumNameClick,
   awayFallback,
   homeFallback,
   onAwayTeamClick,
   onHomeTeamClick,
 }: GameLiveSituationWidgetProps) {
-  const displayStadium = stadiumName?.trim() || null;
   if (hidden) return null;
-  if (!scoreboard && !displayStadium && !awayFallback && !homeFallback) return null;
+  if (!scoreboard && !awayFallback && !homeFallback) return null;
 
   const { awayLabel, homeLabel } = getScoreboardDisplayTeamLabels(scoreboard, {
     awayFallback: awayFallback?.trim() || "원정",
@@ -104,25 +97,6 @@ export default function GameLiveSituationWidget({
             nameTestId="game-team-home"
           />
         </div>
-        {displayStadium ? (
-          stadiumSelectEnabled && onStadiumNameClick ? (
-            <button
-              type="button"
-              onClick={onStadiumNameClick}
-              className="pointer-events-auto mt-0.5 max-w-full truncate text-left text-[10px] leading-tight text-white/90 hover:text-[#CDFF00] sm:text-[11px]"
-              data-testid="game-stadium-name"
-            >
-              {displayStadium}
-            </button>
-          ) : (
-            <p
-              className="mt-0.5 max-w-full truncate text-[10px] leading-tight text-white/90 sm:text-[11px]"
-              data-testid="game-stadium-name"
-            >
-              {displayStadium}
-            </p>
-          )
-        ) : null}
       </div>
 
       {showLiveBits && situation ? (

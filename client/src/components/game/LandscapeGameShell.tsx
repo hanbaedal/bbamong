@@ -147,9 +147,6 @@ export default function LandscapeGameShell({
         <GameLiveSituationWidget
           scoreboard={scoreboard}
           hidden={noticeSuppressed}
-          stadiumName={stadiumName}
-          stadiumSelectEnabled={stadiumSelectEnabled}
-          onStadiumNameClick={onStadiumNameClick}
           awayFallback={headToHead?.awayName}
           homeFallback={headToHead?.homeName}
           onAwayTeamClick={onAwayTeamClick}
@@ -163,12 +160,19 @@ export default function LandscapeGameShell({
           <>
             <GameTopScorePanel
               matchTitle={matchTitle}
+              stadiumName={stadiumName}
               currentBatter={currentBatter}
               scoreboard={scoreboard}
               isLoading={scoreLoading || matchesInitialLoading}
-              battingHalf={inningHalf ?? null}
+              battingHalf={
+                scoreboard?.inningHalf === "top" || scoreboard?.inningHalf === "bottom"
+                  ? scoreboard.inningHalf
+                  : inningHalf ?? null
+              }
               onMatchTitleClick={onMatchTitleClick}
               matchSelectEnabled={matchSelectEnabled}
+              stadiumSelectEnabled={stadiumSelectEnabled}
+              onStadiumNameClick={onStadiumNameClick}
             />
 
             {pregameCountdown ? (
@@ -195,7 +199,12 @@ export default function LandscapeGameShell({
               gameDayPhase={gameDayPhase}
               gameDayOverlayKind={gameDayOverlayKind}
               selectedPrediction={selectedPrediction}
-              battingHalf={inningHalf ?? null}
+              battingHalf={
+                scoreboard?.inningHalf === "top" || scoreboard?.inningHalf === "bottom"
+                  ? scoreboard.inningHalf
+                  : inningHalf ?? null
+              }
+              batsSide={currentBatter?.batsSide ?? null}
               isPinchHitter={Boolean(currentBatter?.isPinchHitter)}
               onRunComplete={onRunComplete}
             />
