@@ -112,4 +112,5 @@
 - [USER_MANUAL.md](./USER_MANUAL.md) — 회원 앱 메뉴
 - [MANAGER_MANUAL.md](./MANAGER_MANUAL.md) — 운영자 경기 운영
 - [ADMIN_MANUAL.md](./ADMIN_MANUAL.md) — 관리자 기능
+- [PPAMONG_친구방_기능명세.md](./PPAMONG_친구방_기능명세.md) — 친구·동호회 방 (구현 전 초안)
 - 관리자 「시스템 매뉴얼」 DOCX — 최신 사용 설명서
