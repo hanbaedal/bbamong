@@ -21,6 +21,7 @@ import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import GameGuidePage from "@/pages/home/game-guide";
 import UserGuidePage from "@/pages/home/user-guide";
 import UserSimulationPage from "@/pages/home/user-simulation";
+import FriendRoomsPage, { FriendRoomJoinPage } from "@/pages/home/rooms";
 import HomePage from "@/pages/home";
 import PredictionPage from "@/pages/prediction";
 import SocialOnboardingPage from "@/pages/auth/social-onboarding";
@@ -105,6 +106,8 @@ function Router() {
       <Route path="/home/game-guide">{() => <ProtectedRoute component={GameGuidePage} />}</Route>
       <Route path="/home/guide">{() => <ProtectedRoute component={UserGuidePage} />}</Route>
       <Route path="/home/simulation">{() => <ProtectedRoute component={UserSimulationPage} />}</Route>
+      <Route path="/home/rooms">{() => <ProtectedRoute component={FriendRoomsPage} />}</Route>
+      <Route path="/rooms/join/:token">{() => <ProtectedRoute component={FriendRoomJoinPage} />}</Route>
       <Route path="/home">{() => <ProtectedRoute component={HomePage} />}</Route>
 
       <Route path="/game/story/:section">{() => <ProtectedRoute component={GameStorySplitPage} />}</Route>
