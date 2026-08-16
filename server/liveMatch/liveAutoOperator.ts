@@ -21,14 +21,23 @@ import {
   updateRoundPredictionResult,
 } from "./predictionStorage";
 
-/** 타자 변경 후 예측 중지까지 */
-export const LIVE_AUTO_PRED_STOP_MS = 15_000;
+/** 타자 변경 후 예측 중지까지 (TV 체감 지연 완화 — 기존 15s) */
+export const LIVE_AUTO_PRED_STOP_MS = Math.max(
+  5_000,
+  parseInt(process.env.LIVE_AUTO_PRED_STOP_MS || "10000", 10) || 10_000,
+);
 /** 공수교대·투수교체 광고 최소 간격 */
 export const LIVE_AUTO_AD_COOLDOWN_MS = 90_000;
-/** 타자명 깜빡임 방지 — 동일 이름 유지 후 예측 시작 */
-export const LIVE_AUTO_BATTER_STABLE_MS = 3_000;
-/** 투수명 깜빡임 방지 */
-export const LIVE_AUTO_PITCHER_STABLE_MS = 5_000;
+/** 타자명 깜빡임 방지 — 동일 이름 유지 후 예측 시작 (기존 3s) */
+export const LIVE_AUTO_BATTER_STABLE_MS = Math.max(
+  1_000,
+  parseInt(process.env.LIVE_AUTO_BATTER_STABLE_MS || "2000", 10) || 2_000,
+);
+/** 투수명 깜빡임 방지 (기존 5s) */
+export const LIVE_AUTO_PITCHER_STABLE_MS = Math.max(
+  1_500,
+  parseInt(process.env.LIVE_AUTO_PITCHER_STABLE_MS || "3000", 10) || 3_000,
+);
 
 type AutoState = {
   lastBatterName: string | null;

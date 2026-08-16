@@ -107,20 +107,8 @@ async function resetMatchIdle(opts?: { half?: "top" | "bottom"; inning?: number;
     match = await MatchModel.findOne({ id: MATCH_ID }).lean();
   }
 
-  const round = (match?.currentRound as number) ?? 1;
-  await ensureRoundStats(round);
-  await RoundStatisticsModel.updateOne(
-    { matchId: MATCH_ID, roundNumber: round },
-    {
-      $set: {
-        isPredictionStarted: false,
-        isPredictionStopped: false,
-        isResultSent: false,
-        predictionStartTime: null,
-        predictionStopTime: null,
-      },
-    },
-  );
+  await RoundStatisticsModel.deleteMany({ matchId: MATCH_ID });
+  await ensureRoundStats(1);
   await MatchModel.updateOne(
     { id: MATCH_ID },
     {
@@ -131,7 +119,10 @@ async function resetMatchIdle(opts?: { half?: "top" | "bottom"; inning?: number;
         outsInHalf: outs,
         gameInning: inning,
         inningHalf: half,
-        currentRound: round,
+        currentRound: 1,
+        batterIndexInHalf: 1,
+        awayBatterOrder: 1,
+        homeBatterOrder: 1,
       },
     },
   );
