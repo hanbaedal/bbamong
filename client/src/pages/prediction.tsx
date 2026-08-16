@@ -540,13 +540,14 @@ export default function PredictionPage() {
     setStadiumModalOpen(false);
   };
 
-  const matchTitle = displayMatch ? formatMatchTitle(displayMatch.name) : "경기 선택";
+  const matchTitle = displayMatch ? formatMatchTitle(displayMatch.name) : "";
   const stadiumName = getDisplayStadiumName(displayMatch?.stadiumName, displayMatch?.homeTeamName) ?? "";
   const matchHeaderLines = displayMatch
     ? resolveGameMatchHeaderLines(displayMatch, liveScoreboard)
     : { teamNamesLine: null, headToHead: null };
-  const canSelectMatch = true;
-  const canSelectStadium = stadiumOptions.length > 0;
+  /** 경기가 선택된 뒤에만 제목 클릭으로 재선택. 미선택 시에는 「경기 선택」 모달만 사용 */
+  const canSelectMatch = Boolean(displayMatch);
+  const canSelectStadium = Boolean(displayMatch) && stadiumOptions.length > 0;
   const shellDayPhase =
     gameDayPhase === "loading" || gameDayPhase === "no_match" ? "pregame" : gameDayPhase;
   const isLivePlay = gameDayPhase === "live";
@@ -603,8 +604,8 @@ export default function PredictionPage() {
         headToHead={matchHeaderLines.headToHead}
         currentBatter={isLivePlay ? currentBatter : null}
         scoreboard={liveScoreboard}
-        scoreLoading={scoreLoading && Boolean(selectedMatch)}
-        matchesInitialLoading={matchesInitialLoading}
+        scoreLoading={Boolean(displayMatch) && scoreLoading}
+        matchesInitialLoading={Boolean(displayMatch) && matchesInitialLoading}
         activePanel={null}
         onMenuSelect={handleMenuSelect}
         screenPhase={isLivePlay ? flow.screenPhase : "wait_start"}

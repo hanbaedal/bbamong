@@ -101,20 +101,22 @@ export default function GameTopScorePanel({
       <div className="relative w-max max-w-full" data-testid="game-match-header">
         {/* 스코어표 원정 행 왼쪽 — 제n경기 + 바로 아래 구장명 */}
         <div className="absolute right-full top-[36%] z-10 mr-1.5 -translate-y-1/2 flex flex-col items-end gap-0.5">
-          {matchSelectEnabled && onMatchTitleClick ? (
-            <button
-              type="button"
-              onClick={onMatchTitleClick}
-              className={`pointer-events-auto ${titleClass} ${clickable}`}
-              data-testid="game-match-title"
-            >
-              {matchTitle}
-            </button>
-          ) : (
-            <p className={titleClass} data-testid="game-match-title">
-              {matchTitle}
-            </p>
-          )}
+          {matchTitle.trim() ? (
+            matchSelectEnabled && onMatchTitleClick ? (
+              <button
+                type="button"
+                onClick={onMatchTitleClick}
+                className={`pointer-events-auto ${titleClass} ${clickable}`}
+                data-testid="game-match-title"
+              >
+                {matchTitle}
+              </button>
+            ) : (
+              <p className={titleClass} data-testid="game-match-title">
+                {matchTitle}
+              </p>
+            )
+          ) : null}
           {displayStadium ? (
             stadiumSelectEnabled && onStadiumNameClick ? (
               <button
@@ -138,14 +140,14 @@ export default function GameTopScorePanel({
         <div style={{ zoom: 0.7 }}>
           {isLoading ? (
             <p className="text-[10px] text-white/80 py-2">스코어 불러오는 중...</p>
-          ) : (
+          ) : scoreboard ? (
             <LineScoreTableLandscape
               scoreboard={scoreboard}
               className="max-w-full"
               compact
               battingHalf={battingHalf}
             />
-          )}
+          ) : null}
         </div>
       </div>
       {!isLoading && currentBatter ? (
