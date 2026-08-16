@@ -415,46 +415,10 @@ export async function processLiveAutoOperator(
       }
     }
 
-    // 결과 대기 중이면 교대·광고·다음타자·투수교체 금지
-    const phaseAfterResult = await resolveAtBatPhase(matchId);
-    if (blocksAdvanceUntilResult(phaseAfterResult)) {
-      // 예측 열림 중 타자만 바뀌면 중지 후 결과 대기(시작은 결과 후)
-      if (batterStableChanged && phaseAfterResult === "prediction_open" && outs < 3) {
-        clearStopTimer(matchId);
-        await stopPredictionIfOpen(matchId, "실황 자동: 타자 변경으로 예측 중지");
-        broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
-          matchId,
-          action: "next_batter",
-          message: "다음 타자 전 예측 결과를 입력해 주세요.",
-          suggestedResult: suggested,
-        });
-      } else if ((halfChanged || outsHitThree) && phaseAfterResult === "prediction_closed") {
-        broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
-          matchId,
-          action: "switch_half",
-          message: "공수교대 전 예측 결과를 입력해 주세요.",
-          suggestedResult: suggested,
-        });
-      }
-
-      if (batterStableChanged && batterName) {
-        state.lastBatterName = batterName;
-        state.pendingBatterName = batterName;
-        state.pendingBatterSince = now;
-      }
-      state.lastOuts = outs;
-      if (half) state.lastHalf = half;
-      if (inning != null) state.lastInning = inning;
-      if (pitcherStableChanged && pitcherName) {
-        state.lastPitcherName = pitcherName;
-        state.pendingPitcherName = pitcherName;
-        state.pendingPitcherSince = now;
-      }
-      return;
-    }
-
     // —— 공수교대 (idle | result_confirmed만 — 결과 미전송이면 절대 emit 하지 않음) ——
+    // 성공·차단 모두 이 tick에서는 투수/타자 전이로 이어가지 않음 (광고·연출 겹침 방지)
     if (halfChanged || outsHitThree) {
+      let switchHandled = false;
       try {
         await stopPredictionIfOpen(matchId, "실황 자동: 공수교대 전 예측 중지");
         const fresh = await MatchModel.findOne({ id: matchId }).lean();
@@ -476,8 +440,8 @@ export async function processLiveAutoOperator(
               message: "공수교대 전 예측 결과를 입력해 주세요.",
               suggestedResult: suggested,
             });
+            switchHandled = true;
           } else if (await roundNeedsResult(matchId, round)) {
-            // 결과 필요한데 확정 실패 — UI만 공수교대 보내지 않음
             broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
               matchId,
               action: "switch_half",
@@ -485,6 +449,7 @@ export async function processLiveAutoOperator(
               suggestedResult: suggested,
             });
             console.log(`[LiveAuto] switch half blocked (needs result) ${matchId}`);
+            switchHandled = true;
           } else {
             const stats = await RoundStatisticsModel.findOne({ matchId, roundNumber: round })
               .select("isResultSent isPredictionStarted")
@@ -501,6 +466,7 @@ export async function processLiveAutoOperator(
               await emitPhaseSnapshot(matchId, "switch_half", "실황 자동 공수교대");
               scheduleAdIfAllowed(matchId, "switch_half", "idle");
               console.log(`[LiveAuto] switch half ${matchId}`);
+              switchHandled = true;
             } catch (advanceErr) {
               console.warn(`[LiveAuto] switch half advance failed ${matchId}:`, advanceErr);
               broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
@@ -512,22 +478,32 @@ export async function processLiveAutoOperator(
                     : "공수교대 전 예측 결과를 입력해 주세요.",
                 suggestedResult: suggested,
               });
+              switchHandled = true;
             }
           }
         }
       } catch (error) {
         console.warn(`[LiveAuto] switch half failed ${matchId}:`, error);
+        switchHandled = true;
+      }
+
+      if (switchHandled) {
+        if (batterStableChanged && batterName) {
+          state.lastBatterName = batterName;
+          state.pendingBatterName = batterName;
+          state.pendingBatterSince = now;
+        }
+        // 투수명은 기준만 맞추지 않음 — 공수 다음 tick에서 필요 시 교체 처리
+        state.lastOuts = outs;
+        if (half) state.lastHalf = half;
+        if (inning != null) state.lastInning = inning;
+        return;
       }
     }
 
-    // —— 투수 교체 (안정화 + 결과대기 아님 + 3아웃 미만) ——
-    const phaseForPitcher = await resolveAtBatPhase(matchId);
-    if (
-      pitcherStableChanged &&
-      outs < 3 &&
-      !blocksAdvanceUntilResult(phaseForPitcher) &&
-      pitcherName
-    ) {
+    // —— 투수 교체: 예측 열림/닫힘(결과대기)에서도 환불(skippedResult) 후 진행 가능 ——
+    // 3아웃·공수 우선. 성공 시 같은 tick에서 타자/예측 시작으로 이어가지 않음.
+    if (pitcherStableChanged && outs < 3 && pitcherName) {
       try {
         const { skippedResult } = await advancePitcherChange(matchId);
         await syncPhaseFromLive(matchId, scoreboard);
@@ -541,10 +517,44 @@ export async function processLiveAutoOperator(
         state.lastPitcherName = pitcherName;
         state.pendingPitcherName = pitcherName;
         state.pendingPitcherSince = now;
+        if (batterStableChanged && batterName) {
+          state.lastBatterName = batterName;
+          state.pendingBatterName = batterName;
+          state.pendingBatterSince = now;
+        }
+        state.lastOuts = outs;
+        if (half) state.lastHalf = half;
+        if (inning != null) state.lastInning = inning;
         console.log(`[LiveAuto] pitcher change ${matchId} → ${pitcherName}`);
+        return;
       } catch (error) {
         console.warn(`[LiveAuto] pitcher change failed ${matchId}:`, error);
       }
+    }
+
+    // 결과 대기 중이면 다음타자·광고 금지 (투수교체는 위에서 처리)
+    const phaseAfterResult = await resolveAtBatPhase(matchId);
+    if (blocksAdvanceUntilResult(phaseAfterResult)) {
+      if (batterStableChanged && phaseAfterResult === "prediction_open" && outs < 3) {
+        clearStopTimer(matchId);
+        await stopPredictionIfOpen(matchId, "실황 자동: 타자 변경으로 예측 중지");
+        broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
+          matchId,
+          action: "next_batter",
+          message: "다음 타자 전 예측 결과를 입력해 주세요.",
+          suggestedResult: suggested,
+        });
+      }
+
+      if (batterStableChanged && batterName) {
+        state.lastBatterName = batterName;
+        state.pendingBatterName = batterName;
+        state.pendingBatterSince = now;
+      }
+      state.lastOuts = outs;
+      if (half) state.lastHalf = half;
+      if (inning != null) state.lastInning = inning;
+      return;
     }
 
     // —— 타자 변경 → 다음타자 + 예측 시작 (idle | result_confirmed) ——

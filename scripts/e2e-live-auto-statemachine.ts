@@ -6,8 +6,15 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import type { LiveScoreboard } from "../shared/apiSportsTypes";
 import { MatchModel, RoundStatisticsModel } from "../server/UserStorage/db";
-import { processLiveAutoOperator, clearLiveAutoOperator } from "../server/liveMatch/liveAutoOperator";
+import {
+  processLiveAutoOperator,
+  clearLiveAutoOperator,
+  LIVE_AUTO_BATTER_STABLE_MS,
+  LIVE_AUTO_PITCHER_STABLE_MS,
+} from "../server/liveMatch/liveAutoOperator";
 import { resolveAtBatPhase } from "../server/liveMatch/atBatStateMachine";
+import { getNextSequence } from "../server/UserStorage/db";
+import { stopRound, updateRoundPredictionResult } from "../server/liveMatch/predictionStorage";
 
 const MATCH_ID = "5081ab3a-fbdf-4a1a-adb9-2766752af6c0";
 
@@ -56,11 +63,52 @@ async function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);
 }
 
-async function resetMatchIdle() {
+async function ensureRoundStats(roundNumber: number) {
+  const existing = await RoundStatisticsModel.findOne({ matchId: MATCH_ID, roundNumber }).lean();
+  if (existing) return;
+  const id = await getNextSequence("roundStatistics");
+  await RoundStatisticsModel.create({
+    id,
+    matchId: MATCH_ID,
+    roundNumber,
+    isPredictionStarted: false,
+    isPredictionStopped: false,
+    isResultSent: false,
+  });
+}
+
+async function resetMatchIdle(opts?: { half?: "top" | "bottom"; inning?: number; outs?: number }) {
   clearLiveAutoOperator(MATCH_ID);
-  const match = await MatchModel.findOne({ id: MATCH_ID }).lean();
-  if (!match) throw new Error("match missing");
-  const round = (match.currentRound as number) ?? 1;
+  const half = opts?.half ?? "top";
+  const inning = opts?.inning ?? 3;
+  const outs = opts?.outs ?? 0;
+
+  let match = await MatchModel.findOne({ id: MATCH_ID }).lean();
+  if (!match) {
+    await MatchModel.create({
+      id: MATCH_ID,
+      name: "제1경기",
+      stadiumId: 1,
+      matchDate: "2026-08-17",
+      startTime: new Date(Date.now() - 60_000),
+      endTime: new Date(Date.now() + 3 * 3600_000),
+      matchStatus: "ongoing",
+      currentRound: 1,
+      predictionEnabled: false,
+      liveAutoEnabled: true,
+      outsInHalf: outs,
+      gameInning: inning,
+      inningHalf: half,
+      batterIndexInHalf: 1,
+      awayBatterOrder: 1,
+      homeBatterOrder: 1,
+      controlMode: "auto",
+    });
+    match = await MatchModel.findOne({ id: MATCH_ID }).lean();
+  }
+
+  const round = (match?.currentRound as number) ?? 1;
+  await ensureRoundStats(round);
   await RoundStatisticsModel.updateOne(
     { matchId: MATCH_ID, roundNumber: round },
     {
@@ -72,7 +120,6 @@ async function resetMatchIdle() {
         predictionStopTime: null,
       },
     },
-    { upsert: false },
   );
   await MatchModel.updateOne(
     { id: MATCH_ID },
@@ -81,53 +128,179 @@ async function resetMatchIdle() {
         matchStatus: "ongoing",
         predictionEnabled: false,
         liveAutoEnabled: true,
-        outsInHalf: 0,
-        gameInning: 3,
-        inningHalf: "top",
+        outsInHalf: outs,
+        gameInning: inning,
+        inningHalf: half,
+        currentRound: round,
       },
     },
   );
 }
 
+async function openPredictionViaAuto(batter: string, pitcher = "박투수") {
+  // seed 기준선(다른 이름) → 목표 타자 안정화 후에만 prediction_open
+  await processLiveAutoOperator(MATCH_ID, board({ batter: "__seed__", pitcher, outs: 0 }));
+  await processLiveAutoOperator(MATCH_ID, board({ batter, pitcher, outs: 0 }));
+  await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
+  await processLiveAutoOperator(MATCH_ID, board({ batter, pitcher, outs: 0 }));
+  const phase = await resolveAtBatPhase(MATCH_ID);
+  await assert(phase === "prediction_open", `expected prediction_open, got ${phase}`);
+}
+
 async function main() {
   await mongoose.connect(process.env.MONGODB_URI as string);
-  await resetMatchIdle();
+  const logs: string[] = [];
+  const pass = (name: string) => {
+    logs.push(`OK ${name}`);
+    console.log(`OK ${name}`);
+  };
 
-  // seed tick
+  // —— 1) seed + flicker + stable batter ——
+  await resetMatchIdle();
   await processLiveAutoOperator(MATCH_ID, board({ batter: "김타자", pitcher: "박투수", outs: 0 }));
   let phase = await resolveAtBatPhase(MATCH_ID);
   await assert(phase === "idle", `seed should stay idle, got ${phase}`);
 
-  // flicker: different names under 3s should NOT start
   await processLiveAutoOperator(MATCH_ID, board({ batter: "이타자", pitcher: "박투수", outs: 0 }));
   await sleep(500);
   await processLiveAutoOperator(MATCH_ID, board({ batter: "최타자", pitcher: "박투수", outs: 0 }));
   phase = await resolveAtBatPhase(MATCH_ID);
   await assert(phase === "idle", `flicker should not open prediction, got ${phase}`);
 
-  // stable batter 3s+
   await processLiveAutoOperator(MATCH_ID, board({ batter: "안정타자", pitcher: "박투수", outs: 0 }));
-  await sleep(3100);
+  await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
   await processLiveAutoOperator(MATCH_ID, board({ batter: "안정타자", pitcher: "박투수", outs: 0 }));
   phase = await resolveAtBatPhase(MATCH_ID);
   await assert(phase === "prediction_open", `stable batter should open, got ${phase}`);
+  pass("stable batter opens prediction");
 
-  // liveAuto OFF — reset and verify no action
+  // —— 2) liveAuto OFF ——
   await resetMatchIdle();
   await MatchModel.updateOne({ id: MATCH_ID }, { $set: { liveAutoEnabled: false } });
   await processLiveAutoOperator(MATCH_ID, board({ batter: "김타자", pitcher: "박투수", outs: 0 }));
-  await sleep(3100);
+  await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
   await processLiveAutoOperator(MATCH_ID, board({ batter: "이타자", pitcher: "박투수", outs: 0 }));
-  await sleep(3100);
+  await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
   await processLiveAutoOperator(MATCH_ID, board({ batter: "이타자", pitcher: "박투수", outs: 0 }));
   phase = await resolveAtBatPhase(MATCH_ID);
   await assert(phase === "idle", `auto OFF must not start, got ${phase}`);
-  const m = await MatchModel.findOne({ id: MATCH_ID }).select("predictionEnabled").lean();
-  await assert(!m?.predictionEnabled, "predictionEnabled must stay false when auto OFF");
+  const mOff = await MatchModel.findOne({ id: MATCH_ID }).select("predictionEnabled").lean();
+  await assert(!mOff?.predictionEnabled, "predictionEnabled must stay false when auto OFF");
+  pass("liveAuto OFF blocks actions");
 
-  // restore ON
+  // —— 3) 3아웃 + 결과 없음 → 공수 차단 (prediction_closed) ——
+  await resetMatchIdle();
   await MatchModel.updateOne({ id: MATCH_ID }, { $set: { liveAutoEnabled: true } });
-  console.log("live-auto state machine E2E OK");
+  await openPredictionViaAuto("타자갑");
+  await stopRound(MATCH_ID);
+  phase = await resolveAtBatPhase(MATCH_ID);
+  await assert(phase === "prediction_closed", `expected closed, got ${phase}`);
+
+  // seed baselines at 2 outs then hit 3 without suggested → blocked, stay closed
+  clearLiveAutoOperator(MATCH_ID);
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ batter: "타자갑", pitcher: "박투수", outs: 2, half: "top", inning: 3 }),
+  );
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ batter: "타자갑", pitcher: "박투수", outs: 3, half: "top", inning: 3, suggested: null }),
+  );
+  phase = await resolveAtBatPhase(MATCH_ID);
+  await assert(phase === "prediction_closed", `3out without result must stay closed, got ${phase}`);
+  const afterBlock = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf predictionEnabled").lean();
+  await assert(afterBlock?.inningHalf === "top", "half must not advance without result");
+  pass("3-out without result blocks switch");
+
+  // —— 4) 3아웃 + suggested 아웃 → 자동 결과 후 공수 ——
+  await resetMatchIdle({ half: "top", inning: 3, outs: 2 });
+  await openPredictionViaAuto("타자을");
+  await stopRound(MATCH_ID);
+  clearLiveAutoOperator(MATCH_ID);
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ batter: "타자을", pitcher: "박투수", outs: 2, half: "top", inning: 3 }),
+  );
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({
+      batter: "타자을",
+      pitcher: "박투수",
+      outs: 3,
+      half: "bottom",
+      inning: 3,
+      suggested: "아웃",
+    }),
+  );
+  phase = await resolveAtBatPhase(MATCH_ID);
+  await assert(
+    phase === "idle" || phase === "result_confirmed",
+    `after auto result+switch expect idle/result_confirmed, got ${phase}`,
+  );
+  // 같은 tick에서 공수 처리 후 return → 예측 재시작은 다음 폴링
+  const mSwitch = await MatchModel.findOne({ id: MATCH_ID }).lean();
+  await assert(
+    !mSwitch?.predictionEnabled,
+    "same tick after switch must not start prediction (ad/event window)",
+  );
+  pass("3-out with suggested out: result then switch, no same-tick predict");
+
+  // —— 5) 투수교체(예측 중) → skippedResult, 같은 tick 타자 예측 시작 안 함 ——
+  await resetMatchIdle({ half: "top", inning: 4, outs: 0 });
+  await openPredictionViaAuto("타자병", "투수구");
+  // 투수·타자 동시 변경 후보
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ batter: "새타자", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
+  );
+  await sleep(Math.max(LIVE_AUTO_BATTER_STABLE_MS, LIVE_AUTO_PITCHER_STABLE_MS) + 100);
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ batter: "새타자", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
+  );
+  phase = await resolveAtBatPhase(MATCH_ID);
+  await assert(phase === "idle", `after pitcher change expect idle (defer batter), got ${phase}`);
+  const mPitch = await MatchModel.findOne({ id: MATCH_ID }).select("predictionEnabled").lean();
+  await assert(!mPitch?.predictionEnabled, "pitcher tick must not also reopen prediction");
+  pass("pitcher change during open prediction refunds and defers batter");
+
+  // next poll: 이미 lastBatter=새타자로 맞춰졌을 수 있어 새 이름으로 예측 오픈
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ batter: "새타자2", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
+  );
+  await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ batter: "새타자2", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
+  );
+  phase = await resolveAtBatPhase(MATCH_ID);
+  await assert(phase === "prediction_open", `next poll should open prediction, got ${phase}`);
+  pass("next poll after pitcher opens prediction");
+
+  // —— 6) 수동 결과 확정 경로와 호환 (결과 후 공수) ——
+  await resetMatchIdle({ half: "top", inning: 5, outs: 2 });
+  await openPredictionViaAuto("타자정");
+  await stopRound(MATCH_ID);
+  const round = (await MatchModel.findOne({ id: MATCH_ID }).select("currentRound").lean())?.currentRound ?? 1;
+  await updateRoundPredictionResult(MATCH_ID, round, "아웃");
+  phase = await resolveAtBatPhase(MATCH_ID);
+  await assert(phase === "result_confirmed", `manual result → confirmed, got ${phase}`);
+  clearLiveAutoOperator(MATCH_ID);
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ batter: "타자정", pitcher: "박투수", outs: 2, half: "top", inning: 5 }),
+  );
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ batter: "타자정", pitcher: "박투수", outs: 3, half: "bottom", inning: 5 }),
+  );
+  phase = await resolveAtBatPhase(MATCH_ID);
+  await assert(phase === "idle", `after confirmed+switch expect idle, got ${phase}`);
+  pass("manual result then auto switch");
+
+  console.log("\nlive-auto state machine E2E OK");
+  console.log(logs.join("\n"));
   await mongoose.disconnect();
 }
 
