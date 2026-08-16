@@ -76,28 +76,6 @@
   line-height: 1.2;
 }
 
-.manager-match-live-auto-btn {
-  flex-shrink: 0;
-  font-size: clamp(10px, 2.4vw, 12px);
-  font-weight: 700;
-  border-radius: 4px;
-  padding: 3px 10px;
-  line-height: 1.2;
-  border: 1px solid transparent;
-}
-
-.manager-match-live-auto-btn--on {
-  background: #dcfce7;
-  color: #166534;
-  border-color: #86efac;
-}
-
-.manager-match-live-auto-btn--off {
-  background: #f3f4f6;
-  color: #6b7280;
-  border-color: #d1d5db;
-}
-
 .manager-match-next-action {
   display: flex;
   align-items: center;
