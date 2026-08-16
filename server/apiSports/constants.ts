@@ -6,10 +6,10 @@ export const MATCH_MGMT_PREGAME_HOURLY_MS = Math.max(
   60_000,
   parseInt(process.env.MATCH_MGMT_PREGAME_HOURLY_MS || String(60 * 60 * 1000), 10) || 60 * 60 * 1000,
 );
-/** 1경기 실시간 스코어 주기 (기본 2.5초 — 사용자 DB 폴링 3초와 맞춤) */
+/** 1경기 실시간 스코어 주기 (기본 2초 — TV 체감 지연 완화, 최소 1.5초) */
 export const LIVE_SCORE_SYNC_INTERVAL_MS = Math.max(
-  2_500,
-  parseInt(process.env.LIVE_SCORE_SYNC_INTERVAL_MS || "2500", 10) || 2_500,
+  1_500,
+  parseInt(process.env.LIVE_SCORE_SYNC_INTERVAL_MS || "2000", 10) || 2_000,
 );
 /** 경기 시작 몇 ms 전부터 live sync (클라이언트 폴링과 동일 1분) */
 export const LIVE_SCORE_SYNC_START_BEFORE_MS = Math.max(

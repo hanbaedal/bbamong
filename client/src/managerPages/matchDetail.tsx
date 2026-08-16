@@ -749,7 +749,11 @@ export default function MatchDetailPage() {
         throw new Error(typeof err?.error === "string" ? err.error : "실황 자동 설정 실패");
       }
       setMatch({ ...match, liveAutoEnabled: next });
-      toast({ description: next ? "실황 자동 ON" : "실황 자동 OFF — 수동만" });
+      toast({
+        description: next
+          ? "완전 자동 ON — 타석·결과·공수까지 자동"
+          : "반자동 — 점수·실황 표시만 자동, 예측/결과는 운영자",
+      });
     } catch (err: unknown) {
       toast({
         variant: "destructive",
@@ -1274,7 +1278,7 @@ export default function MatchDetailPage() {
                   : "manager-match-live-auto-btn--off"
               }`}
             >
-              실황 자동 {match.liveAutoEnabled !== false ? "ON" : "OFF"}
+              실황 {match.liveAutoEnabled !== false ? "완전자동" : "반자동"}
             </button>
           </div>
           {operatorNext.kind !== "none" && (
