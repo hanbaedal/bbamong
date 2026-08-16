@@ -277,7 +277,12 @@ export default function FriendRoomsPage() {
           <ul className="friend-rooms-list">
             {rooms.map((r) => (
               <li key={r.id}>
-                <button type="button" className="friend-rooms-list-item" onClick={() => void openDetail(r.id)}>
+                <button
+                  type="button"
+                  className="friend-rooms-list-item"
+                  data-testid={`friend-room-item-${r.id}`}
+                  onClick={() => void openDetail(r.id)}
+                >
                   <span className="friend-rooms-list-name">{r.name}</span>
                   <span className="friend-rooms-list-meta">
                     {r.isHost ? "방장" : "멤버"} · {r.memberCount}/{r.capacity} · {r.supportTeam}
