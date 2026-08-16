@@ -11,6 +11,7 @@ import AuthPanelModal from "@/components/user/AuthPanelModal";
 import HomeEmbedPanelModal from "@/components/user/HomeEmbedPanelModal";
 import UserGuideContent from "@/components/user/UserGuideContent";
 import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
+import { setCurrentFriendRoom } from "@/lib/friendRoomSession";
 import { navigateUserApp } from "@/lib/landscapeSplitRoutes";
 import { USER_GUIDE_OPEN_KEY } from "@/pages/home/user-guide";
 import { getFullUrl } from "@/lib/queryClient";
@@ -79,7 +80,11 @@ export default function HomePage() {
   const gameGuideEnabled = settings?.gameGuideEnabled ?? true;
   const gameGuideTitle = settings?.gameGuideTitle ?? "야구 예측 게임이란?";
 
-  const goToGame = () => navigateUserApp("/prediction", setLocation);
+  const goToGame = () => {
+    // 홈「예측게임 하러가기」= 공개 예측 (친구방 배지·맥락 해제)
+    setCurrentFriendRoom(null);
+    navigateUserApp("/prediction", setLocation);
+  };
 
   const openEmbed = (panel: HomeEmbedPanel) => {
     setShowUserGuideModal(false);
@@ -205,6 +210,7 @@ export default function HomePage() {
               }}
               onGoPrediction={() => {
                 setShowUserGuideModal(false);
+                setCurrentFriendRoom(null);
                 setLocation("/prediction");
               }}
             />

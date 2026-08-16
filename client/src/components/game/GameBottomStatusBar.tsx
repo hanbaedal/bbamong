@@ -14,6 +14,9 @@ interface GameBottomStatusBarProps {
   headToHead?: HeadToHeadDisplayParts | null;
   onWinnerClick?: () => void;
   onScoreClick?: () => void;
+  /** 친구방 맥락 — 인사말 바로 위에 표시 */
+  friendRoomName?: string | null;
+  onFriendRoomClick?: () => void;
 }
 
 function greetingName(isGuest: boolean, name?: string | null): string {
@@ -50,6 +53,8 @@ export default function GameBottomStatusBar({
   headToHead = null,
   onWinnerClick,
   onScoreClick,
+  friendRoomName = null,
+  onFriendRoomClick,
 }: GameBottomStatusBarProps) {
   const { user, isGuest } = useUser();
   const [dateText, setDateText] = useState(() => formatKstDisplayDate());
@@ -121,6 +126,16 @@ export default function GameBottomStatusBar({
         className="flex shrink-0 flex-col items-center text-[10px] sm:text-xs text-white font-medium drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]"
         data-testid="game-bottom-user-block"
       >
+        {friendRoomName ? (
+          <button
+            type="button"
+            className="pointer-events-auto mb-0.5 max-w-[min(42vw,220px)] truncate rounded-full border border-[#CDFF00]/70 bg-black/55 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold text-[#CDFF00]"
+            data-testid="friend-room-badge"
+            onClick={onFriendRoomClick}
+          >
+            방 · {friendRoomName}
+          </button>
+        ) : null}
         <p data-testid="game-bottom-greeting">안녕하세요. {displayName}님</p>
         <p data-testid="game-bottom-points">보유포인트 : {pointsText}</p>
       </div>

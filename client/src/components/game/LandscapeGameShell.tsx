@@ -77,6 +77,10 @@ interface LandscapeGameShellProps {
   onHomeTeamClick?: () => void;
   /** 경기/경기장 선택 모달 등 — 진행 위젯 숨김 */
   noticeSuppressed?: boolean;
+  friendRoomName?: string | null;
+  onFriendRoomClick?: () => void;
+  /** 종료 오버레이 안내 문구 (기본: 홈으로) */
+  terminalRedirectLabel?: string;
 }
 
 export default function LandscapeGameShell({
@@ -129,6 +133,9 @@ export default function LandscapeGameShell({
   onAwayTeamClick,
   onHomeTeamClick,
   noticeSuppressed = false,
+  friendRoomName = null,
+  onFriendRoomClick,
+  terminalRedirectLabel,
 }: LandscapeGameShellProps) {
   const { isGuest } = useUser();
   const { showGuestPopup, setShowGuestPopup } = useGuestRestriction(isGuest);
@@ -180,7 +187,11 @@ export default function LandscapeGameShell({
             ) : null}
 
             {gameDayOverlayKind && onGameTerminalComplete ? (
-              <GameDayStatusOverlay kind={gameDayOverlayKind} onComplete={onGameTerminalComplete} />
+              <GameDayStatusOverlay
+                kind={gameDayOverlayKind}
+                onComplete={onGameTerminalComplete}
+                redirectLabel={terminalRedirectLabel}
+              />
             ) : null}
 
             <GameFieldLabels
@@ -260,6 +271,8 @@ export default function LandscapeGameShell({
         headToHead={headToHead}
         onWinnerClick={onSideBetWinnerClick}
         onScoreClick={onSideBetScoreClick}
+        friendRoomName={friendRoomName}
+        onFriendRoomClick={onFriendRoomClick}
       />
 
       <GameLeftMenu activePanel={activePanel} onSelect={onMenuSelect} />

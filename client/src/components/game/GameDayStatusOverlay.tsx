@@ -9,10 +9,16 @@ import {
 interface GameDayStatusOverlayProps {
   kind: GameDayOverlayKind;
   onComplete: () => void;
+  /** 예: "방으로" — 기본 "홈으로" */
+  redirectLabel?: string;
 }
 
 /** 종료·취소·연기·미등록 — 경기 전 카운트다운과 같은 대형 중앙 안내 */
-export default function GameDayStatusOverlay({ kind, onComplete }: GameDayStatusOverlayProps) {
+export default function GameDayStatusOverlay({
+  kind,
+  onComplete,
+  redirectLabel = "홈으로",
+}: GameDayStatusOverlayProps) {
   const display =
     kind === "no_match" ? GAME_NO_MATCH_DISPLAY : GAME_TERMINAL_DISPLAY[kind];
   const totalSeconds = Math.ceil(GAME_DAY_END_REDIRECT_MS / 1000);
@@ -66,7 +72,7 @@ export default function GameDayStatusOverlay({ kind, onComplete }: GameDayStatus
         style={{ fontSize: "clamp(7px, 1.6vw, 11px)" }}
         data-testid="game-day-status-redirect"
       >
-        {secondsLeft > 0 ? `${secondsLeft}초 후 홈으로` : "홈으로 이동 중…"}
+        {secondsLeft > 0 ? `${secondsLeft}초 후 ${redirectLabel}` : `${redirectLabel} 이동 중…`}
       </p>
     </div>
   );

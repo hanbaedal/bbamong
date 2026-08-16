@@ -42,6 +42,7 @@ async function serializeRoom(roomId: string, viewerUserId: string) {
     .lean();
   const userMap = new Map(users.map((u) => [u.id, u]));
   const me = members.find((m) => m.userId === viewerUserId);
+  const hostUser = userMap.get(room.hostUserId);
   return {
     id: room.id,
     name: room.name,
@@ -51,6 +52,7 @@ async function serializeRoom(roomId: string, viewerUserId: string) {
     region: room.region ?? "무관",
     capacity: room.capacity,
     hostUserId: room.hostUserId,
+    hostName: hostUser?.name ?? "방장",
     inviteToken: room.inviteToken,
     invitePath: `/rooms/join/${room.inviteToken}`,
     memberCount: members.length,
@@ -364,24 +366,48 @@ export async function friendRoomRoutes(app: Express): Promise<void> {
           .lean();
         const nameMap = new Map(users.map((u) => [u.id, u.name]));
 
-        type Agg = { userId: string; name: string; hits: number; bets: number; net: number };
+        type Agg = {
+          userId: string;
+          name: string;
+          hits: number;
+          fails: number;
+          bets: number;
+          successPoints: number;
+          failPoints: number;
+          net: number;
+        };
         const map = new Map<string, Agg>();
         for (const id of memberIds) {
-          map.set(id, { userId: id, name: nameMap.get(id) ?? "회원", hits: 0, bets: 0, net: 0 });
+          map.set(id, {
+            userId: id,
+            name: nameMap.get(id) ?? "회원",
+            hits: 0,
+            fails: 0,
+            bets: 0,
+            successPoints: 0,
+            failPoints: 0,
+            net: 0,
+          });
         }
         for (const p of preds) {
           const row = map.get(p.userId);
           if (!row) continue;
           row.bets += 1;
+          const amount = p.amount ?? 0;
           if (p.status === "success") {
             row.hits += 1;
-            row.net += (p.wonAmount ?? 0) - (p.amount ?? 0);
+            const profit = Math.max(0, (p.wonAmount ?? 0) - amount);
+            row.successPoints += profit;
+            row.net += (p.wonAmount ?? 0) - amount;
           } else {
-            row.net -= p.amount ?? 0;
+            row.fails += 1;
+            row.failPoints += amount;
+            row.net -= amount;
           }
         }
         const ranking = [...map.values()].sort((a, b) => {
           if (b.hits !== a.hits) return b.hits - a.hits;
+          if (b.successPoints !== a.successPoints) return b.successPoints - a.successPoints;
           if (b.net !== a.net) return b.net - a.net;
           return a.name.localeCompare(b.name, "ko");
         });
