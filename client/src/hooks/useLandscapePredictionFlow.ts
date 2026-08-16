@@ -280,7 +280,19 @@ export function useLandscapePredictionFlow(
       eventTimerRef.current = setTimeout(() => {
         clearEventTimers();
         setEventSubtitle("");
-        setScreenPhase(wantPickingAfterResultRef.current || predictionEnabledRef.current ? "picking" : "wait_start");
+        // 광고가 이미 재생 중이면 이벤트 종료가 ad_playing을 덮어쓰지 않음
+        if (adSessionActiveRef.current || screenPhaseRef.current === "ad_playing") {
+          onDone?.();
+          return;
+        }
+        // 보류 광고가 있으면 이벤트 종료 직후 재생 (wait_start로 먼저 가지 않음)
+        if (pendingInterstitialRef.current) {
+          onDone?.();
+          return;
+        }
+        setScreenPhase(
+          wantPickingAfterResultRef.current || predictionEnabledRef.current ? "picking" : "wait_start",
+        );
         wantPickingAfterResultRef.current = false;
         onDone?.();
       }, ms);
@@ -382,6 +394,8 @@ export function useLandscapePredictionFlow(
 
       const advanceType = pending.advanceType;
       if (advanceType === "pitcher_change") {
+        // 서버 광고(5초)와 이벤트 종료를 맞추기 위해 보류 플래그 선설정
+        pendingInterstitialRef.current = true;
         setScreenPhase("pitcher_change_event");
         scheduleEventDismiss(GAME_EVENT_SHOW_MS, () => {
           void flushPendingInterstitial();
@@ -389,6 +403,7 @@ export function useLandscapePredictionFlow(
         return;
       }
       if (advanceType === "switch_half") {
+        pendingInterstitialRef.current = true;
         setEventSubtitle(pending.gamePhaseDisplayLabel ?? "");
         setScreenPhase("inning_switch_event");
         scheduleEventDismiss(GAME_EVENT_SHOW_MS, () => {
@@ -720,16 +735,20 @@ export function useLandscapePredictionFlow(
         }
         return;
       }
+      // 이전 타석 결과대기 잔류 + 새 예측 시작 = 고착 복구 (대타/공수 후 메뉴 왕복으로만 풀리던 증상)
       if (waitingResultRef.current || activeBetRef.current) {
-        setScreenPhase("wait_result");
-        return;
+        clearResultPresentationState();
+        toast({
+          description: "이전 타석 대기를 해제하고 새 예측을 시작합니다.",
+          duration: 3500,
+        });
       }
       resultShownRef.current = false;
       setPredictionEnabled(true);
       setSelectedPrediction(null);
       setScreenPhase("picking");
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, [isInResultPresentation, stopAdSession]),
+    }, [isInResultPresentation, stopAdSession, clearResultPresentationState, toast]),
 
     onPredictionEnded: useCallback(() => {
       void speakGameVoice(USER_GAME_VOICE.predictionStopped);
@@ -894,8 +913,16 @@ export function useLandscapePredictionFlow(
 
     onAdStarted: useCallback(
       async (data: { matchId?: string }) => {
-        // 결과 연출·대기 중이면 전면광고 보류 → 교체/공수 이벤트 적용 시 재생
-        if (resultShownRef.current || isWaitingForResult() || isInResultPresentation()) {
+        const phase = screenPhaseRef.current;
+        const duringSwitchOrPitcher =
+          phase === "inning_switch_event" || phase === "pitcher_change_event";
+        // 결과 연출·대기·공수/투수 안내 중이면 보류 → 이벤트 종료(flush) 또는 이후 onAdStarted로 재생
+        if (
+          resultShownRef.current ||
+          isWaitingForResult() ||
+          isInResultPresentation() ||
+          duringSwitchOrPitcher
+        ) {
           pendingInterstitialRef.current = true;
           return;
         }
