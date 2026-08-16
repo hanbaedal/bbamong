@@ -3,7 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { ChevronLeft } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { getFullUrl, getOrRefreshAccessToken } from "@/lib/queryClient";
-import { setCurrentFriendRoom, peekPendingFriendRoomOpen, setPendingFriendRoomOpen } from "@/lib/friendRoomSession";
+import { setCurrentFriendRoom, peekPendingFriendRoomOpen, setPendingFriendRoomOpen, clearCurrentFriendRoomIfMatches } from "@/lib/friendRoomSession";
 import { USER_LOGIN_PATH } from "@/lib/loginSession";
 import {
   FRIEND_ROOM_AGE_OPTIONS,
@@ -143,6 +143,9 @@ export default function FriendRoomsPage() {
       setRanking(rank.ranking ?? []);
       setMode("detail");
     } catch (e) {
+      // 강퇴·종료·비멤버 — 예측 화면 배지/맥락이 남지 않게 해제
+      clearCurrentFriendRoomIfMatches(roomId);
+      setDetail(null);
       setError(e instanceof Error ? e.message : "방 조회 실패");
       setMode("list");
     } finally {
@@ -260,10 +263,23 @@ export default function FriendRoomsPage() {
     }
   };
 
-  const enterPrediction = () => {
+  const enterPrediction = async () => {
     if (!detail) return;
-    setCurrentFriendRoom({ id: detail.id, name: detail.name });
-    setLocation("/prediction");
+    setError(null);
+    try {
+      // 강퇴/종료 직후 배지·예측 진입 방지 — 멤버십 재확인
+      const data = await roomFetch(`/api/rooms/${detail.id}`);
+      const room = data.room as RoomDetail;
+      setDetail(room);
+      setCurrentFriendRoom({ id: room.id, name: room.name });
+      setLocation("/prediction");
+    } catch (e) {
+      clearCurrentFriendRoomIfMatches(detail.id);
+      setDetail(null);
+      setMode("list");
+      setError(e instanceof Error ? e.message : "방에 참여할 수 없습니다.");
+      await loadMine();
+    }
   };
 
   const title = useMemo(() => {
@@ -480,7 +496,7 @@ export default function FriendRoomsPage() {
               <button
                 type="button"
                 className="friend-rooms-btn friend-rooms-btn--primary"
-                onClick={enterPrediction}
+                onClick={() => void enterPrediction()}
               >
                 예측 참여
               </button>

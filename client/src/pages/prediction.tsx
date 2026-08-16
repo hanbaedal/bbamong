@@ -5,9 +5,11 @@ import LandscapeGameShell from "@/components/game/LandscapeGameShell";
 import GameSelectModal from "@/components/game/GameSelectModal";
 import TodayMatchesSideBetModal from "@/components/game/TodayMatchesSideBetModal";
 import {
+  clearCurrentFriendRoomIfMatches,
   getCurrentFriendRoomId,
   getCurrentFriendRoomName,
   navigateToFriendRoomDetail,
+  setCurrentFriendRoom,
 } from "@/lib/friendRoomSession";
 import "@/styles/friend-rooms.css";
 import SideBetResultOverlay, {
@@ -108,8 +110,44 @@ export default function PredictionPage() {
     writePersistedSelectedMatchId(selectedMatchId);
   }, [selectedMatchId]);
 
-  const friendRoomId = getCurrentFriendRoomId();
-  const friendRoomName = getCurrentFriendRoomName();
+  const [friendRoomId, setFriendRoomId] = useState<string | null>(() => getCurrentFriendRoomId());
+  const [friendRoomName, setFriendRoomName] = useState<string | null>(() =>
+    getCurrentFriendRoomName(),
+  );
+
+  /** 강퇴·방 종료 후 배지가 남지 않도록 멤버십 재확인 (공개 예측 흐름은 그대로) */
+  useEffect(() => {
+    const roomId = getCurrentFriendRoomId();
+    if (!roomId) {
+      setFriendRoomId(null);
+      setFriendRoomName(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await apiRequest("GET", `/api/rooms/${roomId}`);
+        if (cancelled) return;
+        if (!res.ok) {
+          clearCurrentFriendRoomIfMatches(roomId);
+          setFriendRoomId(null);
+          setFriendRoomName(null);
+          return;
+        }
+        const data = await res.json();
+        const name = (data?.room?.name as string | undefined)?.trim() || getCurrentFriendRoomName();
+        setCurrentFriendRoom({ id: roomId, name: name || "방" });
+        setFriendRoomId(roomId);
+        setFriendRoomName(name || "방");
+      } catch {
+        if (cancelled) return;
+        // 네트워크 오류 시에는 배지 유지 (일시 장애)
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const goAfterMatchEnd = useCallback(() => {
     const roomId = getCurrentFriendRoomId();
