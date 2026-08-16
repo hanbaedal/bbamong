@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { ChevronLeft } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
@@ -87,15 +87,29 @@ function shareInvite(room: { name: string; description: string; invitePath: stri
   alert("초대 문구를 클립보드에 복사했습니다. 카카오톡에 붙여넣어 공유하세요.");
 }
 
+function readInitialOpenRoomId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return new URLSearchParams(window.location.search).get("open") || peekPendingFriendRoomOpen();
+  } catch {
+    return null;
+  }
+}
+
 export default function FriendRoomsPage() {
   const [, setLocation] = useLocation();
   const { user, isGuest, isUserLoaded } = useUser();
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"list" | "create" | "detail">("list");
+  /** 배지/종료 복귀 시 목록 깜빡임 없이 상세로 직행 */
+  const initialOpenIdRef = useRef<string | null>(readInitialOpenRoomId());
+  const [mode, setMode] = useState<"list" | "create" | "detail" | "opening">(
+    () => (initialOpenIdRef.current ? "opening" : "list"),
+  );
   const [detail, setDetail] = useState<RoomDetail | null>(null);
   const [ranking, setRanking] = useState<RankRow[]>([]);
+  const [opening, setOpening] = useState(() => Boolean(initialOpenIdRef.current));
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -121,6 +135,7 @@ export default function FriendRoomsPage() {
 
   const openDetail = async (roomId: string) => {
     setError(null);
+    setOpening(true);
     try {
       const data = await roomFetch(`/api/rooms/${roomId}`);
       setDetail(data.room);
@@ -129,6 +144,9 @@ export default function FriendRoomsPage() {
       setMode("detail");
     } catch (e) {
       setError(e instanceof Error ? e.message : "방 조회 실패");
+      setMode("list");
+    } finally {
+      setOpening(false);
     }
   };
 
@@ -141,19 +159,28 @@ export default function FriendRoomsPage() {
     if (isGuest) {
       setError("친구·동호회 방은 정회원만 이용할 수 있습니다.");
       setLoading(false);
+      setOpening(false);
       return;
     }
     void (async () => {
-      await loadMine();
       const openId =
-        new URLSearchParams(window.location.search).get("open") || peekPendingFriendRoomOpen();
+        initialOpenIdRef.current ||
+        new URLSearchParams(window.location.search).get("open") ||
+        peekPendingFriendRoomOpen();
+      initialOpenIdRef.current = null;
+
       if (openId) {
+        // 목록을 먼저 그리지 않고 상세부터 로드 (배지 클릭 직행)
         await openDetail(openId);
         setPendingFriendRoomOpen(null);
         if (window.location.search.includes("open=")) {
           window.history.replaceState({}, "", "/home/rooms");
         }
+        void loadMine();
+        return;
       }
+
+      await loadMine();
     })();
   }, [isUserLoaded, user, isGuest, setLocation]);
 
@@ -241,6 +268,7 @@ export default function FriendRoomsPage() {
 
   const title = useMemo(() => {
     if (mode === "create") return "방 만들기";
+    if (mode === "opening") return "방 여는 중…";
     if (mode === "detail") return detail?.name ?? "방";
     return "친구·동호회 방";
   }, [mode, detail]);
@@ -258,7 +286,7 @@ export default function FriendRoomsPage() {
           className="friend-rooms-back"
           aria-label="뒤로"
           onClick={() => {
-            if (mode === "list") setLocation("/home");
+            if (mode === "list" || mode === "opening") setLocation("/home");
             else {
               setMode("list");
               setDetail(null);
@@ -282,7 +310,13 @@ export default function FriendRoomsPage() {
         </div>
       ) : null}
 
-      {!isGuest && mode === "list" ? (
+      {!isGuest && (mode === "opening" || (opening && mode !== "detail" && mode !== "create")) ? (
+        <div className="friend-rooms-pane" data-testid="friend-rooms-opening">
+          <p className="friend-rooms-muted">방 정보를 불러오는 중…</p>
+        </div>
+      ) : null}
+
+      {!isGuest && mode === "list" && !opening ? (
         <div className="friend-rooms-split" data-testid="friend-rooms-hub">
           <div className="friend-rooms-pane">
             <div className="friend-rooms-create-hero">
