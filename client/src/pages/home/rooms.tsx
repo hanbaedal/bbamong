@@ -3,7 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { ChevronLeft } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { getFullUrl, getOrRefreshAccessToken } from "@/lib/queryClient";
-import { setCurrentFriendRoom } from "@/lib/friendRoomSession";
+import { setCurrentFriendRoom, peekPendingFriendRoomOpen, setPendingFriendRoomOpen } from "@/lib/friendRoomSession";
 import { USER_LOGIN_PATH } from "@/lib/loginSession";
 import {
   FRIEND_ROOM_AGE_OPTIONS,
@@ -145,10 +145,14 @@ export default function FriendRoomsPage() {
     }
     void (async () => {
       await loadMine();
-      const openId = new URLSearchParams(window.location.search).get("open");
+      const openId =
+        new URLSearchParams(window.location.search).get("open") || peekPendingFriendRoomOpen();
       if (openId) {
         await openDetail(openId);
-        window.history.replaceState({}, "", "/home/rooms");
+        setPendingFriendRoomOpen(null);
+        if (window.location.search.includes("open=")) {
+          window.history.replaceState({}, "", "/home/rooms");
+        }
       }
     })();
   }, [isUserLoaded, user, isGuest, setLocation]);
@@ -542,7 +546,8 @@ export function FriendRoomJoinPage() {
         body: "{}",
       });
       // 방 맥락은 「예측 참여」에서만 설정 — 상세로 이동
-      setLocation(`/home/rooms?open=${encodeURIComponent(data.room.id)}`);
+      setPendingFriendRoomOpen(data.room.id);
+      setLocation(`/home/rooms`);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "입장 실패");
     }

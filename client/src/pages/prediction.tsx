@@ -7,6 +7,7 @@ import TodayMatchesSideBetModal from "@/components/game/TodayMatchesSideBetModal
 import {
   getCurrentFriendRoomId,
   getCurrentFriendRoomName,
+  navigateToFriendRoomDetail,
 } from "@/lib/friendRoomSession";
 import "@/styles/friend-rooms.css";
 import SideBetResultOverlay, {
@@ -113,7 +114,7 @@ export default function PredictionPage() {
   const goAfterMatchEnd = useCallback(() => {
     const roomId = getCurrentFriendRoomId();
     if (roomId) {
-      setLocation(`/home/rooms?open=${encodeURIComponent(roomId)}`);
+      navigateToFriendRoomDetail(roomId, setLocation);
       return;
     }
     navigateToHome();
@@ -666,7 +667,7 @@ export default function PredictionPage() {
         friendRoomName={friendRoomName}
         onFriendRoomClick={() => {
           if (!friendRoomId) return;
-          setLocation(`/home/rooms?open=${encodeURIComponent(friendRoomId)}`);
+          navigateToFriendRoomDetail(friendRoomId, setLocation);
         }}
         pregameCountdown={pregameCountdown}
         sideBetSummary={sideBetSummary}
