@@ -43,6 +43,7 @@ import sideBetRoutes from "./liveMatch/sideBetRoutes"
 import matchControlRoutes from "./liveMatch/matchControlRoutes"
 import { healthRoutes } from "./routes/healthRoutes"
 import { apiSportsRoutes } from "./apiSports/routes";
+import { friendRoomRoutes } from "./UserRoutes/friendRoomRoutes";
 
 export async function registerRoutes(app: Express): Promise<void> {
   app.use(
@@ -70,6 +71,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   await mallProductImageRoutes(app)
   await faqRoutes(app)
   await ebookRoutes(app)
+  await friendRoomRoutes(app)
   
   // 전화번호 인증 라우터 등록
   await phoneVerificationRoutes(app)

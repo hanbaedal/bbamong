@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import LandscapeGameShell from "@/components/game/LandscapeGameShell";
 import GameSelectModal from "@/components/game/GameSelectModal";
 import TodayMatchesSideBetModal from "@/components/game/TodayMatchesSideBetModal";
+import { getCurrentFriendRoomId, getCurrentFriendRoomName } from "@/lib/friendRoomSession";
+import "@/styles/friend-rooms.css";
 import SideBetResultOverlay, {
   type SideBetResultLine,
 } from "@/components/game/SideBetResultOverlay";
@@ -598,6 +600,19 @@ export default function PredictionPage() {
 
   return (
     <>
+      {getCurrentFriendRoomId() && getCurrentFriendRoomName() ? (
+        <a
+          href="/home/rooms"
+          className="friend-room-badge"
+          data-testid="friend-room-badge"
+          onClick={(e) => {
+            e.preventDefault();
+            setLocation("/home/rooms");
+          }}
+        >
+          방 · {getCurrentFriendRoomName()}
+        </a>
+      ) : null}
       <LandscapeGameShell
         matchTitle={matchTitle}
         stadiumName={stadiumName}

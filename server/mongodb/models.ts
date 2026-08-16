@@ -734,4 +734,55 @@ kboPlayerSchema.index(
 );
 export const KboPlayerModel = mongoose.model("KboPlayer", kboPlayerSchema);
 
+const friendRoomSchema = new Schema(
+  {
+    id: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    description: { type: String, default: "" },
+    supportTeam: { type: String, default: "무관" },
+    ageGroup: { type: String, default: "무관" },
+    region: { type: String, default: "무관" },
+    capacity: { type: Number, required: true },
+    hostUserId: { type: String, required: true },
+    inviteToken: { type: String, required: true, unique: true },
+    disclaimerAgreedAt: { type: Date, required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+friendRoomSchema.index({ hostUserId: 1, createdAt: -1 });
+export const FriendRoomModel = mongoose.model("FriendRoom", friendRoomSchema);
+
+const friendRoomMemberSchema = new Schema(
+  {
+    id: { type: String, required: true, unique: true },
+    roomId: { type: String, required: true },
+    userId: { type: String, required: true },
+    role: { type: String, enum: ["host", "member"], required: true },
+    joinedAt: { type: Date, default: Date.now },
+  },
+  { versionKey: false },
+);
+friendRoomMemberSchema.index({ roomId: 1, userId: 1 }, { unique: true });
+friendRoomMemberSchema.index({ userId: 1, joinedAt: -1 });
+export const FriendRoomMemberModel = mongoose.model("FriendRoomMember", friendRoomMemberSchema);
+
+/** 방 종료 후 면책·부정이용 대응용 최소 감사 로그 (TTL) */
+const friendRoomAuditSchema = new Schema(
+  {
+    id: { type: String, required: true, unique: true },
+    hostUserId: { type: String, required: true },
+    roomNameSnapshot: { type: String, default: "" },
+    disclaimerAgreedAt: { type: Date, required: true },
+    createdAt: { type: Date, required: true },
+    closedAt: { type: Date, required: true },
+    memberCountAtClose: { type: Number, default: 0 },
+    expiresAt: { type: Date, required: true },
+  },
+  { versionKey: false },
+);
+friendRoomAuditSchema.index({ hostUserId: 1, closedAt: -1 });
+friendRoomAuditSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+export const FriendRoomAuditModel = mongoose.model("FriendRoomAudit", friendRoomAuditSchema);
+
 export type MongoUser = InferSchemaType<typeof userSchema>;

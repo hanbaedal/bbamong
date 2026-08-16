@@ -182,6 +182,14 @@ export default function HomePage() {
               {buttonText}
             </button>
           ) : null}
+          <button
+            type="button"
+            data-testid="button-friend-rooms"
+            onClick={() => navigateUserApp("/home/rooms", setLocation)}
+            className="user-home-friend-room-btn"
+          >
+            친구·동호회 방
+          </button>
 
           <AuthPanelModal
             anchor="left"
