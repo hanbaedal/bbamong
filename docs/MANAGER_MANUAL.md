@@ -90,9 +90,12 @@ client/src/
 | POST | `/api/manager/login` | 로그인 |
 | GET | `/api/manager/matches` | 배정 경기 |
 | GET | `/api/manager/match/:id` | 상세 |
-| POST | `/api/manager/match/:id/round/start` | 예측 시작 |
-| POST | `/api/manager/match/:id/round/stop` | 예측 중지 |
-| POST | `/api/manager/match/:id/round/result` | 결과 |
+| POST | `/api/manager/matches/:id/prediction/start` | 예측 시작 |
+| POST | `/api/manager/matches/:id/prediction/stop` | 예측 중지 |
+| POST | `/api/manager/matches/:id/result` | 결과 |
+| POST | `/api/manager/control/:id/round/next-batter` | 다음 타자 |
+| POST | `/api/manager/control/:id/round/switch-half` | 공수교대 |
+| POST | `/api/manager/control/:id/round/pitcher-change` | 투수교체 |
 | PATCH | `/api/manager/matches/:id/scoreboard` | 점수 보정 → manual |
 
 ### 3.5 권한·세션
