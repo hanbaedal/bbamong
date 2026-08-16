@@ -44,6 +44,7 @@ import matchControlRoutes from "./liveMatch/matchControlRoutes"
 import { healthRoutes } from "./routes/healthRoutes"
 import { apiSportsRoutes } from "./apiSports/routes";
 import { friendRoomRoutes } from "./UserRoutes/friendRoomRoutes";
+import { registerAgentDebugLogRoute } from "./agentDebugLog";
 
 export async function registerRoutes(app: Express): Promise<void> {
   app.use(
@@ -52,6 +53,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       maxAge: "7d",
     }),
   );
+
+  // #region agent log
+  registerAgentDebugLogRoute(app);
+  // #endregion
 
   await healthRoutes(app)
   await apiSportsRoutes(app)

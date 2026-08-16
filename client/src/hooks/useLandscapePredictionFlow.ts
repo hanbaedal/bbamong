@@ -21,6 +21,32 @@ import { speakGameVoice, USER_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
 
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 
+// #region agent log
+function agentClientLog(
+  hypothesisId: string,
+  location: string,
+  message: string,
+  data?: Record<string, unknown>,
+) {
+  try {
+    fetch("/api/_agent_debug_log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hypothesisId,
+        location,
+        message,
+        data: data ?? {},
+        timestamp: Date.now(),
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}
+// #endregion
+
 export interface MatchFlowData {
   id: string;
   name: string;
@@ -280,7 +306,18 @@ export function useLandscapePredictionFlow(
       eventTimerRef.current = setTimeout(() => {
         clearEventTimers();
         setEventSubtitle("");
-        setScreenPhase(wantPickingAfterResultRef.current || predictionEnabledRef.current ? "picking" : "wait_start");
+        const nextPhase =
+          wantPickingAfterResultRef.current || predictionEnabledRef.current ? "picking" : "wait_start";
+        // #region agent log
+        agentClientLog("B", "useLandscapePredictionFlow.ts:scheduleEventDismiss", "event dismiss firing", {
+          prevPhase: screenPhaseRef.current,
+          nextPhase,
+          pendingInterstitial: pendingInterstitialRef.current,
+          adSessionActive: adSessionActiveRef.current,
+          ms,
+        });
+        // #endregion
+        setScreenPhase(nextPhase);
         wantPickingAfterResultRef.current = false;
         onDone?.();
       }, ms);
@@ -326,12 +363,35 @@ export function useLandscapePredictionFlow(
 
   const runInterstitialSession = useCallback(
     async (matchId?: string) => {
-      if (adSessionActiveRef.current || screenPhaseRef.current === "ad_playing") return;
+      // #region agent log
+      agentClientLog("F", "useLandscapePredictionFlow.ts:runInterstitialSession", "enter", {
+        matchId,
+        adSessionActive: adSessionActiveRef.current,
+        screenPhase: screenPhaseRef.current,
+        pendingInterstitial: pendingInterstitialRef.current,
+      });
+      // #endregion
+      if (adSessionActiveRef.current || screenPhaseRef.current === "ad_playing") {
+        // #region agent log
+        agentClientLog("F", "useLandscapePredictionFlow.ts:runInterstitialSession", "early return", {
+          matchId,
+          adSessionActive: adSessionActiveRef.current,
+          screenPhase: screenPhaseRef.current,
+        });
+        // #endregion
+        return;
+      }
       adSessionActiveRef.current = true;
       adDismissedEarlyRef.current = false;
       setShowBetModal(false);
       setShowConfirmModal(false);
       setScreenPhase("ad_playing");
+      // #region agent log
+      agentClientLog("F", "useLandscapePredictionFlow.ts:runInterstitialSession", "started ad_playing", {
+        matchId,
+        isNativePlatform,
+      });
+      // #endregion
 
       if (isNativePlatform) {
         const { dismissedEarly, mode } = await startAdSession();
@@ -362,6 +422,15 @@ export function useLandscapePredictionFlow(
   );
 
   const flushPendingInterstitial = useCallback(async () => {
+    // #region agent log
+    agentClientLog("A", "useLandscapePredictionFlow.ts:flushPendingInterstitial", "flush called", {
+      pending: pendingInterstitialRef.current,
+      screenPhase: screenPhaseRef.current,
+      matchId: selectedMatch?.id,
+      waiting: waitingResultRef.current,
+      activeBet: activeBetRef.current != null,
+    });
+    // #endregion
     if (!pendingInterstitialRef.current) return;
     pendingInterstitialRef.current = false;
     await runInterstitialSession(selectedMatch?.id);
@@ -381,6 +450,15 @@ export function useLandscapePredictionFlow(
       }
 
       const advanceType = pending.advanceType;
+      // #region agent log
+      agentClientLog("A", "useLandscapePredictionFlow.ts:applyRoundNextAdvance", "advance", {
+        advanceType,
+        pendingInterstitial: pendingInterstitialRef.current,
+        predictionEnabled: pending.predictionEnabled,
+        gamePhaseDisplayLabel: pending.gamePhaseDisplayLabel,
+        eventShowMs: GAME_EVENT_SHOW_MS,
+      });
+      // #endregion
       if (advanceType === "pitcher_change") {
         setScreenPhase("pitcher_change_event");
         scheduleEventDismiss(GAME_EVENT_SHOW_MS, () => {
@@ -868,6 +946,13 @@ export function useLandscapePredictionFlow(
 
       // 성공 축하·주루 / 실패 배너 중이면 round_next로 끊지 않음
       if (isInResultPresentation()) {
+        // #region agent log
+        agentClientLog("D", "useLandscapePredictionFlow.ts:onRoundNext", "defer round_next (in result)", {
+          advanceType: pendingPayload.advanceType,
+          screenPhase: screenPhaseRef.current,
+          pendingInterstitial: pendingInterstitialRef.current,
+        });
+        // #endregion
         pendingRoundNextRef.current = pendingPayload;
         queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
         return;
@@ -875,6 +960,14 @@ export function useLandscapePredictionFlow(
 
       // 결과 대기 중 — 결과 생략(환불)이 아니면 대기 UI 유지 후 결과 연출 → 이어서 적용
       if (isWaitingForResult() && !data.skippedResult) {
+        // #region agent log
+        agentClientLog("D", "useLandscapePredictionFlow.ts:onRoundNext", "defer round_next (wait_result)", {
+          advanceType: pendingPayload.advanceType,
+          screenPhase: screenPhaseRef.current,
+          pendingInterstitial: pendingInterstitialRef.current,
+          activeBet: activeBetRef.current != null,
+        });
+        // #endregion
         pendingRoundNextRef.current = pendingPayload;
         queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
         return;
@@ -894,8 +987,23 @@ export function useLandscapePredictionFlow(
 
     onAdStarted: useCallback(
       async (data: { matchId?: string }) => {
+        const waiting = isWaitingForResult();
+        const inResult = isInResultPresentation();
+        const defer = resultShownRef.current || waiting || inResult;
+        // #region agent log
+        agentClientLog("D", "useLandscapePredictionFlow.ts:onAdStarted", defer ? "defer pending" : "run now", {
+          matchId: data?.matchId,
+          defer,
+          resultShown: resultShownRef.current,
+          waiting,
+          inResult,
+          screenPhase: screenPhaseRef.current,
+          pendingBefore: pendingInterstitialRef.current,
+          adSessionActive: adSessionActiveRef.current,
+        });
+        // #endregion
         // 결과 연출·대기 중이면 전면광고 보류 → 교체/공수 이벤트 적용 시 재생
-        if (resultShownRef.current || isWaitingForResult() || isInResultPresentation()) {
+        if (defer) {
           pendingInterstitialRef.current = true;
           return;
         }

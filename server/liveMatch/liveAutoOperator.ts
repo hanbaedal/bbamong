@@ -19,6 +19,7 @@ import {
   stopRound,
   updateRoundPredictionResult,
 } from "./predictionStorage";
+import { agentDebugLog } from "../agentDebugLog";
 
 /** 타자 변경 후 예측 중지까지 */
 export const LIVE_AUTO_PRED_STOP_MS = 15_000;
@@ -95,16 +96,47 @@ function scheduleAdIfAllowed(
   phase: AtBatPhase,
 ): void {
   if (blocksAdvanceUntilResult(phase)) {
+    // #region agent log
+    agentDebugLog({
+      hypothesisId: "C",
+      location: "liveAutoOperator.ts:scheduleAdIfAllowed",
+      message: "ad blocked by phase",
+      data: { matchId, reason, phase },
+    });
+    // #endregion
     console.log(`[LiveAuto] ad blocked (${reason}) phase=${phase} ${matchId}`);
     return;
   }
   const state = getState(matchId);
   const now = Date.now();
-  if (now - state.lastAdAt < LIVE_AUTO_AD_COOLDOWN_MS) {
+  const sinceLastAd = now - state.lastAdAt;
+  if (sinceLastAd < LIVE_AUTO_AD_COOLDOWN_MS) {
+    // #region agent log
+    agentDebugLog({
+      hypothesisId: "C",
+      location: "liveAutoOperator.ts:scheduleAdIfAllowed",
+      message: "ad skipped cooldown",
+      data: {
+        matchId,
+        reason,
+        phase,
+        sinceLastAdMs: sinceLastAd,
+        cooldownMs: LIVE_AUTO_AD_COOLDOWN_MS,
+      },
+    });
+    // #endregion
     console.log(`[LiveAuto] ad skipped (${reason}) cooldown ${matchId}`);
     return;
   }
   state.lastAdAt = now;
+  // #region agent log
+  agentDebugLog({
+    hypothesisId: "C",
+    location: "liveAutoOperator.ts:scheduleAdIfAllowed",
+    message: "ad allowed → scheduleAdStart",
+    data: { matchId, reason, phase },
+  });
+  // #endregion
   broadcastManager.clearAdTimer(matchId);
   const rewardKey = `${matchId}:auto-${reason}:${now}`;
   broadcastManager.sendToMatch(matchId, "rewarded_ad_offer", {

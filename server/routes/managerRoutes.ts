@@ -22,6 +22,7 @@ import {
   PPAMONG_OPERATOR_LINK_ONLY,
   PPAMONG_OPERATOR_LOGIN_DENIED,
 } from "../../shared/operatorLoginPolicy";
+import { agentDebugLog } from "../agentDebugLog";
 
 const adminStorage = new AdminStorage();
 const MANAGER_APP_SCHEME = "ppamongmanager";
@@ -1382,6 +1383,21 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       // 전면·보상 광고 (배너 없음) — 공수교대 안내 연출 후 재생
       const halfRewardKey = `${id}:switch-half:${Date.now()}`;
+      // #region agent log
+      agentDebugLog({
+        hypothesisId: "A",
+        location: "managerRoutes.ts:switch-half",
+        message: "manual switch-half scheduling ad",
+        data: {
+          matchId: id,
+          currentRound: updatedMatch.currentRound,
+          predictionEnabled: updatedMatch.predictionEnabled,
+          wasAdPlaying: broadcastManager.isAdPlaying(id),
+          clientCount: broadcastManager.getClientCount(id),
+          rewardKey: halfRewardKey,
+        },
+      });
+      // #endregion
       broadcastManager.sendToMatch(id, "rewarded_ad_offer", {
         matchId: id,
         rewardKey: halfRewardKey,
