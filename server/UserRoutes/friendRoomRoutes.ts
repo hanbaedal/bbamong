@@ -229,6 +229,12 @@ export async function friendRoomRoutes(app: Express): Promise<void> {
           role: "member",
           joinedAt: new Date(),
         });
+        // 동시 입장 레이스 — 정원 초과 시 방금 넣은 멤버십 롤백
+        const afterCount = await FriendRoomMemberModel.countDocuments({ roomId: room.id });
+        if (afterCount > room.capacity) {
+          await FriendRoomMemberModel.deleteOne({ roomId: room.id, userId });
+          return res.status(400).json({ error: "방 정원이 가득 찼습니다." });
+        }
         const serialized = await serializeRoom(room.id, userId);
         return res.json({ room: serialized, alreadyMember: false });
       } catch (error) {
