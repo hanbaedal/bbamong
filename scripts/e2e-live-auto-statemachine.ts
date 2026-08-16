@@ -165,19 +165,19 @@ async function main() {
   await assert(phase === "prediction_open", `stable batter should open, got ${phase}`);
   pass("stable batter opens prediction");
 
-  // —— 2) liveAuto OFF ——
+  // —— 2) liveAutoEnabled=false 잔여값 → 자동 복구 후 계속 진행 ——
   await resetMatchIdle();
   await MatchModel.updateOne({ id: MATCH_ID }, { $set: { liveAutoEnabled: false } });
   await processLiveAutoOperator(MATCH_ID, board({ batter: "김타자", pitcher: "박투수", outs: 0 }));
+  const healed = await MatchModel.findOne({ id: MATCH_ID }).select("liveAutoEnabled").lean();
+  await assert(healed?.liveAutoEnabled !== false, "false must be healed to true");
   await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
   await processLiveAutoOperator(MATCH_ID, board({ batter: "이타자", pitcher: "박투수", outs: 0 }));
   await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
   await processLiveAutoOperator(MATCH_ID, board({ batter: "이타자", pitcher: "박투수", outs: 0 }));
   phase = await resolveAtBatPhase(MATCH_ID);
-  await assert(phase === "idle", `auto OFF must not start, got ${phase}`);
-  const mOff = await MatchModel.findOne({ id: MATCH_ID }).select("predictionEnabled").lean();
-  await assert(!mOff?.predictionEnabled, "predictionEnabled must stay false when auto OFF");
-  pass("liveAuto OFF blocks actions");
+  await assert(phase === "prediction_open", `healed auto should open, got ${phase}`);
+  pass("liveAuto false heals and continues");
 
   // —— 3) 3아웃 + 결과 없음 → 공수 차단 (prediction_closed) ——
   await resetMatchIdle();

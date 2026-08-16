@@ -18,9 +18,11 @@ export type OperatorNextAction = {
 };
 
 /**
- * 운영자 화면「지금 할 일 1개」— 자동이 본체일 때 예외만 강조
+ * 운영자 화면「지금 할 일 1개」
+ * 하이브리드: 실황이 진행하고, 운영자가 먼저 누르면 그게 우선.
  */
 export function deriveOperatorNextAction(input: {
+  /** @deprecated 항상 하이브리드 — 무시됨 */
   liveAutoEnabled?: boolean | null;
   atBatPhase?: AtBatPhase | null;
   suggestedResult?: string | null;
@@ -66,16 +68,8 @@ export function deriveOperatorNextAction(input: {
     return { kind: "next_batter", label: "다음 타자" };
   }
 
-  if (input.liveAutoEnabled !== false) {
-    return {
-      kind: "wait_auto",
-      label: `실황 자동 진행 중 · ${atBatPhaseLabel(phase)}`,
-    };
-  }
-
-  if (phase === "idle" && !input.predictionEnabled) {
-    return { kind: "start_prediction", label: "예측 시작 (수동)" };
-  }
-
-  return { kind: "none", label: atBatPhaseLabel(phase) };
+  return {
+    kind: "wait_auto",
+    label: `실황 반영 대기 · ${atBatPhaseLabel(phase)} (버튼 누르면 즉시)`,
+  };
 }

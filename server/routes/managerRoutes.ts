@@ -1416,51 +1416,6 @@ export async function managerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // 실황 타석 자동(상태머신) ON/OFF
-  app.patch("/api/manager/matches/:id/live-auto", async (req, res) => {
-    try {
-      const decoded = await requirePpamongOperatorAuth(req, res);
-      if (!decoded) return;
-
-      const { id } = req.params;
-      const match = await adminMatchStorage.getMatchByIdForManager(id, decoded.adminId);
-      if (!match) {
-        return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
-      }
-
-      const enabled = req.body?.enabled;
-      if (typeof enabled !== "boolean") {
-        return res.status(400).json({ error: "enabled(boolean)가 필요합니다." });
-      }
-
-      await MatchModel.updateOne({ id }, { $set: { liveAutoEnabled: enabled } });
-      if (!enabled) {
-        notifyManualAtBatAction(id, "cancel");
-      }
-
-      broadcastManager.sendToMatch(id, "live_auto_toggled", {
-        matchId: id,
-        liveAutoEnabled: enabled,
-        message: enabled ? "실황 자동이 켜졌습니다." : "실황 자동이 꺼졌습니다.",
-      });
-      await syncAtBatPhaseAfterManual(id, enabled ? "live_auto_on" : "live_auto_off");
-
-      return res.json({
-        success: true,
-        liveAutoEnabled: enabled,
-        message: enabled
-          ? "완전 자동 ON — 타석·결과·공수까지 자동"
-          : "반자동 — 표시만 자동, 예측/결과는 운영자",
-      });
-    } catch (error: unknown) {
-      if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
-        return res.status(401).json({ error: "인증이 만료되었습니다." });
-      }
-      console.error("Live auto toggle error:", error);
-      return res.status(500).json({ error: "실황 자동 설정에 실패했습니다." });
-    }
-  });
-
   // 광고 시작은 공수교대·투수교체만 — 별도 시작 API 없음
   app.post("/api/manager/matches/:id/ad/start", async (_req, res) => {
     return res.status(400).json({

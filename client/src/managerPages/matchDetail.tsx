@@ -390,16 +390,6 @@ export default function MatchDetailPage() {
                 );
               }
               break;
-            case "live_auto_toggled":
-              if (typeof data?.liveAutoEnabled === "boolean") {
-                setMatch((prev) =>
-                  prev ? { ...prev, liveAutoEnabled: data.liveAutoEnabled } : prev,
-                );
-                toast({
-                  description: data.message || (data.liveAutoEnabled ? "실황 자동 ON" : "실황 자동 OFF"),
-                });
-              }
-              break;
             case "pinch_hitter_set":
             case "pinch_hitter_cleared":
               fetchMatchDetail();
@@ -732,33 +722,6 @@ export default function MatchDetailPage() {
       });
     } finally {
       setIsStoppingPrediction(false);
-    }
-  };
-
-  const handleToggleLiveAuto = async () => {
-    if (!id || !match) return;
-    const next = match.liveAutoEnabled === false;
-    try {
-      const res = await managerFetch(`/api/manager/matches/${id}/live-auto`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: next }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(typeof err?.error === "string" ? err.error : "실황 자동 설정 실패");
-      }
-      setMatch({ ...match, liveAutoEnabled: next });
-      toast({
-        description: next
-          ? "완전 자동 ON — 타석·결과·공수까지 자동"
-          : "반자동 — 점수·실황 표시만 자동, 예측/결과는 운영자",
-      });
-    } catch (err: unknown) {
-      toast({
-        variant: "destructive",
-        description: err instanceof Error ? err.message : "실황 자동 설정에 실패했습니다.",
-      });
     }
   };
 
@@ -1118,7 +1081,6 @@ export default function MatchDetailPage() {
     Boolean(match.predictionStopTime) &&
     blockAdvance;
   const operatorNext = deriveOperatorNextAction({
-    liveAutoEnabled: match.liveAutoEnabled,
     atBatPhase: match.atBatPhase,
     suggestedResult: suggestedAutoResult ?? selectedResult,
     showThreeOutsHint,
@@ -1268,18 +1230,6 @@ export default function MatchDetailPage() {
             >
               단계: {match.atBatPhaseLabel || "대기"}
             </span>
-            <button
-              type="button"
-              onClick={() => void handleToggleLiveAuto()}
-              data-testid="button-live-auto-toggle"
-              className={`manager-match-live-auto-btn ${
-                match.liveAutoEnabled !== false
-                  ? "manager-match-live-auto-btn--on"
-                  : "manager-match-live-auto-btn--off"
-              }`}
-            >
-              실황 {match.liveAutoEnabled !== false ? "완전자동" : "반자동"}
-            </button>
           </div>
           {operatorNext.kind !== "none" && (
             <div

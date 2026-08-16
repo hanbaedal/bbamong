@@ -137,8 +137,12 @@ function scheduleAutoStop(matchId: string): void {
         const match = await MatchModel.findOne({ id: matchId })
           .select("predictionEnabled matchStatus liveAutoEnabled")
           .lean();
-        if (match?.liveAutoEnabled === false) return;
-        if (!match?.predictionEnabled || match.matchStatus !== "ongoing") return;
+        if (!match) return;
+        // 토글 UI 없음 — 예전 OFF 잔여값은 복구한 뒤 계속 진행
+        if (match.liveAutoEnabled === false) {
+          await MatchModel.updateOne({ id: matchId }, { $set: { liveAutoEnabled: true } });
+        }
+        if (!match.predictionEnabled || match.matchStatus !== "ongoing") return;
         const phase = await resolveAtBatPhase(matchId);
         if (phase !== "prediction_open") return;
         const updated = await stopRound(matchId);
@@ -305,13 +309,11 @@ export async function processLiveAutoOperator(
       return;
     }
 
-    // 표시 동기화는 자동 OFF여도 유지
     await syncPhaseFromLive(matchId, scoreboard);
 
+    // 운영자 UI에 ON/OFF 없음 — 하이브리드만. 예전 OFF 잔여값은 자동 복구.
     if (match.liveAutoEnabled === false) {
-      const phase = await resolveAtBatPhase(matchId);
-      await emitPhaseIfChanged(matchId, phase);
-      return;
+      await MatchModel.updateOne({ id: matchId }, { $set: { liveAutoEnabled: true } });
     }
 
     const situation = scoreboard.situation;
