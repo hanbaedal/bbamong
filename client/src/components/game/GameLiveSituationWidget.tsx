@@ -1,4 +1,4 @@
-/** 예측 참고용 TV 위젯. 이닝·점수는 다음, 다이아몬드·카운트·타자는 네이버. */
+/** 예측 참고용 TV 위젯. 이닝·점수는 다음, 다이아몬드·카운트·타자·투수는 네이버. */
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import { kboTeamPrimaryColor } from "@shared/kboTeamColors";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
@@ -52,9 +52,11 @@ export default function GameLiveSituationWidget({
   const strikes = situation?.strikes ?? 0;
   const outs = situation?.outs ?? 0;
   const batterName = situation?.batterName?.trim() || "";
+  const pitcherName = situation?.pitcherName?.trim() || "";
   const pitchLabel = situation?.pitchLabel?.trim() || "";
   const pitchDetail = situation?.pitchDetail?.trim() || "";
   const showBatter = Boolean(batterName || pitchLabel || pitchDetail);
+  const showPitcher = Boolean(pitcherName);
   const showLiveBits = Boolean(scoreboard);
 
   return (
@@ -97,6 +99,19 @@ export default function GameLiveSituationWidget({
             nameTestId="game-team-home"
           />
         </div>
+        {showPitcher ? (
+          <div
+            className="mt-0.5 flex min-w-0 max-w-[7.5rem] items-center gap-1"
+            data-testid="game-live-pitcher"
+          >
+            <span className="shrink-0 rounded-[2px] bg-white/90 px-1 py-px text-[9px] font-bold leading-none text-black">
+              투수
+            </span>
+            <p className="truncate text-[11px] font-semibold leading-tight sm:text-xs">
+              {pitcherName}
+            </p>
+          </div>
+        ) : null}
       </div>
 
       {showLiveBits && situation ? (
