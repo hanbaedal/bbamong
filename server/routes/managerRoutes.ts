@@ -1448,7 +1448,9 @@ export async function managerRoutes(app: Express): Promise<void> {
       return res.json({
         success: true,
         liveAutoEnabled: enabled,
-        message: enabled ? "실황 자동 ON" : "실황 자동 OFF",
+        message: enabled
+          ? "완전 자동 ON — 타석·결과·공수까지 자동"
+          : "반자동 — 표시만 자동, 예측/결과는 운영자",
       });
     } catch (error: unknown) {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
