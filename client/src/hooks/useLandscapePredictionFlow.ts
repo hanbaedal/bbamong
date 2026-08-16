@@ -18,6 +18,11 @@ import type {
 } from "@/components/game/gameTypes";
 import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, SUCCESS_HOP_MS, isSuccessPresentationPhase } from "@/components/game/gameTypes";
 import { speakGameVoice, USER_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
+import {
+  ackPredictionResult,
+  isPredictionResultAcked,
+  listAckedPredictionResults,
+} from "@/lib/predictionResultAck";
 
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 
@@ -430,6 +435,9 @@ export function useLandscapePredictionFlow(
     resultDismissScheduledRef.current = false;
     if (lastResultPredictionIdRef.current != null) {
       acknowledgedResultIdRef.current = lastResultPredictionIdRef.current;
+      if (selectedMatch?.id) {
+        ackPredictionResult(selectedMatch.id, lastResultPredictionIdRef.current);
+      }
     }
     clearResultTimers();
     clearSuccessRunTimer();
@@ -445,7 +453,13 @@ export function useLandscapePredictionFlow(
     const goPicking = wantPickingAfterResultRef.current || predictionEnabledRef.current;
     wantPickingAfterResultRef.current = false;
     setScreenPhase(goPicking ? "picking" : "wait_start");
-  }, [clearResultTimers, clearSuccessRunTimer, clearResultPresentationState, applyRoundNextAdvance]);
+  }, [
+    clearResultTimers,
+    clearSuccessRunTimer,
+    clearResultPresentationState,
+    applyRoundNextAdvance,
+    selectedMatch?.id,
+  ]);
 
   const scheduleResultDismiss = useCallback(
     (ms: number) => {
@@ -484,13 +498,15 @@ export function useLandscapePredictionFlow(
       if (data.hasPrediction) {
         const resolvedId = data.predictionId ?? null;
         const isResolved = data.status === "success" || data.status === "fail";
-
-        if (
-          isResolved &&
+        const matchId = selectedMatch?.id ?? "";
+        const alreadyAcked =
           resolvedId != null &&
-          resolvedId === acknowledgedResultIdRef.current
-        ) {
+          (resolvedId === acknowledgedResultIdRef.current ||
+            (matchId ? isPredictionResultAcked(matchId, resolvedId) : false));
+
+        if (isResolved && alreadyAcked) {
           if (presenting) return;
+          if (resolvedId != null) acknowledgedResultIdRef.current = resolvedId;
           activeBetRef.current = null;
           betSnapshotRef.current = null;
           waitingResultRef.current = false;
@@ -549,7 +565,7 @@ export function useLandscapePredictionFlow(
         setScreenPhase("wait_start");
       }
     },
-    [rememberActiveBet, beginSuccessPresentation],
+    [rememberActiveBet, beginSuccessPresentation, selectedMatch?.id],
   );
 
   const checkPredictionStatus = useCallback(async () => {
@@ -566,14 +582,18 @@ export function useLandscapePredictionFlow(
 
   useEffect(() => {
     if (!selectedMatch?.id) return;
-    acknowledgedResultIdRef.current = null;
+    // 메뉴 왕복 리마운트 시에도 이미 본 결과는 세션 ack로 유지
+    const acked = listAckedPredictionResults(selectedMatch.id);
+    acknowledgedResultIdRef.current = acked.length > 0 ? acked[acked.length - 1]! : null;
     lastResultPredictionIdRef.current = null;
     resultDismissScheduledRef.current = false;
     pendingRoundNextRef.current = null;
     pendingInterstitialRef.current = false;
     wantPickingAfterResultRef.current = false;
     void checkPredictionStatus();
-  }, [selectedMatch?.id, checkPredictionStatus]);
+    // checkPredictionStatus 정체성 변화로 재실행되면 ack·pending이 지워지므로 matchId만 의존
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- remount restore keyed by match
+  }, [selectedMatch?.id]);
 
   useEffect(() => {
     if (!selectedMatch?.id) return;
@@ -781,10 +801,13 @@ export function useLandscapePredictionFlow(
       status?: string;
       wonAmount?: number;
     }) => {
+      const matchId = selectedMatch?.id ?? "";
       if (
         data.predictionId != null &&
-        data.predictionId === acknowledgedResultIdRef.current
+        (data.predictionId === acknowledgedResultIdRef.current ||
+          (matchId ? isPredictionResultAcked(matchId, data.predictionId) : false))
       ) {
+        if (data.predictionId != null) acknowledgedResultIdRef.current = data.predictionId;
         return;
       }
       if (
@@ -816,7 +839,7 @@ export function useLandscapePredictionFlow(
         amount: data.amount ?? DEFAULT_BET_AMOUNT,
       });
       setScreenPhase("wait_result");
-    }, [rememberActiveBet, beginSuccessPresentation]),
+    }, [rememberActiveBet, beginSuccessPresentation, selectedMatch?.id]),
 
     onPredictionCancelled: useCallback(
       (data: { message?: string }) => {
