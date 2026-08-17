@@ -20,7 +20,7 @@ import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWi
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import { resolveLiveInningPhaseLabel } from "@shared/matchPhaseDisplay";
 import { deriveOperatorNextAction } from "@shared/operatorNextAction";
-import { speakGameVoice, OPERATOR_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
+import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
 import { useQueryClient } from "@tanstack/react-query";
 import "./managerMatchDetail.css";
 
@@ -129,6 +129,8 @@ export default function MatchDetailPage() {
   /** 버튼 직후 로컬 반영분과 겹치는 WS GET 중복 방지 */
   const skipRemoteDetailUntilRef = useRef(0);
   const threeOutsSpokenRef = useRef(false);
+  const operatorConfirmSpokenRef = useRef(false);
+  const operatorStartHintSpokenRef = useRef(false);
   const [showMatchEndedOverlay, setShowMatchEndedOverlay] = useState(false);
   const matchEndedLogoutRef = useRef(false);
   const HEARTBEAT_INTERVAL = 25000; // 25초마다 ping
@@ -200,6 +202,7 @@ export default function MatchDetailPage() {
   const logoutOnMatchEnded = useCallback(() => {
     if (matchEndedLogoutRef.current) return;
     matchEndedLogoutRef.current = true;
+    void speakGameVoice("operator.matchEnded", 8_000);
     setShowMatchEndedOverlay(true);
     window.setTimeout(() => {
       dispatchManagerMatchEnded("담당 경기가 종료되어 로그아웃됩니다.");
@@ -354,6 +357,10 @@ export default function MatchDetailPage() {
                 const result = String(data.suggestedResult);
                 setSuggestedAutoResult(result);
                 setSelectedResult(result);
+                if (!operatorConfirmSpokenRef.current) {
+                  operatorConfirmSpokenRef.current = true;
+                  void speakGameVoice("operator.confirmResult", 5_000);
+                }
                 toast({
                   description:
                     data.message || `실황 추정 결과: ${result} — 확인만 누르면 확정`,
@@ -379,15 +386,26 @@ export default function MatchDetailPage() {
               break;
             case "at_bat_phase":
               if (data?.phase || data?.phaseLabel) {
-                setMatch((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        atBatPhase: data.phase ?? prev.atBatPhase,
-                        atBatPhaseLabel: data.phaseLabel ?? prev.atBatPhaseLabel,
-                      }
-                    : prev,
-                );
+                setMatch((prev) => {
+                  if (!prev) return prev;
+                  const next = {
+                    ...prev,
+                    atBatPhase: data.phase ?? prev.atBatPhase,
+                    atBatPhaseLabel: data.phaseLabel ?? prev.atBatPhaseLabel,
+                  };
+                  if (data.phase === "prediction_open") {
+                    operatorStartHintSpokenRef.current = false;
+                    operatorConfirmSpokenRef.current = false;
+                  } else if (
+                    data.phase === "idle" &&
+                    !prev.predictionEnabled &&
+                    !operatorStartHintSpokenRef.current
+                  ) {
+                    operatorStartHintSpokenRef.current = true;
+                    void speakGameVoice("operator.startPrediction", 8_000);
+                  }
+                  return next;
+                });
               }
               break;
             case "pinch_hitter_set":
@@ -556,7 +574,7 @@ export default function MatchDetailPage() {
         setMatch(data);
         if (data.showThreeOutsHint && !threeOutsSpokenRef.current) {
           threeOutsSpokenRef.current = true;
-          void speakGameVoice(OPERATOR_GAME_VOICE.threeOuts);
+          void speakGameVoice("operator.threeOuts");
         }
         if (!data.showThreeOutsHint) {
           threeOutsSpokenRef.current = false;
@@ -764,7 +782,7 @@ export default function MatchDetailPage() {
         setSelectedResult(null);
         if (data.threeOutsReached) {
           threeOutsSpokenRef.current = true;
-          void speakGameVoice(OPERATOR_GAME_VOICE.threeOuts);
+          void speakGameVoice("operator.threeOuts");
           toast({ description: "결과가 전송되었습니다. 공수교대를 눌러주세요." });
         } else {
           toast({ description: "결과가 전송되었습니다. 다음 타자를 눌러주세요." });

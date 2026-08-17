@@ -17,7 +17,8 @@ import type {
   RoundAdvanceType,
 } from "@/components/game/gameTypes";
 import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, SUCCESS_HOP_MS, isSuccessPresentationPhase } from "@/components/game/gameTypes";
-import { speakGameVoice, USER_GAME_VOICE } from "@/lib/gameVoiceAnnouncements";
+import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
+import { consumeFirstPredictionOpen, resetGameVoiceSession } from "@/lib/gameVoiceSession";
 import {
   ackPredictionResult,
   isPredictionResultAcked,
@@ -100,6 +101,7 @@ export function useLandscapePredictionFlow(
   const adSessionActiveRef = useRef(false);
   const adDismissedEarlyRef = useRef(false);
   const matchEndedRef = useRef(false);
+  const failVoiceSpokenRef = useRef(false);
   const matchEndedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const predictionEnabledRef = useRef(false);
   const screenPhaseRef = useRef<GameScreenPhase>("wait_start");
@@ -198,6 +200,7 @@ export function useLandscapePredictionFlow(
     setShowBetModal(false);
     setShowConfirmModal(false);
     setScreenPhase("match_ended");
+    void speakGameVoice("user.matchEnded", 8_000);
 
     const exitGame = () => {
       toast({ description: "경기가 종료되었습니다." });
@@ -213,6 +216,8 @@ export function useLandscapePredictionFlow(
 
   useEffect(() => {
     matchEndedRef.current = false;
+    failVoiceSpokenRef.current = false;
+    resetGameVoiceSession();
     if (matchEndedTimerRef.current) {
       clearTimeout(matchEndedTimerRef.current);
       matchEndedTimerRef.current = null;
@@ -399,6 +404,7 @@ export function useLandscapePredictionFlow(
 
       const advanceType = pending.advanceType;
       if (advanceType === "pitcher_change") {
+        void speakGameVoice("user.pitcherChange");
         // 서버 광고(5초)와 이벤트 종료를 맞추기 위해 보류 플래그 선설정
         pendingInterstitialRef.current = true;
         setScreenPhase("pitcher_change_event");
@@ -408,6 +414,7 @@ export function useLandscapePredictionFlow(
         return;
       }
       if (advanceType === "switch_half") {
+        void speakGameVoice("user.switchHalf");
         pendingInterstitialRef.current = true;
         setEventSubtitle(pending.gamePhaseDisplayLabel ?? "");
         setScreenPhase("inning_switch_event");
@@ -675,8 +682,23 @@ export function useLandscapePredictionFlow(
   }, [screenPhase, predictionResult, selectedMatch?.id, user, setUser, beginSuccessPresentation]);
 
   const handleRunComplete = useCallback(() => {
+    void speakGameVoice("user.predictionSuccess");
     setScreenPhase("success_celebrate");
   }, []);
+
+  useEffect(() => {
+    if (screenPhase === "fail" && !failVoiceSpokenRef.current) {
+      failVoiceSpokenRef.current = true;
+      void speakGameVoice("user.predictionFail");
+    }
+    if (
+      screenPhase === "picking" ||
+      screenPhase === "wait_start" ||
+      screenPhase === "wait_result"
+    ) {
+      failVoiceSpokenRef.current = false;
+    }
+  }, [screenPhase]);
 
   useEffect(() => {
     if (screenPhase !== "success_celebrate" && screenPhase !== "fail") {
@@ -736,7 +758,10 @@ export function useLandscapePredictionFlow(
     }, []),
 
     onPredictionStarted: useCallback(() => {
-      void speakGameVoice(USER_GAME_VOICE.predictionStarted);
+      const key = consumeFirstPredictionOpen()
+        ? "user.predictionOpenFirst"
+        : "user.predictionOpen";
+      void speakGameVoice(key);
       // 예측 시작 = 광고 중지 (보상 없음)
       pendingInterstitialRef.current = false;
       adSessionActiveRef.current = false;
@@ -771,7 +796,7 @@ export function useLandscapePredictionFlow(
     }, [isInResultPresentation, stopAdSession, clearResultPresentationState, toast]),
 
     onPredictionEnded: useCallback(() => {
-      void speakGameVoice(USER_GAME_VOICE.predictionStopped);
+      void speakGameVoice("user.predictionClose");
       setPredictionEnabled(false);
       wantPickingAfterResultRef.current = false;
       setShowBetModal(false);
@@ -893,6 +918,9 @@ export function useLandscapePredictionFlow(
         screenPhaseRef.current === "fail";
 
       if (data.skippedResult && hadPendingBet) {
+        if (data.advanceType === "pitcher_change") {
+          void speakGameVoice("user.predictionCancelledPitcher");
+        }
         toast({
           description:
             data.advanceType === "pitcher_change"
@@ -1010,6 +1038,7 @@ export function useLandscapePredictionFlow(
     }, []),
 
     onPinchHitterSet: useCallback(() => {
+      void speakGameVoice("user.pinchHitter", 4_000);
       if (selectedMatch?.id) {
         queryClient.invalidateQueries({
           queryKey: ["/api/matches", selectedMatch.id, "scoreboard"],
