@@ -37,3 +37,12 @@ export function isSuccessPresentationPhase(phase: GameScreenPhase): boolean {
     phase === "success_celebrate"
   );
 }
+
+/** 투수/공수 안내·광고 — 복귀 /check 가 이 연출을 대기/피킹으로 덮지 않음 */
+export function isTransientAdOrEventPhase(phase: GameScreenPhase): boolean {
+  return (
+    phase === "pitcher_change_event" ||
+    phase === "inning_switch_event" ||
+    phase === "ad_playing"
+  );
+}

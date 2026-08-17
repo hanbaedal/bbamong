@@ -262,6 +262,7 @@ export function useMatchWebSocket({
               break;
             case "pong":
             case "heartbeat_ack":
+            case "at_bat_phase":
               break;
             default:
               console.log("[WS] Unknown message type:", message.type);

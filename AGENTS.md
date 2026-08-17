@@ -30,7 +30,7 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - 라이브 대기 중 HTTP 폴링은 WS 보조로 **완화**(목록·스코어보드·phase ~8–10s). side-bet는 세션 교체/만료 메시지 시 interval 중지.
 
 ### Prediction flow edge guards
-- `wait_result` 중 `round_next`는 결과 생략(`skippedResult`)이 아니면 보류한다. 투수교체 환불 시 서버가 `skippedResult: true`를 보낸다.
+- `wait_result` 중 `round_next`는 결과 생략(`skippedResult`)이 아니면 보류한다. 투수교체 환불 시 서버가 `skippedResult: true`를 보낸다. 복귀 `/check`는 **현재 라운드에 예측이 없고 라운드가 바뀌었으면** 결과대기를 해제한다(같은 라운드 제출 레이스는 유지).
 - `betSnapshotRef`로 `activeBet`이 비어도 `round_result` 연출이 가능하고, 없으면 `/check`로 복구한다.
 - 유저 WS는 `prediction_cancelled`를 처리한다. 결과/대기 중 전면광고는 덮지 않는다(보류 후 재생).
 - **게임 배너 광고 없음**: 예측 게임에서 배너를 쓰지 않는다. **공수교대·투수교체** 시 전면(+보상) 광고만 `scheduleAdStart`(약 5초 후)로 재생한다.

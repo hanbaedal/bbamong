@@ -18,7 +18,7 @@ import type {
   PredictionResult,
   RoundAdvanceType,
 } from "@/components/game/gameTypes";
-import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, SUCCESS_HOP_MS, isSuccessPresentationPhase } from "@/components/game/gameTypes";
+import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, SUCCESS_HOP_MS, isSuccessPresentationPhase, isTransientAdOrEventPhase } from "@/components/game/gameTypes";
 import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
 import { consumeFirstPredictionOpen } from "@/lib/gameVoiceSession";
 import {
@@ -393,8 +393,15 @@ export function useLandscapePredictionFlow(
 
       if (isNativePlatform) {
         const { dismissedEarly, mode } = await startAdSession();
+        // 예측 시작·운영자 중지가 await 중에 광고를 끊으면 wait_start 로 덮지 않음
         if (!adSessionActiveRef.current) {
-          finishAdAndWaitStart();
+          setShowAdOverlay(false);
+          const keepPlay =
+            predictionEnabledRef.current ||
+            screenPhaseRef.current === "picking" ||
+            isInResultPresentation() ||
+            isWaitingForResult();
+          if (!keepPlay) finishAdAndWaitStart();
           return;
         }
 
@@ -424,6 +431,8 @@ export function useLandscapePredictionFlow(
       rememberAdStartedAt,
       skipDismissedAdSession,
       selectedMatch?.id,
+      isInResultPresentation,
+      isWaitingForResult,
     ],
   );
 
@@ -605,16 +614,27 @@ export function useLandscapePredictionFlow(
         return;
       }
 
-      if (presenting || waitingResultRef.current) return;
+      if (presenting) return;
 
+      const betRound = activeBetRef.current?.round ?? betSnapshotRef.current?.round;
+      const sameRoundStillOpen =
+        waitingResultRef.current &&
+        typeof betRound === "number" &&
+        typeof data.roundNumber === "number" &&
+        betRound === data.roundNumber;
+      // 제출 직후 /check 레이스 — 같은 라운드면 결과대기 유지
+      if (sameRoundStillOpen) return;
+
+      waitingResultRef.current = false;
       activeBetRef.current = null;
       betSnapshotRef.current = null;
-      waitingResultRef.current = false;
-      if (enabled) {
-        setScreenPhase("picking");
-      } else {
-        setScreenPhase("wait_start");
-      }
+      setSelectedPrediction(null);
+      setPredictionResult("pending");
+      setLastWonAmount(0);
+      setLastBetAmount(0);
+      // 투수/공수 안내·광고 연출 중이면 페이즈를 덮지 않음
+      if (isTransientAdOrEventPhase(screenPhaseRef.current)) return;
+      setScreenPhase(enabled ? "picking" : "wait_start");
     },
     [rememberActiveBet, beginSuccessPresentation, selectedMatch?.id],
   );
@@ -739,6 +759,21 @@ export function useLandscapePredictionFlow(
             }
           if (data.status === "success") beginSuccessPresentation();
           else setScreenPhase("fail");
+          } else if (!data.hasPrediction) {
+            const betRound = activeBetRef.current?.round ?? betSnapshotRef.current?.round;
+            const roundMoved =
+              typeof betRound === "number" &&
+              typeof data.roundNumber === "number" &&
+              betRound !== data.roundNumber;
+            if (!roundMoved) return;
+            waitingResultRef.current = false;
+            activeBetRef.current = null;
+            betSnapshotRef.current = null;
+            setSelectedPrediction(null);
+            setPredictionResult("pending");
+            if (!isTransientAdOrEventPhase(screenPhaseRef.current)) {
+              setScreenPhase(data.predictionEnabled ? "picking" : "wait_start");
+            }
           }
         } catch {
           /* ignore */
@@ -820,7 +855,15 @@ export function useLandscapePredictionFlow(
     onConnected: useCallback((data: { predictionEnabled?: boolean }) => {
       if (data.predictionEnabled !== undefined) {
         setPredictionEnabled(data.predictionEnabled);
-        if (!resultShownRef.current && !waitingResultRef.current) {
+        const phase = screenPhaseRef.current;
+        if (
+          !resultShownRef.current &&
+          !waitingResultRef.current &&
+          !isTransientAdOrEventPhase(phase) &&
+          !isSuccessPresentationPhase(phase) &&
+          phase !== "fail" &&
+          phase !== "match_ended"
+        ) {
           setScreenPhase(data.predictionEnabled ? "picking" : "wait_start");
         }
       }
@@ -1127,7 +1170,9 @@ export function useLandscapePredictionFlow(
             resultShownRef.current ||
             adSessionActiveRef.current ||
             isWaitingForResult() ||
-            isInResultPresentation()
+            isInResultPresentation() ||
+            screenPhaseRef.current === "pitcher_change_event" ||
+            screenPhaseRef.current === "inning_switch_event"
           ) {
             pendingInterstitialRef.current = true;
             return;
@@ -1227,7 +1272,12 @@ export function useLandscapePredictionFlow(
         prediction: selectedPrediction,
         amount: selectedBetAmount,
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({} as { roundNumber?: number; id?: number; error?: string }));
+      if (!res.ok) {
+        throw new Error(
+          typeof data.error === "string" ? data.error : "예측 제출에 실패했습니다. 잠시 후 다시 시도해주세요.",
+        );
+      }
       rememberActiveBet({
         round: data.roundNumber,
         prediction: selectedPrediction,
