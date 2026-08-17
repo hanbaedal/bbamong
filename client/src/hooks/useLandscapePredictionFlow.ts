@@ -1010,16 +1010,48 @@ export function useLandscapePredictionFlow(
       [isWaitingForResult, isInResultPresentation, runInterstitialSession],
     ),
 
-    onAdStopped: useCallback(() => {
+    onAdStopped: useCallback((data?: { reason?: string }) => {
       void (async () => {
-        await grantRewardIfWatchedUntilOperatorStop(selectedMatch?.id);
+        const reason = data?.reason;
+        const fromPredictionStart = reason === "prediction_start";
+        const fromRoundAdvance = reason === "round_advance";
+
+        if (fromPredictionStart || fromRoundAdvance) {
+          pendingRewardKeyRef.current = null;
+        } else {
+          await grantRewardIfWatchedUntilOperatorStop(selectedMatch?.id);
+        }
+
+        adSessionActiveRef.current = false;
+        stopAdSession();
+        setShowAdOverlay(false);
+
         if (isInResultPresentation() || isWaitingForResult()) {
-          adSessionActiveRef.current = false;
-          stopAdSession();
-          setShowAdOverlay(false);
-          pendingInterstitialRef.current = false;
+          if (!fromRoundAdvance) pendingInterstitialRef.current = false;
           return;
         }
+
+        const phase = screenPhaseRef.current;
+        if (phase === "pitcher_change_event" || phase === "inning_switch_event") {
+          return;
+        }
+
+        // 예측 시작으로 광고가 꺼진 경우 wait_start로 덮지 않음 (보상 없음)
+        if (
+          fromPredictionStart ||
+          phase === "picking" ||
+          predictionEnabledRef.current
+        ) {
+          pendingInterstitialRef.current = false;
+          if (phase === "ad_playing") setScreenPhase("picking");
+          return;
+        }
+
+        if (fromRoundAdvance) {
+          if (phase === "ad_playing") setScreenPhase("wait_start");
+          return;
+        }
+
         finishAdAndWaitStart();
       })();
     }, [
@@ -1046,10 +1078,16 @@ export function useLandscapePredictionFlow(
           await runInterstitialSession(selectedMatch?.id);
           return;
         }
-        if (adSessionActiveRef.current) {
-          await grantRewardIfWatchedUntilOperatorStop(selectedMatch?.id);
-          finishAdAndWaitStart();
+        if (!adSessionActiveRef.current && screenPhaseRef.current !== "ad_playing") return;
+        if (predictionEnabledRef.current || screenPhaseRef.current === "picking") {
+          adSessionActiveRef.current = false;
+          stopAdSession();
+          setShowAdOverlay(false);
+          pendingInterstitialRef.current = false;
+          return;
         }
+        await grantRewardIfWatchedUntilOperatorStop(selectedMatch?.id);
+        finishAdAndWaitStart();
       },
       [
         isWaitingForResult,
@@ -1058,6 +1096,7 @@ export function useLandscapePredictionFlow(
         selectedMatch?.id,
         grantRewardIfWatchedUntilOperatorStop,
         finishAdAndWaitStart,
+        stopAdSession,
       ],
     ),
 

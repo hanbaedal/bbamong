@@ -267,12 +267,7 @@ async function stopPredictionIfOpen(matchId: string, reason: string): Promise<vo
 async function startPredictionForBatter(matchId: string, batterName: string): Promise<void> {
   broadcastManager.clearAdTimer(matchId);
   if (broadcastManager.isAdPlaying(matchId)) {
-    broadcastManager.setAdPlaying(matchId, false);
-    broadcastManager.sendToMatch(matchId, "ad_stopped", {
-      matchId,
-      message: "예측 시작으로 광고가 중지되었습니다.",
-      source: "live_auto",
-    });
+    broadcastManager.stopAdPlaying(matchId, "prediction_start", "예측 시작으로 광고가 중지되었습니다.");
   }
   const started = await startRound(matchId);
   broadcastManager.sendToMatch(matchId, "prediction_started", {

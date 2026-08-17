@@ -705,13 +705,8 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       await assertMatchLiveForControls(id);
 
-      // 대기 중인 광고 타이머 취소 및 전면광고 중지
-      broadcastManager.clearAdTimer(id);
-      broadcastManager.setAdPlaying(id, false);
-      broadcastManager.sendToMatch(id, "ad_stopped", {
-        matchId: id,
-        message: "광고가 중지되었습니다."
-      });
+      // 대기 중인 광고 타이머 취소 및 전면광고 중지 (예측 시작 = 보상 없음)
+      broadcastManager.stopAdPlaying(id, "prediction_start", "광고가 중지되었습니다.");
 
       // startRound 호출로 predictionEnabled true 설정 (라운드 증가 없음)
       const updatedMatch = await startRound(id);
@@ -978,11 +973,7 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       broadcastManager.clearAdTimer(id);
       if (broadcastManager.isAdPlaying(id)) {
-        broadcastManager.setAdPlaying(id, false);
-        broadcastManager.sendToMatch(id, "ad_stopped", {
-          matchId: id,
-          message: "라운드 전환으로 광고가 중지되었습니다.",
-        });
+        broadcastManager.stopAdPlaying(id, "round_advance", "라운드 전환으로 광고가 중지되었습니다.");
       }
 
       broadcastRoundNextThenStats(id, {
@@ -1055,11 +1046,7 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       broadcastManager.clearAdTimer(id);
       if (broadcastManager.isAdPlaying(id)) {
-        broadcastManager.setAdPlaying(id, false);
-        broadcastManager.sendToMatch(id, "ad_stopped", {
-          matchId: id,
-          message: "라운드 전환으로 광고가 중지되었습니다.",
-        });
+        broadcastManager.stopAdPlaying(id, "round_advance", "라운드 전환으로 광고가 중지되었습니다.");
       }
 
       broadcastRoundNextThenStats(id, {
@@ -1365,11 +1352,7 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       broadcastManager.clearAdTimer(id);
       if (broadcastManager.isAdPlaying(id)) {
-        broadcastManager.setAdPlaying(id, false);
-        broadcastManager.sendToMatch(id, "ad_stopped", {
-          matchId: id,
-          message: "라운드 전환으로 광고가 중지되었습니다.",
-        });
+        broadcastManager.stopAdPlaying(id, "round_advance", "라운드 전환으로 광고가 중지되었습니다.");
       }
 
       broadcastRoundNextThenStats(id, {
@@ -1437,14 +1420,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "경기를 찾을 수 없거나 권한이 없습니다." });
       }
 
-      // 광고 상태 업데이트
-      broadcastManager.setAdPlaying(id, false);
-
-      // SSE로 광고 중지 이벤트 전송
-      broadcastManager.sendToMatch(id, "ad_stopped", {
-        matchId: id,
-        message: "광고가 중지되었습니다."
-      });
+      broadcastManager.stopAdPlaying(id, "operator_stop", "광고가 중지되었습니다.");
 
       return res.json({ 
         success: true, 

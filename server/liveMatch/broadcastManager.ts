@@ -23,6 +23,21 @@ class BroadcastManager {
     return wsManager.isAdPlaying(matchId);
   }
 
+  /** 광고 중지. reason으로 회원 보상·화면 전이를 구분한다. */
+  stopAdPlaying(
+    matchId: string,
+    reason: "prediction_start" | "operator_stop" | "round_advance",
+    message: string,
+  ) {
+    this.clearAdTimer(matchId);
+    this.setAdPlaying(matchId, false);
+    this.sendToMatch(matchId, "ad_stopped", {
+      matchId,
+      message,
+      reason,
+    });
+  }
+
   getMatchState(matchId: string) {
     return wsManager.getMatchState(matchId);
   }
