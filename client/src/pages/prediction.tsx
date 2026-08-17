@@ -58,8 +58,7 @@ import {
   readPersistedSelectedMatchId,
   writePersistedSelectedMatchId,
 } from "@/lib/selectedMatchPersistence";
-import { App } from "@capacitor/app";
-import { Capacitor } from "@capacitor/core";
+import { subscribeForegroundResume } from "@/lib/foregroundResume";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
@@ -187,21 +186,15 @@ export default function PredictionPage() {
     void setGameImmersiveMode(true);
     void setGameKeepAwake(true);
 
-    let resumeHandle: { remove: () => void } | null = null;
-    if (Capacitor.isNativePlatform()) {
-      void App.addListener("appStateChange", ({ isActive }) => {
-        if (isActive && window.location.pathname === GAME_PATH) {
-          void setGameImmersiveMode(true);
-          void refreshGameKeepAwake();
-          void keepAliveUserSession();
-        }
-      }).then((handle) => {
-        resumeHandle = handle;
-      });
-    }
+    const unsubscribe = subscribeForegroundResume(() => {
+      if (window.location.pathname !== GAME_PATH) return;
+      void setGameImmersiveMode(true);
+      void refreshGameKeepAwake();
+      void keepAliveUserSession();
+    });
 
     return () => {
-      resumeHandle?.remove();
+      unsubscribe();
       void setGameImmersiveMode(false);
       void setGameKeepAwake(false);
     };

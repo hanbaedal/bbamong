@@ -26,16 +26,18 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 ### Prediction wait / black screen
 - `/api/matches` 등 React Query는 **429·세션 오류 시 null로 캐시를 덮지 않는다** (throw → 이전 스냅샷 유지). null을 `[]`로 취급하면 가짜 `no_match` 검은 화면·`matchesData.some` 크래시가 난다.
 - 예측 화면 keepAlive는 **4분** 간격, WS 연결 전 access는 **만료 2분 전 refresh**, close `4005`는 **forceRefresh 후** 재연결.
+- **전화·문자·SNS 복귀**: 웹도 `visibilitychange`(hidden→visible)·bfcache `pageshow`로 WS를 강제 재연결하고, `/check`·경기 폴링으로 타석/결과를 맞춘다. 네이티브는 `appStateChange`도 같다. 자리비움 중 해당 타석 예측은 불가(서버 경기는 계속). 복귀 시 이미 본 결과는 ack로 중복 연출하지 않는다. 환불된 포인트는 `refetchUser`로 맞춘다.
 - 라이브 대기 중 HTTP 폴링은 WS 보조로 **완화**(목록·스코어보드·phase ~8–10s). side-bet는 세션 교체/만료 메시지 시 interval 중지.
 
 ### Prediction flow edge guards
-- `wait_result` 중 `round_next`는 결과 생략(`skippedResult`)이 아니면 보류한다. 투수교체 환불 시 서버가 `skippedResult: true`를 보낸다.
+- `wait_result` 중 `round_next`는 결과 생략(`skippedResult`)이 아니면 보류한다. 투수교체 환불 시 서버가 `skippedResult: true`를 보낸다. 복귀 `/check`는 **현재 라운드에 예측이 없고 라운드가 바뀌었으면** 결과대기를 해제한다(같은 라운드 제출 레이스는 유지).
 - `betSnapshotRef`로 `activeBet`이 비어도 `round_result` 연출이 가능하고, 없으면 `/check`로 복구한다.
 - 유저 WS는 `prediction_cancelled`를 처리한다. 결과/대기 중 전면광고는 덮지 않는다(보류 후 재생).
 - **게임 배너 광고 없음**: 예측 게임에서 배너를 쓰지 않는다. **공수교대·투수교체** 시 전면(+보상) 광고만 `scheduleAdStart`(약 5초 후)로 재생한다.
 - **모바일 음성**: 예측/운영자 안내는 MP3(`client/public/audio/voice-*.mp3`). 스마트폰은 **화면을 한 번 탭**해야 재생된다. 사용자: 타석 열림/닫힘·성공/실패·공수/투수/대타·당일 상태·종료. 운영자: 3아웃·결과 확정·예측 시작·경기 종료(짧은 조작 안내). 재생성: `python3 scripts/generate-game-voice-clips.py`.
-- **광고 시작/중지**: 운영자 **투수교체·공수교대** = 광고 시작, **예측 시작**(또는 하단 광고 종료) = 광고 중지(`ad_stopped`). 별도「광고 시작」버튼 없음.
-- **사용자 광고 UX**: 5초 후 X로 끄기 가능(보상 없음). **운영자가 광고를 중지할 때까지** 보고 있으면 500P. 15초 자동 보상 없음. 5초 만에 끄면 보상 없음.
+- **광고 시작/중지**: 운영자 **투수교체·공수교대** = 광고 시작, **예측 시작**(또는 하단 광고 종료) = 광고 중지(`ad_stopped`). 별도「광고 시작」버튼 없음. `ad_stopped.reason`: `prediction_start`(보상 없음·picking 유지), `operator_stop`(500P·대기), `round_advance`(이닝 전환·광고만 닫기).
+- **사용자 광고 UX**: 5초 후 X로 끄기 가능(보상 없음). **운영자가 광고를 중지할 때까지** 보고 있으면 500P. 15초 자동 보상 없음. 5초 만에 끄면 보상 없음. 같은 `adStartedAt` 세션을 X로 끈 뒤에는 재연결·`ad_status`로 오버레이를 다시 띄우지 않는다. 투수교체·공수교대 안내는 「N초 후 광고」.
+- **친구·동호회 방**: 방 전용 경기가 아니다. 오늘 공개 예측에 함께 참여하고 멤버 순위만 참고한다.
 
 ### Admin schedule team logos
 - Admin 경기관리 리스트는 다음 스포츠 `team.imageUrl`을 원형으로 표시한다 (실패 시 약칭 이니셜 폴백). 관리자 전용 UI용이며, 사용자 앱에 공식 엠블럼을 확대 배포하기 전에는 별도 권리 검토가 필요하다.

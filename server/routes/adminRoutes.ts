@@ -775,14 +775,7 @@ export async function adminRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
       }
 
-      // 광고 상태 업데이트
-      broadcastManager.setAdPlaying(id, false);
-
-      // SSE로 광고 중지 이벤트 전송
-      broadcastManager.sendToMatch(id, "ad_stopped", {
-        matchId: id,
-        message: "광고가 중지되었습니다."
-      });
+      broadcastManager.stopAdPlaying(id, "operator_stop", "광고가 중지되었습니다.");
 
       return res.json({ 
         success: true, 

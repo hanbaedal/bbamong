@@ -133,7 +133,7 @@ export default function GameBottomStatusBar({
             data-testid="friend-room-badge"
             onClick={onFriendRoomClick}
           >
-            방 · {friendRoomName}
+            함께 · {friendRoomName}
           </button>
         ) : null}
         <p data-testid="game-bottom-greeting">안녕하세요. {displayName}님</p>

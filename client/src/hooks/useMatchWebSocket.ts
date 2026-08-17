@@ -1,9 +1,9 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { App } from "@capacitor/app";
 import { getOrRefreshAccessToken } from "@/lib/queryClient";
 import { notifyUserDuplicateLoginSafe, notifyUserLoginAttemptSafe } from "@/lib/sessionGuard";
 import { clearTokens } from "@/lib/tokenManager";
+import { subscribeForegroundResume } from "@/lib/foregroundResume";
 
 export type WSConnectionState = "connecting" | "connected" | "disconnected" | "reconnecting";
 
@@ -262,6 +262,7 @@ export function useMatchWebSocket({
               break;
             case "pong":
             case "heartbeat_ack":
+            case "at_bat_phase":
               break;
             default:
               console.log("[WS] Unknown message type:", message.type);
@@ -373,35 +374,35 @@ export function useMatchWebSocket({
     };
   }, [clearTimers]);
 
-  // 앱이 포그라운드로 돌아올 때 즉시 재연결
+  // 전화·문자·SNS·앱 전환 후 복귀 시 죽은 소켓을 버리고 즉시 재연결 (웹·네이티브)
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
 
-    let listenerHandle: any = null;
+    const unsubscribe = subscribeForegroundResume(() => {
+      if (!isMountedRef.current) return;
+      if (!matchIdRef.current || !userIdRef.current) return;
 
-    const setupListener = async () => {
-      listenerHandle = await App.addListener('appStateChange', ({ isActive }) => {
-        if (isActive && matchIdRef.current && userIdRef.current) {
-          console.log("[WS] App resumed from background, forcing reconnect");
-          clearTimers();
-          isIntentionalClose.current = true;
-          if (wsRef.current) {
-            wsRef.current.close(1000, "App resumed");
-            wsRef.current = null;
-          }
-          isIntentionalClose.current = false;
-          reconnectAttempts.current = 0;
-          setTimeout(() => connectRef.current(), 500);
-        }
-      });
-    };
+      console.log("[WS] Foreground resume, forcing reconnect");
+      clearTimers();
+      isIntentionalClose.current = true;
+      if (wsRef.current) {
+        wsRef.current.close(1000, "Foreground resume");
+        wsRef.current = null;
+      }
+      isIntentionalClose.current = false;
+      reconnectAttempts.current = 0;
 
-    setupListener();
+      if (resumeTimer) clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(() => {
+        resumeTimer = null;
+        if (!isMountedRef.current) return;
+        connectRef.current();
+      }, 500);
+    });
 
     return () => {
-      if (listenerHandle) {
-        listenerHandle.remove();
-      }
+      if (resumeTimer) clearTimeout(resumeTimer);
+      unsubscribe();
     };
   }, [clearTimers]);
 
