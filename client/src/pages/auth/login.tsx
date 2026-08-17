@@ -44,7 +44,7 @@ function LoginBootstrapLoading() {
 }
 
 export default function LoginPage() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const { setUser } = useUser();
   const { assets } = useUserAssets();
   useAndroidImmersiveMode();
