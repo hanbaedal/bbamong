@@ -18,7 +18,7 @@ import type {
 } from "@/components/game/gameTypes";
 import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, SUCCESS_HOP_MS, isSuccessPresentationPhase } from "@/components/game/gameTypes";
 import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
-import { consumeFirstPredictionOpen, resetGameVoiceSession } from "@/lib/gameVoiceSession";
+import { consumeFirstPredictionOpen } from "@/lib/gameVoiceSession";
 import {
   ackPredictionResult,
   isPredictionResultAcked,
@@ -217,7 +217,6 @@ export function useLandscapePredictionFlow(
   useEffect(() => {
     matchEndedRef.current = false;
     failVoiceSpokenRef.current = false;
-    resetGameVoiceSession();
     if (matchEndedTimerRef.current) {
       clearTimeout(matchEndedTimerRef.current);
       matchEndedTimerRef.current = null;
@@ -758,7 +757,7 @@ export function useLandscapePredictionFlow(
     }, []),
 
     onPredictionStarted: useCallback(() => {
-      const key = consumeFirstPredictionOpen()
+      const key = consumeFirstPredictionOpen(selectedMatch?.id)
         ? "user.predictionOpenFirst"
         : "user.predictionOpen";
       void speakGameVoice(key);
@@ -793,7 +792,7 @@ export function useLandscapePredictionFlow(
       setSelectedPrediction(null);
       setScreenPhase("picking");
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, [isInResultPresentation, stopAdSession, clearResultPresentationState, toast]),
+    }, [isInResultPresentation, stopAdSession, clearResultPresentationState, toast, selectedMatch?.id]),
 
     onPredictionEnded: useCallback(() => {
       void speakGameVoice("user.predictionClose");
