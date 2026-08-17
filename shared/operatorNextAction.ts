@@ -58,18 +58,18 @@ export function deriveOperatorNextAction(input: {
   }
 
   if (input.showThreeOutsHint || (phase === "result_confirmed" && (input.showThreeOutsHint ?? false))) {
-    return { kind: "switch_half", label: "공수교대 (3아웃)" };
+    return { kind: "switch_half", label: "공수교대 (3아웃, 막히면 직접)" };
   }
 
   if (phase === "result_confirmed" || input.needsAdvanceAfterResult) {
     if (input.showThreeOutsHint) {
       return { kind: "switch_half", label: "공수교대" };
     }
-    return { kind: "next_batter", label: "다음 타자" };
+    return { kind: "next_batter", label: "다음 타자 (실황 진행, 막히면 직접)" };
   }
 
   return {
     kind: "wait_auto",
-    label: `실황 반영 대기 · ${atBatPhaseLabel(phase)} (버튼 누르면 즉시)`,
+    label: `실황 진행 중 · ${atBatPhaseLabel(phase)} (필요하면 버튼)`,
   };
 }
