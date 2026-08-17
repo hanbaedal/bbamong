@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useMatchWebSocket, type WSEventHandlers } from "@/hooks/useMatchWebSocket";
 import { useAdMob } from "@/hooks/useAdMob";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, keepAliveUserSession, queryClient } from "@/lib/queryClient";
 import { useUser } from "@/contexts/UserContext";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
+import { subscribeForegroundResume } from "@/lib/foregroundResume";
+import { resumeMobileAudio } from "@/lib/mobileAudioUnlock";
 import {
   DEFAULT_BET_AMOUNT,
   calculateFixedOddsPayout,
@@ -586,6 +588,38 @@ export function useLandscapePredictionFlow(
     }
   }, [selectedMatch?.id, applyCheckResponse]);
 
+  const checkPredictionStatusRef = useRef(checkPredictionStatus);
+  checkPredictionStatusRef.current = checkPredictionStatus;
+
+  const syncMatchFromServer = useCallback(async () => {
+    if (!selectedMatch?.id) return;
+    if (!shouldClientPollMatch(selectedMatch.startTime, selectedMatch.matchStatus)) return;
+    if (resultShownRef.current) return;
+    try {
+      const res = await apiRequest("GET", `/api/matches/${selectedMatch.id}`);
+      if (!res.ok) return;
+      const matchData = await res.json();
+      if (matchData.matchStatus === "completed" || matchData.matchStatus === "cancelled") {
+        handleMatchEnded();
+        return;
+      }
+      setPredictionEnabled(Boolean(matchData.predictionEnabled));
+
+      if (
+        screenPhaseRef.current === "wait_start" &&
+        matchData.predictionEnabled &&
+        !waitingResultRef.current
+      ) {
+        setScreenPhase("picking");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus, handleMatchEnded]);
+
+  const syncMatchFromServerRef = useRef(syncMatchFromServer);
+  syncMatchFromServerRef.current = syncMatchFromServer;
+
   useEffect(() => {
     if (!selectedMatch?.id) return;
     // 메뉴 왕복 리마운트 시에도 이미 본 결과는 세션 ack로 유지
@@ -603,32 +637,24 @@ export function useLandscapePredictionFlow(
 
   useEffect(() => {
     if (!selectedMatch?.id) return;
+    return subscribeForegroundResume(() => {
+      void keepAliveUserSession();
+      void resumeMobileAudio();
+      void checkPredictionStatusRef.current();
+      void syncMatchFromServerRef.current();
+    });
+  }, [selectedMatch?.id]);
+
+  useEffect(() => {
+    if (!selectedMatch?.id) return;
     if (!shouldClientPollMatch(selectedMatch.startTime, selectedMatch.matchStatus)) return;
 
-    const poll = async () => {
-      if (resultShownRef.current) return;
-      try {
-        const res = await apiRequest("GET", `/api/matches/${selectedMatch.id}`);
-        if (!res.ok) return;
-        const matchData = await res.json();
-        if (matchData.matchStatus === "completed" || matchData.matchStatus === "cancelled") {
-          handleMatchEnded();
-          return;
-        }
-        setPredictionEnabled(Boolean(matchData.predictionEnabled));
-
-        if (screenPhase === "wait_start" && matchData.predictionEnabled && !waitingResultRef.current) {
-          setScreenPhase("picking");
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-
-    void poll();
-    const id = setInterval(poll, 8000);
+    void syncMatchFromServer();
+    const id = setInterval(() => {
+      void syncMatchFromServer();
+    }, 8000);
     return () => clearInterval(id);
-  }, [selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus, screenPhase, handleMatchEnded]);
+  }, [selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus, syncMatchFromServer]);
 
   useEffect(() => {
     if (screenPhase !== "wait_result" || predictionResult !== "pending" || !selectedMatch?.id) return;
@@ -751,10 +777,13 @@ export function useLandscapePredictionFlow(
     onConnected: useCallback((data: { predictionEnabled?: boolean }) => {
       if (data.predictionEnabled !== undefined) {
         setPredictionEnabled(data.predictionEnabled);
-        if (resultShownRef.current || waitingResultRef.current) return;
-        setScreenPhase(data.predictionEnabled ? "picking" : "wait_start");
+        if (!resultShownRef.current && !waitingResultRef.current) {
+          setScreenPhase(data.predictionEnabled ? "picking" : "wait_start");
+        }
       }
-    }, []),
+      // 전화·SNS 복귀 재연결 시 놓친 결과/타석을 /check 로 맞춤
+      void checkPredictionStatus();
+    }, [checkPredictionStatus]),
 
     onPredictionStarted: useCallback(() => {
       const key = consumeFirstPredictionOpen(selectedMatch?.id)
