@@ -3,3 +3,7 @@ Source: Mixkit (https://mixkit.co/free-stock-music/sport/)
 Track ID: 51
 License: Mixkit License — free for commercial use, no attribution required.
 https://mixkit.co/license/
+
+Game voice clips (voice-*.mp3, intro-tagline.mp3, silent.mp3):
+Generated with gTTS for mobile playback (not browser TTS).
+Regenerate with: python3 scripts/generate-game-voice-clips.py

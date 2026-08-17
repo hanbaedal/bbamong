@@ -20,9 +20,17 @@ export default function IntroSplash() {
     jingle.preload = "auto";
     jingleRef.current = jingle;
 
-    void jingle.play().catch(() => {
-      // WebView 자동재생 차단 시 무음 진행
-    });
+    const tryPlay = () => {
+      void jingle.play().catch(() => {
+        // WebView 자동재생 차단 시 첫 탭에서 재생
+      });
+    };
+    tryPlay();
+    const onTap = () => {
+      document.removeEventListener("pointerdown", onTap, true);
+      tryPlay();
+    };
+    document.addEventListener("pointerdown", onTap, { capture: true, once: true, passive: true });
 
     let volumeFade: number | undefined;
     const fadeAt = INTRO_BATTING_CYCLE_MS * INTRO_BATTING_CYCLES;
@@ -49,6 +57,7 @@ export default function IntroSplash() {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(stopTimer);
       if (volumeFade !== undefined) window.clearInterval(volumeFade);
+      document.removeEventListener("pointerdown", onTap, true);
       jingle.pause();
       jingle.removeAttribute("src");
       jingle.load();

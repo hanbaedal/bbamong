@@ -49,6 +49,7 @@ class ManagerErrorBoundary extends Component<
   }
 }
 import { getManagerRefreshToken, setManagerAccessToken, saveManagerRefreshToken, getManagerAccessToken } from "./lib/managerTokenManager";
+import { installAudioUnlockListeners } from "./lib/mobileAudioUnlock";
 import MatchResultTest from "./pages/manager/MatchResultTest";
 import ManagerLoginPage from "./managerPages/auth/login";
 import ManagerSignupPage from "./managerPages/auth/signup";
@@ -324,6 +325,10 @@ function Router() {
 }
 
 export default function ManagerApp() {
+  useEffect(() => {
+    return installAudioUnlockListeners();
+  }, []);
+
   useEffect(() => {
     const iconLink =
       document.querySelector<HTMLLinkElement>("link[rel='icon']") ??
