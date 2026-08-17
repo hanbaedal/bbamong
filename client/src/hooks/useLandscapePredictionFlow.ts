@@ -26,6 +26,11 @@ import {
   isPredictionResultAcked,
   listAckedPredictionResults,
 } from "@/lib/predictionResultAck";
+import {
+  clearAdSessionDismissed,
+  markAdSessionDismissed,
+  wasAdSessionDismissed,
+} from "@/lib/adDismissSession";
 
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 
@@ -102,6 +107,7 @@ export function useLandscapePredictionFlow(
   const pendingRewardKeyRef = useRef<string | null>(null);
   const adSessionActiveRef = useRef(false);
   const adDismissedEarlyRef = useRef(false);
+  const adStartedAtRef = useRef<number | null>(null);
   const matchEndedRef = useRef(false);
   const failVoiceSpokenRef = useRef(false);
   const matchEndedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -242,6 +248,32 @@ export function useLandscapePredictionFlow(
     goToWaitStart();
   }, [stopAdSession, goToWaitStart]);
 
+  const rememberAdStartedAt = useCallback((startedAt?: number | null) => {
+    if (typeof startedAt === "number" && Number.isFinite(startedAt)) {
+      adStartedAtRef.current = startedAt;
+    }
+  }, []);
+
+  const skipDismissedAdSession = useCallback(
+    (matchId?: string, startedAt?: number | null) => {
+      const id = matchId ?? selectedMatch?.id;
+      const at = startedAt ?? adStartedAtRef.current;
+      if (!id || at == null) return false;
+      if (!wasAdSessionDismissed(id, at)) return false;
+      adDismissedEarlyRef.current = true;
+      adSessionActiveRef.current = false;
+      pendingInterstitialRef.current = false;
+      pendingRewardKeyRef.current = null;
+      stopAdSession();
+      setShowAdOverlay(false);
+      if (screenPhaseRef.current === "ad_playing") {
+        setScreenPhase(predictionEnabledRef.current ? "picking" : "wait_start");
+      }
+      return true;
+    },
+    [selectedMatch?.id, stopAdSession],
+  );
+
   const claimAdRewardIfPending = useCallback(
     async (matchId?: string) => {
       const rewardKey = pendingRewardKeyRef.current;
@@ -266,11 +298,12 @@ export function useLandscapePredictionFlow(
     [user, setUser, toast],
   );
 
-  /** 사용자 X(5초 후) — 보상 없음 */
+  /** 사용자 X(5초 후) — 보상 없음. 같은 광고 세션은 복귀해도 다시 띄우지 않음 */
   const handleAdOverlayDismiss = useCallback(() => {
     adDismissedEarlyRef.current = true;
+    markAdSessionDismissed(selectedMatch?.id ?? "", adStartedAtRef.current);
     finishAdAndWaitStart();
-  }, [finishAdAndWaitStart]);
+  }, [finishAdAndWaitStart, selectedMatch?.id]);
 
   const grantRewardIfWatchedUntilOperatorStop = useCallback(
     async (matchId?: string) => {
@@ -348,7 +381,9 @@ export function useLandscapePredictionFlow(
   }, []);
 
   const runInterstitialSession = useCallback(
-    async (matchId?: string) => {
+    async (matchId?: string, startedAt?: number | null) => {
+      rememberAdStartedAt(startedAt);
+      if (skipDismissedAdSession(matchId, startedAt ?? adStartedAtRef.current)) return;
       if (adSessionActiveRef.current || screenPhaseRef.current === "ad_playing") return;
       adSessionActiveRef.current = true;
       adDismissedEarlyRef.current = false;
@@ -370,6 +405,7 @@ export function useLandscapePredictionFlow(
 
         if (dismissedEarly) {
           adDismissedEarlyRef.current = true;
+          markAdSessionDismissed(matchId ?? selectedMatch?.id ?? "", adStartedAtRef.current);
           finishAdAndWaitStart();
           return;
         }
@@ -381,13 +417,20 @@ export function useLandscapePredictionFlow(
 
       setShowAdOverlay(true);
     },
-    [isNativePlatform, startAdSession, finishAdAndWaitStart],
+    [
+      isNativePlatform,
+      startAdSession,
+      finishAdAndWaitStart,
+      rememberAdStartedAt,
+      skipDismissedAdSession,
+      selectedMatch?.id,
+    ],
   );
 
   const flushPendingInterstitial = useCallback(async () => {
     if (!pendingInterstitialRef.current) return;
     pendingInterstitialRef.current = false;
-    await runInterstitialSession(selectedMatch?.id);
+    await runInterstitialSession(selectedMatch?.id, adStartedAtRef.current);
   }, [runInterstitialSession, selectedMatch?.id]);
 
   const applyRoundNextAdvance = useCallback(
@@ -991,7 +1034,9 @@ export function useLandscapePredictionFlow(
     }, []),
 
     onAdStarted: useCallback(
-      async (data: { matchId?: string }) => {
+      async (data: { matchId?: string; adStartedAt?: number }) => {
+        rememberAdStartedAt(data?.adStartedAt);
+        if (skipDismissedAdSession(data?.matchId ?? selectedMatch?.id, data?.adStartedAt)) return;
         const phase = screenPhaseRef.current;
         const duringSwitchOrPitcher =
           phase === "inning_switch_event" || phase === "pitcher_change_event";
@@ -1005,9 +1050,16 @@ export function useLandscapePredictionFlow(
           pendingInterstitialRef.current = true;
           return;
         }
-        await runInterstitialSession(data?.matchId);
+        await runInterstitialSession(data?.matchId, data?.adStartedAt);
       },
-      [isWaitingForResult, isInResultPresentation, runInterstitialSession],
+      [
+        isWaitingForResult,
+        isInResultPresentation,
+        runInterstitialSession,
+        rememberAdStartedAt,
+        skipDismissedAdSession,
+        selectedMatch?.id,
+      ],
     ),
 
     onAdStopped: useCallback((data?: { reason?: string }) => {
@@ -1025,6 +1077,8 @@ export function useLandscapePredictionFlow(
         adSessionActiveRef.current = false;
         stopAdSession();
         setShowAdOverlay(false);
+        clearAdSessionDismissed(selectedMatch?.id);
+        adStartedAtRef.current = null;
 
         if (isInResultPresentation() || isWaitingForResult()) {
           if (!fromRoundAdvance) pendingInterstitialRef.current = false;
@@ -1064,8 +1118,11 @@ export function useLandscapePredictionFlow(
     ]),
 
     onAdStatus: useCallback(
-      async (data: { isPlaying?: boolean }) => {
-        if (data.isPlaying) {
+      async (data: { isPlaying?: boolean; isAdPlaying?: boolean; adStartedAt?: number }) => {
+        const playing = Boolean(data.isAdPlaying ?? data.isPlaying);
+        rememberAdStartedAt(data.adStartedAt);
+        if (playing) {
+          if (skipDismissedAdSession(selectedMatch?.id, data.adStartedAt)) return;
           if (
             resultShownRef.current ||
             adSessionActiveRef.current ||
@@ -1075,7 +1132,7 @@ export function useLandscapePredictionFlow(
             pendingInterstitialRef.current = true;
             return;
           }
-          await runInterstitialSession(selectedMatch?.id);
+          await runInterstitialSession(selectedMatch?.id, data.adStartedAt);
           return;
         }
         if (!adSessionActiveRef.current && screenPhaseRef.current !== "ad_playing") return;
@@ -1097,6 +1154,8 @@ export function useLandscapePredictionFlow(
         grantRewardIfWatchedUntilOperatorStop,
         finishAdAndWaitStart,
         stopAdSession,
+        rememberAdStartedAt,
+        skipDismissedAdSession,
       ],
     ),
 

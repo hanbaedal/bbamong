@@ -14,6 +14,7 @@ import {
   FRIEND_ROOM_DISCLAIMER_CHECK_LABEL,
   FRIEND_ROOM_DISCLAIMER_TITLE,
   FRIEND_ROOM_REGION_OPTIONS,
+  FRIEND_ROOM_SHARED_GAME_NOTE,
   FRIEND_ROOM_TEAM_OPTIONS,
 } from "@shared/friendRooms";
 import "@/styles/friend-rooms.css";
@@ -337,8 +338,8 @@ export default function FriendRoomsPage() {
           <div className="friend-rooms-pane">
             <div className="friend-rooms-create-hero">
               <p className="friend-rooms-note">
-                초대받은 정회원만 입장할 수 있습니다. 관리자는 방 운영에 관여하지 않으며, 방장 종료 시
-                방 기록은 삭제됩니다.
+                {FRIEND_ROOM_SHARED_GAME_NOTE} 초대받은 정회원만 입장할 수 있습니다. 관리자는 방
+                운영에 관여하지 않으며, 방장 종료 시 방 기록은 삭제됩니다.
               </p>
               <button
                 type="button"
@@ -492,6 +493,9 @@ export default function FriendRoomsPage() {
                 </li>
               ))}
             </ul>
+            <p className="friend-rooms-note" data-testid="friend-room-shared-game-note">
+              {FRIEND_ROOM_SHARED_GAME_NOTE}
+            </p>
             <div className="friend-rooms-actions">
               <button
                 type="button"
@@ -519,7 +523,7 @@ export default function FriendRoomsPage() {
             </div>
           </div>
           <div className="friend-rooms-pane">
-            <h3 className="friend-rooms-sub">오늘 방 순위 (참고용)</h3>
+            <h3 className="friend-rooms-sub">오늘 방 순위 (공개 예측 합산 · 참고용)</h3>
             <div className="friend-rooms-rank-table-wrap">
               <table className="friend-rooms-rank-table">
                 <thead>
@@ -618,7 +622,8 @@ export function FriendRoomJoinPage() {
             <h2 className="friend-rooms-detail-title">{preview.name}</h2>
             <p className="friend-rooms-desc">{preview.description || "소개 없음"}</p>
             <p className="friend-rooms-note">
-              입장 시 친목방 면책·이용 조건에 동의한 것으로 봅니다. 관리자는 방 운영에 관여하지 않습니다.
+              {FRIEND_ROOM_SHARED_GAME_NOTE} 입장 시 친목방 면책·이용 조건에 동의한 것으로 봅니다.
+              관리자는 방 운영에 관여하지 않습니다.
             </p>
             <button
               type="button"

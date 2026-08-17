@@ -64,7 +64,7 @@ export default function GameEventOverlay({ type, subtitle, countdown }: GameEven
         )}
 
         {countdown != null && countdown > 0 && (
-          <p className="text-white/60 text-xs sm:text-sm mt-1">{countdown}초 후 대기 화면</p>
+          <p className="text-white/60 text-xs sm:text-sm mt-1">{countdown}초 후 광고</p>
         )}
       </div>
     </div>

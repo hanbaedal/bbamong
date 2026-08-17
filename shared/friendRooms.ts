@@ -9,7 +9,9 @@ export const FRIEND_ROOM_AUDIT_RETENTION_DAYS = 180;
 
 export const FRIEND_ROOM_DISCLAIMER_TITLE = "친구·동호회 방 이용·면책 안내";
 
-export const FRIEND_ROOM_DISCLAIMER_BODY = `본 방은 회원 간 친목·자발적 모임이며, 서비스 제공자(관리자·운영자)는 방의 개설·운영·초대·강퇴·종료에 관여하지 않습니다.
+export const FRIEND_ROOM_DISCLAIMER_BODY = `본 방은 회원 간 친목·자발적 모임입니다. 예측 경기는 방 전용이 아니며, 오늘 공개 예측(같은 KBO 경기)에 함께 참여하고 방 멤버끼리 순위를 참고합니다.
+
+서비스 제공자(관리자·운영자)는 방의 개설·운영·초대·강퇴·종료에 관여하지 않습니다.
 
 방 안 분쟁·갈등·초대 오남용은 당사자 책임입니다.
 
@@ -20,6 +22,9 @@ export const FRIEND_ROOM_DISCLAIMER_BODY = `본 방은 회원 간 친목·자발
 타석 예측·포인트 정산은 공개 예측과 동일한 서비스 규칙을 따르며, 방 소속과 무관합니다.
 
 법령·이용약관 위반 시 서비스는 이용 제한 등 조치를 할 수 있습니다.`;
+
+export const FRIEND_ROOM_SHARED_GAME_NOTE =
+  "예측은 방 전용 경기가 아닙니다. 오늘 공개 예측(같은 경기)에 함께 참여하고, 방 멤버 순위는 참고용입니다.";
 
 export const FRIEND_ROOM_DISCLAIMER_CHECK_LABEL =
   "위 면책·이용 조건에 동의합니다 (동의하지 않으면 방을 만들 수 없습니다)";
