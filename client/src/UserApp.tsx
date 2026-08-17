@@ -35,6 +35,7 @@ import UserSessionExpiredPopup from "@/components/UserSessionExpiredPopup";
 import UserLoginAttemptNotice from "@/components/UserLoginAttemptNotice";
 import { openMallFromApp, GAME_PATH, HOME_PATH } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
+import { installAudioUnlockListeners } from "@/lib/mobileAudioUnlock";
 
 function LegacyMallRedirect({ target }: { target: string }) {
   useEffect(() => {
@@ -227,6 +228,10 @@ function AppStateManager({ children }: { children: React.ReactNode }) {
 function UserApp() {
   useEffect(() => {
     preloadUserAssets();
+  }, []);
+
+  useEffect(() => {
+    return installAudioUnlockListeners();
   }, []);
 
   useEffect(() => {

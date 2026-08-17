@@ -28,26 +28,4 @@ export function operatorLoginSuccessMessage(
     : "경기 운영자가 로그인되었습니다.";
 }
 
-export function speakKorean(text: string): Promise<void> {
-  return new Promise((resolve) => {
-    if (typeof window === "undefined" || !window.speechSynthesis) {
-      resolve();
-      return;
-    }
-    const finish = () => resolve();
-    const timeout = window.setTimeout(finish, 2500);
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "ko-KR";
-    utterance.rate = 0.95;
-    utterance.onend = () => {
-      window.clearTimeout(timeout);
-      finish();
-    };
-    utterance.onerror = () => {
-      window.clearTimeout(timeout);
-      finish();
-    };
-    window.speechSynthesis.speak(utterance);
-  });
-}
+export { speakKorean } from "./speakKorean";

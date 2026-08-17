@@ -33,6 +33,7 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - `betSnapshotRef`로 `activeBet`이 비어도 `round_result` 연출이 가능하고, 없으면 `/check`로 복구한다.
 - 유저 WS는 `prediction_cancelled`를 처리한다. 결과/대기 중 전면광고는 덮지 않는다(보류 후 재생).
 - **게임 배너 광고 없음**: 예측 게임에서 배너를 쓰지 않는다. **공수교대·투수교체** 시 전면(+보상) 광고만 `scheduleAdStart`(약 5초 후)로 재생한다.
+- **모바일 음성**: 예측/운영자 안내는 MP3(`client/public/audio/voice-*.mp3`). 스마트폰은 **화면을 한 번 탭**해야 재생된다 (`installAudioUnlockListeners`).
 - **광고 시작/중지**: 운영자 **투수교체·공수교대** = 광고 시작, **예측 시작**(또는 하단 광고 종료) = 광고 중지(`ad_stopped`). 별도「광고 시작」버튼 없음.
 - **사용자 광고 UX**: 5초 후 X로 끄기 가능(보상 없음). **운영자가 광고를 중지할 때까지** 보고 있으면 500P. 15초 자동 보상 없음. 5초 만에 끄면 보상 없음.
 

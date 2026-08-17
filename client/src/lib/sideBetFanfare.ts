@@ -1,22 +1,21 @@
+import { getSharedGameAudio, unlockMobileAudio } from "./mobileAudioUnlock";
+
 /** 사이드벳 적중 축하 빵빠레 */
 const FANFARE_SRC = "/audio/side-bet-fanfare.wav";
 
-let activeAudio: HTMLAudioElement | null = null;
-
 export function stopSideBetFanfare(): void {
-  if (!activeAudio) return;
-  activeAudio.pause();
-  activeAudio.removeAttribute("src");
-  activeAudio.load();
-  activeAudio = null;
+  const audio = getSharedGameAudio();
+  audio.pause();
 }
 
 export async function playSideBetFanfare(volume = 0.55): Promise<void> {
-  stopSideBetFanfare();
+  await unlockMobileAudio();
   try {
-    const audio = new Audio(FANFARE_SRC);
+    const audio = getSharedGameAudio();
+    audio.pause();
+    audio.muted = false;
     audio.volume = Math.max(0, Math.min(1, volume));
-    activeAudio = audio;
+    audio.src = FANFARE_SRC;
     await audio.play();
   } catch {
     // 자동재생 차단 시 무음
