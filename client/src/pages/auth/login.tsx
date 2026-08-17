@@ -48,7 +48,7 @@ export default function LoginPage() {
   const { setUser } = useUser();
   const { assets } = useUserAssets();
   useAndroidImmersiveMode();
-  const guestLoginAllowed = isGuestLoginAllowed(location);
+  const guestLoginAllowed = isGuestLoginAllowed(window.location.search);
   const skipInitialBootstrap = peekSkipLoginBootstrap();
   const [bootstrapPhase, setBootstrapPhase] = useState<LoginBootstrapPhase>(
     skipInitialBootstrap ? "ready" : "checking",
