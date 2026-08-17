@@ -130,7 +130,6 @@ export default function MatchDetailPage() {
   const skipRemoteDetailUntilRef = useRef(0);
   const threeOutsSpokenRef = useRef(false);
   const operatorConfirmSpokenRef = useRef(false);
-  const operatorStartHintSpokenRef = useRef(false);
   const [showMatchEndedOverlay, setShowMatchEndedOverlay] = useState(false);
   const matchEndedLogoutRef = useRef(false);
   const HEARTBEAT_INTERVAL = 25000; // 25초마다 ping
@@ -357,13 +356,9 @@ export default function MatchDetailPage() {
                 const result = String(data.suggestedResult);
                 setSuggestedAutoResult(result);
                 setSelectedResult(result);
-                if (!operatorConfirmSpokenRef.current) {
-                  operatorConfirmSpokenRef.current = true;
-                  void speakGameVoice("operator.confirmResult", 5_000);
-                }
                 toast({
                   description:
-                    data.message || `실황 추정 결과: ${result} — 확인만 누르면 확정`,
+                    data.message || `실황 추정 결과: ${result} — 자동 확정 대기 (필요하면 1탭)`,
                 });
               }
               fetchMatchDetail();
@@ -376,6 +371,10 @@ export default function MatchDetailPage() {
               if (data?.suggestedResult) {
                 setSuggestedAutoResult(String(data.suggestedResult));
                 setSelectedResult(String(data.suggestedResult));
+              }
+              if (!operatorConfirmSpokenRef.current) {
+                operatorConfirmSpokenRef.current = true;
+                void speakGameVoice("operator.confirmResult", 5_000);
               }
               fetchMatchDetail();
               break;
@@ -394,15 +393,7 @@ export default function MatchDetailPage() {
                     atBatPhaseLabel: data.phaseLabel ?? prev.atBatPhaseLabel,
                   };
                   if (data.phase === "prediction_open") {
-                    operatorStartHintSpokenRef.current = false;
                     operatorConfirmSpokenRef.current = false;
-                  } else if (
-                    data.phase === "idle" &&
-                    !prev.predictionEnabled &&
-                    !operatorStartHintSpokenRef.current
-                  ) {
-                    operatorStartHintSpokenRef.current = true;
-                    void speakGameVoice("operator.startPrediction", 8_000);
                   }
                   return next;
                 });
@@ -783,9 +774,9 @@ export default function MatchDetailPage() {
         if (data.threeOutsReached) {
           threeOutsSpokenRef.current = true;
           void speakGameVoice("operator.threeOuts");
-          toast({ description: "결과가 전송되었습니다. 공수교대를 눌러주세요." });
+          toast({ description: "결과가 전송되었습니다. 공수교대를 기다립니다." });
         } else {
-          toast({ description: "결과가 전송되었습니다. 다음 타자를 눌러주세요." });
+          toast({ description: "결과가 전송되었습니다. 다음 타자를 기다립니다." });
         }
         if (match) {
           setMatch({
@@ -893,6 +884,10 @@ export default function MatchDetailPage() {
       toast({ description: "먼저 예측 결과를 전송해 주세요." });
       return;
     }
+    if (!awaitAdvanceAfterResult) {
+      toast({ description: "실황이 다음 타자로 진행합니다. 결과가 나온 뒤에만 직접 누르세요." });
+      return;
+    }
     void handleAdvanceRound(
       `/api/manager/control/${id}/round/next-batter`,
       "다음 타자 처리에 실패했습니다.",
@@ -927,6 +922,10 @@ export default function MatchDetailPage() {
   const handleSwitchHalf = () => {
     if (match?.needsResultBeforeAdvance) {
       toast({ description: "먼저 예측 결과를 전송해 주세요." });
+      return;
+    }
+    if (!showThreeOutsHint && (match?.outsInHalf ?? 0) < 3) {
+      toast({ description: "3아웃일 때만 공수교대합니다. 그 전에는 실황이 진행합니다." });
       return;
     }
     void handleAdvanceRound(
@@ -1116,16 +1115,21 @@ export default function MatchDetailPage() {
     !anyAdvanceBusy &&
     !awaitAdvanceAfterResult &&
     !isAdPlaying;
-  /** 다음 타자 — 3아웃이면 공수교대만; 결과 대기 중에는 다음타자 가능 */
+  /** 다음 타자 — 결과 전송 후에만. 대기 중에는 실황 자동. 3아웃이면 공수교대만 */
   const canNextBatter =
     isMatchLive &&
     !showThreeOutsHint &&
     !anyAdvanceBusy &&
     !blockAdvanceActions &&
-    !isAdPlaying;
-  /** 공수 교대 — 결과 대기 중이 아니어야 함(미결과면 먼저 결과) */
+    !isAdPlaying &&
+    awaitAdvanceAfterResult;
+  /** 공수 교대 — 3아웃(또는 힌트)일 때만. 미결과면 먼저 결과 */
   const canSwitchHalf =
-    isMatchLive && !anyAdvanceBusy && !blockAdvanceActions && !isAdPlaying;
+    isMatchLive &&
+    !anyAdvanceBusy &&
+    !blockAdvanceActions &&
+    !isAdPlaying &&
+    (showThreeOutsHint || (match.outsInHalf ?? 0) >= 3);
   /** 대타 — 경기중·예측 중이 아닐 때 (현재 타석 교체) */
   const canSetPinchHitter =
     isMatchLive && !anyAdvanceBusy && !predictionRunning && !isAdPlaying;
@@ -1438,7 +1442,7 @@ export default function MatchDetailPage() {
               className="manager-match-notice manager-match-notice--three-outs"
               data-testid="text-three-outs-hint"
             >
-              3아웃 — 공수교대를 눌러주세요
+              3아웃 — 공수교대 (실황이 진행, 막히면 직접)
             </div>
           )}
 
@@ -1448,7 +1452,7 @@ export default function MatchDetailPage() {
               data-testid="text-await-next-batter"
               style={{ background: "#E8F5E9", color: "#2E7D32" }}
             >
-              결과 전송됨 — 다음 타자를 눌러주세요
+              결과 전송됨 — 실황이 다음 타자로 진행합니다
             </div>
           )}
 
