@@ -26,7 +26,7 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 ### Prediction wait / black screen
 - `/api/matches` 등 React Query는 **429·세션 오류 시 null로 캐시를 덮지 않는다** (throw → 이전 스냅샷 유지). null을 `[]`로 취급하면 가짜 `no_match` 검은 화면·`matchesData.some` 크래시가 난다.
 - 예측 화면 keepAlive는 **4분** 간격, WS 연결 전 access는 **만료 2분 전 refresh**, close `4005`는 **forceRefresh 후** 재연결.
-- **전화·문자·SNS 복귀**: 웹도 `visibilitychange`(hidden→visible)·bfcache `pageshow`로 WS를 강제 재연결하고, `/check`·경기 폴링으로 타석/결과를 맞춘다. 네이티브는 `appStateChange`도 같다. 자리비움 중 해당 타석 예측은 불가(서버 경기는 계속). 복귀 시 이미 본 결과는 ack로 중복 연출하지 않는다.
+- **전화·문자·SNS 복귀**: 웹도 `visibilitychange`(hidden→visible)·bfcache `pageshow`로 WS를 강제 재연결하고, `/check`·경기 폴링으로 타석/결과를 맞춘다. 네이티브는 `appStateChange`도 같다. 자리비움 중 해당 타석 예측은 불가(서버 경기는 계속). 복귀 시 이미 본 결과는 ack로 중복 연출하지 않는다. 환불된 포인트는 `refetchUser`로 맞춘다.
 - 라이브 대기 중 HTTP 폴링은 WS 보조로 **완화**(목록·스코어보드·phase ~8–10s). side-bet는 세션 교체/만료 메시지 시 interval 중지.
 
 ### Prediction flow edge guards

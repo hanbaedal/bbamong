@@ -68,7 +68,7 @@ export function useLandscapePredictionFlow(
     onMatchEnded?: () => void;
   },
 ) {
-  const { user, setUser } = useUser();
+  const { user, setUser, refetchUser } = useUser();
   const { toast } = useToast();
   const onScoreboardRef = useRef(options?.onScoreboardUpdate);
   const onGamePhaseRef = useRef(options?.onGamePhaseUpdate);
@@ -632,11 +632,12 @@ export function useLandscapePredictionFlow(
       setPredictionResult("pending");
       setLastWonAmount(0);
       setLastBetAmount(0);
+      void refetchUser();
       // 투수/공수 안내·광고 연출 중이면 페이즈를 덮지 않음
       if (isTransientAdOrEventPhase(screenPhaseRef.current)) return;
       setScreenPhase(enabled ? "picking" : "wait_start");
     },
-    [rememberActiveBet, beginSuccessPresentation, selectedMatch?.id],
+    [rememberActiveBet, beginSuccessPresentation, selectedMatch?.id, refetchUser],
   );
 
   const checkPredictionStatus = useCallback(async () => {
@@ -703,6 +704,7 @@ export function useLandscapePredictionFlow(
     return subscribeForegroundResume(() => {
       void keepAliveUserSession();
       void resumeMobileAudio();
+      void refetchUser();
       void checkPredictionStatusRef.current();
       void syncMatchFromServerRef.current();
     });
@@ -771,6 +773,7 @@ export function useLandscapePredictionFlow(
             betSnapshotRef.current = null;
             setSelectedPrediction(null);
             setPredictionResult("pending");
+            void refetchUser();
             if (!isTransientAdOrEventPhase(screenPhaseRef.current)) {
               setScreenPhase(data.predictionEnabled ? "picking" : "wait_start");
             }
@@ -782,7 +785,7 @@ export function useLandscapePredictionFlow(
     }, 2000);
 
     return () => clearInterval(id);
-  }, [screenPhase, predictionResult, selectedMatch?.id, user, setUser, beginSuccessPresentation]);
+  }, [screenPhase, predictionResult, selectedMatch?.id, user, setUser, beginSuccessPresentation, refetchUser]);
 
   const handleRunComplete = useCallback(() => {
     void speakGameVoice("user.predictionSuccess");
