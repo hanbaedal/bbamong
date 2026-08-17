@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNowMs } from "@/hooks/useNowMs";
 import { useUser } from "@/contexts/UserContext";
 import { apiRequest } from "@/lib/queryClient";
+import { useGameDayVoice } from "@/hooks/useGameDayVoice";
 import { resolveGameDayOverlayKind, resolveGameDayPhase } from "@/lib/gameDayPhase";
 import {
   formatCountdownMs,
@@ -609,6 +610,14 @@ export default function PredictionPage() {
   const shellDayPhase =
     gameDayPhase === "loading" || gameDayPhase === "no_match" ? "pregame" : gameDayPhase;
   const isLivePlay = gameDayPhase === "live";
+
+  useGameDayVoice({
+    gameDayPhase,
+    gameDayOverlayKind,
+    selectedMatchId,
+    isLivePlay,
+    matchesLoading: matchesLoading || matchesAwaitingData,
+  });
 
   const openSideBetSheet = useCallback(
     (betType: "winner" | "score") => {
