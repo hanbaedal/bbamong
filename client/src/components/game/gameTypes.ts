@@ -30,6 +30,13 @@ export const SUCCESS_ANNOUNCE_MS = 2000;
 /** 주루 도착 후 제자리 점프 3회 */
 export const SUCCESS_HOP_MS = 1350;
 
+/** 자리비움 따라잡기 — 다음 타석 예측 창을 남기기 위한 짧은 결과 배너 */
+export const CATCHUP_RESULT_MS = 700;
+
+export function isPageHidden(): boolean {
+  return typeof document !== "undefined" && document.visibilityState === "hidden";
+}
+
 export function isSuccessPresentationPhase(phase: GameScreenPhase): boolean {
   return (
     phase === "success_announce" ||

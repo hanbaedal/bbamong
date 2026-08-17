@@ -18,7 +18,7 @@ import type {
   PredictionResult,
   RoundAdvanceType,
 } from "@/components/game/gameTypes";
-import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, SUCCESS_HOP_MS, isSuccessPresentationPhase, isTransientAdOrEventPhase } from "@/components/game/gameTypes";
+import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, SUCCESS_HOP_MS, CATCHUP_RESULT_MS, isSuccessPresentationPhase, isTransientAdOrEventPhase, isPageHidden } from "@/components/game/gameTypes";
 import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
 import { consumeFirstPredictionOpen } from "@/lib/gameVoiceSession";
 import {
@@ -118,6 +118,8 @@ export function useLandscapePredictionFlow(
   const pendingInterstitialRef = useRef(false);
   /** 결과 연출 중에 prediction_started가 온 경우, 연출 종료 후 picking으로 */
   const wantPickingAfterResultRef = useRef(false);
+  /** 자리비움·다음 타석 대기 중 결과 연출은 주루를 생략하고 짧게 */
+  const hurryResultRef = useRef(false);
   const resultDismissScheduledRef = useRef(false);
   const successRunTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onMatchEndedRef = useRef(options?.onMatchEnded);
@@ -159,6 +161,12 @@ export function useLandscapePredictionFlow(
 
   const beginSuccessPresentation = useCallback(() => {
     clearSuccessRunTimer();
+    if (hurryResultRef.current || isPageHidden()) {
+      hurryResultRef.current = true;
+      void speakGameVoice("user.predictionSuccess");
+      setScreenPhase("success_celebrate");
+      return;
+    }
     // 배트 연출·주루를 먼저 보여 주고, 도착 후 축하 배너를 띄운다
     setScreenPhase("success_running");
   }, [clearSuccessRunTimer]);
@@ -182,6 +190,7 @@ export function useLandscapePredictionFlow(
     pendingRoundNextRef.current = null;
     pendingInterstitialRef.current = false;
     wantPickingAfterResultRef.current = false;
+    hurryResultRef.current = false;
     resultShownRef.current = false;
     waitingResultRef.current = false;
     activeBetRef.current = null;
@@ -493,6 +502,7 @@ export function useLandscapePredictionFlow(
 
   const finishResultPresentation = useCallback(() => {
     resultDismissScheduledRef.current = false;
+    hurryResultRef.current = false;
     if (lastResultPredictionIdRef.current != null) {
       acknowledgedResultIdRef.current = lastResultPredictionIdRef.current;
       if (selectedMatch?.id) {
@@ -535,6 +545,28 @@ export function useLandscapePredictionFlow(
     },
     [clearResultTimers, finishResultPresentation],
   );
+
+  const isNextAtBatReady = useCallback(() => {
+    return (
+      wantPickingAfterResultRef.current ||
+      pendingRoundNextRef.current != null ||
+      predictionEnabledRef.current
+    );
+  }, []);
+
+  const applyHurryResultPresentation = useCallback(() => {
+    hurryResultRef.current = true;
+    const phase = screenPhaseRef.current;
+    if (phase === "success_running" || phase === "success_announce") {
+      void speakGameVoice("user.predictionSuccess");
+      setScreenPhase("success_celebrate");
+      return;
+    }
+    if (phase === "success_celebrate" || phase === "fail") {
+      resultDismissScheduledRef.current = true;
+      scheduleResultDismiss(CATCHUP_RESULT_MS);
+    }
+  }, [scheduleResultDismiss]);
 
   const applyCheckResponse = useCallback(
     (data: {
@@ -705,10 +737,13 @@ export function useLandscapePredictionFlow(
       void keepAliveUserSession();
       void resumeMobileAudio();
       void refetchUser();
+      if (isInResultPresentation() && isNextAtBatReady()) {
+        finishResultPresentation();
+      }
       void checkPredictionStatusRef.current();
       void syncMatchFromServerRef.current();
     });
-  }, [selectedMatch?.id]);
+  }, [selectedMatch?.id, refetchUser, finishResultPresentation, isInResultPresentation, isNextAtBatReady]);
 
   useEffect(() => {
     if (!selectedMatch?.id) return;
@@ -813,7 +848,11 @@ export function useLandscapePredictionFlow(
     }
     if (resultDismissScheduledRef.current) return;
     resultDismissScheduledRef.current = true;
-    scheduleResultDismiss(screenPhase === "fail" ? RESULT_AUTO_MS : SUCCESS_HOP_MS);
+    const hurry = hurryResultRef.current || isPageHidden() || wantPickingAfterResultRef.current;
+    if (isPageHidden()) hurryResultRef.current = true;
+    scheduleResultDismiss(
+      hurry ? CATCHUP_RESULT_MS : screenPhase === "fail" ? RESULT_AUTO_MS : SUCCESS_HOP_MS,
+    );
   }, [screenPhase, scheduleResultDismiss]);
 
   const handleRoundResult = useCallback(
@@ -895,6 +934,7 @@ export function useLandscapePredictionFlow(
             predictionEnabled: true,
           };
         }
+        if (isPageHidden()) applyHurryResultPresentation();
         return;
       }
       // 이전 타석 결과대기 잔류 + 새 예측 시작 = 고착 복구 (대타/공수 후 메뉴 왕복으로만 풀리던 증상)
@@ -910,7 +950,7 @@ export function useLandscapePredictionFlow(
       setSelectedPrediction(null);
       setScreenPhase("picking");
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, [isInResultPresentation, stopAdSession, clearResultPresentationState, toast, selectedMatch?.id]),
+    }, [isInResultPresentation, stopAdSession, clearResultPresentationState, toast, selectedMatch?.id, applyHurryResultPresentation]),
 
     onPredictionEnded: useCallback(() => {
       void speakGameVoice("user.predictionClose");
