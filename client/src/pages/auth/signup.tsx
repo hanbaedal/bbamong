@@ -888,7 +888,7 @@ export default function SignupPage() {
           buttonText="확인"
           onConfirm={() => {
             stashSignupLoginPrefill(username, password);
-            setLocation("/login?guest=0");
+            setLocation("/login");
           }}
         />
       ) : null}
