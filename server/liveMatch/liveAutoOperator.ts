@@ -709,6 +709,24 @@ export async function processLiveAutoOperator(
 export function clearLiveAutoOperator(matchId: string): void {
   clearStopTimer(matchId);
   stateByMatch.delete(matchId);
+  // 열려 있는 예측을 닫아 영구 OPEN 방지
+  void (async () => {
+    try {
+      const match = await MatchModel.findOne({ id: matchId }).select("predictionEnabled").lean();
+      if (match?.predictionEnabled) {
+        const updated = await stopRound(matchId);
+        broadcastManager.sendToMatch(matchId, "prediction_stopped", {
+          matchId,
+          currentRound: updated.currentRound,
+          message: "실황 연동 해제: 예측이 중지되었습니다.",
+          source: "live_auto",
+        });
+        console.log(`[LiveAuto] clear: stopped open prediction ${matchId}`);
+      }
+    } catch (e) {
+      console.warn(`[LiveAuto] clear-time stop failed ${matchId}:`, e);
+    }
+  })();
 }
 
 /** 수동 오버라이드 시 타이머·후보 초기화 */
