@@ -1107,8 +1107,10 @@ export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boo
 
   const apiSyncEnabled = await isApiSyncEnabledForRegistrationOrder(order);
   if (!apiSyncEnabled) {
+    const { clearLiveAutoOperator } = await import("../liveMatch/liveAutoOperator");
+    clearLiveAutoOperator(matchId);
     console.log(
-      `[LiveScoreSync] tick skipped ${matchId} (order=${order}) — 운영자 API 폴링 OFF`,
+      `[LiveScoreSync] tick skipped ${matchId} (order=${order}) — 운영자 API 폴링 OFF → auto state cleared`,
     );
     return true;
   }

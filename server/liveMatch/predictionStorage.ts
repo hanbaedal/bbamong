@@ -1069,19 +1069,21 @@ export async function assertRoundResultSentOrAllowAdvance(
   }
 }
 
-/** 아웃 결과 시 공수 누적 아웃 +1 */
+/** 아웃 결과 시 공수 누적 아웃 증가 — 병살은 +2 */
 export async function incrementOutsInHalfOnResult(
   matchId: string,
   result: string,
+  options?: { isDoublePlay?: boolean },
 ): Promise<{ outsInHalf: number; threeOutsReached: boolean }> {
-  if (result !== "아웃") {
+  const outsToAdd = result !== "아웃" ? 0 : options?.isDoublePlay ? 2 : 1;
+  if (outsToAdd === 0) {
     const doc = await MatchModel.findOne({ id: matchId }).select("outsInHalf").lean();
     const outsInHalf = (doc?.outsInHalf as number | undefined) ?? 0;
     return { outsInHalf, threeOutsReached: outsInHalf >= 3 };
   }
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },
-    { $inc: { outsInHalf: 1 } },
+    { $inc: { outsInHalf: outsToAdd } },
     { new: true },
   ).lean();
   const outsInHalf = (updated?.outsInHalf as number | undefined) ?? 0;

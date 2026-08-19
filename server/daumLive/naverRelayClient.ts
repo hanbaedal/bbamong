@@ -8,7 +8,7 @@ const NAVER_GAME_BASE = "https://api-gw.sports.naver.com/schedule/games";
 const FETCH_TIMEOUT_MS = 15_000;
 const RELAY_CACHE_MS = 4_000;
 
-type RelayCache = { gameId: string; fetchedAt: number; situation: LiveScoreSituation | null };
+type RelayCache = { gameId: string; fetchedAt: number; situation: LiveScoreSituation | null; rawRelays?: any[] };
 const relayCache = new Map<string, RelayCache>();
 const relayInflight = new Map<string, Promise<LiveScoreSituation | null>>();
 
@@ -106,6 +106,39 @@ function currentPitcherName(
   const pitchers = battingAway ? relay?.homeEntry?.pitcher : relay?.awayEntry?.pitcher;
   const name = pitchers?.[0]?.name?.trim();
   return name || null;
+}
+
+/** 문자중계에 투수교체 문구가 있는지 확인 (최근 12문장) */
+export function hasRelayPitcherChangeText(
+  relays: Array<{ title?: string; textOptions?: NaverTextOption[] }> | undefined,
+): boolean {
+  const texts: string[] = [];
+  for (const relay of [...(relays ?? [])].reverse()) {
+    texts.push((relay.title ?? "").replace(/\s+/g, ""));
+    for (const option of relay.textOptions ?? []) {
+      const t = (option.text ?? "").trim();
+      if (t) texts.push(t);
+    }
+    if (texts.length >= 20) break;
+  }
+  const blob = texts.join(" ");
+  return /투수\s*교체|투수\s*교대|교체\s*투수|계투/.test(blob);
+}
+
+/** 문자중계에서 병살 여부 확인 (최근 8문장) */
+export function hasRelayDoublePlays(
+  relays: Array<{ title?: string; textOptions?: NaverTextOption[] }> | undefined,
+): boolean {
+  const texts: string[] = [];
+  for (const relay of [...(relays ?? [])].reverse()) {
+    for (const option of relay.textOptions ?? []) {
+      const t = (option.text ?? "").trim();
+      if (t) texts.push(t);
+    }
+    if (texts.length >= 12) break;
+  }
+  const blob = texts.join(" ");
+  return /병살|더블\s*플레이|겹살/.test(blob);
 }
 
 /** 문자중계 최근 문장에서 예측 결과 추정 */
@@ -209,8 +242,10 @@ export async function fetchNaverLiveSituation(cpGameId?: string | null): Promise
     if (!res.ok) {
       throw new Error(`네이버 문자중계 응답 ${res.status}`);
     }
-    const situation = parseNaverLiveSituation(await res.json());
-    relayCache.set(gameId, { gameId, fetchedAt: Date.now(), situation });
+    const json = await res.json();
+    const situation = parseNaverLiveSituation(json);
+    const rawRelays = (json as NaverRelayPayload)?.result?.textRelayData?.textRelays;
+    relayCache.set(gameId, { gameId, fetchedAt: Date.now(), situation, rawRelays });
     return situation;
   })().finally(() => {
     relayInflight.delete(gameId);
@@ -218,6 +253,15 @@ export async function fetchNaverLiveSituation(cpGameId?: string | null): Promise
 
   relayInflight.set(gameId, request);
   return request;
+}
+
+/** 캐시된 최신 네이버 문자중계 텍스트를 반환 (투수교체·병살 판정용) */
+export function getCachedRelayTexts(cpGameId?: string | null): any[] | undefined {
+  const gameId = daumCpGameIdToNaverGameId(cpGameId);
+  if (!gameId) return undefined;
+  const cached = relayCache.get(gameId);
+  if (!cached || Date.now() - cached.fetchedAt > RELAY_CACHE_MS * 3) return undefined;
+  return cached.rawRelays;
 }
 
 type H2hCache = { gameId: string; fetchedAt: number; awayWins: number; homeWins: number };
