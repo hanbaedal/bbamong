@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { Eye, EyeOff } from "lucide-react";
 import LandscapeSplitShell from "@/components/user/LandscapeSplitShell";
+import LoginMascotRunner from "@/components/user/LoginMascotRunner";
 import AuthPanelModal from "@/components/user/AuthPanelModal";
 import FindUsernameForm from "@/components/user/FindUsernameForm";
 import FindPasswordForm from "@/components/user/FindPasswordForm";
@@ -43,11 +44,11 @@ function LoginBootstrapLoading() {
 }
 
 export default function LoginPage() {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const { setUser } = useUser();
   const { assets } = useUserAssets();
   useAndroidImmersiveMode();
-  const guestLoginAllowed = isGuestLoginAllowed(location);
+  const guestLoginAllowed = isGuestLoginAllowed(window.location.search);
   const skipInitialBootstrap = peekSkipLoginBootstrap();
   const [bootstrapPhase, setBootstrapPhase] = useState<LoginBootstrapPhase>(
     skipInitialBootstrap ? "ready" : "checking",
@@ -671,16 +672,7 @@ export default function LoginPage() {
         right={
           <div className="user-login-right-shell">
             <div className="user-login-right-brand">
-              <div className="user-login-mascot-track" aria-hidden>
-                <div className="user-login-mascot-walker">
-                  <img
-                    src={assets.userMascot}
-                    alt=""
-                    className="user-login-mascot-img"
-                    data-testid="img-login-logo"
-                  />
-                </div>
-              </div>
+              <LoginMascotRunner />
             </div>
 
             <div className="user-login-panel user-login-panel--extras">

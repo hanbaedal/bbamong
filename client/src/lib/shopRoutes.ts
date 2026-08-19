@@ -40,9 +40,15 @@ export function isMallPath(path: string): boolean {
   return isPublicSitePath(path);
 }
 
-/** 쇼핑 등 회원 전용 로그인 의도 (`guest=0`) */
+/**
+ * 회원 전용 로그인 의도.
+ * `guest=0` 만으로는 숨기지 않는다 — 앱 기본 URL(`/login?guest=0`)에서도 게스트 로그인을 보여야 한다.
+ * 쇼핑몰·친구방처럼 return 이 있는 회원 전용 진입만 해당한다.
+ */
 export function isMemberOnlyLoginIntent(search = window.location.search): boolean {
-  return new URLSearchParams(search).get("guest") === "0";
+  const params = new URLSearchParams(search);
+  if (params.get("guest") !== "0") return false;
+  return Boolean(params.get("return"));
 }
 
 /** @deprecated 보물창고 제거 */
@@ -56,12 +62,12 @@ export function clearGuestSessionArtifacts(): void {
 
 export function isGuestLoginAllowed(search = window.location.search): boolean {
   const params = new URLSearchParams(search);
-  if (params.get("guest") === "0") return false;
   const returnPath = params.get("return");
   if (returnPath) {
     const base = returnPath.split("?")[0];
     if (isMallPath(base)) return false;
-    return true;
+    // 친구방 등 — guest=0 + return 이면 정회원 로그인만
+    if (params.get("guest") === "0") return false;
   }
   return true;
 }

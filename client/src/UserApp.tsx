@@ -33,7 +33,7 @@ import GameStorySplitPage from "@/pages/landscape/GameStorySplitPage";
 import GameInfoSplitPage from "@/pages/landscape/GameInfoSplitPage";
 import UserSessionExpiredPopup from "@/components/UserSessionExpiredPopup";
 import UserLoginAttemptNotice from "@/components/UserLoginAttemptNotice";
-import { openMallFromApp, GAME_PATH, HOME_PATH } from "@/lib/appNavigation";
+import { openMallFromApp, GAME_PATH, HOME_PATH, buildUserLoginUrl } from "@/lib/appNavigation";
 import { MALL_BASE_PATH } from "@shared/mallConfig";
 import { installAudioUnlockListeners } from "@/lib/mobileAudioUnlock";
 
@@ -57,8 +57,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   
   if (!user) {
     const returnPath = window.location.pathname + window.location.search;
-    const params = new URLSearchParams({ return: returnPath, guest: "0" });
-    return <Redirect to={`/login?${params.toString()}`} />;
+    return <Redirect to={buildUserLoginUrl(returnPath)} />;
   }
   
   return <Component />;
