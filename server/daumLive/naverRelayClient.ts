@@ -151,7 +151,7 @@ export function inferSuggestedResultFromRelays(
   for (const relay of [...(relays ?? [])].reverse()) {
     const title = (relay.title ?? "").replace(/\s+/g, "");
     if (name && title && !title.includes(name) && !title.includes("결과")) {
-      // 타자명과 무관한 블록은 건너뛰되, 결과 요약은 허용
+      continue;
     }
     for (const option of [...(relay.textOptions ?? [])].reverse()) {
       const text = (option.text ?? "").trim();

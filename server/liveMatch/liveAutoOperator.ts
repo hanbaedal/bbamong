@@ -40,6 +40,12 @@ export const LIVE_AUTO_PITCHER_STABLE_MS = Math.max(
   parseInt(process.env.LIVE_AUTO_PITCHER_STABLE_MS || "6000", 10) || 6_000,
 );
 
+/** 결과 대기 타임아웃 (결과가 안 오면 운영자에게 긴급 알림) */
+const RESULT_WATCHDOG_MS = Math.max(
+  30_000,
+  parseInt(process.env.LIVE_AUTO_RESULT_WATCHDOG_MS || "50000", 10) || 50_000,
+);
+
 type AutoState = {
   lastBatterName: string | null;
   lastOuts: number | null;
@@ -59,6 +65,9 @@ type AutoState = {
   lastPhaseBroadcast: AtBatPhase | null;
   /** 투수교체 제안만 보내고 확정 대기 (텍스트 확인 안 됨) */
   pitcherChangeSuggested: boolean;
+  /** prediction_closed 진입 시각 — watchdog 용 */
+  predictionClosedAt: number | null;
+  resultWatchdogFired: boolean;
 };
 
 const stateByMatch = new Map<string, AutoState>();
@@ -83,6 +92,8 @@ function getState(matchId: string): AutoState {
       lastSuggestedResultKey: null,
       lastPhaseBroadcast: null,
       pitcherChangeSuggested: false,
+      predictionClosedAt: null,
+      resultWatchdogFired: false,
     };
     stateByMatch.set(matchId, state);
   }
@@ -174,21 +185,30 @@ async function syncPhaseFromLive(
   const outs = Math.min(3, Math.max(0, scoreboard.situation?.outs ?? 0));
   const batterName = scoreboard.situation?.batterName?.trim() || "";
 
-  const update: Record<string, unknown> = { outsInHalf: outs };
-  if (inning != null && inning > 0) update.gameInning = inning;
-  if (half) update.inningHalf = half;
+  const setFields: Record<string, unknown> = {};
+  if (inning != null && inning > 0) setFields.gameInning = inning;
+  if (half) setFields.inningHalf = half;
 
   const match = await MatchModel.findOne({ id: matchId })
-    .select("matchLineup")
+    .select("matchLineup outsInHalf")
     .lean();
   const lineup = (match?.matchLineup as MatchLineupSnapshot | null) ?? null;
   if (batterName && lineup && half) {
     const side = half === "top" ? lineup.away : lineup.home;
     const found = findLineupBatterByName(side ?? [], batterName);
-    if (found) update.batterIndexInHalf = wrapBatterOrder(found.battingOrder);
+    if (found) setFields.batterIndexInHalf = wrapBatterOrder(found.battingOrder);
   }
 
-  await MatchModel.updateOne({ id: matchId }, { $set: update });
+  const dbOuts = (match?.outsInHalf as number | undefined) ?? 0;
+  const dbHalf = match?.inningHalf as string | undefined;
+  const halfSwitched = half && dbHalf && half !== dbHalf;
+  if (halfSwitched || outs >= dbOuts) {
+    setFields.outsInHalf = outs;
+  }
+
+  if (Object.keys(setFields).length > 0) {
+    await MatchModel.updateOne({ id: matchId }, { $set: setFields });
+  }
 }
 
 async function roundNeedsResult(matchId: string, currentRound: number): Promise<boolean> {
@@ -340,6 +360,27 @@ export async function processLiveAutoOperator(
 
     const phase = await resolveAtBatPhase(matchId);
     await emitPhaseIfChanged(matchId, phase);
+
+    // — 결과 대기 watchdog: prediction_closed 상태가 오래 지속되면 운영자에게 긴급 알림 —
+    if (phase === "prediction_closed") {
+      if (!state.predictionClosedAt) state.predictionClosedAt = now;
+      if (
+        !state.resultWatchdogFired &&
+        now - state.predictionClosedAt >= RESULT_WATCHDOG_MS
+      ) {
+        state.resultWatchdogFired = true;
+        broadcastManager.sendToMatch(matchId, "auto_result_timeout", {
+          matchId,
+          currentRound: match.currentRound ?? 1,
+          message: "결과가 감지되지 않습니다. 수동으로 결과를 입력해 주세요.",
+          suggestedResult: situation?.suggestedResult ?? null,
+        });
+        console.log(`[LiveAuto] result watchdog fired ${matchId}`);
+      }
+    } else {
+      state.predictionClosedAt = null;
+      state.resultWatchdogFired = false;
+    }
 
     const prevBatter = state.lastBatterName;
     const prevOuts = state.lastOuts;
