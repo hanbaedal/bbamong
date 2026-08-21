@@ -802,7 +802,7 @@ export async function advanceToNextBatter(
   return { match: updated as Match, predictionAutoStopped, pinchCleared };
 }
 
-/** 투수 교체 — 같은 타석 유지. 결과 전송 후에는 다음 타자를 사용 */
+/** 투수 교체 — 같은 타석 유지. 결과 전송 후에도 운영자가 수동으로 누를 수 있다. */
 export async function advancePitcherChange(
   matchId: string,
 ): Promise<{ match: Match; predictionAutoStopped: boolean; skippedResult: boolean; pinchCleared: boolean }> {
@@ -821,15 +821,10 @@ export async function advancePitcherChange(
       .session(session)
       .lean();
 
-    if (existing?.isResultSent) {
-      throw new Error(
-        "결과 전송 후에는 다음 타자를 눌러주세요. 같은 타석에서 투수만 바꿀 때 투수교체를 사용하세요.",
-      );
-    }
-
     let predictionAutoStopped = false;
     let skippedResult = false;
 
+    // 결과 전송 후: 라운드만 올리고 환불 없음. 미결과·예측 중이면 환불 후 재개.
     if (existing && !existing.isResultSent) {
       skippedResult = true;
       predictionAutoStopped = Boolean(
@@ -1069,13 +1064,20 @@ export async function assertRoundResultSentOrAllowAdvance(
   }
 }
 
-/** 아웃 결과 시 공수 누적 아웃 증가 — 병살은 +2 */
+/** 아웃 결과 시 공수 누적 아웃 증가 — 병살 +2 · 삼살 +3 */
 export async function incrementOutsInHalfOnResult(
   matchId: string,
   result: string,
-  options?: { isDoublePlay?: boolean },
+  options?: { isDoublePlay?: boolean; outsDelta?: number },
 ): Promise<{ outsInHalf: number; threeOutsReached: boolean }> {
-  const outsToAdd = result !== "아웃" ? 0 : options?.isDoublePlay ? 2 : 1;
+  let outsToAdd = 0;
+  if (result === "아웃") {
+    if (typeof options?.outsDelta === "number" && options.outsDelta >= 1) {
+      outsToAdd = Math.min(3, Math.floor(options.outsDelta));
+    } else {
+      outsToAdd = options?.isDoublePlay ? 2 : 1;
+    }
+  }
   if (outsToAdd === 0) {
     const doc = await MatchModel.findOne({ id: matchId }).select("outsInHalf").lean();
     const outsInHalf = (doc?.outsInHalf as number | undefined) ?? 0;

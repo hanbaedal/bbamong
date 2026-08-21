@@ -1,5 +1,6 @@
 /** 예측 참고용 TV 위젯. 이닝·점수는 다음, 다이아몬드·카운트·타자·투수는 네이버. */
-import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import type { LivePitcherSummary, LiveScoreboard } from "@shared/apiSportsTypes";
+import { formatStatCount } from "@shared/batterDisplay";
 import { kboTeamPrimaryColor } from "@shared/kboTeamColors";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 
@@ -10,6 +11,7 @@ interface GameLiveSituationWidgetProps {
   homeFallback?: string | null;
   onAwayTeamClick?: () => void;
   onHomeTeamClick?: () => void;
+  onPitcherClick?: (pitcher: LivePitcherSummary) => void;
 }
 
 function BaseDiamond({
@@ -28,6 +30,24 @@ function BaseDiamond({
   );
 }
 
+function formatTodayPitcherLine(pitcher: LivePitcherSummary): { main: string; split: string | null } {
+  const parts = [
+    pitcher.innings != null && String(pitcher.innings).trim()
+      ? `${String(pitcher.innings).trim()}이닝`
+      : null,
+    pitcher.strikeouts != null ? `탈삼진 ${formatStatCount(pitcher.strikeouts)}` : null,
+    pitcher.runsAllowed != null ? `실점 ${formatStatCount(pitcher.runsAllowed)}` : null,
+    pitcher.hitsAllowed != null ? `피안타 ${formatStatCount(pitcher.hitsAllowed)}` : null,
+    pitcher.pitchCount != null ? `투구수 ${formatStatCount(pitcher.pitchCount)}` : null,
+  ].filter(Boolean) as string[];
+  const main = parts.length > 0 ? parts.join("·") : "";
+  const split =
+    pitcher.strikes != null || pitcher.balls != null
+      ? `(스트라이크 ${formatStatCount(pitcher.strikes ?? 0)}+볼 ${formatStatCount(pitcher.balls ?? 0)})`
+      : null;
+  return { main, split };
+}
+
 export default function GameLiveSituationWidget({
   scoreboard,
   hidden = false,
@@ -35,6 +55,7 @@ export default function GameLiveSituationWidget({
   homeFallback,
   onAwayTeamClick,
   onHomeTeamClick,
+  onPitcherClick,
 }: GameLiveSituationWidgetProps) {
   if (hidden) return null;
   if (!scoreboard && !awayFallback && !homeFallback) return null;
@@ -52,12 +73,14 @@ export default function GameLiveSituationWidget({
   const strikes = situation?.strikes ?? 0;
   const outs = situation?.outs ?? 0;
   const batterName = situation?.batterName?.trim() || "";
-  const pitcherName = situation?.pitcherName?.trim() || "";
+  const pitcher = situation?.pitcher ?? null;
+  const pitcherName = pitcher?.name?.trim() || situation?.pitcherName?.trim() || "";
   const pitchLabel = situation?.pitchLabel?.trim() || "";
   const pitchDetail = situation?.pitchDetail?.trim() || "";
   const showBatter = Boolean(batterName || pitchLabel || pitchDetail);
   const showPitcher = Boolean(pitcherName);
   const showLiveBits = Boolean(scoreboard);
+  const todayLine = pitcher ? formatTodayPitcherLine(pitcher) : null;
 
   return (
     <div
@@ -100,17 +123,33 @@ export default function GameLiveSituationWidget({
           />
         </div>
         {showPitcher ? (
-          <div
-            className="mt-0.5 flex min-w-0 max-w-[7.5rem] items-center gap-1"
-            data-testid="game-live-pitcher"
-          >
-            <span className="shrink-0 rounded-[2px] bg-white/90 px-1 py-px text-[9px] font-bold leading-none text-black">
-              투수
-            </span>
-            <p className="truncate text-[11px] font-semibold leading-tight sm:text-xs">
-              {pitcherName}
-            </p>
-          </div>
+          onPitcherClick && pitcher ? (
+            <button
+              type="button"
+              className="pointer-events-auto mt-0.5 flex min-w-0 max-w-[7.5rem] items-center gap-1 text-left hover:brightness-110"
+              onClick={() => onPitcherClick(pitcher)}
+              data-testid="game-live-pitcher"
+            >
+              <span className="shrink-0 rounded-[2px] bg-white/90 px-1 py-px text-[9px] font-bold leading-none text-black">
+                투수
+              </span>
+              <p className="truncate text-[11px] font-semibold leading-tight sm:text-xs underline-offset-2 hover:underline">
+                {pitcherName}
+              </p>
+            </button>
+          ) : (
+            <div
+              className="mt-0.5 flex min-w-0 max-w-[7.5rem] items-center gap-1"
+              data-testid="game-live-pitcher"
+            >
+              <span className="shrink-0 rounded-[2px] bg-white/90 px-1 py-px text-[9px] font-bold leading-none text-black">
+                투수
+              </span>
+              <p className="truncate text-[11px] font-semibold leading-tight sm:text-xs">
+                {pitcherName}
+              </p>
+            </div>
+          )
         ) : null}
       </div>
 
@@ -131,21 +170,36 @@ export default function GameLiveSituationWidget({
       ) : null}
 
       {showBatter ? (
-        <div className="ml-2 flex min-w-0 max-w-[13rem] items-center gap-1.5 pt-0.5">
-          <span className="shrink-0 self-start mt-0.5 rounded-[2px] bg-white/90 px-1 py-px text-[9px] font-bold leading-none text-black">
-            타자
-          </span>
-          {batterName ? (
-            <p className="shrink-0 text-[13px] font-bold leading-tight sm:text-sm">{batterName}</p>
-          ) : null}
-          <div className="min-w-0 leading-tight">
-            {pitchLabel ? (
-              <p className="truncate text-[10px] font-semibold text-white/95">{pitchLabel}</p>
+        <div className="ml-2 flex min-w-0 max-w-[15rem] flex-col gap-0.5 pt-0.5">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0 self-start mt-0.5 rounded-[2px] bg-white/90 px-1 py-px text-[9px] font-bold leading-none text-black">
+              타자
+            </span>
+            {batterName ? (
+              <p className="shrink-0 text-[13px] font-bold leading-tight sm:text-sm">{batterName}</p>
             ) : null}
-            {pitchDetail ? (
-              <p className="truncate text-[10px] text-white/90">{pitchDetail}</p>
-            ) : null}
+            <div className="min-w-0 leading-tight">
+              {pitchLabel ? (
+                <p className="truncate text-[10px] font-semibold text-white/95">{pitchLabel}</p>
+              ) : null}
+              {pitchDetail ? (
+                <p className="truncate text-[10px] text-white/90">{pitchDetail}</p>
+              ) : null}
+            </div>
           </div>
+          {todayLine && (todayLine.main || todayLine.split) ? (
+            <div
+              className="ml-[1.9rem] max-w-[14rem] leading-tight text-white/90"
+              data-testid="game-live-pitcher-today"
+            >
+              {todayLine.main ? (
+                <p className="truncate text-[9px] font-semibold sm:text-[10px]">{todayLine.main}</p>
+              ) : null}
+              {todayLine.split ? (
+                <p className="truncate text-[9px] sm:text-[10px]">{todayLine.split}</p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

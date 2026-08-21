@@ -1,4 +1,5 @@
 import type {
+  LivePitcherSummary,
   LiveScoreSituation,
   LiveSuggestedPredictionResult,
 } from "@shared/apiSportsTypes";
@@ -12,7 +13,25 @@ type RelayCache = { gameId: string; fetchedAt: number; situation: LiveScoreSitua
 const relayCache = new Map<string, RelayCache>();
 const relayInflight = new Map<string, Promise<LiveScoreSituation | null>>();
 
-type NaverLineupPlayer = { pcode?: string | number; name?: string };
+type NaverLineupPlayer = {
+  pcode?: string | number;
+  name?: string;
+  hitType?: string;
+  hittype?: string;
+  pitchingStyle?: string;
+  backnum?: string | number;
+  seasonEra?: string | number;
+  era?: string | number;
+  inn?: string | number;
+  kk?: string | number;
+  run?: string | number;
+  hit?: string | number;
+  ballCount?: string | number;
+  seasonWin?: string | number;
+  seasonLose?: string | number;
+  w?: string | number;
+  l?: string | number;
+};
 type NaverTextOption = {
   type?: number;
   text?: string;
@@ -26,8 +45,8 @@ type NaverRelayPayload = {
     textRelayData?: {
       homeOrAway?: string | number;
       currentGameState?: Record<string, unknown>;
-      homeLineup?: { batter?: NaverLineupPlayer[] };
-      awayLineup?: { batter?: NaverLineupPlayer[] };
+      homeLineup?: { batter?: NaverLineupPlayer[]; pitcher?: NaverLineupPlayer[] };
+      awayLineup?: { batter?: NaverLineupPlayer[]; pitcher?: NaverLineupPlayer[] };
       homeEntry?: { batter?: NaverLineupPlayer[]; pitcher?: NaverLineupPlayer[] };
       awayEntry?: { batter?: NaverLineupPlayer[]; pitcher?: NaverLineupPlayer[] };
       textRelays?: Array<{ title?: string; textOptions?: NaverTextOption[] }>;
@@ -98,14 +117,99 @@ function parseLastPitch(
   return { pitchLabel, pitchDetail };
 }
 
-function currentPitcherName(
+function toOptionalNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number.parseFloat(String(value));
+  return Number.isFinite(n) ? n : null;
+}
+
+function handLabel(row: NaverLineupPlayer | null | undefined): string | null {
+  const raw = String(row?.hitType ?? row?.hittype ?? row?.pitchingStyle ?? "").trim();
+  if (!raw) return null;
+  if (/좌/.test(raw) || /L/i.test(raw)) return "좌투";
+  if (/우/.test(raw) || /R/i.test(raw)) return "우투";
+  return raw;
+}
+
+function findPitcherRow(
+  lists: Array<NaverLineupPlayer[] | undefined>,
+  pcode: string,
+): NaverLineupPlayer | null {
+  if (!pcode) return null;
+  for (const list of lists) {
+    const found = (list ?? []).find((row) => String(row.pcode ?? "") === pcode);
+    if (found) return found;
+  }
+  return null;
+}
+
+function countPitchResults(
+  relays: Array<{ title?: string; textOptions?: NaverTextOption[] }> | undefined,
+  pitcherName: string | null,
+): { strikes: number; balls: number } {
+  let strikes = 0;
+  let balls = 0;
+  const name = (pitcherName ?? "").replace(/\s+/g, "");
+  for (const relay of relays ?? []) {
+    const title = (relay.title ?? "").replace(/\s+/g, "");
+    // 투수명 블록이 있으면 우선, 없어도 type=1 피치 집계
+    for (const option of relay.textOptions ?? []) {
+      if (option.type !== 1) continue;
+      const key = (option.pitchResult ?? "").trim().toUpperCase();
+      if (key === "B") balls += 1;
+      else if (key === "T" || key === "C" || key === "S" || key === "F") strikes += 1;
+    }
+    void title;
+    void name;
+  }
+  return { strikes, balls };
+}
+
+/** currentGameState.pitcher(pcode) → 라인업/엔트리에서 현재 투수 해석 */
+function resolveCurrentPitcher(
   relay: NonNullable<NaverRelayPayload["result"]>["textRelayData"],
   battingAway: boolean,
-): string | null {
+): LivePitcherSummary | null {
+  const state = relay?.currentGameState;
+  const pitcherId = String(state?.pitcher ?? "").trim();
   // 타자가 원정이면 수비=홈 투수
-  const pitchers = battingAway ? relay?.homeEntry?.pitcher : relay?.awayEntry?.pitcher;
-  const name = pitchers?.[0]?.name?.trim();
-  return name || null;
+  const defenseLineup = battingAway ? relay?.homeLineup?.pitcher : relay?.awayLineup?.pitcher;
+  const defenseEntry = battingAway ? relay?.homeEntry?.pitcher : relay?.awayEntry?.pitcher;
+  const offenseLineup = battingAway ? relay?.awayLineup?.pitcher : relay?.homeLineup?.pitcher;
+  const offenseEntry = battingAway ? relay?.awayEntry?.pitcher : relay?.homeEntry?.pitcher;
+
+  let row =
+    findPitcherRow([defenseLineup, defenseEntry, offenseLineup, offenseEntry], pitcherId) ??
+    null;
+
+  // pcode 없으면 수비 라인업 첫 투수(폴백)
+  if (!row) {
+    row = (defenseLineup?.[0] ?? defenseEntry?.[0] ?? null) as NaverLineupPlayer | null;
+  }
+  const name = row?.name?.trim() || null;
+  if (!name) return null;
+
+  const pitchSplit = countPitchResults(relay?.textRelays, name);
+  const wins = toOptionalNumber(row.seasonWin ?? row.w);
+  const losses = toOptionalNumber(row.seasonLose ?? row.l);
+  const eraRaw = row.seasonEra ?? row.era;
+  const era = eraRaw != null && String(eraRaw).trim() !== "" ? String(eraRaw).trim() : null;
+
+  return {
+    name,
+    hand: handLabel(row),
+    backNumber: row.backnum != null ? String(row.backnum) : null,
+    wins,
+    losses,
+    era,
+    innings: row.inn != null ? String(row.inn) : null,
+    strikeouts: toOptionalNumber(row.kk),
+    runsAllowed: toOptionalNumber(row.run),
+    hitsAllowed: toOptionalNumber(row.hit),
+    pitchCount: toOptionalNumber(row.ballCount),
+    strikes: pitchSplit.strikes || null,
+    balls: pitchSplit.balls || null,
+  };
 }
 
 /** 문자중계에 투수교체 문구가 있는지 확인 (최근 12문장) */
@@ -197,7 +301,7 @@ export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | 
   const entry = battingAway ? relay?.awayEntry?.batter : relay?.homeEntry?.batter;
   const batterName = playerNameByCode(lineup, batterId) || playerNameByCode(entry, batterId);
   const pitch = parseLastPitch(relay?.textRelays, batterName);
-  const pitcherName = currentPitcherName(relay, battingAway);
+  const pitcher = resolveCurrentPitcher(relay, battingAway);
   const suggestedResult = inferSuggestedResultFromRelays(relay?.textRelays, batterName);
 
   // currentGameState 에도 homeScore/awayScore/hit/error 가 있으나 점수는 다음이 주인.
@@ -209,7 +313,8 @@ export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | 
     second: occupied(state.base2),
     third: occupied(state.base3),
     batterName,
-    pitcherName,
+    pitcherName: pitcher?.name ?? null,
+    pitcher,
     pitchLabel: pitch.pitchLabel,
     pitchDetail: pitch.pitchDetail,
     suggestedResult,

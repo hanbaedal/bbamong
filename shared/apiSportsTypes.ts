@@ -38,6 +38,25 @@ export interface LiveScoreboard {
 /** 예측 결과 후보 (운영자 버튼과 동일) */
 export type LiveSuggestedPredictionResult = "1루" | "2루" | "3루" | "홈런" | "아웃";
 
+/** 네이버 현재 투수 요약 (위젯·모달) */
+export interface LivePitcherSummary {
+  name: string;
+  /** 좌투 / 우투 */
+  hand?: string | null;
+  backNumber?: string | null;
+  wins?: number | null;
+  losses?: number | null;
+  era?: string | null;
+  /** 오늘 이닝 예: "5.0" */
+  innings?: string | null;
+  strikeouts?: number | null;
+  runsAllowed?: number | null;
+  hitsAllowed?: number | null;
+  pitchCount?: number | null;
+  strikes?: number | null;
+  balls?: number | null;
+}
+
 /** 실시간 볼카운트·아웃·주자·타석 */
 export interface LiveScoreSituation {
   balls: number;
@@ -47,8 +66,10 @@ export interface LiveScoreSituation {
   second: boolean;
   third: boolean;
   batterName?: string | null;
-  /** 수비 측 투수 (네이버 entry) */
+  /** 수비 측 투수 (네이버 currentGameState.pitcher) */
   pitcherName?: string | null;
+  /** 투수 시즌·오늘 기록 */
+  pitcher?: LivePitcherSummary | null;
   /** 예: "1구 볼" */
   pitchLabel?: string | null;
   /** 예: "143km/h 체인지업" */

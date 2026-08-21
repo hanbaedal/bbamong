@@ -219,11 +219,8 @@ export function resolveCurrentBatterPreview(input: {
   }
 
   const orderLabel = `${slotOrder}번 타자`;
-  const liveIsPinch = Boolean(
-    liveName &&
-      slotExpected?.name &&
-      normalizeBatterName(slotExpected.name) !== normalizeBatterName(liveName),
-  );
+  // 대타 = 실황 타자가 해당 팀 선발 타순에 없을 때만 (단순 타순 슬롯 불일치는 대타 아님)
+  const liveIsPinch = Boolean(liveName && !player);
 
   // 실황 타자가 선발 라인업에 없음 → 대타. 선발 이름으로 덮지 않음
   if (liveName && !player) {
@@ -284,5 +281,7 @@ export function resolveCurrentBatterPreview(input: {
     batsSide: parseBatterHandSide(stats?.batsThrows ?? null),
   };
 
+  // 실황 타자가 선발이면 DB 잔여 대타 스냅샷으로 덮지 않음 (대타 반복 표시 방지)
+  if (liveName && player) return base;
   return applyPinchHitter(base, input.pinchHitter, input.inningHalf, slotOrder);
 }

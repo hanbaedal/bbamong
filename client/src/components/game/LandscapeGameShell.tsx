@@ -18,7 +18,7 @@ import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customU
 import { useUser } from "@/contexts/UserContext";
 import type { HeadToHeadDisplayParts } from "@shared/matchTeamDisplay";
 import type { AdSessionState } from "@/hooks/useAdMob";
-import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
+import type { LiveScoreboard, CurrentBatterPreview, LivePitcherSummary } from "@shared/apiSportsTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import type { PregameCountdownDisplay } from "./GamePregameCountdown";
 import type { SideBetBottomSummary } from "./GameBottomStatusBar";
@@ -75,6 +75,7 @@ interface LandscapeGameShellProps {
   onSideBetScoreClick?: () => void;
   onAwayTeamClick?: () => void;
   onHomeTeamClick?: () => void;
+  onPitcherClick?: (pitcher: LivePitcherSummary) => void;
   /** 경기/경기장 선택 모달 등 — 진행 위젯 숨김 */
   noticeSuppressed?: boolean;
   friendRoomName?: string | null;
@@ -132,6 +133,7 @@ export default function LandscapeGameShell({
   onSideBetScoreClick,
   onAwayTeamClick,
   onHomeTeamClick,
+  onPitcherClick,
   noticeSuppressed = false,
   friendRoomName = null,
   onFriendRoomClick,
@@ -158,6 +160,7 @@ export default function LandscapeGameShell({
           homeFallback={headToHead?.homeName}
           onAwayTeamClick={onAwayTeamClick}
           onHomeTeamClick={onHomeTeamClick}
+          onPitcherClick={onPitcherClick}
         />
         {emptyMessage ? (
           <div className="absolute inset-0 flex items-center justify-center z-10 px-6">
