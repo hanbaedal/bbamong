@@ -49,12 +49,12 @@ export default function GameStrikeZoneOverlay({
 
   return (
     <div
-      className="absolute z-[28] pointer-events-none"
+      className="absolute z-[28] overflow-visible pointer-events-none"
       style={{ left, top, width: zoneW, height: zoneH }}
       data-testid="game-strike-zone"
       data-bats-side={batsSide ?? "right"}
     >
-      <div className="relative h-full w-full rounded-[2px] border border-white/70 bg-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.25)]">
+      <div className="relative h-full w-full overflow-visible rounded-[2px] border border-white/70 bg-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.25)]">
         {/* 3×3 그리드 */}
         <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
           {Array.from({ length: 9 }).map((_, i) => (
