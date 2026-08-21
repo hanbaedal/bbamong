@@ -1,8 +1,4 @@
-import type {
-  LiveScoreboard,
-  LiveSuggestedPredictionResult,
-  MatchLineupSnapshot,
-} from "@shared/apiSportsTypes";
+import type { LiveScoreboard, MatchLineupSnapshot } from "@shared/apiSportsTypes";
 import { PREDICTION_AUTO_STOP_MS } from "@shared/adBreakTiming";
 import { blocksAdvanceUntilResult, type AtBatPhase } from "@shared/atBatPhase";
 import { findLineupBatterByName, normalizeBatterName } from "@shared/batterDisplay";
@@ -15,13 +11,11 @@ import {
   advancePitcherChange,
   advanceToNextBatter,
   advanceInningHalf,
-  incrementOutsInHalfOnResult,
   nextRound,
   startRound,
   stopRound,
-  updateRoundPredictionResult,
 } from "./predictionStorage";
-import { hasRelayPitcherChangeText, hasRelayDoublePlays, getCachedRelayTexts } from "../daumLive/naverRelayClient";
+import { hasRelayPitcherChangeText, getCachedRelayTexts } from "../daumLive/naverRelayClient";
 
 /** 타자 변경 후 예측 중지까지 (수동·자동 공통 기본 8초) */
 export const LIVE_AUTO_PRED_STOP_MS = Math.max(
@@ -38,6 +32,12 @@ export const LIVE_AUTO_BATTER_STABLE_MS = Math.max(
 export const LIVE_AUTO_PITCHER_STABLE_MS = Math.max(
   3_000,
   parseInt(process.env.LIVE_AUTO_PITCHER_STABLE_MS || "6000", 10) || 6_000,
+);
+
+/** 결과 대기 타임아웃 (결과가 안 오면 운영자에게 긴급 알림) */
+const RESULT_WATCHDOG_MS = Math.max(
+  30_000,
+  parseInt(process.env.LIVE_AUTO_RESULT_WATCHDOG_MS || "50000", 10) || 50_000,
 );
 
 type AutoState = {
@@ -60,6 +60,9 @@ type AutoState = {
   pitcherChangeSuggested: boolean;
   /** 마지막으로 자동 설정한 대타명 (동일명 재브로드캐스트 방지) */
   lastPinchName: string | null;
+  /** prediction_closed 진입 시각 — watchdog 용 */
+  predictionClosedAt: number | null;
+  resultWatchdogFired: boolean;
 };
 
 const stateByMatch = new Map<string, AutoState>();
@@ -84,6 +87,8 @@ function getState(matchId: string): AutoState {
       lastPhaseBroadcast: null,
       pitcherChangeSuggested: false,
       lastPinchName: null,
+      predictionClosedAt: null,
+      resultWatchdogFired: false,
     };
     stateByMatch.set(matchId, state);
   }
@@ -197,41 +202,6 @@ async function roundNeedsResult(matchId: string, currentRound: number): Promise<
   return Boolean(stats.isPredictionStopped);
 }
 
-async function tryApplySuggestedResult(
-  matchId: string,
-  currentRound: number,
-  suggested: LiveSuggestedPredictionResult,
-  options?: { isDoublePlay?: boolean },
-): Promise<boolean> {
-  try {
-    if (!(await roundNeedsResult(matchId, currentRound))) return false;
-    const userWonAmounts = await updateRoundPredictionResult(matchId, currentRound, suggested);
-    await incrementOutsInHalfOnResult(matchId, suggested, { isDoublePlay: options?.isDoublePlay });
-    const userDataMap = new Map<string, { wonAmount: number }>();
-    userWonAmounts.forEach((wonAmount, userId) => {
-      userDataMap.set(userId, { wonAmount });
-    });
-    broadcastManager.sendToMatchWithUserData(
-      matchId,
-      "round_result",
-      {
-        matchId,
-        roundNumber: currentRound,
-        result: suggested,
-        message: `실황 자동 결과: ${suggested}`,
-        source: "live_auto",
-      },
-      userDataMap,
-    );
-    await emitPhaseIfChanged(matchId, "result_confirmed");
-    console.log(`[LiveAuto] auto result ${matchId} → ${suggested}`);
-    return true;
-  } catch (error) {
-    console.warn(`[LiveAuto] auto result failed ${matchId}:`, error);
-    return false;
-  }
-}
-
 async function emitPhaseSnapshot(
   matchId: string,
   advanceType: "next_batter" | "switch_half" | "pitcher_change",
@@ -339,6 +309,27 @@ export async function processLiveAutoOperator(
     const phase = await resolveAtBatPhase(matchId);
     await emitPhaseIfChanged(matchId, phase);
 
+    // — 결과 대기 watchdog: prediction_closed 상태가 오래 지속되면 운영자에게 긴급 알림 —
+    if (phase === "prediction_closed") {
+      if (!state.predictionClosedAt) state.predictionClosedAt = now;
+      if (
+        !state.resultWatchdogFired &&
+        now - state.predictionClosedAt >= RESULT_WATCHDOG_MS
+      ) {
+        state.resultWatchdogFired = true;
+        broadcastManager.sendToMatch(matchId, "auto_result_timeout", {
+          matchId,
+          currentRound: match.currentRound ?? 1,
+          message: "결과가 감지되지 않습니다. 수동으로 결과를 입력해 주세요.",
+          suggestedResult: situation?.suggestedResult ?? null,
+        });
+        console.log(`[LiveAuto] result watchdog fired ${matchId}`);
+      }
+    } else {
+      state.predictionClosedAt = null;
+      state.resultWatchdogFired = false;
+    }
+
     const prevBatter = state.lastBatterName;
     const prevOuts = state.lastOuts;
     const prevHalf = state.lastHalf;
@@ -380,12 +371,13 @@ export async function processLiveAutoOperator(
       half != null &&
       prevHalf != null &&
       (half !== prevHalf || (inning != null && prevInning != null && inning !== prevInning));
-    const cachedRelays = getCachedRelayTexts((match as any).daumGameId);
-    const isDoublePlay =
-      (suggested === "아웃" && prevOuts != null && outs - prevOuts >= 2) ||
-      hasRelayDoublePlays(cachedRelays);
+    const cachedRelays = getCachedRelayTexts(
+      (match as { daumGameId?: number | null }).daumGameId != null
+        ? String((match as { daumGameId?: number | null }).daumGameId)
+        : null,
+    );
 
-    // —— 결과 제안 / 이중조건 자동 확정 (prediction_closed만) ——
+    // —— 결과 제안 전용 (prediction_closed만) — 자동 확정하지 않음 ——
     if (suggested && phase === "prediction_closed") {
       const round = match.currentRound ?? 1;
       const key = `${round}:${suggested}:${batterName || prevBatter || ""}`;
@@ -401,20 +393,6 @@ export async function processLiveAutoOperator(
             oneTapConfirm: true,
           });
         }
-        const canAutoOut = suggested === "아웃" && prevOuts != null && outs > prevOuts;
-        const canAutoExtraBase =
-          (suggested === "홈런" ||
-            suggested === "2루" ||
-            suggested === "3루" ||
-            suggested === "1루") &&
-          batterStableChanged &&
-          prevOuts != null &&
-          outs === prevOuts;
-        // 공수교대 직전(3아웃·초말변경)이면 추정 결과를 우선 확정해 대기 고착을 막는다
-        const mustResolveBeforeSwitch = halfChanged || outsHitThree;
-        if (canAutoOut || canAutoExtraBase || mustResolveBeforeSwitch) {
-          await tryApplySuggestedResult(matchId, round, suggested, { isDoublePlay });
-        }
       }
     }
 
@@ -422,10 +400,6 @@ export async function processLiveAutoOperator(
     if ((halfChanged || outsHitThree) && phase === "prediction_open") {
       clearStopTimer(matchId);
       await stopPredictionIfOpen(matchId, "실황 자동: 공수교대 전 예측 중지");
-      if (suggested) {
-        const round = match.currentRound ?? 1;
-        await tryApplySuggestedResult(matchId, round, suggested, { isDoublePlay });
-      }
     }
 
     // —— 공수교대 (idle | result_confirmed만 — 결과 미전송이면 절대 emit 하지 않음) ——
@@ -440,11 +414,6 @@ export async function processLiveAutoOperator(
         } else {
           const round = fresh.currentRound ?? 1;
           let p = await resolveAtBatPhase(matchId);
-
-          if (blocksAdvanceUntilResult(p) && suggested) {
-            await tryApplySuggestedResult(matchId, round, suggested, { isDoublePlay });
-            p = await resolveAtBatPhase(matchId);
-          }
 
           if (blocksAdvanceUntilResult(p)) {
             broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
