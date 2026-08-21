@@ -17,7 +17,7 @@ async function processInactiveUsers(): Promise<void> {
       lastLogin: { $ne: null },
       $or: [{ lastLogout: null }, { $expr: { $gt: ["$lastLogin", "$lastLogout"] } }],
     })
-      .select("id")
+      .select("id lastActive")
       .lean();
 
     if (inactiveUsers.length === 0) {
@@ -35,6 +35,27 @@ async function processInactiveUsers(): Promise<void> {
       return;
     }
 
+    // Mongoose 9 pipeline 배열 updateMany 는 환경/번들에 따라 실패할 수 있어
+    // 문서별 $set bulkWrite 로 lastLogout = lastActive 를 기록한다.
+    const now = new Date();
+    const ops = usersToLogout.map((u) => ({
+      updateOne: {
+        filter: {
+          id: u.id,
+          lastActive: { $ne: null, $lt: thirtyMinutesAgo },
+          lastLogin: { $ne: null },
+          $or: [{ lastLogout: null }, { $expr: { $gt: ["$lastLogin", "$lastLogout"] } }],
+        },
+        update: {
+          $set: { lastLogout: u.lastActive instanceof Date ? u.lastActive : now },
+        },
+      },
+    }));
+
+    const result = await UserModel.bulkWrite(ops, { ordered: false });
+    const modified = result.modifiedCount ?? 0;
+
+    // DB 반영 후에만 Redis 세션 삭제 (업데이트 실패 시 강제 로그아웃 방지)
     for (const user of usersToLogout) {
       try {
         await deleteSession("user", user.id);
@@ -46,22 +67,9 @@ async function processInactiveUsers(): Promise<void> {
       }
     }
 
-    const logoutIds = usersToLogout.map((u) => u.id);
-    const result = await UserModel.updateMany(
-      {
-        id: { $in: logoutIds },
-        lastActive: { $ne: null, $lt: thirtyMinutesAgo },
-        lastLogin: { $ne: null },
-        $or: [{ lastLogout: null }, { $expr: { $gt: ["$lastLogin", "$lastLogout"] } }],
-      },
-      // lastLogout = 각 문서의 lastActive (aggregation pipeline)
-      [{ $set: { lastLogout: "$lastActive" } }],
-      { updatePipeline: true },
-    );
-
-    if (result.modifiedCount > 0) {
+    if (modified > 0) {
       console.log(
-        `[InactiveLogoutBatch] Processed ${result.modifiedCount} inactive users (Redis sessions deleted), skipped ${inactiveUsers.length - usersToLogout.length} WS-connected`,
+        `[InactiveLogoutBatch] Processed ${modified} inactive users (Redis sessions deleted), skipped ${inactiveUsers.length - usersToLogout.length} WS-connected`,
       );
     }
   } catch (error) {
