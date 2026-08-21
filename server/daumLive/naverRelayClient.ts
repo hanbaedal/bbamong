@@ -132,7 +132,8 @@ function resolveBatterToday(
   };
 }
 
-/** y=55ft → 플레이트(~1.417ft) 도달 시 z 높이 */
+/** y≈55ft → 플레이트 앞면(~1.417ft) 도달 시 z 높이.
+ *  주의: Naver ptsOptions.crossPlateY 는 플레이트 반폭(≈0.71)이라 yPlate 로 쓰지 않는다. */
 function plateArrivalZ(p: NaverPtsOption): number | null {
   const y0 = Number(p.y0);
   const vy0 = Number(p.vy0);

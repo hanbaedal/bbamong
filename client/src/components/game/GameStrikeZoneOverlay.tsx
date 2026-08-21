@@ -10,18 +10,21 @@ interface GameStrikeZoneOverlayProps {
   hidden?: boolean;
 }
 
-/** 플레이트 반폭(ft) — 스트라이크존 가로 */
-const PLATE_HALF = 0.83;
+/** 플레이트 반폭(ft) — 홈플레이트 17인치 ≈ 0.708ft */
+const PLATE_HALF = 0.71;
 
-function clamp01(n: number): number {
-  return Math.max(0, Math.min(1, n));
+function clampOverflow(n: number, pad = 0.18): number {
+  return Math.max(-pad, Math.min(1 + pad, n));
 }
 
 function resultColor(result?: string | null): string {
   const key = (result ?? "").toUpperCase();
-  if (key === "B") return "#22C55E";
-  if (key === "H") return "#F97316";
-  return "#F97316";
+  if (key === "B") return "#22C55E"; // 볼
+  if (key === "T" || key === "C") return "#EF4444"; // 콜드 스트라이크
+  if (key === "S") return "#F97316"; // 헛스윙
+  if (key === "F") return "#A855F7"; // 파울
+  if (key === "H") return "#EAB308"; // 타격(인플레이)
+  return "#94A3B8";
 }
 
 export default function GameStrikeZoneOverlay({
@@ -46,12 +49,12 @@ export default function GameStrikeZoneOverlay({
 
   return (
     <div
-      className="absolute z-[28] pointer-events-none"
+      className="absolute z-[28] overflow-visible pointer-events-none"
       style={{ left, top, width: zoneW, height: zoneH }}
       data-testid="game-strike-zone"
       data-bats-side={batsSide ?? "right"}
     >
-      <div className="relative h-full w-full rounded-[2px] border border-white/70 bg-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.25)]">
+      <div className="relative h-full w-full overflow-visible rounded-[2px] border border-white/70 bg-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.25)]">
         {/* 3×3 그리드 */}
         <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
           {Array.from({ length: 9 }).map((_, i) => (
@@ -59,9 +62,9 @@ export default function GameStrikeZoneOverlay({
           ))}
         </div>
         {pitches.map((p, idx) => {
-          // X: -PLATE_HALF..PLATE_HALF → 0..1 (투수 시점에서 오른쪽이 +X)
-          const nx = clamp01((p.plateX + PLATE_HALF) / (PLATE_HALF * 2));
-          const nz = clamp01((topSz - p.plateZ) / szHeight);
+          // X: catcher view (+X = 1루/포수 오른쪽) → 화면 오른쪽
+          const nx = clampOverflow((p.plateX + PLATE_HALF) / (PLATE_HALF * 2));
+          const nz = clampOverflow((topSz - p.plateZ) / szHeight);
           const size = Math.max(14, zoneW * 0.18);
           return (
             <div
@@ -76,7 +79,7 @@ export default function GameStrikeZoneOverlay({
                 backgroundColor: resultColor(p.result),
               }}
               data-testid={`strike-zone-pitch-${p.pitchNum}`}
-              title={`${p.pitchNum}구 ${p.stuff ?? ""} ${p.speed ?? ""}`.trim()}
+              title={`${p.pitchNum}구 ${p.result ?? ""} ${p.stuff ?? ""} ${p.speed ?? ""}`.trim()}
             >
               {p.pitchNum}
             </div>

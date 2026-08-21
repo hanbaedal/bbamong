@@ -73,7 +73,7 @@ export interface LivePitchLocation {
   pitchNum: number;
   /** B/T/C/S/F/H */
   result?: string | null;
-  /** plate X (음수=타자 안쪽/바깥은 stance에 따라) */
+  /** plate X — catcher view (+X = 1루 쪽 / 포수 오른쪽, ft) */
   plateX: number;
   /** plate Z 높이 (궤적 계산) */
   plateZ: number;
