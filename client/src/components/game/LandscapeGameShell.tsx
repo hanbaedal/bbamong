@@ -13,6 +13,7 @@ import GameResultBanner from "./GameResultBanner";
 import GameEventOverlay from "./GameEventOverlay";
 import GameAdOverlay from "./GameAdOverlay";
 import GameLiveSituationWidget from "./GameLiveSituationWidget";
+import GameStrikeZoneOverlay from "./GameStrikeZoneOverlay";
 import ConfirmPopup from "@/components/customUi/confirmPopup";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
 import { useUser } from "@/contexts/UserContext";
@@ -218,9 +219,29 @@ export default function LandscapeGameShell({
                   ? scoreboard.inningHalf
                   : inningHalf ?? null
               }
-              batsSide={currentBatter?.batsSide ?? null}
+              batsSide={
+                scoreboard?.situation?.batsSide === "left" ||
+                scoreboard?.situation?.batsSide === "right"
+                  ? scoreboard.situation.batsSide
+                  : currentBatter?.batsSide ?? null
+              }
               isPinchHitter={Boolean(currentBatter?.isPinchHitter)}
               onRunComplete={onRunComplete}
+            />
+
+            <GameStrikeZoneOverlay
+              pitches={scoreboard?.situation?.pitchLocations}
+              batsSide={
+                scoreboard?.situation?.batsSide === "left" ||
+                scoreboard?.situation?.batsSide === "right"
+                  ? scoreboard.situation.batsSide
+                  : currentBatter?.batsSide ?? null
+              }
+              hidden={
+                noticeSuppressed ||
+                screenPhase === "ad_playing" ||
+                gameDayPhase !== "live"
+              }
             />
 
             <GameConfetti

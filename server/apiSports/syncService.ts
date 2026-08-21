@@ -1029,8 +1029,15 @@ async function persistIncomingLiveScoreboard(
   const situationChanged =
     (prevSit?.batterName ?? "") !== (nextSit?.batterName ?? "") ||
     (prevSit?.outs ?? -1) !== (nextSit?.outs ?? -1) ||
+    (prevSit?.balls ?? -1) !== (nextSit?.balls ?? -1) ||
+    (prevSit?.strikes ?? -1) !== (nextSit?.strikes ?? -1) ||
+    Boolean(prevSit?.first) !== Boolean(nextSit?.first) ||
+    Boolean(prevSit?.second) !== Boolean(nextSit?.second) ||
+    Boolean(prevSit?.third) !== Boolean(nextSit?.third) ||
     (prevSit?.pitcherName ?? "") !== (nextSit?.pitcherName ?? "") ||
-    (prevSit?.suggestedResult ?? "") !== (nextSit?.suggestedResult ?? "");
+    (prevSit?.pitchLabel ?? "") !== (nextSit?.pitchLabel ?? "") ||
+    (prevSit?.suggestedResult ?? "") !== (nextSit?.suggestedResult ?? "") ||
+    (prevSit?.pitchLocations?.length ?? 0) !== (nextSit?.pitchLocations?.length ?? 0);
 
   if (nextKey !== (match.lastInningKey ?? null) || situationChanged) {
     broadcastManager.sendToMatch(matchId, "scoreboard_update", { scoreboard });
