@@ -48,7 +48,7 @@ interface GameCharacterLayerProps {
   gameDayPhase: GameDayPhase;
   gameDayOverlayKind?: GameDayOverlayKind | null;
   selectedPrediction: PredictionOption | null;
-  /** 초=원정(빨강) / 말=홈(삼성 블루) — 왼쪽 ▲/▼ 과 동일 */
+  /** 좌타/우타 — 없으면 우타. 대기 시 원정=파란 유니폼 / 홈=흰·빨간 유니폼 스프라이트 */
   battingHalf?: InningHalf | null;
   /** 좌타/우타 — 없으면 우타 */
   batsSide?: BatterHandSide | null;
