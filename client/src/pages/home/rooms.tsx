@@ -4,7 +4,7 @@ import { ChevronLeft } from "lucide-react";
 import { useUser } from "@/contexts/UserContext";
 import { getFullUrl, getOrRefreshAccessToken } from "@/lib/queryClient";
 import { setCurrentFriendRoom, peekPendingFriendRoomOpen, setPendingFriendRoomOpen, clearCurrentFriendRoomIfMatches } from "@/lib/friendRoomSession";
-import { USER_LOGIN_PATH } from "@/lib/loginSession";
+import { buildUserLoginUrl } from "@/lib/shopRoutes";
 import {
   FRIEND_ROOM_AGE_OPTIONS,
   FRIEND_ROOM_CAPACITY_DEFAULT,
@@ -157,7 +157,7 @@ export default function FriendRoomsPage() {
   useEffect(() => {
     if (!isUserLoaded) return;
     if (!user) {
-      setLocation(`${USER_LOGIN_PATH}?return=/home/rooms`);
+      setLocation(buildUserLoginUrl("/home/rooms", { allowGuest: false }));
       return;
     }
     if (isGuest) {
@@ -321,7 +321,7 @@ export default function FriendRoomsPage() {
       {isGuest ? (
         <div className="friend-rooms-pane">
           <p>게스트는 방을 만들거나 입장할 수 없습니다. 회원가입·로그인 후 이용해주세요.</p>
-          <button type="button" className="friend-rooms-btn" onClick={() => setLocation(USER_LOGIN_PATH)}>
+          <button type="button" className="friend-rooms-btn" onClick={() => setLocation(buildUserLoginUrl("/home/rooms", { allowGuest: false }))}>
             로그인
           </button>
         </div>
@@ -575,7 +575,7 @@ export function FriendRoomJoinPage() {
   useEffect(() => {
     if (!isUserLoaded) return;
     if (!user) {
-      setLocation(`${USER_LOGIN_PATH}?return=/rooms/join/${params.token}`);
+      setLocation(buildUserLoginUrl(`/rooms/join/${params.token}`, { allowGuest: false }));
       return;
     }
     if (isGuest) {

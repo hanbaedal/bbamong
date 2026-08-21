@@ -4,7 +4,7 @@ export const POST_LOGOUT_SESSION_KEY = "ppamong_post_logout";
 /** 설치 후 인트로 1회 표시용 — 로그아웃해도 유지 */
 export const INTRO_SEEN_STORAGE_KEY = "ppamong_intro_seen";
 
-export const USER_LOGIN_PATH = "/login?guest=0";
+export const USER_LOGIN_PATH = "/login";
 
 export const USER_AUTH_PUBLIC_PATHS = [
   "/login",

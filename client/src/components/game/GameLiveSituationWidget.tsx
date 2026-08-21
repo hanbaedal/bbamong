@@ -1,5 +1,6 @@
 /** 예측 참고용 TV 위젯. 이닝·점수는 다음, 다이아몬드·카운트·타자·투수는 네이버. */
-import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import type { LiveBatterTodayStats, LivePitcherSummary, LiveScoreboard } from "@shared/apiSportsTypes";
+import { formatStatCount } from "@shared/batterDisplay";
 import { kboTeamPrimaryColor } from "@shared/kboTeamColors";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 
@@ -10,22 +11,16 @@ interface GameLiveSituationWidgetProps {
   homeFallback?: string | null;
   onAwayTeamClick?: () => void;
   onHomeTeamClick?: () => void;
+  onPitcherClick?: (pitcher: LivePitcherSummary) => void;
 }
 
-function BaseDiamond({
-  occupied,
-  className,
-}: {
-  occupied: boolean;
-  className: string;
-}) {
-  return (
-    <span
-      className={`absolute h-[9px] w-[9px] rotate-45 border ${
-        occupied ? "border-white bg-white" : "border-white/55 bg-transparent"
-      } ${className}`}
-    />
-  );
+function formatBatterTodayLine(today: LiveBatterTodayStats | null | undefined): string | null {
+  if (!today) return null;
+  const ab = today.atBats;
+  const h = today.hits;
+  const hr = today.homeRuns;
+  if (ab == null && h == null && hr == null) return null;
+  return `${formatStatCount(ab ?? 0)}타수 ${formatStatCount(h ?? 0)}안타 ${formatStatCount(hr ?? 0)}홈런`;
 }
 
 export default function GameLiveSituationWidget({
@@ -35,6 +30,7 @@ export default function GameLiveSituationWidget({
   homeFallback,
   onAwayTeamClick,
   onHomeTeamClick,
+  onPitcherClick,
 }: GameLiveSituationWidgetProps) {
   if (hidden) return null;
   if (!scoreboard && !awayFallback && !homeFallback) return null;
@@ -52,12 +48,14 @@ export default function GameLiveSituationWidget({
   const strikes = situation?.strikes ?? 0;
   const outs = situation?.outs ?? 0;
   const batterName = situation?.batterName?.trim() || "";
-  const pitcherName = situation?.pitcherName?.trim() || "";
+  const pitcher = situation?.pitcher ?? null;
+  const pitcherName = pitcher?.name?.trim() || situation?.pitcherName?.trim() || "";
   const pitchLabel = situation?.pitchLabel?.trim() || "";
   const pitchDetail = situation?.pitchDetail?.trim() || "";
   const showBatter = Boolean(batterName || pitchLabel || pitchDetail);
   const showPitcher = Boolean(pitcherName);
   const showLiveBits = Boolean(scoreboard);
+  const batterTodayLine = formatBatterTodayLine(situation?.batterToday);
 
   return (
     <div
@@ -82,7 +80,7 @@ export default function GameLiveSituationWidget({
         </div>
       ) : null}
 
-      <div className="ml-0.5 flex min-w-[84px] flex-col justify-center sm:min-w-[96px]">
+      <div className="ml-0.5 flex min-w-[84px] flex-col justify-center sm:min-w-[110px]">
         <div className="flex flex-col gap-[2px]">
           <TeamScoreRow
             name={awayLabel}
@@ -100,16 +98,35 @@ export default function GameLiveSituationWidget({
           />
         </div>
         {showPitcher ? (
-          <div
-            className="mt-0.5 flex min-w-0 max-w-[7.5rem] items-center gap-1"
-            data-testid="game-live-pitcher"
-          >
-            <span className="shrink-0 rounded-[2px] bg-white/90 px-1 py-px text-[9px] font-bold leading-none text-black">
-              투수
-            </span>
-            <p className="truncate text-[11px] font-semibold leading-tight sm:text-xs">
-              {pitcherName}
-            </p>
+          <div className="mt-0.5 flex min-w-0 flex-col gap-0.5" data-testid="game-live-pitcher-block">
+            {onPitcherClick && pitcher ? (
+              <button
+                type="button"
+                className="pointer-events-auto flex min-w-0 max-w-[8.5rem] items-center gap-1 text-left hover:brightness-110"
+                onClick={() => onPitcherClick(pitcher)}
+                data-testid="game-live-pitcher"
+              >
+                <span className="shrink-0 rounded-[2px] bg-white/90 px-1 py-px text-[9px] font-bold leading-none text-black">
+                  투수
+                </span>
+                <p className="truncate text-[11px] font-semibold leading-tight sm:text-xs underline-offset-2 hover:underline">
+                  {pitcherName}
+                </p>
+              </button>
+            ) : (
+              <div
+                className="flex min-w-0 max-w-[8.5rem] items-center gap-1"
+                data-testid="game-live-pitcher"
+              >
+                <span className="shrink-0 rounded-[2px] bg-white/90 px-1 py-px text-[9px] font-bold leading-none text-black">
+                  투수
+                </span>
+                <p className="truncate text-[11px] font-semibold leading-tight sm:text-xs">
+                  {pitcherName}
+                </p>
+              </div>
+            )}
+            {pitcher ? <PitcherTodayBlock pitcher={pitcher} /> : null}
           </div>
         ) : null}
       </div>
@@ -131,24 +148,80 @@ export default function GameLiveSituationWidget({
       ) : null}
 
       {showBatter ? (
-        <div className="ml-2 flex min-w-0 max-w-[13rem] items-center gap-1.5 pt-0.5">
-          <span className="shrink-0 self-start mt-0.5 rounded-[2px] bg-white/90 px-1 py-px text-[9px] font-bold leading-none text-black">
-            타자
-          </span>
-          {batterName ? (
-            <p className="shrink-0 text-[13px] font-bold leading-tight sm:text-sm">{batterName}</p>
-          ) : null}
-          <div className="min-w-0 leading-tight">
-            {pitchLabel ? (
-              <p className="truncate text-[10px] font-semibold text-white/95">{pitchLabel}</p>
+        <div className="ml-2 flex min-w-0 max-w-[15rem] flex-col gap-0.5 pt-0.5">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0 self-start mt-0.5 rounded-[2px] bg-white/90 px-1 py-px text-[9px] font-bold leading-none text-black">
+              타자
+            </span>
+            {batterName ? (
+              <p className="shrink-0 text-[13px] font-bold leading-tight sm:text-sm">{batterName}</p>
             ) : null}
-            {pitchDetail ? (
-              <p className="truncate text-[10px] text-white/90">{pitchDetail}</p>
-            ) : null}
+            <div className="min-w-0 leading-tight">
+              {pitchLabel ? (
+                <p className="truncate text-[10px] font-semibold text-white/95">{pitchLabel}</p>
+              ) : null}
+              {pitchDetail ? (
+                <p className="truncate text-[10px] text-white/90">{pitchDetail}</p>
+              ) : null}
+            </div>
           </div>
+          {batterTodayLine ? (
+            <p
+              className="ml-[1.9rem] truncate text-[9px] font-semibold text-white/90 sm:text-[10px]"
+              data-testid="game-live-batter-today"
+            >
+              {batterTodayLine}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>
+  );
+}
+
+function PitcherTodayBlock({ pitcher }: { pitcher: LivePitcherSummary }) {
+  const inn = pitcher.innings != null && String(pitcher.innings).trim() ? String(pitcher.innings).trim() : "—";
+  const pitches = formatStatCount(pitcher.pitchCount ?? 0);
+  const s = formatStatCount(pitcher.strikes ?? 0);
+  const b = formatStatCount(pitcher.balls ?? 0);
+  const rows: Array<{ label: string; value: string }> = [
+    { label: "탈삼진", value: formatStatCount(pitcher.strikeouts ?? 0) },
+    { label: "실점", value: formatStatCount(pitcher.runsAllowed ?? 0) },
+    { label: "피안타", value: formatStatCount(pitcher.hitsAllowed ?? 0) },
+  ];
+  return (
+    <div
+      className="ml-[1.9rem] min-w-[7.5rem] max-w-[10rem] leading-[1.25] text-white/90"
+      data-testid="game-live-pitcher-today"
+    >
+      <p className="truncate text-[9px] font-semibold sm:text-[10px]">
+        {inn} 이닝 ( {pitches}구, S {s}, B {b})
+      </p>
+      <div className="mt-px grid grid-cols-[2.6rem_1fr] gap-x-1 text-[9px] sm:text-[10px]">
+        {rows.map((row) => (
+          <div key={row.label} className="contents">
+            <span className="truncate">{row.label}</span>
+            <span className="tabular-nums text-right">{row.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BaseDiamond({
+  occupied,
+  className,
+}: {
+  occupied: boolean;
+  className: string;
+}) {
+  return (
+    <span
+      className={`absolute h-[9px] w-[9px] rotate-45 border ${
+        occupied ? "border-white bg-white" : "border-white/55 bg-transparent"
+      } ${className}`}
+    />
   );
 }
 

@@ -38,6 +38,53 @@ export interface LiveScoreboard {
 /** 예측 결과 후보 (운영자 버튼과 동일) */
 export type LiveSuggestedPredictionResult = "1루" | "2루" | "3루" | "홈런" | "아웃";
 
+/** 네이버 현재 투수 요약 (위젯·모달) */
+export interface LivePitcherSummary {
+  name: string;
+  /** 좌투 / 우투 */
+  hand?: string | null;
+  backNumber?: string | null;
+  wins?: number | null;
+  losses?: number | null;
+  era?: string | null;
+  /** 오늘 이닝 예: "5.0" */
+  innings?: string | null;
+  strikeouts?: number | null;
+  runsAllowed?: number | null;
+  hitsAllowed?: number | null;
+  pitchCount?: number | null;
+  strikes?: number | null;
+  balls?: number | null;
+}
+
+/** 현재 타자 오늘 경기 기록 (네이버 라인업 ab/hit/hr) */
+export interface LiveBatterTodayStats {
+  atBats?: number | null;
+  hits?: number | null;
+  homeRuns?: number | null;
+  rbi?: number | null;
+  runs?: number | null;
+  strikeouts?: number | null;
+  walks?: number | null;
+}
+
+/** 투구 위치 (네이버 ptsOptions — 홈플레이트 기준 ft) */
+export interface LivePitchLocation {
+  pitchNum: number;
+  /** B/T/C/S/F/H */
+  result?: string | null;
+  /** plate X (음수=타자 안쪽/바깥은 stance에 따라) */
+  plateX: number;
+  /** plate Z 높이 (궤적 계산) */
+  plateZ: number;
+  topSz: number;
+  bottomSz: number;
+  /** L/R 타자 stance */
+  stance?: "L" | "R" | null;
+  stuff?: string | null;
+  speed?: number | null;
+}
+
 /** 실시간 볼카운트·아웃·주자·타석 */
 export interface LiveScoreSituation {
   balls: number;
@@ -47,8 +94,16 @@ export interface LiveScoreSituation {
   second: boolean;
   third: boolean;
   batterName?: string | null;
-  /** 수비 측 투수 (네이버 entry) */
+  /** 수비 측 투수 (네이버 currentGameState.pitcher) */
   pitcherName?: string | null;
+  /** 투수 시즌·오늘 기록 */
+  pitcher?: LivePitcherSummary | null;
+  /** 타자 오늘 기록 */
+  batterToday?: LiveBatterTodayStats | null;
+  /** 좌타/우타 (네이버 hitType) */
+  batsSide?: "left" | "right" | null;
+  /** 이번 타석 투구 위치 */
+  pitchLocations?: LivePitchLocation[] | null;
   /** 예: "1구 볼" */
   pitchLabel?: string | null;
   /** 예: "143km/h 체인지업" */

@@ -63,6 +63,8 @@ import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
 import TeamSeasonStatsModal from "@/components/TeamSeasonStatsModal";
+import PitcherStatsModal from "@/components/PitcherStatsModal";
+import type { LivePitcherSummary } from "@shared/apiSportsTypes";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
 
@@ -96,6 +98,7 @@ export default function PredictionPage() {
   const [stadiumModalOpen, setStadiumModalOpen] = useState(false);
   const [sideBetModalOpen, setSideBetModalOpen] = useState(false);
   const [teamStatsSide, setTeamStatsSide] = useState<"home" | "away" | null>(null);
+  const [pitcherModal, setPitcherModal] = useState<LivePitcherSummary | null>(null);
   const [sideBetAction, setSideBetAction] = useState<SideBetActionTarget | null>(null);
   const [sideBetResult, setSideBetResult] = useState<{
     lines: SideBetResultLine[];
@@ -476,7 +479,7 @@ export default function PredictionPage() {
     {
       startTime: selectedMatch?.startTime,
       matchStatus: selectedMatch?.matchStatus,
-      pollMs: 8_000,
+      pollMs: 2_500,
     },
   );
 
@@ -715,11 +718,13 @@ export default function PredictionPage() {
         onSideBetScoreClick={() => openSideBetSheet("score")}
         onAwayTeamClick={() => setTeamStatsSide("away")}
         onHomeTeamClick={() => setTeamStatsSide("home")}
+        onPitcherClick={(pitcher) => setPitcherModal(pitcher)}
         noticeSuppressed={
           matchModalOpen ||
           stadiumModalOpen ||
           sideBetModalOpen ||
           teamStatsSide != null ||
+          pitcherModal != null ||
           flow.screenPhase === "ad_playing" ||
           flow.adSessionState !== "idle" ||
           flow.showAdOverlay
@@ -776,6 +781,14 @@ export default function PredictionPage() {
               : scoreboardData?.teamSeasonStats?.home) ?? null
           }
           onClose={() => setTeamStatsSide(null)}
+        />
+      ) : null}
+
+      {pitcherModal ? (
+        <PitcherStatsModal
+          open
+          pitcher={pitcherModal}
+          onClose={() => setPitcherModal(null)}
         />
       ) : null}
 

@@ -921,7 +921,7 @@
   margin-top: clamp(1.6em, 4vh, 2.4em);
 }
 
-/* 로그인 — 면책 박스 위 빠몽이 걸음 */
+/* 로그인 — 면책 박스 위 빠몽이 달리기 */
 .user-login-mascot-track {
   position: relative;
   width: 100%;
@@ -931,37 +931,36 @@
   container-type: inline-size;
 }
 
-.user-login-mascot-walker {
+.user-login-mascot-runner {
   position: absolute;
   /* 발 위치를 면책 쪽을 향해 한 줄 내림 */
   bottom: -1.15em;
   left: 0;
   transform-origin: center bottom;
-  animation: ppamong-login-walk-x 10s ease-in-out infinite;
+  animation: ppamong-login-run-x 4.6s linear infinite;
   will-change: transform;
 }
 
 .user-login-mascot-img {
   display: block;
-  width: clamp(96px, 24vh, 152px);
+  width: clamp(110px, 28vh, 176px);
   height: auto;
   max-height: clamp(128px, 28vh, 184px);
   object-fit: contain;
-  animation: ppamong-login-walk-bob 0.42s ease-in-out infinite;
   transform-origin: center bottom;
 }
 
-@keyframes ppamong-login-walk-x {
+@keyframes ppamong-login-run-x {
   0% {
     transform: translateX(0) scaleX(1);
   }
-  48% {
+  46% {
     transform: translateX(calc(100cqw - 100%)) scaleX(1);
   }
-  52% {
+  50% {
     transform: translateX(calc(100cqw - 100%)) scaleX(-1);
   }
-  98% {
+  96% {
     transform: translateX(0) scaleX(-1);
   }
   100% {
@@ -969,25 +968,11 @@
   }
 }
 
-@keyframes ppamong-login-walk-bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8%);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .user-login-mascot-walker {
+  .user-login-mascot-runner {
     animation: none;
     left: 50%;
     transform: translateX(-50%);
-  }
-
-  .user-login-mascot-img {
-    animation: none;
   }
 }
 

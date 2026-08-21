@@ -6,7 +6,7 @@ const DAUM_LIST_URL = "https://sports.daum.net/prx/hermes/api/game/list.json";
 const DAUM_TEAM_RANK_URL = "https://sports.daum.net/prx/hermes/api/team/rank.json";
 const DAUM_PERSON_RANK_URL = "https://sports.daum.net/prx/hermes/api/person/rank.json";
 const FETCH_TIMEOUT_MS = 20_000;
-const LIST_CACHE_MS = 4_000;
+const LIST_CACHE_MS = 1_500;
 const TEAM_RANK_CACHE_MS = 30 * 60_000;
 const PERSON_RANK_CACHE_MS = 30 * 60_000;
 
