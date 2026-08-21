@@ -14,6 +14,7 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 
 ### Auth / testing
 - On boot the server auto-seeds a **superadmin**: username `ppamong`, password `ppamong.0323` (see `server/bootstrapSuperAdmin.ts`). Log in at `/admin/login`. This is the quickest way to exercise the full stack (Express + MongoDB + Redis + JWT) end-to-end.
+- **Walkthrough evidence**: Do **not** create demo/screen-recording videos. Prefer screenshots, curl/API logs, and terminal output as proof. UI changes still need visual verification (screenshots), but video artifacts are not required unless the user explicitly asks.
 
 ### Lint / typecheck / test / build
 - There is **no ESLint config and no test framework** in this repo. The only "lint" is `npm run check` (`tsc`), which currently reports **many pre-existing type errors** and is **not a clean gate** — dev runs through `tsx` (no typecheck) and is unaffected.
