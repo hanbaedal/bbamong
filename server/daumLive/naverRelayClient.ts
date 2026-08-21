@@ -469,9 +469,15 @@ export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | 
   const pitch = parseLastPitch(relay?.textRelays, batterName);
   const pitcher = resolveCurrentPitcher(relay, battingAway);
   const suggestedResult = inferSuggestedResultFromRelays(relay?.textRelays, batterName);
-  const batsSide = batsSideFromHitType(batterRow?.hitType ?? batterRow?.hittype);
   const batterToday = resolveBatterToday(batterRow);
   const pitchLocations = parseCurrentAtBatPitches(relay?.textRelays, batterName);
+  const batsSide =
+    batsSideFromHitType(batterRow?.hitType ?? batterRow?.hittype) ??
+    (pitchLocations[0]?.stance === "L"
+      ? "left"
+      : pitchLocations[0]?.stance === "R"
+        ? "right"
+        : null);
 
   // currentGameState 에도 homeScore/awayScore/hit/error 가 있으나 점수는 다음이 주인.
   return {

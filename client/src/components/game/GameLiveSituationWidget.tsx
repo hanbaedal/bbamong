@@ -184,23 +184,27 @@ function PitcherTodayBlock({ pitcher }: { pitcher: LivePitcherSummary }) {
   const pitches = formatStatCount(pitcher.pitchCount ?? 0);
   const s = formatStatCount(pitcher.strikes ?? 0);
   const b = formatStatCount(pitcher.balls ?? 0);
+  const rows: Array<{ label: string; value: string }> = [
+    { label: "탈삼진", value: formatStatCount(pitcher.strikeouts ?? 0) },
+    { label: "실점", value: formatStatCount(pitcher.runsAllowed ?? 0) },
+    { label: "피안타", value: formatStatCount(pitcher.hitsAllowed ?? 0) },
+  ];
   return (
     <div
-      className="ml-[1.9rem] max-w-[9.5rem] leading-[1.2] text-white/90"
+      className="ml-[1.9rem] min-w-[7.5rem] max-w-[10rem] leading-[1.25] text-white/90"
       data-testid="game-live-pitcher-today"
     >
       <p className="truncate text-[9px] font-semibold sm:text-[10px]">
         {inn} 이닝 ( {pitches}구, S {s}, B {b})
       </p>
-      <p className="truncate text-[9px] sm:text-[10px]">
-        탈삼진&nbsp;&nbsp;&nbsp;&nbsp;{formatStatCount(pitcher.strikeouts ?? 0)}
-      </p>
-      <p className="truncate text-[9px] sm:text-[10px]">
-        실점&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{formatStatCount(pitcher.runsAllowed ?? 0)}
-      </p>
-      <p className="truncate text-[9px] sm:text-[10px]">
-        피안타&nbsp;&nbsp;&nbsp;&nbsp;{formatStatCount(pitcher.hitsAllowed ?? 0)}
-      </p>
+      <div className="mt-px grid grid-cols-[2.6rem_1fr] gap-x-1 text-[9px] sm:text-[10px]">
+        {rows.map((row) => (
+          <div key={row.label} className="contents">
+            <span className="truncate">{row.label}</span>
+            <span className="tabular-nums text-right">{row.value}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
