@@ -942,7 +942,8 @@ export async function managerRoutes(app: Express): Promise<void> {
           ? "결과가 전송되었습니다. 공수교대를 눌러주세요."
           : "결과가 전송되었습니다. 다음 타자를 눌러주세요.",
         roundNumber: match.currentRound,
-        result,
+        result: settleResult,
+        displayResult: result,
         nextRound: match.currentRound,
         outsInHalf,
         threeOutsReached,
