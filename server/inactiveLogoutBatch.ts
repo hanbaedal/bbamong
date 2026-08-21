@@ -54,7 +54,9 @@ async function processInactiveUsers(): Promise<void> {
         lastLogin: { $ne: null },
         $or: [{ lastLogout: null }, { $expr: { $gt: ["$lastLogin", "$lastLogout"] } }],
       },
+      // lastLogout = 각 문서의 lastActive (aggregation pipeline)
       [{ $set: { lastLogout: "$lastActive" } }],
+      { updatePipeline: true },
     );
 
     if (result.modifiedCount > 0) {
