@@ -7,7 +7,7 @@ import { broadcastManager } from "../liveMatch/broadcastManager";
 import { startRound, stopRound, cancelStartRound, cancelStopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult, ensureMatchLiveForOperatorControls } from "../liveMatch/predictionStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { syncAtBatPhaseAfterManual } from "../liveMatch/atBatStateMachine";
-import { notifyManualAtBatAction } from "../liveMatch/liveAutoOperator";
+import { notifyManualAtBatAction, schedulePredictionAutoStop } from "../liveMatch/liveAutoOperator";
 import { MatchModel } from "../UserStorage/db";
 import { patchMatchLiveScoreboard } from "../apiSports/syncService";
 import { saveManualMatchLineup } from "../apiSports/manualLineupService";
@@ -711,6 +711,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       // startRound 호출로 predictionEnabled true 설정 (라운드 증가 없음)
       const updatedMatch = await startRound(id);
       notifyManualAtBatAction(id, "start");
+      schedulePredictionAutoStop(id);
       await syncAtBatPhaseAfterManual(id, "manual_start");
 
       // SSE로 예측 시작 이벤트 전송
@@ -852,6 +853,7 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       const updatedMatch = await cancelStopRound(id);
       notifyManualAtBatAction(id, "start");
+      schedulePredictionAutoStop(id);
       await syncAtBatPhaseAfterManual(id, "manual_cancel_stop");
 
       broadcastManager.sendToMatch(id, "prediction_started", {
@@ -881,10 +883,18 @@ export async function managerRoutes(app: Express): Promise<void> {
       if (!decoded) return;
 
       const { id } = req.params;
-      const { result } = req.body;
+      const { result, outsDelta: rawOutsDelta } = req.body;
 
       if (!result) {
         return res.status(400).json({ error: "결과가 필요합니다." });
+      }
+
+      const settleResult = result === "병살" || result === "삼살" ? "아웃" : result;
+      let outsDelta: number | undefined;
+      if (result === "병살") outsDelta = 2;
+      else if (result === "삼살") outsDelta = 3;
+      else if (typeof rawOutsDelta === "number" && rawOutsDelta >= 1 && rawOutsDelta <= 3) {
+        outsDelta = Math.floor(rawOutsDelta);
       }
 
       // 경기가 매니저에게 할당되었는지 확인
@@ -900,8 +910,11 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
 
       // 예측 결과 업데이트 (포인트 지급 포함) - 유저별 wonAmount 맵 반환
-      const userWonAmounts = await updateRoundPredictionResult(id, match.currentRound, result);
-      const { outsInHalf, threeOutsReached } = await incrementOutsInHalfOnResult(id, result);
+      // 병살·삼살 UI도 정산 결과는 반드시 "아웃"
+      const userWonAmounts = await updateRoundPredictionResult(id, match.currentRound, settleResult);
+      const { outsInHalf, threeOutsReached } = await incrementOutsInHalfOnResult(id, settleResult, {
+        outsDelta,
+      });
 
       // 유저별 wonAmount를 포함한 개인화된 round_result 전송
       const userDataMap = new Map<string, any>();
@@ -912,8 +925,11 @@ export async function managerRoutes(app: Express): Promise<void> {
       broadcastManager.sendToMatchWithUserData(id, "round_result", {
         matchId: id,
         roundNumber: match.currentRound,
-        result,
-        message: `라운드 ${match.currentRound} 결과: ${result}`
+        result: settleResult,
+        outsDelta: outsDelta ?? (settleResult === "아웃" ? 1 : 0),
+        message: `라운드 ${match.currentRound} 결과: ${settleResult}${
+          result === "병살" || result === "삼살" ? ` (${result})` : ""
+        }`
       }, userDataMap);
 
       notifyManualAtBatAction(id, "result");
@@ -987,12 +1003,35 @@ export async function managerRoutes(app: Express): Promise<void> {
       notifyManualAtBatAction(id, "next");
       await syncAtBatPhaseAfterManual(id, "manual_next_batter");
 
+      // 다음 타자 → 자동 예측 시작 (+ 8초 후 자동 중지)
+      let predictionStarted = false;
+      let currentRound = updatedMatch.currentRound;
+      try {
+        if ((updatedMatch.outsInHalf ?? 0) < 3) {
+          const started = await startRound(id);
+          currentRound = started.currentRound;
+          predictionStarted = true;
+          broadcastManager.sendToMatch(id, "prediction_started", {
+            matchId: id,
+            currentRound: started.currentRound,
+            message: `라운드 ${started.currentRound} 예측이 시작되었습니다.`,
+          });
+          schedulePredictionAutoStop(id);
+          await syncAtBatPhaseAfterManual(id, "manual_start");
+        }
+      } catch (startErr) {
+        console.warn(`[Manager] next-batter auto start failed ${id}:`, startErr);
+      }
+
       return res.json({
         success: true,
-        message: "다음 타자로 이동했습니다.",
-        currentRound: updatedMatch.currentRound,
+        message: predictionStarted
+          ? "다음 타자로 이동하고 예측을 시작했습니다."
+          : "다음 타자로 이동했습니다.",
+        currentRound,
         gamePhase,
         predictionAutoStopped: false,
+        predictionStarted,
       });
     } catch (error: unknown) {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
@@ -1060,13 +1099,12 @@ export async function managerRoutes(app: Express): Promise<void> {
           : `투수 교체 — ${gamePhase.displayLabel}`,
       });
 
-      // 전면·보상 광고 (배너 없음) — 교체 안내 연출 후 재생
+      // 전면·보상 광고 (배너 없음) — 교체 안내 연출 후 재생 (수동·자동 공통 쿨다운)
       const pitcherRewardKey = `${id}:pitcher:${Date.now()}`;
-      broadcastManager.sendToMatch(id, "rewarded_ad_offer", {
-        matchId: id,
+      const adStarted = broadcastManager.tryScheduleAdBreak(id, {
         rewardKey: pitcherRewardKey,
+        reason: "pitcher_change",
       });
-      broadcastManager.scheduleAdStart(id, 5_000);
 
       notifyManualAtBatAction(id, "pitcher");
       await syncAtBatPhaseAfterManual(id, "manual_pitcher_change");
@@ -1080,7 +1118,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         gamePhase,
         predictionAutoStopped,
         skippedResult,
-        adStarted: true,
+        adStarted,
       });
     } catch (error: unknown) {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
@@ -1363,13 +1401,12 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: `공수교대 — ${gamePhase.displayLabel}`,
       });
 
-      // 전면·보상 광고 (배너 없음) — 공수교대 안내 연출 후 재생
+      // 전면·보상 광고 (배너 없음) — 공수교대 안내 연출 후 재생 (수동·자동 공통 쿨다운)
       const halfRewardKey = `${id}:switch-half:${Date.now()}`;
-      broadcastManager.sendToMatch(id, "rewarded_ad_offer", {
-        matchId: id,
+      const adStarted = broadcastManager.tryScheduleAdBreak(id, {
         rewardKey: halfRewardKey,
+        reason: "switch_half",
       });
-      broadcastManager.scheduleAdStart(id, 5_000);
 
       notifyManualAtBatAction(id, "switch");
       await syncAtBatPhaseAfterManual(id, "manual_switch_half");
@@ -1379,7 +1416,7 @@ export async function managerRoutes(app: Express): Promise<void> {
         message: "공수교대가 반영되었습니다.",
         currentRound: updatedMatch.currentRound,
         gamePhase,
-        adStarted: true,
+        adStarted,
         predictionAutoStopped: false,
       });
     } catch (error: unknown) {

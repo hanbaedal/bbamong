@@ -19,14 +19,13 @@ import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import { resolveLiveInningPhaseLabel } from "@shared/matchPhaseDisplay";
-import { deriveOperatorNextAction } from "@shared/operatorNextAction";
 import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
 import { useQueryClient } from "@tanstack/react-query";
 import "./managerMatchDetail.css";
 
 const WS_BASE_URL = 'wss://ppamong.com';
 const PREDICTION_TOGGLE_MS = 1000;
-const RESULT_BUTTONS = ["1루", "2루", "3루", "홈런", "아웃"] as const;
+const RESULT_BUTTONS = ["1루", "2루", "3루", "홈런", "아웃", "병살", "삼살"] as const;
 
 interface Match {
   id: string;
@@ -900,12 +899,6 @@ export default function MatchDetailPage() {
       toast({ description: "공수교대 시에는 투수 교체 대신 공수 교대를 사용하세요." });
       return;
     }
-    if (Boolean(match?.needsAdvanceAfterResult || match?.isResultSent) && !isAdPlaying) {
-      toast({
-        description: "결과 전송 후에는 다음 타자를 눌러주세요. 같은 타석에서 투수만 바꿀 때 투수교체를 사용하세요.",
-      });
-      return;
-    }
     void handleAdvanceRound(
       `/api/manager/control/${id}/round/pitcher-change`,
       "투수 교체 처리에 실패했습니다.",
@@ -924,7 +917,11 @@ export default function MatchDetailPage() {
       toast({ description: "먼저 예측 결과를 전송해 주세요." });
       return;
     }
-    if (!showThreeOutsHint && (match?.outsInHalf ?? 0) < 3) {
+    if (
+      !showThreeOutsHint &&
+      (match?.outsInHalf ?? 0) < 3 &&
+      !awaitAdvanceAfterResult
+    ) {
       toast({ description: "3아웃일 때만 공수교대합니다. 그 전에는 실황이 진행합니다." });
       return;
     }
@@ -1097,23 +1094,13 @@ export default function MatchDetailPage() {
     !predictionRunning &&
     Boolean(match.predictionStopTime) &&
     blockAdvance;
-  const operatorNext = deriveOperatorNextAction({
-    atBatPhase: match.atBatPhase,
-    suggestedResult: suggestedAutoResult ?? selectedResult,
-    showThreeOutsHint,
-    needsAdvanceAfterResult: awaitAdvanceAfterResult,
-    needsResultBeforeAdvance: blockAdvance,
-    isAdPlaying,
-    predictionEnabled: match.predictionEnabled,
-  });
   const blockAdvanceActions = blockAdvance || predictionRunning;
   const anyAdvanceBusy = Boolean(advanceBusy);
-  /** 공수교대(3아웃) 제외 — 예측 시작·중지 중에도 투수 교체 가능. 결과 전송 후에는 다음 타자. */
+  /** 공수교대(3아웃) 제외 — 예측 시작·중지 중에도 투수 교체 가능. 결과 전송 후에도 수동 가능. */
   const canPitcherChange =
     isMatchLive &&
     !showThreeOutsHint &&
     !anyAdvanceBusy &&
-    !awaitAdvanceAfterResult &&
     !isAdPlaying;
   /** 다음 타자 — 결과 전송 후에만. 대기 중에는 실황 자동. 3아웃이면 공수교대만 */
   const canNextBatter =
@@ -1129,7 +1116,7 @@ export default function MatchDetailPage() {
     !anyAdvanceBusy &&
     !blockAdvanceActions &&
     !isAdPlaying &&
-    (showThreeOutsHint || (match.outsInHalf ?? 0) >= 3);
+    (showThreeOutsHint || (match.outsInHalf ?? 0) >= 3 || awaitAdvanceAfterResult);
   /** 대타 — 경기중·예측 중이 아닐 때 (현재 타석 교체) */
   const canSetPinchHitter =
     isMatchLive && !anyAdvanceBusy && !predictionRunning && !isAdPlaying;
@@ -1242,46 +1229,6 @@ export default function MatchDetailPage() {
               비상 수동 제어 (점수 API 잠금)
             </p>
           )}
-          <div
-            className="manager-match-phase-row"
-            data-testid="at-bat-phase-row"
-          >
-            <span
-              className="manager-match-phase-badge"
-              data-testid="text-at-bat-phase"
-            >
-              단계: {match.atBatPhaseLabel || "대기"}
-            </span>
-          </div>
-          {operatorNext.kind !== "none" && (
-            <div
-              className={`manager-match-next-action ${
-                operatorNext.kind === "confirm_result" || operatorNext.kind === "switch_half"
-                  ? "manager-match-next-action--urgent"
-                  : ""
-              }`}
-              data-testid="text-operator-next-action"
-            >
-              <span className="manager-match-next-action-label">지금</span>
-              <span className="manager-match-next-action-text">{operatorNext.label}</span>
-              {operatorNext.kind === "confirm_result" &&
-              operatorNext.suggestedResult &&
-              canSelectResult ? (
-                <button
-                  type="button"
-                  className="manager-match-next-action-btn"
-                  data-testid="button-one-tap-confirm-result"
-                  disabled={isSubmitting}
-                  onClick={() => {
-                    if (!operatorNext.suggestedResult || isSubmitting) return;
-                    void submitPredictionResult(operatorNext.suggestedResult);
-                  }}
-                >
-                  {isSubmitting ? "전송 중" : "1탭 확정"}
-                </button>
-              ) : null}
-            </div>
-          )}
         </div>
 
         <div className="manager-match-controls">
@@ -1375,14 +1322,6 @@ export default function MatchDetailPage() {
 
         <div className="manager-match-results">
           <h3 className="manager-match-section-title">예측 결과</h3>
-          {suggestedAutoResult ? (
-            <p
-              className="manager-match-notice"
-              data-testid="text-auto-result-suggested"
-            >
-              실황 추정: {suggestedAutoResult} — 확인 후 전송하거나 다른 결과를 고르세요
-            </p>
-          ) : null}
           <div className="manager-match-result-row">
             {RESULT_BUTTONS.map((label) => (
               <button

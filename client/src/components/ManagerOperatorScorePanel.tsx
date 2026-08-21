@@ -268,7 +268,7 @@ export default function ManagerOperatorScorePanel({
               </span>
             ) : matchStatus === "ongoing" && controlMode !== "manual" ? (
               <span className="manager-operator-score-live-hint">
-                경기 중 다음 스포츠 점수가 자동 반영됩니다. TV와 다르면 보정하세요.
+                TV와 점수가 다르면 아이콘으로 보정하세요.
               </span>
             ) : controlMode === "manual" ? (
               <span className="manager-operator-score-manual-hint">수동 잠금 — API 점수 미반영</span>
