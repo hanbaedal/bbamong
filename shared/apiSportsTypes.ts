@@ -57,6 +57,34 @@ export interface LivePitcherSummary {
   balls?: number | null;
 }
 
+/** 현재 타자 오늘 경기 기록 (네이버 라인업 ab/hit/hr) */
+export interface LiveBatterTodayStats {
+  atBats?: number | null;
+  hits?: number | null;
+  homeRuns?: number | null;
+  rbi?: number | null;
+  runs?: number | null;
+  strikeouts?: number | null;
+  walks?: number | null;
+}
+
+/** 투구 위치 (네이버 ptsOptions — 홈플레이트 기준 ft) */
+export interface LivePitchLocation {
+  pitchNum: number;
+  /** B/T/C/S/F/H */
+  result?: string | null;
+  /** plate X (음수=타자 안쪽/바깥은 stance에 따라) */
+  plateX: number;
+  /** plate Z 높이 (궤적 계산) */
+  plateZ: number;
+  topSz: number;
+  bottomSz: number;
+  /** L/R 타자 stance */
+  stance?: "L" | "R" | null;
+  stuff?: string | null;
+  speed?: number | null;
+}
+
 /** 실시간 볼카운트·아웃·주자·타석 */
 export interface LiveScoreSituation {
   balls: number;
@@ -70,6 +98,12 @@ export interface LiveScoreSituation {
   pitcherName?: string | null;
   /** 투수 시즌·오늘 기록 */
   pitcher?: LivePitcherSummary | null;
+  /** 타자 오늘 기록 */
+  batterToday?: LiveBatterTodayStats | null;
+  /** 좌타/우타 (네이버 hitType) */
+  batsSide?: "left" | "right" | null;
+  /** 이번 타석 투구 위치 */
+  pitchLocations?: LivePitchLocation[] | null;
   /** 예: "1구 볼" */
   pitchLabel?: string | null;
   /** 예: "143km/h 체인지업" */

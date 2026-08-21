@@ -1,5 +1,7 @@
 import type {
+  LiveBatterTodayStats,
   LivePitcherSummary,
+  LivePitchLocation,
   LiveScoreSituation,
   LiveSuggestedPredictionResult,
 } from "@shared/apiSportsTypes";
@@ -7,7 +9,8 @@ import { DAUM_USER_AGENT, daumCpGameIdToNaverGameId } from "./daumHermesClient";
 
 const NAVER_GAME_BASE = "https://api-gw.sports.naver.com/schedule/games";
 const FETCH_TIMEOUT_MS = 15_000;
-const RELAY_CACHE_MS = 4_000;
+/** 실황 폴링(2s)보다 짧아야 캐시가 폴링을 막지 않음 */
+const RELAY_CACHE_MS = 1_500;
 
 type RelayCache = { gameId: string; fetchedAt: number; situation: LiveScoreSituation | null; rawRelays?: any[] };
 const relayCache = new Map<string, RelayCache>();
@@ -26,6 +29,12 @@ type NaverLineupPlayer = {
   kk?: string | number;
   run?: string | number;
   hit?: string | number;
+  hr?: string | number;
+  ab?: string | number;
+  pa?: string | number;
+  rbi?: string | number;
+  so?: string | number;
+  bb?: string | number;
   ballCount?: string | number;
   seasonWin?: string | number;
   seasonLose?: string | number;
@@ -39,6 +48,29 @@ type NaverTextOption = {
   pitchResult?: string;
   speed?: string | number;
   stuff?: string;
+  ptsPitchId?: string;
+  currentPlayersInfo?: {
+    home?: { playerType?: string; currentGamePlayerStats?: Record<string, unknown> };
+    away?: { playerType?: string; currentGamePlayerStats?: Record<string, unknown> };
+  };
+};
+type NaverPtsOption = {
+  pitchId?: string;
+  ballcount?: number;
+  crossPlateX?: number;
+  crossPlateY?: number;
+  topSz?: number;
+  bottomSz?: number;
+  vy0?: number;
+  vz0?: number;
+  vx0?: number;
+  z0?: number;
+  y0?: number;
+  x0?: number;
+  ax?: number;
+  ay?: number;
+  az?: number;
+  stance?: string;
 };
 type NaverRelayPayload = {
   result?: {
@@ -49,7 +81,11 @@ type NaverRelayPayload = {
       awayLineup?: { batter?: NaverLineupPlayer[]; pitcher?: NaverLineupPlayer[] };
       homeEntry?: { batter?: NaverLineupPlayer[]; pitcher?: NaverLineupPlayer[] };
       awayEntry?: { batter?: NaverLineupPlayer[]; pitcher?: NaverLineupPlayer[] };
-      textRelays?: Array<{ title?: string; textOptions?: NaverTextOption[] }>;
+      textRelays?: Array<{
+        title?: string;
+        textOptions?: NaverTextOption[];
+        ptsOptions?: NaverPtsOption[];
+      }>;
     };
   };
 };
@@ -65,13 +101,141 @@ function occupied(value: unknown): boolean {
   return raw !== "" && raw !== "0";
 }
 
+function playerRowByCode(
+  players: NaverLineupPlayer[] | undefined,
+  pcode: string,
+): NaverLineupPlayer | null {
+  if (!pcode) return null;
+  return (players ?? []).find((row) => String(row.pcode ?? "") === pcode) ?? null;
+}
+
+function batsSideFromHitType(hitType?: string | null): "left" | "right" | null {
+  const raw = (hitType ?? "").replace(/\s+/g, "");
+  if (!raw) return null;
+  if (raw.includes("좌타")) return "left";
+  if (raw.includes("우타")) return "right";
+  return null;
+}
+
+function resolveBatterToday(
+  row: NaverLineupPlayer | null,
+): LiveBatterTodayStats | null {
+  if (!row) return null;
+  return {
+    atBats: toOptionalNumber(row.ab),
+    hits: toOptionalNumber(row.hit),
+    homeRuns: toOptionalNumber(row.hr),
+    rbi: toOptionalNumber(row.rbi),
+    runs: toOptionalNumber(row.run),
+    strikeouts: toOptionalNumber(row.so),
+    walks: toOptionalNumber(row.bb),
+  };
+}
+
+/** y=55ft → 플레이트(~1.417ft) 도달 시 z 높이 */
+function plateArrivalZ(p: NaverPtsOption): number | null {
+  const y0 = Number(p.y0);
+  const vy0 = Number(p.vy0);
+  const ay = Number(p.ay);
+  const z0 = Number(p.z0);
+  const vz0 = Number(p.vz0);
+  const az = Number(p.az);
+  if (![y0, vy0, ay, z0, vz0, az].every(Number.isFinite)) return null;
+  const yPlate = 1.417;
+  const a = 0.5 * ay;
+  const b = vy0;
+  const c = y0 - yPlate;
+  let t: number;
+  const disc = b * b - 4 * a * c;
+  if (disc < 0 || Math.abs(a) < 1e-9) {
+    if (Math.abs(vy0) < 1e-9) return null;
+    t = (yPlate - y0) / vy0;
+  } else {
+    const t1 = (-b - Math.sqrt(disc)) / (2 * a);
+    const t2 = (-b + Math.sqrt(disc)) / (2 * a);
+    const positives = [t1, t2].filter((x) => x > 0);
+    t = positives.length ? Math.min(...positives) : Math.max(t1, t2);
+  }
+  return z0 + vz0 * t + 0.5 * az * t * t;
+}
+
+function parseCurrentAtBatPitches(
+  relays: Array<{
+    title?: string;
+    textOptions?: NaverTextOption[];
+    ptsOptions?: NaverPtsOption[];
+  }> | undefined,
+  batterName?: string | null,
+): LivePitchLocation[] {
+  const name = (batterName ?? "").replace(/\s+/g, "");
+  for (const relay of [...(relays ?? [])].reverse()) {
+    const title = (relay.title ?? "").replace(/\s+/g, "");
+    if (name && title && !title.includes(name) && !title.includes("대타")) continue;
+    const pts = relay.ptsOptions ?? [];
+    if (pts.length === 0) continue;
+    const byId = new Map<string, NaverTextOption>();
+    for (const option of relay.textOptions ?? []) {
+      if (option.ptsPitchId) byId.set(option.ptsPitchId, option);
+    }
+    const out: LivePitchLocation[] = [];
+    for (const p of pts) {
+      const plateX = Number(p.crossPlateX);
+      if (!Number.isFinite(plateX)) continue;
+      const plateZ = plateArrivalZ(p);
+      if (plateZ == null || !Number.isFinite(plateZ)) continue;
+      const text = p.pitchId ? byId.get(p.pitchId) : undefined;
+      const stanceRaw = (p.stance ?? "").toUpperCase();
+      out.push({
+        pitchNum: Number(p.ballcount ?? text?.pitchNum ?? out.length + 1),
+        result: text?.pitchResult ?? null,
+        plateX,
+        plateZ,
+        topSz: Number(p.topSz) || 3.5,
+        bottomSz: Number(p.bottomSz) || 1.5,
+        stance: stanceRaw === "L" ? "L" : stanceRaw === "R" ? "R" : null,
+        stuff: text?.stuff ?? null,
+        speed: toOptionalNumber(text?.speed),
+      });
+    }
+    if (out.length) return out;
+  }
+  return [];
+}
+
+function latestPitcherGameCounts(
+  relays: Array<{ textOptions?: NaverTextOption[] }> | undefined,
+): { strikes: number | null; balls: number | null } {
+  let best: { strikes: number; balls: number; score: number } | null = null;
+  for (const relay of relays ?? []) {
+    for (const option of relay.textOptions ?? []) {
+      const info = option.currentPlayersInfo;
+      if (!info) continue;
+      for (const side of [info.home, info.away]) {
+        if (side?.playerType !== "pitcher") continue;
+        const st = side.currentGamePlayerStats ?? {};
+        // Naver currentGamePlayerStats: ballCount=볼, strikeCount=스트라이크 (합≈투구수)
+        const strikes = toOptionalNumber(st.strikeCount);
+        const balls = toOptionalNumber(st.ballCount);
+        if (strikes == null && balls == null) continue;
+        const s = strikes ?? 0;
+        const b = balls ?? 0;
+        const score = s + b;
+        if (!best || score >= best.score) {
+          best = { strikes: s, balls: b, score };
+        }
+      }
+    }
+  }
+  return best
+    ? { strikes: best.strikes, balls: best.balls }
+    : { strikes: null, balls: null };
+}
+
 function playerNameByCode(
   players: NaverLineupPlayer[] | undefined,
   pcode: string,
 ): string | null {
-  if (!pcode) return null;
-  const found = (players ?? []).find((row) => String(row.pcode ?? "") === pcode);
-  const name = found?.name?.trim();
+  const name = playerRowByCode(players, pcode)?.name?.trim();
   return name || null;
 }
 
@@ -189,6 +353,7 @@ function resolveCurrentPitcher(
   const name = row?.name?.trim() || null;
   if (!name) return null;
 
+  const liveCounts = latestPitcherGameCounts(relay?.textRelays);
   const pitchSplit = countPitchResults(relay?.textRelays, name);
   const wins = toOptionalNumber(row.seasonWin ?? row.w);
   const losses = toOptionalNumber(row.seasonLose ?? row.l);
@@ -207,8 +372,8 @@ function resolveCurrentPitcher(
     runsAllowed: toOptionalNumber(row.run),
     hitsAllowed: toOptionalNumber(row.hit),
     pitchCount: toOptionalNumber(row.ballCount),
-    strikes: pitchSplit.strikes || null,
-    balls: pitchSplit.balls || null,
+    strikes: liveCounts.strikes ?? (pitchSplit.strikes || null),
+    balls: liveCounts.balls ?? (pitchSplit.balls || null),
   };
 }
 
@@ -299,10 +464,14 @@ export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | 
   const battingAway = String(relay?.homeOrAway ?? "0") !== "1";
   const lineup = battingAway ? relay?.awayLineup?.batter : relay?.homeLineup?.batter;
   const entry = battingAway ? relay?.awayEntry?.batter : relay?.homeEntry?.batter;
-  const batterName = playerNameByCode(lineup, batterId) || playerNameByCode(entry, batterId);
+  const batterRow = playerRowByCode(lineup, batterId) || playerRowByCode(entry, batterId);
+  const batterName = batterRow?.name?.trim() || playerNameByCode(lineup, batterId) || playerNameByCode(entry, batterId);
   const pitch = parseLastPitch(relay?.textRelays, batterName);
   const pitcher = resolveCurrentPitcher(relay, battingAway);
   const suggestedResult = inferSuggestedResultFromRelays(relay?.textRelays, batterName);
+  const batsSide = batsSideFromHitType(batterRow?.hitType ?? batterRow?.hittype);
+  const batterToday = resolveBatterToday(batterRow);
+  const pitchLocations = parseCurrentAtBatPitches(relay?.textRelays, batterName);
 
   // currentGameState 에도 homeScore/awayScore/hit/error 가 있으나 점수는 다음이 주인.
   return {
@@ -315,6 +484,9 @@ export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | 
     batterName,
     pitcherName: pitcher?.name ?? null,
     pitcher,
+    batterToday,
+    batsSide,
+    pitchLocations: pitchLocations.length ? pitchLocations : null,
     pitchLabel: pitch.pitchLabel,
     pitchDetail: pitch.pitchDetail,
     suggestedResult,

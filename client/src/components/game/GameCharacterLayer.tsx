@@ -8,7 +8,8 @@ import pyamongRunning2 from "@assets/game/pyamong-running-2.png";
 import pyamongRunning3 from "@assets/game/pyamong-running-3.png";
 import pyamongStandsWaiting from "@assets/game/pyamong-stands-waiting.png";
 import pyamongWaveGoodbye from "@assets/game/pyamong-wave-goodbye.png";
-import pyamongBatterReady from "@assets/game/pyamong-batter-ready.png";
+import pyamongBatterAway from "@assets/game/pyamong-batter-away.png";
+import pyamongBatterHome from "@assets/game/pyamong-batter-home.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
@@ -35,6 +36,12 @@ import "./gameAnimations.css";
 /** 주루 달리기 스프라이트 프레임 (우측을 바라보는 포즈) */
 const PYAMONG_RUN_FRAMES = [pyamongRunning1, pyamongRunning2, pyamongRunning3, pyamongRunning2] as const;
 const RUN_FRAME_MS = 120;
+
+/** 예측 대기 — 원정(초)=파란 유니폼 / 홈(말)=흰·빨간 유니폼 */
+function waitingBatterSrc(battingHalf: InningHalf | null | undefined): string {
+  if (battingHalf === "bottom") return pyamongBatterHome;
+  return pyamongBatterAway;
+}
 
 interface GameCharacterLayerProps {
   phase: GameScreenPhase;
@@ -236,21 +243,22 @@ export default function GameCharacterLayer({
           <div
             className="flex flex-row items-end gap-1 sm:gap-2 pointer-events-none"
             style={{ transform: "translate(-50%, -92%)" }}
+            data-testid="char-batter-box-wait-start"
+            data-bats-side={handSide}
+            data-batting-half={battingHalf ?? ""}
           >
             <div
               className={isLeftHanded ? "game-pyamong-face-pitcher-left" : "game-pyamong-face-pitcher"}
               style={isLeftHanded ? { transform: "scaleX(-1) rotate(38deg)" } : undefined}
             >
               <img
-                src={pyamongBatterReady}
+                src={waitingBatterSrc(battingHalf)}
                 alt=""
-                className={pyamongSpriteClass(
-                  battingHalf,
-                  "h-auto animate-pyamong-idle shrink-0",
-                )}
+                className="game-sprite h-auto animate-pyamong-idle shrink-0 drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
                 style={{ width: PYAMONG_BATTER_WIDTH, transformOrigin: "bottom center" }}
                 data-testid="char-pyamong-waiting"
                 data-bats-side={handSide}
+                data-team-side={battingHalf === "bottom" ? "home" : "away"}
               />
             </div>
             <GameThoughtBubble
@@ -272,6 +280,9 @@ export default function GameCharacterLayer({
           <div
             className="relative flex flex-row items-end gap-2 sm:gap-3 pointer-events-none"
             style={{ transform: "translate(-50%, -100%)" }}
+            data-testid="char-batter-box-wait-result"
+            data-bats-side={handSide}
+            data-batting-half={battingHalf ?? ""}
           >
             <div className="relative shrink-0">
               <div
@@ -285,11 +296,12 @@ export default function GameCharacterLayer({
                 data-bats-side={handSide}
               >
                 <img
-                  src={pyamongBatterReady}
+                  src={waitingBatterSrc(battingHalf)}
                   alt=""
-                  className={pyamongSpriteClass(battingHalf, "h-auto animate-pyamong-idle")}
+                  className="game-sprite h-auto animate-pyamong-idle drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
                   style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center" }}
                   data-testid="char-batter-waiting"
+                  data-team-side={battingHalf === "bottom" ? "home" : "away"}
                 />
               </div>
               <div

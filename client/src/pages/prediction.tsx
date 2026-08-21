@@ -479,7 +479,7 @@ export default function PredictionPage() {
     {
       startTime: selectedMatch?.startTime,
       matchStatus: selectedMatch?.matchStatus,
-      pollMs: 8_000,
+      pollMs: 2_500,
     },
   );
 
