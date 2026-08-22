@@ -84,7 +84,6 @@ export function useLandscapePredictionFlow(
   const [selectedPrediction, setSelectedPrediction] = useState<PredictionOption | null>(null);
   const [selectedBetAmount, setSelectedBetAmount] = useState<BetAmountOption>(DEFAULT_BET_AMOUNT);
   const [showBetModal, setShowBetModal] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [predictionResult, setPredictionResult] = useState<PredictionResult>("pending");
   const [lastWonAmount, setLastWonAmount] = useState(0);
   const [lastBetAmount, setLastBetAmount] = useState(0);
@@ -198,7 +197,6 @@ export function useLandscapePredictionFlow(
     setSelectedPrediction(null);
     setPredictionResult("pending");
     setShowBetModal(false);
-    setShowConfirmModal(false);
     setLastWonAmount(0);
     setLastBetAmount(0);
     setPredictionEnabled(false);
@@ -215,7 +213,6 @@ export function useLandscapePredictionFlow(
     stopAdSession();
     setShowAdOverlay(false);
     setShowBetModal(false);
-    setShowConfirmModal(false);
     setScreenPhase("match_ended");
     void speakGameVoice("user.matchEnded", 8_000);
 
@@ -384,7 +381,6 @@ export function useLandscapePredictionFlow(
     setSelectedPrediction(null);
     setPredictionResult("pending");
     setShowBetModal(false);
-    setShowConfirmModal(false);
     setLastWonAmount(0);
     setLastBetAmount(0);
   }, []);
@@ -397,7 +393,6 @@ export function useLandscapePredictionFlow(
       adSessionActiveRef.current = true;
       adDismissedEarlyRef.current = false;
       setShowBetModal(false);
-      setShowConfirmModal(false);
       setScreenPhase("ad_playing");
 
       if (isNativePlatform) {
@@ -957,7 +952,6 @@ export function useLandscapePredictionFlow(
       setPredictionEnabled(false);
       wantPickingAfterResultRef.current = false;
       setShowBetModal(false);
-      setShowConfirmModal(false);
       if (isInResultPresentation()) {
         if (pendingRoundNextRef.current) {
           pendingRoundNextRef.current = {
@@ -1290,20 +1284,15 @@ export function useLandscapePredictionFlow(
     [screenPhase, predictionEnabled],
   );
 
-  const handleBetNext = useCallback(() => {
+  const handleBetModalCancel = useCallback(() => {
     setShowBetModal(false);
-    setShowConfirmModal(true);
-  }, []);
-
-  const handleConfirmCancel = useCallback(() => {
-    setShowConfirmModal(false);
     setSelectedPrediction(null);
   }, []);
 
-  const handleConfirmSubmit = useCallback(async () => {
+  const handleBetSubmit = useCallback(async () => {
     if (!user || !selectedMatch || !selectedPrediction) return;
 
-    setShowConfirmModal(false);
+    setShowBetModal(false);
     waitingResultRef.current = true;
     acknowledgedResultIdRef.current = null;
     lastResultPredictionIdRef.current = null;
@@ -1355,7 +1344,6 @@ export function useLandscapePredictionFlow(
     setSelectedBetAmount,
     showBetModal,
     setShowBetModal,
-    showConfirmModal,
     predictionResult,
     lastWonAmount,
     lastBetAmount,
@@ -1369,9 +1357,8 @@ export function useLandscapePredictionFlow(
     labelsInteractive,
     blinkPrediction,
     handleFieldSelect,
-    handleBetNext,
-    handleConfirmCancel,
-    handleConfirmSubmit,
+    handleBetModalCancel,
+    handleBetSubmit,
     handleRunComplete,
     handleAdOverlayDismiss,
   };
