@@ -786,9 +786,7 @@ export function useLandscapePredictionFlow(
             setLastWonAmount(data.wonAmount ?? 0);
             setLastBetAmount(data.amount ?? activeBetRef.current?.amount ?? DEFAULT_BET_AMOUNT);
             activeBetRef.current = null;
-            if (user && data.status === "success" && data.wonAmount > 0) {
-              setUser({ ...user, points: (user.points ?? 0) + data.wonAmount });
-            }
+            if (data.status === "success") void refetchUser();
           if (data.status === "success") beginSuccessPresentation();
           else setScreenPhase("fail");
           } else if (!data.hasPrediction) {
@@ -876,7 +874,7 @@ export function useLandscapePredictionFlow(
         if (user) {
           const won = data.wonAmount ?? calculateFixedOddsPayout(bet.amount, bet.prediction);
           setLastWonAmount(won);
-          if (won > 0) setUser({ ...user, points: (user.points ?? 0) + won });
+          void refetchUser();
         }
         beginSuccessPresentation();
       } else {
@@ -885,7 +883,7 @@ export function useLandscapePredictionFlow(
 
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
     },
-    [user, setUser, isWaitingForResult, checkPredictionStatus, beginSuccessPresentation],
+    [user, setUser, isWaitingForResult, checkPredictionStatus, beginSuccessPresentation, refetchUser],
   );
 
   const wsHandlers: WSEventHandlers = {

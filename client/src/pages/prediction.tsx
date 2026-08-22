@@ -402,13 +402,6 @@ export default function PredictionPage() {
   }, [sideBetModalOpen, displayMatch, nowMs]);
 
   useEffect(() => {
-    if (!gameDayOverlayKind) return;
-    setMatchModalOpen(false);
-    setStadiumModalOpen(false);
-    setSelectedMatchId(null);
-  }, [gameDayOverlayKind]);
-
-  useEffect(() => {
     if (!selectedMatchId) return;
     // 매치 목록 로드 전에는 비어 있어 복원값을 지우면 안 됨
     if (matchesLoading || !hasMatchesSnapshot) return;
@@ -622,6 +615,21 @@ export default function PredictionPage() {
   const shellDayPhase =
     gameDayPhase === "loading" || gameDayPhase === "no_match" ? "pregame" : gameDayPhase;
   const isLivePlay = gameDayPhase === "live";
+  const isMatchEndSequence = flow.screenPhase === "match_ended";
+  const shellScreenPhase = isMatchEndSequence
+    ? "match_ended"
+    : isLivePlay
+      ? flow.screenPhase
+      : "wait_start";
+  const effectiveGameDayOverlayKind =
+    isMatchEndSequence ? null : gameDayOverlayKind;
+
+  useEffect(() => {
+    if (!gameDayOverlayKind || isMatchEndSequence) return;
+    setMatchModalOpen(false);
+    setStadiumModalOpen(false);
+    setSelectedMatchId(null);
+  }, [gameDayOverlayKind, isMatchEndSequence]);
 
   useGameDayVoice({
     gameDayPhase,
@@ -687,7 +695,7 @@ export default function PredictionPage() {
         matchesInitialLoading={Boolean(displayMatch) && matchesInitialLoading}
         activePanel={null}
         onMenuSelect={handleMenuSelect}
-        screenPhase={isLivePlay ? flow.screenPhase : "wait_start"}
+        screenPhase={shellScreenPhase}
         selectedPrediction={isLivePlay ? flow.selectedPrediction : null}
         labelsVisible={isLivePlay && flow.labelsVisible}
         labelsInteractive={isLivePlay && flow.labelsInteractive}
@@ -714,7 +722,7 @@ export default function PredictionPage() {
         stadiumSelectEnabled={canSelectStadium}
         inningHalf={inningHalfForUi}
         gameDayPhase={shellDayPhase}
-        gameDayOverlayKind={gameDayOverlayKind}
+        gameDayOverlayKind={effectiveGameDayOverlayKind}
         onGameTerminalComplete={handleGameTerminalComplete}
         terminalRedirectLabel={friendRoomId ? "방으로" : "홈으로"}
         friendRoomName={friendRoomName}
