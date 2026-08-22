@@ -10,6 +10,7 @@ import GameConfetti from "./GameConfetti";
 import GameBottomStatusBar from "./GameBottomStatusBar";
 import GameBetModal from "./GameBetModal";
 import GameResultBanner from "./GameResultBanner";
+import GameRoundResultFlash from "./GameRoundResultFlash";
 import GameEventOverlay from "./GameEventOverlay";
 import GameAdOverlay from "./GameAdOverlay";
 import GameLiveSituationWidget from "./GameLiveSituationWidget";
@@ -40,6 +41,8 @@ interface LandscapeGameShellProps {
   emptyMessage?: string;
   screenPhase: GameScreenPhase;
   selectedPrediction: PredictionOption | null;
+  /** 라운드 확정 결과 큰 글씨 (result_flash) */
+  roundResultLabel?: PredictionOption | null;
   labelsVisible: boolean;
   labelsInteractive: boolean;
   blinkPrediction: PredictionOption | null;
@@ -97,6 +100,7 @@ export default function LandscapeGameShell({
   emptyMessage,
   screenPhase,
   selectedPrediction,
+  roundResultLabel = null,
   labelsVisible,
   labelsInteractive,
   blinkPrediction,
@@ -143,14 +147,13 @@ export default function LandscapeGameShell({
 
   const displayPitches = useAtBatPitchDisplay(scoreboard, screenPhase);
   const pitchLocationCount = displayPitches?.length ?? 0;
-  /** 예측 선택·배팅 모달 중에는 투구 잔상과 겹치지 않도록 숨김 */
+  /** 3. 예측 중지·결과 큰 글씨에서만 존 투구 점 */
   const strikeZoneVisible =
     pitchLocationCount > 0 &&
     !noticeSuppressed &&
     !showBetModal &&
-    screenPhase !== "ad_playing" &&
-    screenPhase !== "picking" &&
-    gameDayPhase === "live";
+    gameDayPhase === "live" &&
+    (screenPhase === "wait_result" || screenPhase === "result_flash");
 
   return (
     <div
@@ -230,8 +233,7 @@ export default function LandscapeGameShell({
                   : currentBatter?.batsSide ?? null
               }
               isPinchHitter={Boolean(currentBatter?.isPinchHitter)}
-              {/* 투구 점이 존에 있으면 대기 말풍선 숨기고 투수 바라보는 뒷모습 */}
-              hideWaitBubble={pitchLocationCount > 0}
+              hideWaitBubble={false}
               onRunComplete={onRunComplete}
             />
 
@@ -248,13 +250,14 @@ export default function LandscapeGameShell({
               }
             />
 
-            <GameConfetti
-              active={screenPhase === "success_announce" || screenPhase === "success_celebrate"}
-            />
+            {screenPhase === "result_flash" && roundResultLabel ? (
+              <GameRoundResultFlash result={roundResultLabel} />
+            ) : null}
 
-            {(screenPhase === "success_announce" ||
-              screenPhase === "success_celebrate" ||
-              screenPhase === "fail") && (
+            <GameConfetti active={false} />
+
+            {/* 레거시 성공/실패 배너 — 단계표상 미사용(큰 글씨→주루/대기). 안전망만 유지 */}
+            {(screenPhase === "success_announce" || screenPhase === "fail") && (
               <GameResultBanner
                 phase={screenPhase === "fail" ? "fail" : "success_announce"}
                 prediction={selectedPrediction}

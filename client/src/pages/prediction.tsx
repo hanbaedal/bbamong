@@ -670,6 +670,7 @@ export default function PredictionPage() {
         onMenuSelect={handleMenuSelect}
         screenPhase={shellScreenPhase}
         selectedPrediction={isLivePlay ? flow.selectedPrediction : null}
+        roundResultLabel={isLivePlay ? flow.roundResultLabel : null}
         labelsVisible={isLivePlay && flow.labelsVisible}
         labelsInteractive={isLivePlay && flow.labelsInteractive}
         blinkPrediction={isLivePlay ? flow.blinkPrediction : null}
