@@ -91,6 +91,8 @@ export function useLandscapePredictionFlow(
   const [eventCountdown, setEventCountdown] = useState<number | null>(null);
   const [eventSubtitle, setEventSubtitle] = useState("");
   const [showAdOverlay, setShowAdOverlay] = useState(false);
+  const [adOverlayMessage, setAdOverlayMessage] = useState<string | undefined>();
+  const [adOverlayDismissible, setAdOverlayDismissible] = useState(true);
 
   const activeBetRef = useRef<ActiveBet | null>(null);
   /** activeBet이 비워져도 round_result 연출용으로 유지 */
@@ -106,6 +108,7 @@ export function useLandscapePredictionFlow(
   const pendingRewardKeyRef = useRef<string | null>(null);
   const adSessionActiveRef = useRef(false);
   const adDismissedEarlyRef = useRef(false);
+  const rewardedVideoCompletedRef = useRef(false);
   const adStartedAtRef = useRef<number | null>(null);
   const matchEndedRef = useRef(false);
   const failVoiceSpokenRef = useRef(false);
@@ -248,6 +251,9 @@ export function useLandscapePredictionFlow(
 
   const finishAdAndWaitStart = useCallback(() => {
     adSessionActiveRef.current = false;
+    rewardedVideoCompletedRef.current = false;
+    setAdOverlayMessage(undefined);
+    setAdOverlayDismissible(true);
     stopAdSession();
     setShowAdOverlay(false);
     pendingRewardKeyRef.current = null;
@@ -267,6 +273,7 @@ export function useLandscapePredictionFlow(
       if (!id || at == null) return false;
       if (!wasAdSessionDismissed(id, at)) return false;
       adDismissedEarlyRef.current = true;
+      rewardedVideoCompletedRef.current = false;
       adSessionActiveRef.current = false;
       pendingInterstitialRef.current = false;
       pendingRewardKeyRef.current = null;
@@ -314,9 +321,13 @@ export function useLandscapePredictionFlow(
   const grantRewardIfWatchedUntilOperatorStop = useCallback(
     async (matchId?: string) => {
       if (!adSessionActiveRef.current || adDismissedEarlyRef.current) return;
+      const eligible = isNativePlatform
+        ? rewardedVideoCompletedRef.current
+        : true;
+      if (!eligible) return;
       await claimAdRewardIfPending(matchId);
     },
-    [claimAdRewardIfPending],
+    [claimAdRewardIfPending, isNativePlatform],
   );
 
   const scheduleEventDismiss = useCallback(
@@ -392,12 +403,14 @@ export function useLandscapePredictionFlow(
       if (adSessionActiveRef.current || screenPhaseRef.current === "ad_playing") return;
       adSessionActiveRef.current = true;
       adDismissedEarlyRef.current = false;
+      rewardedVideoCompletedRef.current = false;
+      setAdOverlayMessage(undefined);
+      setAdOverlayDismissible(true);
       setShowBetModal(false);
       setScreenPhase("ad_playing");
 
       if (isNativePlatform) {
-        const { dismissedEarly, mode } = await startAdSession();
-        // 예측 시작·운영자 중지가 await 중에 광고를 끊으면 wait_start 로 덮지 않음
+        const { dismissedEarly, mode, rewardEarned } = await startAdSession();
         if (!adSessionActiveRef.current) {
           setShowAdOverlay(false);
           const keepPlay =
@@ -410,22 +423,28 @@ export function useLandscapePredictionFlow(
         }
 
         if (mode === "overlay") {
+          setAdOverlayMessage("광고가 재생 중입니다...");
+          setAdOverlayDismissible(true);
           setShowAdOverlay(true);
           return;
         }
 
-        if (dismissedEarly) {
+        if (!rewardEarned || dismissedEarly) {
           adDismissedEarlyRef.current = true;
+          rewardedVideoCompletedRef.current = false;
           markAdSessionDismissed(matchId ?? selectedMatch?.id ?? "", adStartedAtRef.current);
-          finishAdAndWaitStart();
           return;
         }
 
-        // 전면 종료 후에도 운영자 중지까지 오버레이 대기 — 그때 500P
+        rewardedVideoCompletedRef.current = true;
+        setAdOverlayMessage("리워드 광고 시청 완료. 잠시 후 예측이 재개됩니다.");
+        setAdOverlayDismissible(false);
         setShowAdOverlay(true);
         return;
       }
 
+      setAdOverlayMessage("광고가 재생 중입니다...");
+      setAdOverlayDismissible(true);
       setShowAdOverlay(true);
     },
     [
@@ -1153,6 +1172,9 @@ export function useLandscapePredictionFlow(
         }
 
         adSessionActiveRef.current = false;
+        rewardedVideoCompletedRef.current = false;
+        setAdOverlayMessage(undefined);
+        setAdOverlayDismissible(true);
         stopAdSession();
         setShowAdOverlay(false);
         clearAdSessionDismissed(selectedMatch?.id);
@@ -1349,6 +1371,8 @@ export function useLandscapePredictionFlow(
     eventCountdown,
     eventSubtitle,
     showAdOverlay,
+    adOverlayMessage,
+    adOverlayDismissible,
     adSessionState,
     isNativePlatform,
     labelsVisible,

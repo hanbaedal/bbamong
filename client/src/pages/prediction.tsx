@@ -713,6 +713,8 @@ export default function PredictionPage() {
         eventCountdown={isLivePlay ? flow.eventCountdown : null}
         eventSubtitle={isLivePlay ? flow.eventSubtitle : undefined}
         showAdOverlay={isLivePlay && flow.showAdOverlay}
+        adOverlayMessage={flow.adOverlayMessage}
+        adOverlayDismissible={flow.adOverlayDismissible}
         adSessionState={flow.adSessionState}
         isNativePlatform={flow.isNativePlatform}
         onAdOverlayDismiss={flow.handleAdOverlayDismiss}

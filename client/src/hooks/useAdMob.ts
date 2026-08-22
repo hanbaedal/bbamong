@@ -168,8 +168,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
 export type AdSessionResult = {
   dismissedEarly: boolean;
-  /** interstitial: AdMob 전면 시청 후 종료 / overlay: 웹·로드실패 폴백 */
-  mode: "interstitial" | "overlay";
+  /** rewarded: AdMob 리워드 동영상 / overlay: 웹·로드실패 폴백 */
+  mode: "rewarded" | "overlay";
+  /** 리워드 동영상을 끝까지 시청했는지 (overlay 모드는 false) */
+  rewardEarned: boolean;
 };
 
 interface UseAdMobResult {
@@ -363,17 +365,76 @@ export function useAdMob(): UseAdMobResult {
     resolveInterstitialDismiss({ dismissedEarly: true });
   }, [resolveAdReady, resolveInterstitialDismiss]);
 
+  const showRewardedAd = useCallback(async (): Promise<boolean> => {
+    if (!isNativePlatform) {
+      return true;
+    }
+    const adId = getRewardedAdId();
+    if (!adId) {
+      console.warn("[AdMob] 리워드 ID 없음 — 보상 광고를 건너뜁니다.");
+      return false;
+    }
+    if (!isInitialized.current) await initializeAdMob();
+
+    rewardedGrantedRef.current = false;
+
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const cleanup = () => {
+        clearTimeout(timer);
+        rewardListener.then((l) => l.remove());
+        dismissListener.then((l) => l.remove());
+        failListener.then((l) => l.remove());
+      };
+      const finish = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(value);
+      };
+
+      const timer = setTimeout(() => {
+        console.warn(
+          `[AdMob] rewarded dismiss timed out after ${REWARDED_DISMISS_TIMEOUT_MS}ms — skipping reward`,
+        );
+        finish(false);
+      }, REWARDED_DISMISS_TIMEOUT_MS);
+
+      const rewardListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
+        rewardedGrantedRef.current = true;
+      });
+      const dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
+        finish(rewardedGrantedRef.current);
+      });
+      const failListener = AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => {
+        finish(false);
+      });
+
+      const options: RewardAdOptions = {
+        adId,
+        isTesting: IS_TESTING,
+      };
+      withTimeout(AdMob.prepareRewardVideoAd(options), AD_SDK_CALL_TIMEOUT_MS, "prepareRewardVideoAd")
+        .then(() =>
+          withTimeout(AdMob.showRewardVideoAd(), AD_SDK_CALL_TIMEOUT_MS, "showRewardVideoAd"),
+        )
+        .catch((error) => {
+          console.error("[AdMob] Rewarded ad error:", error);
+          finish(false);
+        });
+    });
+  }, [isNativePlatform, initializeAdMob]);
+
   const startAdSession = useCallback(async (): Promise<AdSessionResult> => {
     if (!isNativePlatform) {
       console.log("[AdMob] Not native platform, overlay mode");
       setAdSessionState("overlay");
-      return { dismissedEarly: false, mode: "overlay" };
+      return { dismissedEarly: false, mode: "overlay", rewardEarned: false };
     }
 
-    console.log("[AdMob] Starting ad session");
+    console.log("[AdMob] Starting rewarded ad session");
     shouldContinueAds.current = true;
     setAdSessionState("preparing");
-    interstitialShowedAtRef.current = null;
 
     try {
       await AdMob.hideBanner();
@@ -391,66 +452,26 @@ export function useAdMob(): UseAdMobResult {
     }
 
     if (!shouldContinueAds.current) {
-      console.log("[AdMob] Session cancelled before prepare");
-      return { dismissedEarly: true, mode: "interstitial" };
+      console.log("[AdMob] Session cancelled before rewarded");
+      return { dismissedEarly: true, mode: "rewarded", rewardEarned: false };
     }
 
-    const showAndWaitDismiss = async (): Promise<AdSessionResult> => {
-      interstitialBecameOverlayRef.current = false;
-      setAdSessionState("showing");
-      interstitialShowedAtRef.current = Date.now();
-      const adShown = await showInterstitialAd();
-      if (!shouldContinueAds.current) {
-        return { dismissedEarly: true, mode: "interstitial" };
-      }
-      if (!adShown || interstitialBecameOverlayRef.current) {
-        console.log("[AdMob] Failed to show ad, switching to overlay");
-        setAdSessionState("overlay");
-        return { dismissedEarly: false, mode: "overlay" };
-      }
-      const dismissResult = await waitForInterstitialDismiss();
-      if (interstitialBecameOverlayRef.current) {
-        setAdSessionState("overlay");
-        return { dismissedEarly: false, mode: "overlay" };
-      }
-      return { ...dismissResult, mode: "interstitial" };
-    };
-
-    if (isAdReadyRef.current) {
-      console.log("[AdMob] Ad already ready, showing immediately");
-      return showAndWaitDismiss();
-    }
-
-    await prepareInterstitialAd();
+    setAdSessionState("showing");
+    const rewardEarned = await showRewardedAd();
 
     if (!shouldContinueAds.current) {
-      console.log("[AdMob] Session cancelled during preparation");
-      return { dismissedEarly: true, mode: "interstitial" };
+      return { dismissedEarly: true, mode: "rewarded", rewardEarned: false };
     }
 
-    console.log("[AdMob] Waiting for ad to load (max 8s)...");
-    const ready = await waitForAdReady(8000);
-
-    if (!shouldContinueAds.current) {
-      console.log("[AdMob] Session cancelled while waiting for load");
-      return { dismissedEarly: true, mode: "interstitial" };
+    if (rewardEarned) {
+      setAdSessionState("idle");
+      return { dismissedEarly: false, mode: "rewarded", rewardEarned: true };
     }
 
-    if (!ready) {
-      console.log("[AdMob] Ad not ready after timeout, switching to overlay");
-      setAdSessionState("overlay");
-      return { dismissedEarly: false, mode: "overlay" };
-    }
-
-    return showAndWaitDismiss();
-  }, [
-    isNativePlatform,
-    initializeAdMob,
-    prepareInterstitialAd,
-    showInterstitialAd,
-    waitForAdReady,
-    waitForInterstitialDismiss,
-  ]);
+    console.log("[AdMob] Rewarded ad skipped or failed — overlay fallback");
+    setAdSessionState("overlay");
+    return { dismissedEarly: false, mode: "overlay", rewardEarned: false };
+  }, [isNativePlatform, initializeAdMob, showRewardedAd]);
 
   const handleAdDismissed = useCallback(() => {
     console.log("[AdMob] Interstitial ad dismissed");
@@ -547,66 +568,6 @@ export function useAdMob(): UseAdMobResult {
       failedToShowListener.then((l) => l.remove());
     };
   }, [prepareInterstitialAd, handleAdDismissed, resolveAdReady, resolveInterstitialDismiss]);
-
-  const showRewardedAd = useCallback(async (): Promise<boolean> => {
-    if (!isNativePlatform) {
-      return true;
-    }
-    const adId = getRewardedAdId();
-    if (!adId) {
-      console.warn("[AdMob] 리워드 ID 없음 — 보상 광고를 건너뜁니다.");
-      return false;
-    }
-    if (!isInitialized.current) await initializeAdMob();
-
-    rewardedGrantedRef.current = false;
-
-    return new Promise<boolean>((resolve) => {
-      let settled = false;
-      const cleanup = () => {
-        clearTimeout(timer);
-        rewardListener.then((l) => l.remove());
-        dismissListener.then((l) => l.remove());
-        failListener.then((l) => l.remove());
-      };
-      const finish = (value: boolean) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        resolve(value);
-      };
-
-      const timer = setTimeout(() => {
-        console.warn(
-          `[AdMob] rewarded dismiss timed out after ${REWARDED_DISMISS_TIMEOUT_MS}ms — skipping reward`,
-        );
-        finish(false);
-      }, REWARDED_DISMISS_TIMEOUT_MS);
-
-      const rewardListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
-        rewardedGrantedRef.current = true;
-      });
-      const dismissListener = AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
-        finish(rewardedGrantedRef.current);
-      });
-      const failListener = AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => {
-        finish(false);
-      });
-
-      const options: RewardAdOptions = {
-        adId,
-        isTesting: IS_TESTING,
-      };
-      withTimeout(AdMob.prepareRewardVideoAd(options), AD_SDK_CALL_TIMEOUT_MS, "prepareRewardVideoAd")
-        .then(() =>
-          withTimeout(AdMob.showRewardVideoAd(), AD_SDK_CALL_TIMEOUT_MS, "showRewardVideoAd"),
-        )
-        .catch((error) => {
-          console.error("[AdMob] Rewarded ad error:", error);
-          finish(false);
-        });
-    });
-  }, [isNativePlatform, initializeAdMob]);
 
   /** 백그라운드 복귀 시 Dismiss 이벤트 누락으로 showing에 고착된 경우 해제 */
   useEffect(() => {
