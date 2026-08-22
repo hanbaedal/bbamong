@@ -743,15 +743,22 @@ export function useLandscapePredictionFlow(
   const syncMatchFromServer = useCallback(async () => {
     if (!selectedMatch?.id) return;
     if (!shouldClientPollMatch(selectedMatch.startTime, selectedMatch.matchStatus)) return;
-    if (resultShownRef.current) return;
     try {
       const res = await apiRequest("GET", `/api/matches/${selectedMatch.id}`);
       if (!res.ok) return;
       const matchData = await res.json();
+
+      // prediction.tsx 전용 폴링과 통합 — 동일 GET으로 gamePhase도 반영
+      onGamePhaseRef.current?.(matchData.gamePhase ?? matchData);
+
       if (matchData.matchStatus === "completed" || matchData.matchStatus === "cancelled") {
         handleMatchEnded();
         return;
       }
+
+      // 결과 연출 중에는 predictionEnabled promote/demote 만 보류
+      if (resultShownRef.current) return;
+
       const enabled = Boolean(matchData.predictionEnabled);
       predictionEnabledRef.current = enabled;
       setPredictionEnabled(enabled);
