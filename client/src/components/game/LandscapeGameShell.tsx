@@ -230,6 +230,7 @@ export default function LandscapeGameShell({
                   : currentBatter?.batsSide ?? null
               }
               isPinchHitter={Boolean(currentBatter?.isPinchHitter)}
+              {/* 투구 점이 존에 있으면 대기 말풍선 숨기고 투수 바라보는 뒷모습 */}
               hideWaitBubble={pitchLocationCount > 0}
               onRunComplete={onRunComplete}
             />
