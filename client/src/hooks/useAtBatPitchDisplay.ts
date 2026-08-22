@@ -31,8 +31,9 @@ export function useAtBatPitchDisplay(
       isSuccessPresentationPhase(screenPhase) || screenPhase === "fail";
 
     const adToWait = prev === "ad_playing" && screenPhase === "wait_start";
+    const pickingClosed = prev === "picking" && screenPhase === "wait_start";
 
-    if ((resultEntered || adToWait) && batterName) {
+    if ((resultEntered || adToWait || pickingClosed) && batterName) {
       setBlockedBatter(batterName);
       blockedPitchCountRef.current = pitchCount;
     }
@@ -56,6 +57,7 @@ export function useAtBatPitchDisplay(
 
   return useMemo(() => {
     if (!rawPitches?.length) return null;
+    if (screenPhase === "picking") return null;
     if (screenPhase === "ad_playing" || isTransientAdOrEventPhase(screenPhase)) return null;
     if (isSuccessPresentationPhase(screenPhase) || screenPhase === "fail") return null;
     if (blockedBatter && blockedBatter === batterName) return null;

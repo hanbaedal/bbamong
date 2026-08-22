@@ -115,6 +115,8 @@ export function useLandscapePredictionFlow(
   const matchEndedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const predictionEnabledRef = useRef(false);
   const screenPhaseRef = useRef<GameScreenPhase>("wait_start");
+  /** 예측 시작/중지마다 증가 — 클릭·모달 레이스로 잔상 UI가 남지 않게 함 */
+  const predictionEpochRef = useRef(0);
   const pendingRoundNextRef = useRef<PendingRoundNext | null>(null);
   /** 결과 연출 중 도착한 전면광고 — 연출/교체 이벤트 후 재생 */
   const pendingInterstitialRef = useRef(false);
@@ -141,6 +143,22 @@ export function useLandscapePredictionFlow(
   useEffect(() => {
     screenPhaseRef.current = screenPhase;
   }, [screenPhase]);
+
+  const bumpPredictionEpoch = useCallback(() => {
+    predictionEpochRef.current += 1;
+  }, []);
+
+  /** 예측 창 닫기 — 모달·선택 잔상 제거 (중지/취소/폴링 demote 공통) */
+  const closePickingUi = useCallback((opts?: { keepSelection?: boolean }) => {
+    bumpPredictionEpoch();
+    predictionEnabledRef.current = false;
+    setPredictionEnabled(false);
+    wantPickingAfterResultRef.current = false;
+    setShowBetModal(false);
+    if (!opts?.keepSelection) {
+      setSelectedPrediction(null);
+    }
+  }, [bumpPredictionEpoch]);
 
   const clearResultTimers = useCallback(() => {
     if (resultTimerRef.current) {
@@ -234,6 +252,7 @@ export function useLandscapePredictionFlow(
   useEffect(() => {
     matchEndedRef.current = false;
     failVoiceSpokenRef.current = false;
+    predictionEpochRef.current += 1;
     if (matchEndedTimerRef.current) {
       clearTimeout(matchEndedTimerRef.current);
       matchEndedTimerRef.current = null;
@@ -713,19 +732,38 @@ export function useLandscapePredictionFlow(
         handleMatchEnded();
         return;
       }
-      setPredictionEnabled(Boolean(matchData.predictionEnabled));
+      const enabled = Boolean(matchData.predictionEnabled);
+      predictionEnabledRef.current = enabled;
+      setPredictionEnabled(enabled);
 
       if (
+        enabled &&
         screenPhaseRef.current === "wait_start" &&
-        matchData.predictionEnabled &&
         !waitingResultRef.current
       ) {
         setScreenPhase("picking");
+        return;
+      }
+
+      // WS prediction_stopped 누락 시 HTTP로 picking 잔상 제거
+      if (
+        !enabled &&
+        screenPhaseRef.current === "picking" &&
+        !waitingResultRef.current
+      ) {
+        closePickingUi();
+        setScreenPhase("wait_start");
       }
     } catch {
       /* ignore */
     }
-  }, [selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus, handleMatchEnded]);
+  }, [
+    selectedMatch?.id,
+    selectedMatch?.startTime,
+    selectedMatch?.matchStatus,
+    handleMatchEnded,
+    closePickingUi,
+  ]);
 
   const syncMatchFromServerRef = useRef(syncMatchFromServer);
   syncMatchFromServerRef.current = syncMatchFromServer;
@@ -774,65 +812,11 @@ export function useLandscapePredictionFlow(
     if (screenPhase !== "wait_result" || predictionResult !== "pending" || !selectedMatch?.id) return;
 
     const id = setInterval(() => {
-      void (async () => {
-        try {
-          const res = await apiRequest("GET", `/api/live-match/predictions/${selectedMatch.id}/check`);
-          if (!res.ok) return;
-          const data = await res.json();
-          if (data.status === "success" || data.status === "fail") {
-            // 이미 결과 연출 중이거나, round_next로 페이즈가 바뀐 뒤 도착한 stale 응답 무시
-            if (resultShownRef.current) return;
-            const phase = screenPhaseRef.current;
-            if (
-              phase === "success_announce" ||
-              phase === "success_running" ||
-              phase === "success_celebrate" ||
-              phase === "fail" ||
-              phase !== "wait_result"
-            ) {
-              return;
-            }
-            if (
-              data.predictionId != null &&
-              data.predictionId === acknowledgedResultIdRef.current
-            ) {
-              return;
-            }
-            if (data.predictionId != null) lastResultPredictionIdRef.current = data.predictionId;
-            resultShownRef.current = true;
-            waitingResultRef.current = false;
-            setPredictionResult(data.status);
-            setLastWonAmount(data.wonAmount ?? 0);
-            setLastBetAmount(data.amount ?? activeBetRef.current?.amount ?? DEFAULT_BET_AMOUNT);
-            activeBetRef.current = null;
-            if (data.status === "success") void refetchUser();
-          if (data.status === "success") beginSuccessPresentation();
-          else setScreenPhase("fail");
-          } else if (!data.hasPrediction) {
-            const betRound = activeBetRef.current?.round ?? betSnapshotRef.current?.round;
-            const roundMoved =
-              typeof betRound === "number" &&
-              typeof data.roundNumber === "number" &&
-              betRound !== data.roundNumber;
-            if (!roundMoved) return;
-            waitingResultRef.current = false;
-            activeBetRef.current = null;
-            betSnapshotRef.current = null;
-            setSelectedPrediction(null);
-            setPredictionResult("pending");
-            void refetchUser();
-            if (!isTransientAdOrEventPhase(screenPhaseRef.current)) {
-              setScreenPhase(data.predictionEnabled ? "picking" : "wait_start");
-            }
-          }
-        } catch {
-          /* ignore */
-        }
-      })();
+      void checkPredictionStatusRef.current();
     }, 2000);
 
     return () => clearInterval(id);
-  }, [screenPhase, predictionResult, selectedMatch?.id, user, setUser, beginSuccessPresentation, refetchUser]);
+  }, [screenPhase, predictionResult, selectedMatch?.id]);
 
   const handleRunComplete = useCallback(() => {
     void speakGameVoice("user.predictionSuccess");
@@ -930,14 +914,17 @@ export function useLandscapePredictionFlow(
         ? "user.predictionOpenFirst"
         : "user.predictionOpen";
       void speakGameVoice(key);
+      bumpPredictionEpoch();
       // 예측 시작 = 광고 중지 (보상 없음)
       pendingInterstitialRef.current = false;
       adSessionActiveRef.current = false;
       stopAdSession();
       setShowAdOverlay(false);
+      setShowBetModal(false);
 
       // 결과 연출 중이면 끊지 않고, 끝난 뒤 picking으로 이어감
       if (isInResultPresentation()) {
+        predictionEnabledRef.current = true;
         setPredictionEnabled(true);
         wantPickingAfterResultRef.current = true;
         if (pendingRoundNextRef.current) {
@@ -958,18 +945,25 @@ export function useLandscapePredictionFlow(
         });
       }
       resultShownRef.current = false;
+      predictionEnabledRef.current = true;
       setPredictionEnabled(true);
       setSelectedPrediction(null);
       setScreenPhase("picking");
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
-    }, [isInResultPresentation, stopAdSession, clearResultPresentationState, toast, selectedMatch?.id, applyHurryResultPresentation]),
+    }, [
+      isInResultPresentation,
+      stopAdSession,
+      clearResultPresentationState,
+      toast,
+      selectedMatch?.id,
+      applyHurryResultPresentation,
+      bumpPredictionEpoch,
+    ]),
 
     onPredictionEnded: useCallback(() => {
       void speakGameVoice("user.predictionClose");
-      setPredictionEnabled(false);
-      wantPickingAfterResultRef.current = false;
-      setShowBetModal(false);
       if (isInResultPresentation()) {
+        closePickingUi({ keepSelection: true });
         if (pendingRoundNextRef.current) {
           pendingRoundNextRef.current = {
             ...pendingRoundNextRef.current,
@@ -979,12 +973,14 @@ export function useLandscapePredictionFlow(
         return;
       }
       if (waitingResultRef.current || activeBetRef.current) {
+        // 이미 제출된 예측 — 「내 예측」배지용 선택값 유지
+        closePickingUi({ keepSelection: true });
         setScreenPhase("wait_result");
         return;
       }
-      setSelectedPrediction(null);
+      closePickingUi();
       setScreenPhase("wait_start");
-    }, [isInResultPresentation]),
+    }, [isInResultPresentation, closePickingUi]),
 
     onUserAlreadyPredicted: useCallback((data: {
       prediction: string;
@@ -1038,8 +1034,7 @@ export function useLandscapePredictionFlow(
       (data: { message?: string }) => {
         // 시작 취소(1초) — 환불됨. 대기/연출 중이면 끊지 않고 안내만 (연출 보호)
         if (isInResultPresentation()) {
-          setPredictionEnabled(false);
-          wantPickingAfterResultRef.current = false;
+          closePickingUi();
           toast({
             description: data.message ?? "예측 시작이 취소되었습니다.",
             duration: 3500,
@@ -1049,7 +1044,7 @@ export function useLandscapePredictionFlow(
         const hadBet = isWaitingForResult();
         clearResultPresentationState();
         pendingRoundNextRef.current = null;
-        setPredictionEnabled(false);
+        closePickingUi();
         setScreenPhase("wait_start");
         toast({
           description: hadBet
@@ -1060,7 +1055,7 @@ export function useLandscapePredictionFlow(
         queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
         queryClient.invalidateQueries({ queryKey: ["/api/users/me"] });
       },
-      [clearResultPresentationState, isInResultPresentation, isWaitingForResult, toast],
+      [clearResultPresentationState, isInResultPresentation, isWaitingForResult, toast, closePickingUi],
     ),
 
     onRoundResult: useCallback((data: { result?: string; wonAmount?: number }) => {
@@ -1294,15 +1289,23 @@ export function useLandscapePredictionFlow(
     handlers: wsHandlers,
   });
 
-  const handleFieldSelect = useCallback(
-    (option: PredictionOption) => {
-      if (screenPhase !== "picking") return;
-      if (!predictionEnabled) return;
-      setSelectedPrediction(option);
-      setShowBetModal(true);
-    },
-    [screenPhase, predictionEnabled],
-  );
+  const handleFieldSelect = useCallback((option: PredictionOption) => {
+    // 클로저 state 대신 ref — 예측 중지와 클릭 레이스 방지
+    if (screenPhaseRef.current !== "picking") return;
+    if (!predictionEnabledRef.current) return;
+    const epoch = predictionEpochRef.current;
+    setSelectedPrediction(option);
+    if (
+      predictionEpochRef.current !== epoch ||
+      screenPhaseRef.current !== "picking" ||
+      !predictionEnabledRef.current
+    ) {
+      setSelectedPrediction(null);
+      setShowBetModal(false);
+      return;
+    }
+    setShowBetModal(true);
+  }, []);
 
   const handleBetModalCancel = useCallback(() => {
     setShowBetModal(false);
@@ -1311,6 +1314,12 @@ export function useLandscapePredictionFlow(
 
   const handleBetSubmit = useCallback(async () => {
     if (!user || !selectedMatch || !selectedPrediction) return;
+    if (screenPhaseRef.current !== "picking" || !predictionEnabledRef.current) {
+      setShowBetModal(false);
+      setSelectedPrediction(null);
+      return;
+    }
+    const epoch = predictionEpochRef.current;
 
     setShowBetModal(false);
     waitingResultRef.current = true;
@@ -1319,6 +1328,12 @@ export function useLandscapePredictionFlow(
     setScreenPhase("wait_result");
 
     try {
+      if (predictionEpochRef.current !== epoch || !predictionEnabledRef.current) {
+        waitingResultRef.current = false;
+        setSelectedPrediction(null);
+        setScreenPhase("wait_start");
+        return;
+      }
       const res = await apiRequest("POST", "/api/live-match/predictions", {
         matchId: selectedMatch.id,
         prediction: selectedPrediction,
@@ -1343,17 +1358,17 @@ export function useLandscapePredictionFlow(
       waitingResultRef.current = false;
       activeBetRef.current = null;
       betSnapshotRef.current = null;
-      setScreenPhase(predictionEnabled ? "picking" : "wait_start");
       setSelectedPrediction(null);
+      setScreenPhase(predictionEnabledRef.current ? "picking" : "wait_start");
       toast({
         description: error instanceof Error ? error.message : "예측 제출에 실패했습니다.",
         variant: "destructive",
       });
     }
-  }, [user, selectedMatch, selectedPrediction, selectedBetAmount, setUser, predictionEnabled, toast, rememberActiveBet]);
+  }, [user, selectedMatch, selectedPrediction, selectedBetAmount, setUser, toast, rememberActiveBet]);
 
-  const labelsVisible = screenPhase === "picking";
-  const labelsInteractive = screenPhase === "picking";
+  const labelsVisible = screenPhase === "picking" && predictionEnabled;
+  const labelsInteractive = screenPhase === "picking" && predictionEnabled;
   const blinkPrediction = null;
 
   return {
