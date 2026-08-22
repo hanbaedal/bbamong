@@ -5,12 +5,17 @@ import type {
   LiveScoreSituation,
   LiveSuggestedPredictionResult,
 } from "@shared/apiSportsTypes";
+import {
+  applyPitchResultToBallsStrikes,
+  extractPitchResultKeyFromLabel,
+  preferAheadBallsStrikes,
+} from "@shared/liveSituationDisplay";
 import { DAUM_USER_AGENT, daumCpGameIdToNaverGameId } from "./daumHermesClient";
 
 const NAVER_GAME_BASE = "https://api-gw.sports.naver.com/schedule/games";
 const FETCH_TIMEOUT_MS = 15_000;
-/** 실황 폴링(2s)보다 짧아야 캐시가 폴링을 막지 않음 */
-const RELAY_CACHE_MS = 900;
+/** 실황 폴링(2s)보다 짧아야 캐시가 폴링을 막지 않음. 문자 B-S가 빨리 반영되도록 소폭 단축 */
+const RELAY_CACHE_MS = 600;
 
 type RelayCache = { gameId: string; fetchedAt: number; situation: LiveScoreSituation | null; rawRelays?: any[] };
 const relayCache = new Map<string, RelayCache>();
@@ -286,6 +291,48 @@ function parseLastPitch(
   return { pitchLabel, pitchDetail };
 }
 
+/**
+ * 현재 타석 textOptions(type=1)만 집계해 B-S를 만든다.
+ * currentGameState.ball/strike 보다 문자중계가 앞설 때 사용.
+ * ptsOptions(존 좌표)는 보지 않는다.
+ */
+export function countCurrentAtBatBallsStrikes(
+  relays: Array<{ title?: string; textOptions?: NaverTextOption[] }> | undefined,
+  batterName?: string | null,
+): { balls: number; strikes: number } | null {
+  const name = (batterName ?? "").replace(/\s+/g, "");
+  for (const relay of [...(relays ?? [])].reverse()) {
+    const title = (relay.title ?? "").replace(/\s+/g, "");
+    const pitches = (relay.textOptions ?? []).filter(
+      (option) => option.type === 1 && option.pitchNum != null,
+    );
+    if (pitches.length === 0) continue;
+    if (name && title && !title.includes(name) && !(title.includes("대타") && title.includes(name))) {
+      continue;
+    }
+    let balls = 0;
+    let strikes = 0;
+    let applied = 0;
+    for (const option of pitches) {
+      const key =
+        (option.pitchResult ?? "").trim().toUpperCase() ||
+        extractPitchResultKeyFromLabel(option.text) ||
+        extractPitchResultKeyFromLabel(
+          option.pitchNum != null
+            ? `${option.pitchNum}구${pitchResultKo(option.pitchResult) ? ` ${pitchResultKo(option.pitchResult)}` : ""}`
+            : null,
+        );
+      if (!key || key === "H") continue;
+      const next = applyPitchResultToBallsStrikes(balls, strikes, key);
+      balls = next.balls;
+      strikes = next.strikes;
+      applied += 1;
+    }
+    if (applied > 0) return { balls, strikes };
+  }
+  return null;
+}
+
 function toOptionalNumber(value: unknown): number | null {
   if (value == null || value === "") return null;
   const n = typeof value === "number" ? value : Number.parseFloat(String(value));
@@ -485,9 +532,20 @@ export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | 
         : null);
 
   // currentGameState 에도 homeScore/awayScore/hit/error 가 있으나 점수는 다음이 주인.
+  // B-S: 문자중계(textOptions)가 state보다 앞서면 문자를 우선. 존 점은 pts만.
+  const stateBalls = toCount(state.ball);
+  const stateStrikes = toCount(state.strike);
+  const textBs = countCurrentAtBatBallsStrikes(relay?.textRelays, batterName);
+  const bs = textBs
+    ? preferAheadBallsStrikes(
+        { balls: stateBalls, strikes: stateStrikes },
+        textBs,
+      )
+    : { balls: stateBalls, strikes: stateStrikes };
+
   return {
-    balls: toCount(state.ball),
-    strikes: toCount(state.strike),
+    balls: bs.balls,
+    strikes: bs.strikes,
     outs: toCount(state.out),
     first: occupied(state.base1),
     second: occupied(state.base2),
