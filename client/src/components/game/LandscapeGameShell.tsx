@@ -24,6 +24,7 @@ import type { PregameCountdownDisplay } from "./GamePregameCountdown";
 import type { SideBetBottomSummary } from "./GameBottomStatusBar";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { BetAmountOption } from "@shared/predictionOdds";
+import { useAtBatPitchDisplay } from "@/hooks/useAtBatPitchDisplay";
 import "./gameAnimations.css";
 
 interface LandscapeGameShellProps {
@@ -136,7 +137,8 @@ export default function LandscapeGameShell({
   const { isGuest } = useUser();
   const { showGuestPopup, setShowGuestPopup } = useGuestRestriction(isGuest);
 
-  const pitchLocationCount = scoreboard?.situation?.pitchLocations?.length ?? 0;
+  const displayPitches = useAtBatPitchDisplay(scoreboard, screenPhase);
+  const pitchLocationCount = displayPitches?.length ?? 0;
   const strikeZoneVisible =
     pitchLocationCount > 0 &&
     !noticeSuppressed &&
@@ -226,7 +228,7 @@ export default function LandscapeGameShell({
             />
 
             <GameStrikeZoneOverlay
-              pitches={scoreboard?.situation?.pitchLocations}
+              pitches={displayPitches}
               batsSide={
                 scoreboard?.situation?.batsSide === "left" ||
                 scoreboard?.situation?.batsSide === "right"

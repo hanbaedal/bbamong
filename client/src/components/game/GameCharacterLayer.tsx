@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import pyamongWaiting from "@assets/game/pyamong-waiting.png";
 import pyamongSuccess from "@assets/game/pyamong-success.png";
 import pyamongBatToss from "@assets/game/pyamong-bat-toss.png";
@@ -8,8 +8,7 @@ import pyamongRunning2 from "@assets/game/pyamong-running-2.png";
 import pyamongRunning3 from "@assets/game/pyamong-running-3.png";
 import pyamongStandsWaiting from "@assets/game/pyamong-stands-waiting.png";
 import pyamongWaveGoodbye from "@assets/game/pyamong-wave-goodbye.png";
-import pyamongBatterAway from "@assets/game/pyamong-batter-away.png";
-import pyamongBatterHome from "@assets/game/pyamong-batter-home.png";
+import pyamongBatterReady from "@assets/game/pyamong-batter-ready.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
@@ -29,7 +28,7 @@ import {
 } from "./stadiumFieldCoords";
 import { StadiumFieldMarker, useStadiumFieldSize } from "./StadiumFieldContext";
 import GameThoughtBubble from "./GameThoughtBubble";
-import { PYAMONG_BATTER_WIDTH, PYAMONG_WAIT_RESULT_WIDTH } from "./gameLayoutSizes";
+import { PYAMONG_ARMS_WAIT_WIDTH, PYAMONG_BATTER_BACK_WIDTH } from "./gameLayoutSizes";
 import type { BatterHandSide } from "@shared/batterHandedness";
 import "./gameAnimations.css";
 
@@ -37,24 +36,14 @@ import "./gameAnimations.css";
 const PYAMONG_RUN_FRAMES = [pyamongRunning1, pyamongRunning2, pyamongRunning3, pyamongRunning2] as const;
 const RUN_FRAME_MS = 120;
 
-/** 예측 대기 — 원정(초)=파란 유니폼 / 홈(말)=흰·빨간 유니폼 */
-function waitingBatterSrc(battingHalf: InningHalf | null | undefined): string {
-  if (battingHalf === "bottom") return pyamongBatterHome;
-  return pyamongBatterAway;
-}
-
 interface GameCharacterLayerProps {
   phase: GameScreenPhase;
   gameDayPhase: GameDayPhase;
   gameDayOverlayKind?: GameDayOverlayKind | null;
   selectedPrediction: PredictionOption | null;
-  /** 좌타/우타 — 없으면 우타. 대기 시 원정=파란 유니폼 / 홈=흰·빨간 유니폼 스프라이트 */
   battingHalf?: InningHalf | null;
-  /** 좌타/우타 — 없으면 우타 */
   batsSide?: BatterHandSide | null;
-  /** 대타 타석 — 대기 말풍선 안내 */
   isPinchHitter?: boolean;
-  /** 스트라이크존 표시 중 — 다음 타자 대기 말풍선 숨김 */
   hideWaitBubble?: boolean;
   onRunComplete?: () => void;
 }
@@ -76,6 +65,49 @@ function batterBoxPoint(side: BatterHandSide | null | undefined) {
   return side === "left" ? BATTER_BOX_LEFT_IMAGE : BATTER_BOX_RIGHT_IMAGE;
 }
 
+function BackBatterReady({
+  battingHalf,
+  handSide,
+  testId,
+  badge,
+}: {
+  battingHalf: InningHalf | null;
+  handSide: BatterHandSide;
+  testId: string;
+  badge?: ReactNode;
+}) {
+  const isLeftHanded = handSide === "left";
+  return (
+    <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
+      <div
+        className={`relative flex items-end pointer-events-none gap-4 sm:gap-5 ${
+          isLeftHanded ? "flex-row" : "flex-row-reverse"
+        }`}
+        style={{ transform: "translate(-50%, -100%)" }}
+        data-testid={testId}
+        data-bats-side={handSide}
+        data-batting-half={battingHalf ?? ""}
+      >
+        <div
+          className="shrink-0"
+          style={isLeftHanded ? { transform: "scaleX(-1)", transformOrigin: "bottom center" } : undefined}
+        >
+          <img
+            src={pyamongBatterReady}
+            alt=""
+            className={`${pyamongSpriteClass(battingHalf)} h-auto shrink-0 drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]`}
+            style={{ width: PYAMONG_BATTER_BACK_WIDTH, transformOrigin: "bottom center" }}
+            data-testid="char-batter-back-ready"
+            data-bats-side={handSide}
+            data-team-side={battingHalf === "bottom" ? "home" : "away"}
+          />
+        </div>
+        {badge}
+      </div>
+    </StadiumFieldMarker>
+  );
+}
+
 export default function GameCharacterLayer({
   phase,
   gameDayPhase,
@@ -88,15 +120,12 @@ export default function GameCharacterLayer({
   onRunComplete,
 }: GameCharacterLayerProps) {
   const handSide: BatterHandSide = batsSide === "left" ? "left" : "right";
-  const isLeftHanded = handSide === "left";
-  const batterPoint = batterBoxPoint(handSide);
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
   const [runFrameIdx, setRunFrameIdx] = useState(0);
   const [runFaceRight, setRunFaceRight] = useState(true);
   const [batTossing, setBatTossing] = useState(false);
   const fieldSize = useStadiumFieldSize();
   const runTarget = selectedPrediction ?? "1루";
-  const isHomeRun = runTarget === "홈런";
   const runPath = useMemo(() => getRunPathImagePoints(runTarget), [runTarget]);
   const runDurationSec = useMemo(() => getRunDurationSec(runTarget), [runTarget]);
   const batTossMs = SUCCESS_BAT_TOSS_MS;
@@ -152,16 +181,26 @@ export default function GameCharacterLayer({
     return () => cancelAnimationFrame(rafId);
   }, [phase, runDurationSec, runPath, batTossing]);
 
+  const predictionBadge =
+    selectedPrediction && phase === "wait_result" ? (
+      <div
+        className="mb-[min(12%,20px)] shrink-0 rounded-xl border-2 border-[#CDFF00] bg-black/75 px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-lg"
+        data-testid="wait-result-prediction-badge"
+      >
+        <p className="text-[10px] sm:text-xs text-white/70 leading-none mb-1">내 예측</p>
+        <p className="text-sm sm:text-base font-bold text-[#CDFF00] leading-none whitespace-nowrap">
+          {selectedPrediction}
+        </p>
+      </div>
+    ) : null;
+
   return (
     <>
       <style>{keyframesCss}</style>
 
       {gameDayPhase === "pregame" && !gameDayOverlayKind && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
-          <div
-            className="pointer-events-none"
-            style={{ transform: "translate(-50%, -92%)" }}
-          >
+          <div className="pointer-events-none" style={{ transform: "translate(-50%, -92%)" }}>
             <img
               src={pyamongStandsWaiting}
               alt=""
@@ -175,10 +214,7 @@ export default function GameCharacterLayer({
 
       {gameDayOverlayKind === "no_match" && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
-          <div
-            className="pointer-events-none"
-            style={{ transform: "translate(-50%, -92%)" }}
-          >
+          <div className="pointer-events-none" style={{ transform: "translate(-50%, -92%)" }}>
             <img
               src={pyamongStandsWaiting}
               alt=""
@@ -192,10 +228,7 @@ export default function GameCharacterLayer({
 
       {gameDayOverlayKind === "ended" && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
-          <div
-            className="pointer-events-none"
-            style={{ transform: "translate(-50%, -92%)" }}
-          >
+          <div className="pointer-events-none" style={{ transform: "translate(-50%, -92%)" }}>
             <img
               src={pyamongWaveGoodbye}
               alt=""
@@ -209,10 +242,7 @@ export default function GameCharacterLayer({
 
       {gameDayOverlayKind === "cancelled" && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
-          <div
-            className="pointer-events-none"
-            style={{ transform: "translate(-50%, -92%)" }}
-          >
+          <div className="pointer-events-none" style={{ transform: "translate(-50%, -92%)" }}>
             <img
               src={pyamongWaiting}
               alt=""
@@ -226,10 +256,7 @@ export default function GameCharacterLayer({
 
       {gameDayOverlayKind === "postponed" && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
-          <div
-            className="pointer-events-none"
-            style={{ transform: "translate(-50%, -92%)" }}
-          >
+          <div className="pointer-events-none" style={{ transform: "translate(-50%, -92%)" }}>
             <img
               src={pyamongStandsWaiting}
               alt=""
@@ -242,28 +269,20 @@ export default function GameCharacterLayer({
       )}
 
       {gameDayPhase === "live" && phase === "wait_start" && (
-        <StadiumFieldMarker point={batterPoint} center={false}>
+        <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
           <div
             className="flex flex-row items-end gap-1 sm:gap-2 pointer-events-none"
             style={{ transform: "translate(-50%, -92%)" }}
             data-testid="char-batter-box-wait-start"
             data-bats-side={handSide}
-            data-batting-half={battingHalf ?? ""}
           >
-            <div
-              className={isLeftHanded ? "game-pyamong-face-pitcher-left" : "game-pyamong-face-pitcher"}
-              style={isLeftHanded ? { transform: "scaleX(-1) rotate(38deg)" } : undefined}
-            >
-              <img
-                src={waitingBatterSrc(battingHalf)}
-                alt=""
-                className="game-sprite h-auto animate-pyamong-idle shrink-0 drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
-                style={{ width: PYAMONG_BATTER_WIDTH, transformOrigin: "bottom center" }}
-                data-testid="char-pyamong-waiting"
-                data-bats-side={handSide}
-                data-team-side={battingHalf === "bottom" ? "home" : "away"}
-              />
-            </div>
+            <img
+              src={pyamongWaiting}
+              alt=""
+              className={`${pyamongSpriteClass(battingHalf)} h-auto shrink-0 drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]`}
+              style={{ width: PYAMONG_ARMS_WAIT_WIDTH, transformOrigin: "bottom center" }}
+              data-testid="char-pyamong-arms-waiting"
+            />
             {!hideWaitBubble ? (
               <GameThoughtBubble
                 lines={
@@ -280,44 +299,21 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
+      {gameDayPhase === "live" && phase === "picking" && (
+        <BackBatterReady
+          battingHalf={battingHalf}
+          handSide={handSide}
+          testId="char-batter-box-picking"
+        />
+      )}
+
       {phase === "wait_result" && (
-        <StadiumFieldMarker point={batterPoint} center={false}>
-          <div
-            className="relative flex flex-row items-end gap-2 sm:gap-3 pointer-events-none"
-            style={{ transform: "translate(-50%, -100%)" }}
-            data-testid="char-batter-box-wait-result"
-            data-bats-side={handSide}
-            data-batting-half={battingHalf ?? ""}
-          >
-            <div
-              className={isLeftHanded ? "game-pyamong-face-pitcher-left" : "game-pyamong-face-pitcher"}
-              style={isLeftHanded ? { transform: "scaleX(-1) rotate(38deg)" } : undefined}
-            >
-              <img
-                src={waitingBatterSrc(battingHalf)}
-                alt=""
-                className="game-sprite h-auto animate-pyamong-idle drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
-                style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center" }}
-                data-testid="char-batter-waiting"
-                data-bats-side={handSide}
-                data-team-side={battingHalf === "bottom" ? "home" : "away"}
-              />
-            </div>
-            {selectedPrediction ? (
-              <div
-                className={`mb-[min(18%,28px)] shrink-0 rounded-xl border-2 border-[#CDFF00] bg-black/75 px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-lg ${
-                  isLeftHanded ? "-translate-x-[15ch]" : "translate-x-[3ch]"
-                }`}
-                data-testid="wait-result-prediction-badge"
-              >
-                <p className="text-[10px] sm:text-xs text-white/70 leading-none mb-1">내 예측</p>
-                <p className="text-sm sm:text-base font-bold text-[#CDFF00] leading-none whitespace-nowrap">
-                  {selectedPrediction}
-                </p>
-              </div>
-            ) : null}
-          </div>
-        </StadiumFieldMarker>
+        <BackBatterReady
+          battingHalf={battingHalf}
+          handSide={handSide}
+          testId="char-batter-box-wait-result"
+          badge={predictionBadge}
+        />
       )}
 
       {phase === "success_running" && batTossing && (

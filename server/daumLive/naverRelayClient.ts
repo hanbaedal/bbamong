@@ -10,7 +10,7 @@ import { DAUM_USER_AGENT, daumCpGameIdToNaverGameId } from "./daumHermesClient";
 const NAVER_GAME_BASE = "https://api-gw.sports.naver.com/schedule/games";
 const FETCH_TIMEOUT_MS = 15_000;
 /** 실황 폴링(2s)보다 짧아야 캐시가 폴링을 막지 않음 */
-const RELAY_CACHE_MS = 1_500;
+const RELAY_CACHE_MS = 900;
 
 type RelayCache = { gameId: string; fetchedAt: number; situation: LiveScoreSituation | null; rawRelays?: any[] };
 const relayCache = new Map<string, RelayCache>();
@@ -171,7 +171,11 @@ function parseCurrentAtBatPitches(
   const name = (batterName ?? "").replace(/\s+/g, "");
   for (const relay of [...(relays ?? [])].reverse()) {
     const title = (relay.title ?? "").replace(/\s+/g, "");
-    if (name && title && !title.includes(name) && !title.includes("대타")) continue;
+    if (!name) break;
+    if (!title) continue;
+    const titleMatchesBatter = title.includes(name);
+    const pinchForBatter = title.includes("대타") && title.includes(name);
+    if (!titleMatchesBatter && !pinchForBatter) continue;
     const pts = relay.ptsOptions ?? [];
     if (pts.length === 0) continue;
     const byId = new Map<string, NaverTextOption>();
