@@ -501,33 +501,6 @@ export default function PredictionPage() {
     }
   }, [scoreboardData, applyLiveScoreboard]);
 
-  const shouldPollPhase = selectedMatch
-    && shouldClientPollMatch(selectedMatch.startTime, selectedMatch.matchStatus, undefined, nowMs);
-
-  useEffect(() => {
-    if (!selectedMatch?.id || !shouldPollPhase) return;
-
-    let stopped = false;
-
-    const fetchPhase = async () => {
-      try {
-        const res = await apiRequest("GET", `/api/matches/${selectedMatch.id}`);
-        if (!res.ok || stopped) return;
-        const data = await res.json();
-        setGamePhase(data.gamePhase ?? data);
-      } catch {
-        /* ignore */
-      }
-    };
-
-    void fetchPhase();
-    const id = setInterval(fetchPhase, 8000);
-    return () => {
-      stopped = true;
-      clearInterval(id);
-    };
-  }, [selectedMatch?.id, shouldPollPhase]);
-
   const stadiumOptions = useMemo(
     () => collectStadiumOptions(viewableMatches),
     [viewableMatches],
