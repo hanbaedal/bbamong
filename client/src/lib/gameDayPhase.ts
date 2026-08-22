@@ -1,7 +1,7 @@
 import type { GameMatchItem } from "@/components/game/gameMatchUtils";
 import { isMatchSelectableForGame } from "@/components/game/gameMatchUtils";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
-import { normalizeApiStatusShort } from "@shared/apiSportsStatus";
+import { isGameFinished, normalizeApiStatusShort } from "@shared/apiSportsStatus";
 import { resolveMatchManagementStatusDisplay } from "@shared/matchManagementStatus";
 
 export type GameDayPhase = "loading" | "no_match" | "all_ended" | "pregame" | "live";
@@ -63,6 +63,10 @@ function classifyMatchTerminal(match: GameMatchItem): GameTerminalKind | "playab
     const short = normalizeApiStatusShort(match.liveScoreboard?.statusShort);
     const long = (match.liveScoreboard?.statusLong ?? "").toLowerCase();
     const label = (match.liveScoreboard?.inningLabel ?? "").trim();
+    // 실황이 정상 종료(FT)인데 DB가 잠깐 cancelled인 경우 — 종료로 취급
+    if (isGameFinished(short) || label === "경기 종료" || label === "경기종료") {
+      return "ended";
+    }
     if (
       short === "PST" ||
       short === "POST" ||
@@ -103,6 +107,8 @@ function aggregateTerminalKind(kinds: GameTerminalKind[]): GameTerminalKind {
   if (kinds.every((k) => k === "postponed")) return "postponed";
   if (kinds.every((k) => k === "cancelled")) return "cancelled";
   if (kinds.every((k) => k === "ended")) return "ended";
+  // 제1경기 종료 + 다른 슬롯 취소 혼재 시 「취소」 대신 「종료」 우선
+  if (kinds.includes("ended")) return "ended";
   if (kinds.includes("postponed")) return "postponed";
   if (kinds.includes("cancelled")) return "cancelled";
   return "ended";

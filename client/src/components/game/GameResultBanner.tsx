@@ -17,6 +17,7 @@ export default function GameResultBanner({
   countdown,
 }: GameResultBannerProps) {
   const isSuccess = phase === "success_announce";
+  const netProfit = Math.max(0, wonAmount - betAmount);
 
   if (isSuccess) {
     return (
@@ -37,7 +38,13 @@ export default function GameResultBanner({
             <p className="text-white text-sm sm:text-base mt-1 font-semibold drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
               예측 {prediction} · 배팅 {betAmount}P
               {wonAmount > 0 && (
-                <span className="text-[#CDFF00]"> · +{wonAmount}P</span>
+                <span className="text-[#CDFF00]">
+                  {" "}
+                  · +{netProfit}P
+                  {netProfit !== wonAmount ? (
+                    <span className="text-white/65 text-xs font-medium"> (지급 {wonAmount}P)</span>
+                  ) : null}
+                </span>
               )}
             </p>
           )}
