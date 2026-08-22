@@ -601,19 +601,32 @@ export function useLandscapePredictionFlow(
     }
   }, [scheduleResultDismiss]);
 
-  const applyCheckResponse = useCallback(
-    (data: {
-      hasPrediction: boolean;
-      prediction?: string;
-      predictionId?: number;
-      roundNumber?: number;
-      amount?: number;
-      status?: string;
-      wonAmount?: number;
-      predictionEnabled?: boolean;
-    }) => {
-      const enabled = Boolean(data.predictionEnabled);
-      setPredictionEnabled(enabled);
+  type PredictionSnapshot = {
+    hasPrediction: boolean;
+    prediction?: string;
+    predictionId?: number;
+    roundNumber?: number;
+    amount?: number;
+    status?: string;
+    wonAmount?: number;
+    /** 없으면 predictionEnabled 상태 유지 (WS restore) */
+    predictionEnabled?: boolean;
+  };
+
+  /**
+   * /check · user_already_predicted 공통 적용.
+   * WS·HTTP 채널은 유지하고, 화면 상태 반영만 한곳에서 한다.
+   */
+  const applyPredictionSnapshot = useCallback(
+    (data: PredictionSnapshot) => {
+      const updateEnabled = data.predictionEnabled !== undefined;
+      const enabled = updateEnabled
+        ? Boolean(data.predictionEnabled)
+        : predictionEnabledRef.current;
+      if (updateEnabled) {
+        predictionEnabledRef.current = enabled;
+        setPredictionEnabled(enabled);
+      }
 
       const presenting =
         resultShownRef.current ||
@@ -644,20 +657,20 @@ export function useLandscapePredictionFlow(
           return;
         }
 
+        if (
+          presenting &&
+          resolvedId != null &&
+          resolvedId === lastResultPredictionIdRef.current
+        ) {
+          return;
+        }
+        if (presenting && isResolved) return;
+
         waitingResultRef.current = true;
         setSelectedPrediction((data.prediction as PredictionOption) ?? null);
         setLastBetAmount(data.amount ?? DEFAULT_BET_AMOUNT);
 
         if (isResolved) {
-          // 이미 같은 예측 결과 연출 중이면 재진입하지 않음
-          if (
-            presenting &&
-            resolvedId != null &&
-            resolvedId === lastResultPredictionIdRef.current
-          ) {
-            return;
-          }
-          if (presenting) return;
           if (resolvedId != null) lastResultPredictionIdRef.current = resolvedId;
           resultShownRef.current = true;
           setPredictionResult(data.status as PredictionResult);
@@ -687,7 +700,6 @@ export function useLandscapePredictionFlow(
         typeof betRound === "number" &&
         typeof data.roundNumber === "number" &&
         betRound === data.roundNumber;
-      // 제출 직후 /check 레이스 — 같은 라운드면 결과대기 유지
       if (sameRoundStillOpen) return;
 
       waitingResultRef.current = false;
@@ -698,7 +710,6 @@ export function useLandscapePredictionFlow(
       setLastWonAmount(0);
       setLastBetAmount(0);
       void refetchUser();
-      // 투수/공수 안내·광고 연출 중이면 페이즈를 덮지 않음
       if (isTransientAdOrEventPhase(screenPhaseRef.current)) return;
       setScreenPhase(enabled ? "picking" : "wait_start");
     },
@@ -711,11 +722,20 @@ export function useLandscapePredictionFlow(
       const res = await apiRequest("GET", `/api/live-match/predictions/${selectedMatch.id}/check`);
       if (!res.ok) return;
       const data = await res.json();
-      applyCheckResponse(data);
+      applyPredictionSnapshot({
+        hasPrediction: Boolean(data.hasPrediction),
+        prediction: data.prediction,
+        predictionId: data.predictionId,
+        roundNumber: data.roundNumber,
+        amount: data.amount,
+        status: data.status,
+        wonAmount: data.wonAmount,
+        predictionEnabled: data.predictionEnabled,
+      });
     } catch {
       /* ignore */
     }
-  }, [selectedMatch?.id, applyCheckResponse]);
+  }, [selectedMatch?.id, applyPredictionSnapshot]);
 
   const checkPredictionStatusRef = useRef(checkPredictionStatus);
   checkPredictionStatusRef.current = checkPredictionStatus;
@@ -889,6 +909,115 @@ export function useLandscapePredictionFlow(
     [user, setUser, isWaitingForResult, checkPredictionStatus, beginSuccessPresentation, refetchUser],
   );
 
+  const enterAdSessionFromServer = useCallback(
+    async (opts: {
+      matchId?: string;
+      adStartedAt?: number;
+      /** ad_status 재연결 시 이미 재생 중이면 보류만 */
+      deferIfAlreadyActive?: boolean;
+    }) => {
+      rememberAdStartedAt(opts.adStartedAt);
+      const matchId = opts.matchId ?? selectedMatch?.id;
+      if (skipDismissedAdSession(matchId, opts.adStartedAt)) return;
+      const phase = screenPhaseRef.current;
+      const duringSwitchOrPitcher =
+        phase === "inning_switch_event" || phase === "pitcher_change_event";
+      if (
+        resultShownRef.current ||
+        (opts.deferIfAlreadyActive && adSessionActiveRef.current) ||
+        isWaitingForResult() ||
+        isInResultPresentation() ||
+        duringSwitchOrPitcher
+      ) {
+        pendingInterstitialRef.current = true;
+        return;
+      }
+      await runInterstitialSession(matchId, opts.adStartedAt);
+    },
+    [
+      rememberAdStartedAt,
+      skipDismissedAdSession,
+      selectedMatch?.id,
+      isWaitingForResult,
+      isInResultPresentation,
+      runInterstitialSession,
+    ],
+  );
+
+  const exitAdSession = useCallback(
+    async (data?: { reason?: string }) => {
+      const reason = data?.reason;
+      const fromPredictionStart = reason === "prediction_start";
+      const fromRoundAdvance = reason === "round_advance";
+      // reason 없음 = ad_status(false) 재연결 캐치업
+      const fromStatusCatchUp = reason == null;
+
+      if (fromStatusCatchUp) {
+        if (!adSessionActiveRef.current && screenPhaseRef.current !== "ad_playing") return;
+        if (predictionEnabledRef.current || screenPhaseRef.current === "picking") {
+          adSessionActiveRef.current = false;
+          stopAdSession();
+          setShowAdOverlay(false);
+          pendingInterstitialRef.current = false;
+          return;
+        }
+        await grantRewardIfWatchedUntilOperatorStop(selectedMatch?.id);
+        finishAdAndWaitStart();
+        return;
+      }
+
+      if (fromPredictionStart || fromRoundAdvance) {
+        pendingRewardKeyRef.current = null;
+      } else {
+        await grantRewardIfWatchedUntilOperatorStop(selectedMatch?.id);
+      }
+
+      adSessionActiveRef.current = false;
+      rewardedVideoCompletedRef.current = false;
+      setAdOverlayMessage(undefined);
+      setAdOverlayDismissible(true);
+      stopAdSession();
+      setShowAdOverlay(false);
+      clearAdSessionDismissed(selectedMatch?.id);
+      adStartedAtRef.current = null;
+
+      if (isInResultPresentation() || isWaitingForResult()) {
+        if (!fromRoundAdvance) pendingInterstitialRef.current = false;
+        return;
+      }
+
+      const phase = screenPhaseRef.current;
+      if (phase === "pitcher_change_event" || phase === "inning_switch_event") {
+        return;
+      }
+
+      if (
+        fromPredictionStart ||
+        phase === "picking" ||
+        predictionEnabledRef.current
+      ) {
+        pendingInterstitialRef.current = false;
+        if (phase === "ad_playing") setScreenPhase("picking");
+        return;
+      }
+
+      if (fromRoundAdvance) {
+        if (phase === "ad_playing") setScreenPhase("wait_start");
+        return;
+      }
+
+      finishAdAndWaitStart();
+    },
+    [
+      grantRewardIfWatchedUntilOperatorStop,
+      selectedMatch?.id,
+      finishAdAndWaitStart,
+      isInResultPresentation,
+      isWaitingForResult,
+      stopAdSession,
+    ],
+  );
+
   const wsHandlers: WSEventHandlers = {
     onConnected: useCallback((data: { predictionEnabled?: boolean }) => {
       if (data.predictionEnabled !== undefined) {
@@ -982,53 +1111,27 @@ export function useLandscapePredictionFlow(
       setScreenPhase("wait_start");
     }, [isInResultPresentation, closePickingUi]),
 
-    onUserAlreadyPredicted: useCallback((data: {
-      prediction: string;
-      predictionId?: number;
-      round?: number;
-      amount?: number;
-      status?: string;
-      wonAmount?: number;
-    }) => {
-      const matchId = selectedMatch?.id ?? "";
-      if (
-        data.predictionId != null &&
-        (data.predictionId === acknowledgedResultIdRef.current ||
-          (matchId ? isPredictionResultAcked(matchId, data.predictionId) : false))
-      ) {
-        if (data.predictionId != null) acknowledgedResultIdRef.current = data.predictionId;
-        return;
-      }
-      if (
-        resultShownRef.current &&
-        data.predictionId != null &&
-        data.predictionId === lastResultPredictionIdRef.current
-      ) {
-        return;
-      }
-
-      waitingResultRef.current = true;
-      setSelectedPrediction(data.prediction as PredictionOption);
-      setLastBetAmount(data.amount ?? DEFAULT_BET_AMOUNT);
-
-      if (data.status === "success" || data.status === "fail") {
-        if (data.predictionId != null) lastResultPredictionIdRef.current = data.predictionId;
-        resultShownRef.current = true;
-        setPredictionResult(data.status);
-        setLastWonAmount(data.wonAmount ?? 0);
-        if (data.status === "success") beginSuccessPresentation();
-        else setScreenPhase("fail");
-        return;
-      }
-
-      rememberActiveBet({
-        round: data.round ?? 0,
-        prediction: data.prediction as PredictionOption,
-        predictionId: data.predictionId ?? 0,
-        amount: data.amount ?? DEFAULT_BET_AMOUNT,
-      });
-      setScreenPhase("wait_result");
-    }, [rememberActiveBet, beginSuccessPresentation, selectedMatch?.id]),
+    onUserAlreadyPredicted: useCallback(
+      (data: {
+        prediction: string;
+        predictionId?: number;
+        round?: number;
+        amount?: number;
+        status?: string;
+        wonAmount?: number;
+      }) => {
+        applyPredictionSnapshot({
+          hasPrediction: true,
+          prediction: data.prediction,
+          predictionId: data.predictionId,
+          roundNumber: data.round,
+          amount: data.amount,
+          status: data.status,
+          wonAmount: data.wonAmount,
+        });
+      },
+      [applyPredictionSnapshot],
+    ),
 
     onPredictionCancelled: useCallback(
       (data: { message?: string }) => {
@@ -1127,133 +1230,35 @@ export function useLandscapePredictionFlow(
 
     onAdStarted: useCallback(
       async (data: { matchId?: string; adStartedAt?: number }) => {
-        rememberAdStartedAt(data?.adStartedAt);
-        if (skipDismissedAdSession(data?.matchId ?? selectedMatch?.id, data?.adStartedAt)) return;
-        const phase = screenPhaseRef.current;
-        const duringSwitchOrPitcher =
-          phase === "inning_switch_event" || phase === "pitcher_change_event";
-        // 결과 연출·대기·공수/투수 안내 중이면 보류 → 이벤트 종료(flush) 또는 이후 onAdStarted로 재생
-        if (
-          resultShownRef.current ||
-          isWaitingForResult() ||
-          isInResultPresentation() ||
-          duringSwitchOrPitcher
-        ) {
-          pendingInterstitialRef.current = true;
-          return;
-        }
-        await runInterstitialSession(data?.matchId, data?.adStartedAt);
+        await enterAdSessionFromServer({
+          matchId: data?.matchId,
+          adStartedAt: data?.adStartedAt,
+        });
       },
-      [
-        isWaitingForResult,
-        isInResultPresentation,
-        runInterstitialSession,
-        rememberAdStartedAt,
-        skipDismissedAdSession,
-        selectedMatch?.id,
-      ],
+      [enterAdSessionFromServer],
     ),
 
-    onAdStopped: useCallback((data?: { reason?: string }) => {
-      void (async () => {
-        const reason = data?.reason;
-        const fromPredictionStart = reason === "prediction_start";
-        const fromRoundAdvance = reason === "round_advance";
-
-        if (fromPredictionStart || fromRoundAdvance) {
-          pendingRewardKeyRef.current = null;
-        } else {
-          await grantRewardIfWatchedUntilOperatorStop(selectedMatch?.id);
-        }
-
-        adSessionActiveRef.current = false;
-        rewardedVideoCompletedRef.current = false;
-        setAdOverlayMessage(undefined);
-        setAdOverlayDismissible(true);
-        stopAdSession();
-        setShowAdOverlay(false);
-        clearAdSessionDismissed(selectedMatch?.id);
-        adStartedAtRef.current = null;
-
-        if (isInResultPresentation() || isWaitingForResult()) {
-          if (!fromRoundAdvance) pendingInterstitialRef.current = false;
-          return;
-        }
-
-        const phase = screenPhaseRef.current;
-        if (phase === "pitcher_change_event" || phase === "inning_switch_event") {
-          return;
-        }
-
-        // 예측 시작으로 광고가 꺼진 경우 wait_start로 덮지 않음 (보상 없음)
-        if (
-          fromPredictionStart ||
-          phase === "picking" ||
-          predictionEnabledRef.current
-        ) {
-          pendingInterstitialRef.current = false;
-          if (phase === "ad_playing") setScreenPhase("picking");
-          return;
-        }
-
-        if (fromRoundAdvance) {
-          if (phase === "ad_playing") setScreenPhase("wait_start");
-          return;
-        }
-
-        finishAdAndWaitStart();
-      })();
-    }, [
-      grantRewardIfWatchedUntilOperatorStop,
-      selectedMatch?.id,
-      finishAdAndWaitStart,
-      isInResultPresentation,
-      isWaitingForResult,
-      stopAdSession,
-    ]),
+    onAdStopped: useCallback(
+      (data?: { reason?: string }) => {
+        void exitAdSession(data);
+      },
+      [exitAdSession],
+    ),
 
     onAdStatus: useCallback(
       async (data: { isPlaying?: boolean; isAdPlaying?: boolean; adStartedAt?: number }) => {
         const playing = Boolean(data.isAdPlaying ?? data.isPlaying);
-        rememberAdStartedAt(data.adStartedAt);
         if (playing) {
-          if (skipDismissedAdSession(selectedMatch?.id, data.adStartedAt)) return;
-          if (
-            resultShownRef.current ||
-            adSessionActiveRef.current ||
-            isWaitingForResult() ||
-            isInResultPresentation() ||
-            screenPhaseRef.current === "pitcher_change_event" ||
-            screenPhaseRef.current === "inning_switch_event"
-          ) {
-            pendingInterstitialRef.current = true;
-            return;
-          }
-          await runInterstitialSession(selectedMatch?.id, data.adStartedAt);
+          await enterAdSessionFromServer({
+            matchId: selectedMatch?.id,
+            adStartedAt: data.adStartedAt,
+            deferIfAlreadyActive: true,
+          });
           return;
         }
-        if (!adSessionActiveRef.current && screenPhaseRef.current !== "ad_playing") return;
-        if (predictionEnabledRef.current || screenPhaseRef.current === "picking") {
-          adSessionActiveRef.current = false;
-          stopAdSession();
-          setShowAdOverlay(false);
-          pendingInterstitialRef.current = false;
-          return;
-        }
-        await grantRewardIfWatchedUntilOperatorStop(selectedMatch?.id);
-        finishAdAndWaitStart();
+        await exitAdSession();
       },
-      [
-        isWaitingForResult,
-        isInResultPresentation,
-        runInterstitialSession,
-        selectedMatch?.id,
-        grantRewardIfWatchedUntilOperatorStop,
-        finishAdAndWaitStart,
-        stopAdSession,
-        rememberAdStartedAt,
-        skipDismissedAdSession,
-      ],
+      [enterAdSessionFromServer, exitAdSession, selectedMatch?.id],
     ),
 
     onScoreboardUpdate: useCallback((data: { scoreboard?: LiveScoreboard }) => {
