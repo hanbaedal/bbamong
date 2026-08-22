@@ -745,6 +745,7 @@ export default function PredictionPage() {
           sideBetModalOpen ||
           teamStatsSide != null ||
           pitcherModal != null ||
+          flow.showBetModal ||
           flow.screenPhase === "ad_playing" ||
           flow.adSessionState !== "idle" ||
           flow.showAdOverlay

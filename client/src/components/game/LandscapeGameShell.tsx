@@ -143,10 +143,13 @@ export default function LandscapeGameShell({
 
   const displayPitches = useAtBatPitchDisplay(scoreboard, screenPhase);
   const pitchLocationCount = displayPitches?.length ?? 0;
+  /** 예측 선택·배팅 모달 중에는 투구 잔상과 겹치지 않도록 숨김 */
   const strikeZoneVisible =
     pitchLocationCount > 0 &&
     !noticeSuppressed &&
+    !showBetModal &&
     screenPhase !== "ad_playing" &&
+    screenPhase !== "picking" &&
     gameDayPhase === "live";
 
   return (
