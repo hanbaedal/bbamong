@@ -136,7 +136,12 @@ export default function LandscapeGameShell({
   const { isGuest } = useUser();
   const { showGuestPopup, setShowGuestPopup } = useGuestRestriction(isGuest);
 
-  const hasStrikeZonePitches = (scoreboard?.situation?.pitchLocations?.length ?? 0) > 0;
+  const pitchLocationCount = scoreboard?.situation?.pitchLocations?.length ?? 0;
+  const strikeZoneVisible =
+    pitchLocationCount > 0 &&
+    !noticeSuppressed &&
+    screenPhase !== "ad_playing" &&
+    gameDayPhase === "live";
 
   return (
     <div
@@ -216,7 +221,7 @@ export default function LandscapeGameShell({
                   : currentBatter?.batsSide ?? null
               }
               isPinchHitter={Boolean(currentBatter?.isPinchHitter)}
-              hideWaitBubble={hasStrikeZonePitches}
+              hideWaitBubble={pitchLocationCount > 0}
               onRunComplete={onRunComplete}
             />
 
@@ -229,9 +234,7 @@ export default function LandscapeGameShell({
                   : currentBatter?.batsSide ?? null
               }
               hidden={
-                noticeSuppressed ||
-                screenPhase === "ad_playing" ||
-                gameDayPhase !== "live"
+                !strikeZoneVisible
               }
             />
 
