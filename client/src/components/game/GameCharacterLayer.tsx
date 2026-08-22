@@ -269,16 +269,8 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {/* 예측 대기: 존에 투구가 보이면 투수 바라보는 뒷모습, 없으면 팔짱 대기+말풍선 */}
-      {gameDayPhase === "live" && phase === "wait_start" && hideWaitBubble ? (
-        <BackBatterReady
-          battingHalf={battingHalf}
-          handSide={handSide}
-          testId="char-batter-box-wait-start"
-        />
-      ) : null}
-
-      {gameDayPhase === "live" && phase === "wait_start" && !hideWaitBubble ? (
+      {/* 1. 예측 시작 전: 팔짱 빠몽 (존 투구와 무관) */}
+      {gameDayPhase === "live" && phase === "wait_start" ? (
         <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
           <div
             className="flex flex-row items-end gap-1 sm:gap-2 pointer-events-none"
@@ -293,36 +285,33 @@ export default function GameCharacterLayer({
               style={{ width: PYAMONG_ARMS_WAIT_WIDTH, transformOrigin: "bottom center" }}
               data-testid="char-pyamong-arms-waiting"
             />
-            <GameThoughtBubble
-              lines={
-                isPinchHitter
-                  ? (["대타가", "나옵니다"] as const)
-                  : [...LIVE_WAIT_BUBBLE_LINES]
-              }
-              className="mb-[min(5vw,40px)] shrink-0"
-              bubbleWidth="min(10vw, 78px)"
-              textClassName="text-[min(2.1vw,11px)] sm:text-[min(2.5vw,13px)] leading-[1.12]"
-            />
+            {!hideWaitBubble ? (
+              <GameThoughtBubble
+                lines={
+                  isPinchHitter
+                    ? (["대타가", "나옵니다"] as const)
+                    : [...LIVE_WAIT_BUBBLE_LINES]
+                }
+                className="mb-[min(5vw,40px)] shrink-0"
+                bubbleWidth="min(10vw, 78px)"
+                textClassName="text-[min(2.1vw,11px)] sm:text-[min(2.5vw,13px)] leading-[1.12]"
+              />
+            ) : null}
           </div>
         </StadiumFieldMarker>
       ) : null}
 
-      {gameDayPhase === "live" && phase === "picking" && (
-        <BackBatterReady
-          battingHalf={battingHalf}
-          handSide={handSide}
-          testId="char-batter-box-picking"
-        />
-      )}
+      {/* 2. 예측 시작(picking): 빠몽 숨김 — 베이스 버튼만 */}
 
-      {phase === "wait_result" && (
+      {/* 3. 예측 중지·결과 큰 글씨: 방망이 든 뒷모습 */}
+      {gameDayPhase === "live" && (phase === "wait_result" || phase === "result_flash") ? (
         <BackBatterReady
           battingHalf={battingHalf}
           handSide={handSide}
-          testId="char-batter-box-wait-result"
-          badge={predictionBadge}
+          testId={phase === "result_flash" ? "char-batter-box-result-flash" : "char-batter-box-wait-result"}
+          badge={phase === "wait_result" ? predictionBadge : undefined}
         />
-      )}
+      ) : null}
 
       {phase === "success_running" && batTossing && (
         <>
