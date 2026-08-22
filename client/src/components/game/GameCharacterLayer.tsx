@@ -44,6 +44,7 @@ interface GameCharacterLayerProps {
   battingHalf?: InningHalf | null;
   batsSide?: BatterHandSide | null;
   isPinchHitter?: boolean;
+  /** true면 존에 투구가 있음 → wait_start에서 뒷모습(투수 응시), 말풍선 숨김 */
   hideWaitBubble?: boolean;
   onRunComplete?: () => void;
 }
@@ -268,7 +269,16 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {gameDayPhase === "live" && phase === "wait_start" && (
+      {/* 예측 대기: 존에 투구가 보이면 투수 바라보는 뒷모습, 없으면 팔짱 대기+말풍선 */}
+      {gameDayPhase === "live" && phase === "wait_start" && hideWaitBubble ? (
+        <BackBatterReady
+          battingHalf={battingHalf}
+          handSide={handSide}
+          testId="char-batter-box-wait-start"
+        />
+      ) : null}
+
+      {gameDayPhase === "live" && phase === "wait_start" && !hideWaitBubble ? (
         <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
           <div
             className="flex flex-row items-end gap-1 sm:gap-2 pointer-events-none"
@@ -283,21 +293,19 @@ export default function GameCharacterLayer({
               style={{ width: PYAMONG_ARMS_WAIT_WIDTH, transformOrigin: "bottom center" }}
               data-testid="char-pyamong-arms-waiting"
             />
-            {!hideWaitBubble ? (
-              <GameThoughtBubble
-                lines={
-                  isPinchHitter
-                    ? (["대타가", "나옵니다"] as const)
-                    : [...LIVE_WAIT_BUBBLE_LINES]
-                }
-                className="mb-[min(5vw,40px)] shrink-0"
-                bubbleWidth="min(10vw, 78px)"
-                textClassName="text-[min(2.1vw,11px)] sm:text-[min(2.5vw,13px)] leading-[1.12]"
-              />
-            ) : null}
+            <GameThoughtBubble
+              lines={
+                isPinchHitter
+                  ? (["대타가", "나옵니다"] as const)
+                  : [...LIVE_WAIT_BUBBLE_LINES]
+              }
+              className="mb-[min(5vw,40px)] shrink-0"
+              bubbleWidth="min(10vw, 78px)"
+              textClassName="text-[min(2.1vw,11px)] sm:text-[min(2.5vw,13px)] leading-[1.12]"
+            />
           </div>
         </StadiumFieldMarker>
-      )}
+      ) : null}
 
       {gameDayPhase === "live" && phase === "picking" && (
         <BackBatterReady
