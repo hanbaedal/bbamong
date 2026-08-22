@@ -1,4 +1,7 @@
 import type { InningHalf } from "./gamePhaseTypes";
+import type { LiveAtBatResultDisplay } from "./atBatResultDisplay";
+
+export type { LiveAtBatResultDisplay } from "./atBatResultDisplay";
 
 export type MatchControlMode = "auto" | "manual";
 
@@ -110,6 +113,8 @@ export interface LiveScoreSituation {
   pitchDetail?: string | null;
   /** 문자중계에서 추정한 타석 결과 (없으면 null) */
   suggestedResult?: LiveSuggestedPredictionResult | null;
+  /** 사용자 위젯용 세분 결과 (1루타·포볼·사구·삼진아웃 등) */
+  atBatResultDisplay?: LiveAtBatResultDisplay | null;
   /** 대타 후보 — 예정 타자와 실황 이름이 다를 때 클라이언트/자동기가 참고 */
   pinchCandidateName?: string | null;
 }

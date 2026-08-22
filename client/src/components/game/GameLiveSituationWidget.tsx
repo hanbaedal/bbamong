@@ -1,5 +1,7 @@
 /** 예측 참고용 TV 위젯. 이닝·점수는 다음, 다이아몬드·카운트·타자·투수는 네이버. */
+import { useEffect, useState } from "react";
 import type { LiveBatterTodayStats, LivePitcherSummary, LiveScoreboard } from "@shared/apiSportsTypes";
+import type { LiveAtBatResultDisplay } from "@shared/atBatResultDisplay";
 import { formatStatCount } from "@shared/batterDisplay";
 import { kboTeamPrimaryColor } from "@shared/kboTeamColors";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
@@ -56,6 +58,7 @@ export default function GameLiveSituationWidget({
   const showPitcher = Boolean(pitcherName);
   const showLiveBits = Boolean(scoreboard);
   const batterTodayLine = formatBatterTodayLine(situation?.batterToday);
+  const atBatResult = situation?.atBatResultDisplay ?? null;
 
   return (
     <div
@@ -173,8 +176,59 @@ export default function GameLiveSituationWidget({
               {batterTodayLine}
             </p>
           ) : null}
+          <AtBatResultBanner
+            batterName={batterName}
+            result={atBatResult}
+            hasTodayLine={Boolean(batterTodayLine)}
+          />
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * 오늘 기록 아래 ~5줄 여백 후 큰 글씨로 타석 결과.
+ * 서버 라벨이 잠깐 비어도 같은 타자면 유지, 타자 바뀌면 지움.
+ */
+function AtBatResultBanner({
+  batterName,
+  result,
+  hasTodayLine,
+}: {
+  batterName: string;
+  result: LiveAtBatResultDisplay | null;
+  hasTodayLine: boolean;
+}) {
+  const [sticky, setSticky] = useState<{ batter: string; label: LiveAtBatResultDisplay } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (result) {
+      setSticky({ batter: batterName, label: result });
+      return;
+    }
+    setSticky((prev) => {
+      if (!prev) return null;
+      if (prev.batter !== batterName) return null;
+      return prev;
+    });
+  }, [result, batterName]);
+
+  const label = result ?? (sticky?.batter === batterName ? sticky.label : null);
+  if (!label) return null;
+
+  return (
+    <div
+      className={`ml-[1.9rem] flex flex-col ${hasTodayLine ? "" : "mt-0.5"}`}
+      data-testid="game-live-atbat-result"
+    >
+      {/* 오늘 기록 아래 약 5줄 간격 */}
+      <div className="h-[5.625rem] shrink-0" aria-hidden />
+      <p className="text-2xl font-black leading-none tracking-tight text-white sm:text-3xl drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+        {label}
+      </p>
     </div>
   );
 }
