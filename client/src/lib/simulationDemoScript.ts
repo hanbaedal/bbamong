@@ -249,7 +249,7 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "ui-ad",
     stepId: "screen",
-    caption: "공수교대·투수교체 때 전면 광고가 나올 수 있습니다. 약 5초 후 ×로 끌 수 있고, 운영자가 광고를 중지할 때까지 보면 보상 포인트가 있습니다. (배너 광고 없음)",
+    caption: "공수교대·투수교체 때 리워드 동영상 광고가 나올 수 있습니다. 앱은 끝까지 시청해야 보상 대상이며, 운영자가 광고를 중지하거나 약 1분 후 500P가 지급됩니다. (배너 광고 없음)",
     durationMs: 8000,
     state: s({
       view: "game-ui",

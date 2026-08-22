@@ -81,9 +81,9 @@ export default function GameAdOverlay({
         <div className="w-12 h-12 rounded-full border-4 border-[#CDFF00]/30 border-t-[#CDFF00] animate-spin" />
         <p className="text-white text-lg sm:text-xl font-semibold">{message}</p>
         <p className="text-white/60 text-sm">
-          {canDismiss
-            ? "운영자가 광고를 끝낼 때까지 보면 500P입니다. 지금 끄면 보상은 없습니다."
-            : "운영자가 광고를 끝낼 때까지 보면 500P입니다. 5초 후 끄면 보상은 없습니다."}
+          {onDismiss
+            ? "리워드 동영상을 끝까지 보면 500P입니다. 운영자가 광고를 끝낼 때 지급됩니다."
+            : "리워드 광고 시청이 완료되었습니다. 잠시 후 예측이 재개됩니다."}
         </p>
         {onDismiss && !canDismiss && (
           <p className="text-white/45 text-xs" data-testid="text-ad-dismiss-countdown">

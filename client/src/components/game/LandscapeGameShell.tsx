@@ -56,6 +56,8 @@ interface LandscapeGameShellProps {
   eventCountdown?: number | null;
   eventSubtitle?: string;
   showAdOverlay?: boolean;
+  adOverlayMessage?: string;
+  adOverlayDismissible?: boolean;
   adSessionState?: AdSessionState;
   isNativePlatform?: boolean;
   onAdOverlayDismiss?: () => void;
@@ -111,6 +113,8 @@ export default function LandscapeGameShell({
   eventCountdown,
   eventSubtitle,
   showAdOverlay,
+  adOverlayMessage,
+  adOverlayDismissible = true,
   adSessionState,
   isNativePlatform,
   onAdOverlayDismiss,
@@ -301,11 +305,16 @@ export default function LandscapeGameShell({
         (isNativePlatform && adSessionState === "preparing")) && (
         <GameAdOverlay
           message={
-            isNativePlatform && adSessionState === "preparing"
-              ? "광고 준비 중입니다..."
-              : "광고가 재생 중입니다..."
+            adOverlayMessage ??
+            (isNativePlatform && adSessionState === "preparing"
+              ? "리워드 광고 준비 중입니다..."
+              : "광고가 재생 중입니다...")
           }
-          onDismiss={onAdOverlayDismiss}
+          onDismiss={
+            adOverlayDismissible && adSessionState !== "preparing"
+              ? onAdOverlayDismiss
+              : undefined
+          }
         />
       )}
 

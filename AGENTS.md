@@ -33,11 +33,11 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 ### Prediction flow edge guards
 - `wait_result` 중 `round_next`는 결과 생략(`skippedResult`)이 아니면 보류한다. 투수교체 환불 시 서버가 `skippedResult: true`를 보낸다. 복귀 `/check`는 **현재 라운드에 예측이 없고 라운드가 바뀌었으면** 결과대기를 해제한다(같은 라운드 제출 레이스는 유지). 자리비움 중 결과는 주루를 생략하고 짧은 배너만 쓰며, 다음 타석이 이미 열려 있으면 복귀 즉시 예측 창으로 간다.
 - `betSnapshotRef`로 `activeBet`이 비어도 `round_result` 연출이 가능하고, 없으면 `/check`로 복구한다.
-- 유저 WS는 `prediction_cancelled`를 처리한다. 결과/대기 중 전면광고는 덮지 않는다(보류 후 재생).
-- **게임 배너 광고 없음**: 예측 게임에서 배너를 쓰지 않는다. **공수교대·투수교체** 시 전면(+보상) 광고만 `scheduleAdStart`(약 5초 후)로 재생한다.
+- 유저 WS는 `prediction_cancelled`를 처리한다. 결과/대기 중 리워드 광고는 덮지 않는다(보류 후 재생).
+- **게임 배너 광고 없음**: 예측 게임에서 배너를 쓰지 않는다. **공수교대·투수교체** 시 **리워드 동영상**(네이티브 AdMob) 또는 웹 오버레이 폴백. 광고 세션 **1분** 후 자동 종료·보상.
 - **모바일 음성**: 예측/운영자 안내는 MP3(`client/public/audio/voice-*.mp3`). 스마트폰은 **화면을 한 번 탭**해야 재생된다. 사용자: 타석 열림/닫힘·성공/실패·공수/투수/대타·당일 상태·종료. 운영자: 3아웃·결과 확정·예측 시작·경기 종료(짧은 조작 안내). 재생성: `python3 scripts/generate-game-voice-clips.py`.
-- **광고 시작/중지**: 운영자 **투수교체·공수교대** = 광고 시작, **예측 시작**(또는 하단 광고 종료) = 광고 중지(`ad_stopped`). 별도「광고 시작」버튼 없음. `ad_stopped.reason`: `prediction_start`(보상 없음·picking 유지), `operator_stop`(500P·대기), `round_advance`(이닝 전환·광고만 닫기).
-- **사용자 광고 UX**: 5초 후 X로 끄기 가능(보상 없음). **운영자가 광고를 중지할 때까지** 보고 있으면 500P. 15초 자동 보상 없음. 5초 만에 끄면 보상 없음. 같은 `adStartedAt` 세션을 X로 끈 뒤에는 재연결·`ad_status`로 오버레이를 다시 띄우지 않는다. 투수교체·공수교대 안내는 「N초 후 광고」.
+- **광고 시작/중지**: 운영자 **투수교체·공수교대** = 광고 시작, **예측 시작** = 광고 중지(`ad_stopped`). `ad_stopped.reason`: `prediction_start`(보상 없음), `operator_stop`(500P), `round_advance`(광고만 닫기).
+- **사용자 광고 UX**: 네이티브는 **리워드 동영상 끝까지 시청** 후 500P 대상(운영자 중지 또는 1분 자동 종료 시 지급). 웹은 5초 후 X(보상 없음). 같은 `adStartedAt` 세션 X 후 재연결·`ad_status`로 오버레이 재표시 안 함.
 - **친구·동호회 방**: 방 전용 경기가 아니다. 오늘 공개 예측에 함께 참여하고 멤버 순위만 참고한다.
 
 ### Admin schedule team logos
