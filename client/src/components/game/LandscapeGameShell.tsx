@@ -14,7 +14,6 @@ import GameEventOverlay from "./GameEventOverlay";
 import GameAdOverlay from "./GameAdOverlay";
 import GameLiveSituationWidget from "./GameLiveSituationWidget";
 import GameStrikeZoneOverlay from "./GameStrikeZoneOverlay";
-import ConfirmPopup from "@/components/customUi/confirmPopup";
 import GuestRestrictionPopup, { useGuestRestriction } from "@/components/customUi/guestRestrictionPopup";
 import { useUser } from "@/contexts/UserContext";
 import type { HeadToHeadDisplayParts } from "@shared/matchTeamDisplay";
@@ -24,7 +23,7 @@ import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import type { PregameCountdownDisplay } from "./GamePregameCountdown";
 import type { SideBetBottomSummary } from "./GameBottomStatusBar";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
-import { calculateFixedOddsPayout, type BetAmountOption } from "@shared/predictionOdds";
+import type { BetAmountOption } from "@shared/predictionOdds";
 import "./gameAnimations.css";
 
 interface LandscapeGameShellProps {
@@ -48,10 +47,7 @@ interface LandscapeGameShellProps {
   selectedBetAmount: BetAmountOption;
   onBetAmountChange: (amount: BetAmountOption) => void;
   onBetModalCancel: () => void;
-  onBetNext: () => void;
-  showConfirmModal: boolean;
-  onConfirmCancel: () => void;
-  onConfirmSubmit: () => void;
+  onBetSubmit: () => void;
   onRunComplete: () => void;
   lastWonAmount: number;
   lastBetAmount: number;
@@ -106,10 +102,7 @@ export default function LandscapeGameShell({
   selectedBetAmount,
   onBetAmountChange,
   onBetModalCancel,
-  onBetNext,
-  showConfirmModal,
-  onConfirmCancel,
-  onConfirmSubmit,
+  onBetSubmit,
   onRunComplete,
   lastWonAmount,
   lastBetAmount,
@@ -143,10 +136,7 @@ export default function LandscapeGameShell({
   const { isGuest } = useUser();
   const { showGuestPopup, setShowGuestPopup } = useGuestRestriction(isGuest);
 
-  const confirmPayout =
-    selectedPrediction != null
-      ? calculateFixedOddsPayout(selectedBetAmount, selectedPrediction)
-      : 0;
+  const hasStrikeZonePitches = (scoreboard?.situation?.pitchLocations?.length ?? 0) > 0;
 
   return (
     <div
@@ -226,6 +216,7 @@ export default function LandscapeGameShell({
                   : currentBatter?.batsSide ?? null
               }
               isPinchHitter={Boolean(currentBatter?.isPinchHitter)}
+              hideWaitBubble={hasStrikeZonePitches}
               onRunComplete={onRunComplete}
             />
 
@@ -320,21 +311,7 @@ export default function LandscapeGameShell({
           betAmount={selectedBetAmount}
           onBetAmountChange={onBetAmountChange}
           onCancel={onBetModalCancel}
-          onNext={onBetNext}
-        />
-      )}
-
-      {showConfirmModal && selectedPrediction && (
-        <ConfirmPopup
-          title="예측 확인"
-          details={[
-            { label: "예측", value: selectedPrediction },
-            { label: "배팅", value: `${selectedBetAmount}P` },
-          ]}
-          footerLabel="적중 시 예상"
-          footerValue={`${confirmPayout}P`}
-          onCancel={onConfirmCancel}
-          onConfirm={onConfirmSubmit}
+          onSubmit={onBetSubmit}
         />
       )}
 

@@ -680,14 +680,8 @@ export default function PredictionPage() {
         showBetModal={isLivePlay && flow.showBetModal}
         selectedBetAmount={flow.selectedBetAmount}
         onBetAmountChange={flow.setSelectedBetAmount}
-        onBetModalCancel={() => {
-          flow.setShowBetModal(false);
-          flow.handleConfirmCancel();
-        }}
-        onBetNext={flow.handleBetNext}
-        showConfirmModal={isLivePlay && flow.showConfirmModal}
-        onConfirmCancel={flow.handleConfirmCancel}
-        onConfirmSubmit={() => void flow.handleConfirmSubmit()}
+        onBetModalCancel={flow.handleBetModalCancel}
+        onBetSubmit={() => void flow.handleBetSubmit()}
         onRunComplete={flow.handleRunComplete}
         lastWonAmount={flow.lastWonAmount}
         lastBetAmount={flow.lastBetAmount}

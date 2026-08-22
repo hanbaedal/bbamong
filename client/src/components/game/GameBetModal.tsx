@@ -8,7 +8,7 @@ interface GameBetModalProps {
   betAmount: BetAmountOption;
   onBetAmountChange: (amount: BetAmountOption) => void;
   onCancel: () => void;
-  onNext: () => void;
+  onSubmit: () => void;
 }
 
 export default function GameBetModal({
@@ -17,7 +17,7 @@ export default function GameBetModal({
   betAmount,
   onBetAmountChange,
   onCancel,
-  onNext,
+  onSubmit,
 }: GameBetModalProps) {
   if (!open) return null;
 
@@ -50,11 +50,11 @@ export default function GameBetModal({
           </button>
           <button
             type="button"
-            onClick={onNext}
+            onClick={onSubmit}
             className="flex-1 h-11 rounded-lg bg-[#CCF501] text-black font-bold"
-            data-testid="button-bet-next"
+            data-testid="button-bet-submit"
           >
-            다음
+            예측하기
           </button>
         </div>
       </div>

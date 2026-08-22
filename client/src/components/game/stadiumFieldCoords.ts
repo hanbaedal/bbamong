@@ -43,15 +43,15 @@ export const STANDS_SEAT_IMAGE: ImagePoint = { ...BASE_IMAGE_POINTS["3루"] };
 export const HOME_PLATE_IMAGE = BASE_IMAGE_POINTS.아웃;
 export const PITCHER_MOUND_IMAGE: ImagePoint = { x: 0.5, y: 0.535 };
 
-/** 우타 박스 — 홈 기준 3루(화면 왼쪽) 쪽. 좌타와 간격을 명확히. */
+/** 우타 박스 — 스트라이크존(우타=홈 왼쪽) 좌측, 투수 방향 */
 export const BATTER_BOX_RIGHT_IMAGE: ImagePoint = {
-  x: HOME_PLATE_IMAGE.x - 0.085,
+  x: HOME_PLATE_IMAGE.x - 0.102,
   y: HOME_PLATE_IMAGE.y - 0.01,
 };
 
-/** 좌타 박스 — 홈 기준 1루(화면 오른쪽) 쪽 */
+/** 좌타 박스 — 스트라이크존(좌타=홈 오른쪽) 우측, 투수 방향 */
 export const BATTER_BOX_LEFT_IMAGE: ImagePoint = {
-  x: HOME_PLATE_IMAGE.x + 0.085,
+  x: HOME_PLATE_IMAGE.x + 0.102,
   y: HOME_PLATE_IMAGE.y - 0.01,
 };
 

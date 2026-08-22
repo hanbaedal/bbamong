@@ -191,17 +191,20 @@ function PitcherTodayBlock({ pitcher }: { pitcher: LivePitcherSummary }) {
   ];
   return (
     <div
-      className="ml-[1.9rem] min-w-[7.5rem] max-w-[10rem] leading-[1.25] text-white/90"
+      className="ml-[1.9rem] min-w-[7.5rem] max-w-[10.5rem] leading-[1.25] text-white/90"
       data-testid="game-live-pitcher-today"
     >
-      <p className="truncate text-[9px] font-semibold sm:text-[10px]">
-        {inn} 이닝 ( {pitches}구, S {s}, B {b})
-      </p>
-      <div className="mt-px grid grid-cols-[2.6rem_1fr] gap-x-1 text-[9px] sm:text-[10px]">
+      <div className="grid grid-cols-[max-content_max-content_max-content] items-baseline gap-x-0.5 text-[9px] font-semibold sm:text-[10px]">
+        <span className="whitespace-nowrap">{inn} 이닝 (</span>
+        <span className="min-w-[2.4em] text-center tabular-nums whitespace-nowrap">{pitches}구,</span>
+        <span className="whitespace-nowrap">{` S ${s}, B ${b})`}</span>
+      </div>
+      <div className="mt-px grid grid-cols-[max-content_max-content_max-content] gap-x-0.5 text-[9px] sm:text-[10px]">
         {rows.map((row) => (
           <div key={row.label} className="contents">
             <span className="truncate">{row.label}</span>
-            <span className="tabular-nums text-right">{row.value}</span>
+            <span className="min-w-[2.4em] text-center tabular-nums font-semibold">{row.value}</span>
+            <span aria-hidden className="invisible whitespace-nowrap">{` S ${s}, B ${b})`}</span>
           </div>
         ))}
       </div>

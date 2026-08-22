@@ -54,6 +54,8 @@ interface GameCharacterLayerProps {
   batsSide?: BatterHandSide | null;
   /** 대타 타석 — 대기 말풍선 안내 */
   isPinchHitter?: boolean;
+  /** 스트라이크존 표시 중 — 다음 타자 대기 말풍선 숨김 */
+  hideWaitBubble?: boolean;
   onRunComplete?: () => void;
 }
 
@@ -82,6 +84,7 @@ export default function GameCharacterLayer({
   battingHalf = null,
   batsSide = null,
   isPinchHitter = false,
+  hideWaitBubble = false,
   onRunComplete,
 }: GameCharacterLayerProps) {
   const handSide: BatterHandSide = batsSide === "left" ? "left" : "right";
@@ -261,16 +264,18 @@ export default function GameCharacterLayer({
                 data-team-side={battingHalf === "bottom" ? "home" : "away"}
               />
             </div>
-            <GameThoughtBubble
-              lines={
-                isPinchHitter
-                  ? (["대타가", "나옵니다"] as const)
-                  : [...LIVE_WAIT_BUBBLE_LINES]
-              }
-              className="mb-[min(5vw,40px)] shrink-0"
-              bubbleWidth="min(10vw, 78px)"
-              textClassName="text-[min(2.1vw,11px)] sm:text-[min(2.5vw,13px)] leading-[1.12]"
-            />
+            {!hideWaitBubble ? (
+              <GameThoughtBubble
+                lines={
+                  isPinchHitter
+                    ? (["대타가", "나옵니다"] as const)
+                    : [...LIVE_WAIT_BUBBLE_LINES]
+                }
+                className="mb-[min(5vw,40px)] shrink-0"
+                bubbleWidth="min(10vw, 78px)"
+                textClassName="text-[min(2.1vw,11px)] sm:text-[min(2.5vw,13px)] leading-[1.12]"
+              />
+            ) : null}
           </div>
         </StadiumFieldMarker>
       )}
@@ -284,37 +289,25 @@ export default function GameCharacterLayer({
             data-bats-side={handSide}
             data-batting-half={battingHalf ?? ""}
           >
-            <div className="relative shrink-0">
-              <div
-                className={isLeftHanded ? undefined : "game-pyamong-face-pitcher"}
-                style={
-                  isLeftHanded
-                    ? { transform: "scaleX(-1) rotate(38deg)", transformOrigin: "42% 82%" }
-                    : undefined
-                }
-                data-testid="char-batter-box"
+            <div
+              className={isLeftHanded ? "game-pyamong-face-pitcher-left" : "game-pyamong-face-pitcher"}
+              style={isLeftHanded ? { transform: "scaleX(-1) rotate(38deg)" } : undefined}
+            >
+              <img
+                src={waitingBatterSrc(battingHalf)}
+                alt=""
+                className="game-sprite h-auto animate-pyamong-idle drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
+                style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center" }}
+                data-testid="char-batter-waiting"
                 data-bats-side={handSide}
-              >
-                <img
-                  src={waitingBatterSrc(battingHalf)}
-                  alt=""
-                  className="game-sprite h-auto animate-pyamong-idle drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
-                  style={{ width: PYAMONG_WAIT_RESULT_WIDTH, transformOrigin: "bottom center" }}
-                  data-testid="char-batter-waiting"
-                  data-team-side={battingHalf === "bottom" ? "home" : "away"}
-                />
-              </div>
-              <div
-                className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 rounded-xl bg-white/95 text-black text-xs sm:text-sm font-semibold shadow-lg whitespace-nowrap"
-                data-testid="speech-wait-result"
-              >
-                예측결과를 기다립니다
-                <span className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white/95" />
-              </div>
+                data-team-side={battingHalf === "bottom" ? "home" : "away"}
+              />
             </div>
             {selectedPrediction ? (
               <div
-                className="mb-[min(18%,28px)] shrink-0 rounded-xl border-2 border-[#CDFF00] bg-black/75 px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-lg"
+                className={`mb-[min(18%,28px)] shrink-0 rounded-xl border-2 border-[#CDFF00] bg-black/75 px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-lg ${
+                  isLeftHanded ? "-translate-x-[15ch]" : "translate-x-[3ch]"
+                }`}
                 data-testid="wait-result-prediction-badge"
               >
                 <p className="text-[10px] sm:text-xs text-white/70 leading-none mb-1">내 예측</p>
