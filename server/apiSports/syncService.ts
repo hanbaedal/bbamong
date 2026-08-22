@@ -1037,6 +1037,7 @@ async function persistIncomingLiveScoreboard(
     (prevSit?.pitcherName ?? "") !== (nextSit?.pitcherName ?? "") ||
     (prevSit?.pitchLabel ?? "") !== (nextSit?.pitchLabel ?? "") ||
     (prevSit?.suggestedResult ?? "") !== (nextSit?.suggestedResult ?? "") ||
+    (prevSit?.atBatResultDisplay ?? "") !== (nextSit?.atBatResultDisplay ?? "") ||
     (prevSit?.pitchLocations?.length ?? 0) !== (nextSit?.pitchLocations?.length ?? 0);
 
   if (nextKey !== (match.lastInningKey ?? null) || situationChanged) {
