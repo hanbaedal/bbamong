@@ -1,8 +1,11 @@
-/** 대기 화면 빠몽이(타자) 너비 — vw + px 상한 */
+/** 레거시 옆모습 타자 — 뒷모습 2배 기준 */
 export const PYAMONG_BATTER_WIDTH = "min(11vw, 88px)";
 
-/** 예측결과 대기 — 홈 타자 모습 (기존 wait_result 대비 약 2배) */
-export const PYAMONG_WAIT_RESULT_WIDTH = "min(10vw, 96px)";
+/** 뒷모습 타격대기 — 옆모습 대비 2배 */
+export const PYAMONG_BATTER_BACK_WIDTH = "min(22vw, 176px)";
+
+/** 예측 시작 전 팔짱 대기 */
+export const PYAMONG_ARMS_WAIT_WIDTH = "min(12vw, 96px)";
 
 /** 말풍선 — 가독성 위해 약간 확대 */
 export const THOUGHT_BUBBLE_WIDTH = "min(9vw, 72px)";

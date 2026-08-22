@@ -62,6 +62,7 @@ import { subscribeForegroundResume } from "@/lib/foregroundResume";
 import { shouldClientPollMatch } from "@/lib/matchPollWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import type { LiveScoreboard, CurrentBatterPreview } from "@shared/apiSportsTypes";
+import { coalesceLiveSituation } from "@shared/liveSituationDisplay";
 import TeamSeasonStatsModal from "@/components/TeamSeasonStatsModal";
 import PitcherStatsModal from "@/components/PitcherStatsModal";
 import type { LivePitcherSummary } from "@shared/apiSportsTypes";
@@ -445,6 +446,7 @@ export default function PredictionPage() {
   useEffect(() => {
     setLiveScoreboard(null);
     setGamePhase(null);
+    prevSituationRef.current = null;
   }, [selectedMatchId]);
 
   useEffect(() => {
@@ -465,8 +467,22 @@ export default function PredictionPage() {
     goAfterMatchEnd();
   }, [selectedMatchId, matchesData, hasMatchesSnapshot, matchesLoading, toast, nowMs, goAfterMatchEnd]);
 
+  const prevSituationRef = useRef<LiveScoreboard["situation"]>(null);
+
+  const applyLiveScoreboard = useCallback((raw: LiveScoreboard) => {
+    const nextSit = raw.situation;
+    const mergedSit =
+      nextSit != null
+        ? coalesceLiveSituation(nextSit, prevSituationRef.current)
+        : raw.situation;
+    prevSituationRef.current = mergedSit ?? null;
+    setLiveScoreboard(
+      mergedSit != null && mergedSit !== nextSit ? { ...raw, situation: mergedSit } : raw,
+    );
+  }, []);
+
   const flow = useLandscapePredictionFlow(flowMatch, {
-    onScoreboardUpdate: setLiveScoreboard,
+    onScoreboardUpdate: applyLiveScoreboard,
     onGamePhaseUpdate: (phase) => setGamePhase(phase as GamePhasePayload),
     onMatchEnded: () => {
       matchEndedHandledRef.current = true;
@@ -479,18 +495,18 @@ export default function PredictionPage() {
     {
       startTime: selectedMatch?.startTime,
       matchStatus: selectedMatch?.matchStatus,
-      pollMs: 2_500,
+      pollMs: 2_000,
     },
   );
 
   useEffect(() => {
     if (scoreboardData?.scoreboard) {
-      setLiveScoreboard(scoreboardData.scoreboard);
+      applyLiveScoreboard(scoreboardData.scoreboard);
     }
     if (scoreboardData !== undefined) {
       setCurrentBatter(scoreboardData.currentBatter ?? null);
     }
-  }, [scoreboardData]);
+  }, [scoreboardData, applyLiveScoreboard]);
 
   const shouldPollPhase = selectedMatch
     && shouldClientPollMatch(selectedMatch.startTime, selectedMatch.matchStatus, undefined, nowMs);
