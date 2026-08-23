@@ -43,15 +43,20 @@ export const STANDS_SEAT_IMAGE: ImagePoint = { ...BASE_IMAGE_POINTS["3루"] };
 export const HOME_PLATE_IMAGE = BASE_IMAGE_POINTS.아웃;
 export const PITCHER_MOUND_IMAGE: ImagePoint = { x: 0.5, y: 0.535 };
 
-/** 우타 박스 — 홈·스트라이크존 왼쪽(화면 좌측). 존 점과 안 겹치게 벌림 */
+/** 타석 박스 — 홈·스트라이크존에서 좌우로 벌림 (이미지 폭 비율).
+ * 0.225는 겹침 방지용으로 과했고, 0.15면 존 박스와 안 겹치며 타석답게 보임.
+ */
+export const BATTER_BOX_OFFSET_X = 0.15;
+
+/** 우타 박스 — 홈·스트라이크존 왼쪽(화면 좌측) */
 export const BATTER_BOX_RIGHT_IMAGE: ImagePoint = {
-  x: HOME_PLATE_IMAGE.x - 0.225,
+  x: HOME_PLATE_IMAGE.x - BATTER_BOX_OFFSET_X,
   y: HOME_PLATE_IMAGE.y - 0.008,
 };
 
 /** 좌타 박스 — 홈·스트라이크존 오른쪽(화면 우측) */
 export const BATTER_BOX_LEFT_IMAGE: ImagePoint = {
-  x: HOME_PLATE_IMAGE.x + 0.225,
+  x: HOME_PLATE_IMAGE.x + BATTER_BOX_OFFSET_X,
   y: HOME_PLATE_IMAGE.y - 0.008,
 };
 

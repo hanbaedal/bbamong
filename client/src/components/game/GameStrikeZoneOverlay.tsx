@@ -36,10 +36,10 @@ export default function GameStrikeZoneOverlay({
   if (hidden || !pitches?.length) return null;
 
   const homePx = stadiumImagePointToPx(HOME_PLATE_IMAGE, fieldSize.width, fieldSize.height);
-  // 홈 플레이트 바로 위. 타자(우타=좌·좌타=우) 쪽으로 밀지 않고 약간 반대로 두어 존 점이 가려지지 않게
+  // 홈 바로 위. 타자 반대쪽으로 아주 살짝만 밀어 점이 몸통에 안 가리게
   const zoneW = Math.min(fieldSize.width * 0.11, 92) * 0.9;
   const zoneH = zoneW * 1.35;
-  const offsetX = batsSide === "left" ? -zoneW * 0.12 : zoneW * 0.12;
+  const offsetX = batsSide === "left" ? -zoneW * 0.06 : zoneW * 0.06;
   const left = homePx.left + offsetX - zoneW / 2;
   const top = homePx.top - zoneH * 1.15;
 
