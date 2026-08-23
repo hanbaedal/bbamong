@@ -41,6 +41,7 @@ export interface MatchFlowData {
   startTime: string;
   matchStatus: string;
   predictionEnabled?: boolean;
+  currentRound?: number;
 }
 
 interface ActiveBet {
@@ -91,11 +92,15 @@ export function useLandscapePredictionFlow(
   const [showAdOverlay, setShowAdOverlay] = useState(false);
   const [adOverlayMessage, setAdOverlayMessage] = useState<string | undefined>();
   const [adOverlayDismissible, setAdOverlayDismissible] = useState(true);
+  /** 제출 후·예측 중지 전 — 베이스는 보이되 추가 선택은 잠금 */
+  const [betLocked, setBetLocked] = useState(false);
 
   const activeBetRef = useRef<ActiveBet | null>(null);
   /** activeBet이 비워져도 round_result 연출용으로 유지 */
   const betSnapshotRef = useRef<ActiveBet | null>(null);
   const waitingResultRef = useRef(false);
+  /** 결과 대기 중인 라운드 — 미참여도 /check 가 wait_result 를 깨지 않게 */
+  const awaitingResultRoundRef = useRef<number | null>(null);
   const resultShownRef = useRef(false);
   const lastResultPredictionIdRef = useRef<number | null>(null);
   const acknowledgedResultIdRef = useRef<number | null>(null);
@@ -217,8 +222,10 @@ export function useLandscapePredictionFlow(
     hurryResultRef.current = false;
     resultShownRef.current = false;
     waitingResultRef.current = false;
+    awaitingResultRoundRef.current = null;
     activeBetRef.current = null;
     betSnapshotRef.current = null;
+    setBetLocked(false);
     setSelectedPrediction(null);
     setPredictionResult("pending");
     setRoundResultLabel(null);
@@ -410,6 +417,7 @@ export function useLandscapePredictionFlow(
   const clearResultPresentationState = useCallback(() => {
     resultShownRef.current = false;
     waitingResultRef.current = false;
+    awaitingResultRoundRef.current = null;
     activeBetRef.current = null;
     betSnapshotRef.current = null;
     setSelectedPrediction(null);
@@ -418,6 +426,7 @@ export function useLandscapePredictionFlow(
     setShowBetModal(false);
     setLastWonAmount(0);
     setLastBetAmount(0);
+    setBetLocked(false);
   }, []);
 
   const runInterstitialSession = useCallback(
@@ -485,6 +494,11 @@ export function useLandscapePredictionFlow(
 
   const flushPendingInterstitial = useCallback(async () => {
     if (!pendingInterstitialRef.current) return;
+    // 이미 재생 중이면 플래그만 유지하지 않고 종료 (중첩 세션 방지)
+    if (adSessionActiveRef.current || screenPhaseRef.current === "ad_playing") {
+      pendingInterstitialRef.current = false;
+      return;
+    }
     pendingInterstitialRef.current = false;
     await runInterstitialSession(selectedMatch?.id, adStartedAtRef.current);
   }, [runInterstitialSession, selectedMatch?.id]);
@@ -505,7 +519,7 @@ export function useLandscapePredictionFlow(
       const advanceType = pending.advanceType;
       if (advanceType === "pitcher_change") {
         void speakGameVoice("user.pitcherChange");
-        // 서버 광고(5초)와 이벤트 종료를 맞추기 위해 보류 플래그 선설정
+        // 서버 AD_INTRO_DELAY 와 이벤트 종료를 맞춤 — 광고는 ad_started 또는 flush 한 곳에서만
         pendingInterstitialRef.current = true;
         setScreenPhase("pitcher_change_event");
         scheduleEventDismiss(GAME_EVENT_SHOW_MS, () => {
@@ -629,6 +643,8 @@ export function useLandscapePredictionFlow(
     (label: PredictionOption, personal: "success" | "fail" | "spectator") => {
       resultShownRef.current = true;
       waitingResultRef.current = false;
+      awaitingResultRoundRef.current = null;
+      setBetLocked(false);
       setRoundResultLabel(label);
       setPredictionResult(personal === "success" ? "success" : personal === "fail" ? "fail" : "pending");
       setScreenPhase("result_flash");
@@ -695,7 +711,9 @@ export function useLandscapePredictionFlow(
           activeBetRef.current = null;
           betSnapshotRef.current = null;
           waitingResultRef.current = false;
+          awaitingResultRoundRef.current = null;
           resultShownRef.current = false;
+          setBetLocked(false);
           setSelectedPrediction(null);
           setPredictionResult("pending");
           setRoundResultLabel(null);
@@ -715,6 +733,9 @@ export function useLandscapePredictionFlow(
         if (presenting && isResolved) return;
 
         waitingResultRef.current = true;
+        if (typeof data.roundNumber === "number") {
+          awaitingResultRoundRef.current = data.roundNumber;
+        }
         setSelectedPrediction((data.prediction as PredictionOption) ?? null);
         setLastBetAmount(data.amount ?? DEFAULT_BET_AMOUNT);
 
@@ -757,17 +778,31 @@ export function useLandscapePredictionFlow(
 
       if (presenting) return;
 
-      const betRound = activeBetRef.current?.round ?? betSnapshotRef.current?.round;
-      const sameRoundStillOpen =
-        waitingResultRef.current &&
-        typeof betRound === "number" &&
-        typeof data.roundNumber === "number" &&
-        betRound === data.roundNumber;
-      if (sameRoundStillOpen) return;
+      // 결과 대기 중 /check 가 hasPrediction:false 로 미참여·제출자 모두 wait_start 로 내리지 않음
+      const awaitRound =
+        awaitingResultRoundRef.current ??
+        activeBetRef.current?.round ??
+        betSnapshotRef.current?.round ??
+        null;
+      const stillAwaitingResult =
+        waitingResultRef.current || screenPhaseRef.current === "wait_result";
+      if (stillAwaitingResult) {
+        if (
+          typeof awaitRound === "number" &&
+          typeof data.roundNumber === "number" &&
+          awaitRound !== data.roundNumber
+        ) {
+          // 라운드가 바뀌었고 현재 라운드에 예측 없음 → 결과대기 해제 (복귀 가드)
+        } else {
+          return;
+        }
+      }
 
       waitingResultRef.current = false;
+      awaitingResultRoundRef.current = null;
       activeBetRef.current = null;
       betSnapshotRef.current = null;
+      setBetLocked(false);
       setSelectedPrediction(null);
       setPredictionResult("pending");
       setLastWonAmount(0);
@@ -899,7 +934,9 @@ export function useLandscapePredictionFlow(
   }, [selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus, syncMatchFromServer]);
 
   useEffect(() => {
+    // 제출한 예측 복구용 — 미참여 wait_result 는 /check 로 깨지므로 폴링하지 않음
     if (screenPhase !== "wait_result" || predictionResult !== "pending" || !selectedMatch?.id) return;
+    if (!activeBetRef.current && !betSnapshotRef.current) return;
 
     const id = setInterval(() => {
       void checkPredictionStatusRef.current();
@@ -960,6 +997,8 @@ export function useLandscapePredictionFlow(
 
       resultShownRef.current = true;
       waitingResultRef.current = false;
+      awaitingResultRoundRef.current = null;
+      setBetLocked(false);
       setLastWonAmount(data.wonAmount ?? 0);
       if (bet) {
         setLastBetAmount(bet.amount);
@@ -1144,6 +1183,9 @@ export function useLandscapePredictionFlow(
         });
       }
       resultShownRef.current = false;
+      waitingResultRef.current = false;
+      awaitingResultRoundRef.current = null;
+      setBetLocked(false);
       predictionEnabledRef.current = true;
       setPredictionEnabled(true);
       setSelectedPrediction(null);
@@ -1175,8 +1217,14 @@ export function useLandscapePredictionFlow(
       const hadBet = Boolean(waitingResultRef.current || activeBetRef.current);
       closePickingUi({ keepSelection: hadBet });
       waitingResultRef.current = true;
+      const round =
+        activeBetRef.current?.round ??
+        betSnapshotRef.current?.round ??
+        (typeof selectedMatch?.currentRound === "number" ? selectedMatch.currentRound : null);
+      awaitingResultRoundRef.current = round;
+      setBetLocked(false);
       setScreenPhase("wait_result");
-    }, [isInResultPresentation, closePickingUi]),
+    }, [isInResultPresentation, closePickingUi, selectedMatch?.currentRound]),
 
     onUserAlreadyPredicted: useCallback(
       (data: {
@@ -1392,17 +1440,21 @@ export function useLandscapePredictionFlow(
       setSelectedPrediction(null);
       return;
     }
+    if (betLocked) return;
     const epoch = predictionEpochRef.current;
 
     setShowBetModal(false);
+    // 제출 후에도 예측 창(베이스)은 유지 — 중지 시에만 전원 wait_result
     waitingResultRef.current = true;
+    setBetLocked(true);
     acknowledgedResultIdRef.current = null;
     lastResultPredictionIdRef.current = null;
-    setScreenPhase("wait_result");
 
     try {
       if (predictionEpochRef.current !== epoch || !predictionEnabledRef.current) {
         waitingResultRef.current = false;
+        awaitingResultRoundRef.current = null;
+        setBetLocked(false);
         setSelectedPrediction(null);
         setScreenPhase("wait_start");
         return;
@@ -1424,13 +1476,18 @@ export function useLandscapePredictionFlow(
         predictionId: data.id,
         amount: selectedBetAmount,
       });
+      if (typeof data.roundNumber === "number") {
+        awaitingResultRoundRef.current = data.roundNumber;
+      }
       lastResultPredictionIdRef.current = data.id;
       setLastBetAmount(selectedBetAmount);
       setUser({ ...user, points: (user.points ?? 0) - selectedBetAmount });
     } catch (error: unknown) {
       waitingResultRef.current = false;
+      awaitingResultRoundRef.current = null;
       activeBetRef.current = null;
       betSnapshotRef.current = null;
+      setBetLocked(false);
       setSelectedPrediction(null);
       setScreenPhase(predictionEnabledRef.current ? "picking" : "wait_start");
       toast({
@@ -1438,10 +1495,10 @@ export function useLandscapePredictionFlow(
         variant: "destructive",
       });
     }
-  }, [user, selectedMatch, selectedPrediction, selectedBetAmount, setUser, toast, rememberActiveBet]);
+  }, [user, selectedMatch, selectedPrediction, selectedBetAmount, setUser, toast, rememberActiveBet, betLocked]);
 
   const labelsVisible = screenPhase === "picking" && predictionEnabled;
-  const labelsInteractive = screenPhase === "picking" && predictionEnabled;
+  const labelsInteractive = screenPhase === "picking" && predictionEnabled && !betLocked;
   const blinkPrediction = null;
 
   return {
