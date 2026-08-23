@@ -1,5 +1,5 @@
 import type { LiveScoreboard, MatchLineupSnapshot } from "@shared/apiSportsTypes";
-import { PREDICTION_AUTO_STOP_MS } from "@shared/adBreakTiming";
+import { AD_SCHEDULE_COOLDOWN_MS, PREDICTION_AUTO_STOP_MS } from "@shared/adBreakTiming";
 import { blocksAdvanceUntilResult, type AtBatPhase } from "@shared/atBatPhase";
 import { findLineupBatterByName, normalizeBatterName } from "@shared/batterDisplay";
 import { parseInningHalf, wrapBatterOrder, type InningHalf } from "@shared/gamePhaseTypes";
@@ -63,6 +63,11 @@ type AutoState = {
   /** prediction_closed 진입 시각 — watchdog 용 */
   predictionClosedAt: number | null;
   resultWatchdogFired: boolean;
+  /**
+   * 마지막 공수교대 emit 시각.
+   * 3아웃 직후 초/말 갱신으로 halfChanged가 한 번 더 오면 중복 round_next·광고를 막는다.
+   */
+  lastSwitchEmitAt: number;
 };
 
 const stateByMatch = new Map<string, AutoState>();
@@ -89,6 +94,7 @@ function getState(matchId: string): AutoState {
       lastPinchName: null,
       predictionClosedAt: null,
       resultWatchdogFired: false,
+      lastSwitchEmitAt: 0,
     };
     stateByMatch.set(matchId, state);
   }
@@ -405,6 +411,15 @@ export async function processLiveAutoOperator(
     // —— 공수교대 (idle | result_confirmed만 — 결과 미전송이면 절대 emit 하지 않음) ——
     // 성공·차단 모두 이 tick에서는 투수/타자 전이로 이어가지 않음 (광고·연출 겹침 방지)
     if (halfChanged || outsHitThree) {
+      // 3아웃 emit 직후 실황 초/말만 바뀌는 틱 — 동일 교대를 다시 방송하지 않음
+      if (now - state.lastSwitchEmitAt < AD_SCHEDULE_COOLDOWN_MS) {
+        state.lastOuts = outs;
+        if (half) state.lastHalf = half;
+        if (inning != null) state.lastInning = inning;
+        // 성공한 공수교대와 같이 이 tick에서는 다른 전이로 이어가지 않음
+        return;
+      }
+
       let switchHandled = false;
       try {
         await stopPredictionIfOpen(matchId, "실황 자동: 공수교대 전 예측 중지");
@@ -446,6 +461,7 @@ export async function processLiveAutoOperator(
                 await syncPhaseFromLive(matchId, scoreboard);
               }
               await emitPhaseSnapshot(matchId, "switch_half", "실황 자동 공수교대");
+              state.lastSwitchEmitAt = now;
               scheduleAdIfAllowed(matchId, "switch_half", "idle");
               console.log(`[LiveAuto] switch half ${matchId}`);
               switchHandled = true;
@@ -712,6 +728,10 @@ export function notifyManualAtBatAction(
   if (action === "result" || action === "next" || action === "switch" || action === "pitcher") {
     clearStopTimer(matchId);
     state.lastSuggestedResultKey = null;
+  }
+  // 수동 공수교대 직후 실황 3아웃/초말 변경이 같은 교대를 재방송하지 않게
+  if (action === "switch") {
+    state.lastSwitchEmitAt = Date.now();
   }
   state.lastPhaseBroadcast = null;
 }

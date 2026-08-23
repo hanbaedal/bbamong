@@ -1,3 +1,5 @@
+import { AD_INTRO_DELAY_MS } from "@shared/adBreakTiming";
+
 export type PredictionOption = "1루" | "2루" | "3루" | "홈런" | "아웃";
 
 /** round_next WS — 라운드 진행 사유 */
@@ -20,8 +22,8 @@ export type GameScreenPhase =
 
 export type PredictionResult = "pending" | "success" | "fail";
 
-/** 투수 교체·공수 교대 연출 표시 시간 */
-export const GAME_EVENT_SHOW_MS = 5000;
+/** 투수 교체·공수 교대 연출 표시 시간 (= 서버 광고 인트로 지연) */
+export const GAME_EVENT_SHOW_MS = AD_INTRO_DELAY_MS;
 
 /** 경기종료 연출 */
 export const MATCH_ENDED_SHOW_MS = 10_000;

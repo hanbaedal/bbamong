@@ -31,6 +31,7 @@ export interface GameMatchItem {
   startTime: string;
   matchStatus: string;
   predictionEnabled?: boolean;
+  currentRound?: number;
   registrationOrder?: number;
 /** 관리자 실황 연동 ON/OFF와 동일 (opN, 다음·네이버) */
   sideBetEnabled?: boolean;
