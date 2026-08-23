@@ -29,6 +29,8 @@ export interface WSEventHandlers {
   onPinchHitterCleared?: (data: any) => void;
   onScoreboardUpdate?: (data: any) => void;
   onRewardedAdOffer?: (data: any) => void | Promise<void>;
+  /** 서버 타석 단계 — 화면 wait/picking/wait_result 권위 소스 */
+  onAtBatPhase?: (data: { phase?: string; matchId?: string; currentRound?: number }) => void;
   onError?: (error: Error) => void;
   onReconnecting?: (attempt: number) => void;
 }
@@ -260,9 +262,11 @@ export function useMatchWebSocket({
             case "end":
               handlersRef.current.onMatchEnd?.(message.data);
               break;
+            case "at_bat_phase":
+              handlersRef.current.onAtBatPhase?.(message.data);
+              break;
             case "pong":
             case "heartbeat_ack":
-            case "at_bat_phase":
               break;
             default:
               console.log("[WS] Unknown message type:", message.type);

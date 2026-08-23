@@ -23,6 +23,7 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 
 ### Delivery preference (owner)
 - When a change set is done: **push to GitHub, open/update the PR, mark ready, and squash-merge to `main`** in the same turn unless the user asks to keep it draft or hold merge. Do not leave finished work as unmerged open PRs by default.
+- **Replit Deploy**: `main` merge alone does **not** update `ppamong.com`. After merge, Replit → **Deploy → Redeploy** (or `git pull` on the Repl then Redeploy). Confirm with asset `Last-Modified` newer than the merge time.
 
 ### Prediction wait / black screen
 - `/api/matches` 등 React Query는 **429·세션 오류 시 null로 캐시를 덮지 않는다** (throw → 이전 스냅샷 유지). null을 `[]`로 취급하면 가짜 `no_match` 검은 화면·`matchesData.some` 크래시가 난다.

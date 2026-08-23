@@ -151,12 +151,15 @@ class WSManager {
         // 현재 경기 상태 조회
         let predictionEnabled = false;
         let currentRound = 1;
+        let atBatPhase: string = "idle";
         try {
           const matchInfo = await getMatchInfo(matchId);
           if (matchInfo) {
             predictionEnabled = matchInfo.predictionEnabled;
             currentRound = matchInfo.currentRound;
           }
+          const { resolveAtBatPhase } = await import("./atBatStateMachine");
+          atBatPhase = await resolveAtBatPhase(matchId);
         } catch (e) {
           console.error("[WS] Error fetching match info:", e);
         }
@@ -170,6 +173,7 @@ class WSManager {
             matchId,
             predictionEnabled,
             currentRound,
+            atBatPhase,
           },
         }));
 

@@ -33,6 +33,7 @@ import {
 } from "@/lib/adDismissSession";
 
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import type { AtBatPhase } from "@shared/atBatPhase";
 
 export interface MatchFlowData {
   id: string;
@@ -408,6 +409,82 @@ export function useLandscapePredictionFlow(
       screenPhaseRef.current === "wait_result"
     );
   }, []);
+
+  /**
+   * 서버 at_bat_phase 권위 반영.
+   * WS prediction_* 누락·HTTP 폴링 demote로 단계가 어긋나는 것을 막는다.
+   */
+  const applyServerAtBatPhase = useCallback(
+    (phase: AtBatPhase, roundNumber?: number) => {
+      if (matchEndedRef.current) return;
+      if (isInResultPresentation()) return;
+      const ui = screenPhaseRef.current;
+      if (isTransientAdOrEventPhase(ui) && phase !== "prediction_open") return;
+
+      if (phase === "prediction_open") {
+        pendingInterstitialRef.current = false;
+        adSessionActiveRef.current = false;
+        stopAdSession();
+        setShowAdOverlay(false);
+        waitingResultRef.current = false;
+        awaitingResultRoundRef.current = null;
+        setBetLocked(false);
+        predictionEnabledRef.current = true;
+        setPredictionEnabled(true);
+        if (ui !== "picking") {
+          setShowBetModal(false);
+          setSelectedPrediction(null);
+          setScreenPhase("picking");
+        }
+        return;
+      }
+
+      if (phase === "prediction_closed") {
+        const hadBet = Boolean(activeBetRef.current || betSnapshotRef.current);
+        closePickingUi({ keepSelection: hadBet });
+        waitingResultRef.current = true;
+        if (typeof roundNumber === "number") {
+          awaitingResultRoundRef.current = roundNumber;
+        } else if (
+          awaitingResultRoundRef.current == null &&
+          typeof selectedMatch?.currentRound === "number"
+        ) {
+          awaitingResultRoundRef.current = selectedMatch.currentRound;
+        }
+        setBetLocked(false);
+        if (ui !== "wait_result") setScreenPhase("wait_result");
+        return;
+      }
+
+      if (phase === "result_confirmed") {
+        // round_result 연출 전 — 결과대기 유지
+        if (ui === "wait_result" || waitingResultRef.current) return;
+        if (ui === "picking") {
+          closePickingUi();
+          waitingResultRef.current = true;
+          setScreenPhase("wait_result");
+        }
+        return;
+      }
+
+      // idle
+      if (isWaitingForResult()) return;
+      if (isTransientAdOrEventPhase(ui)) return;
+      predictionEnabledRef.current = false;
+      setPredictionEnabled(false);
+      setBetLocked(false);
+      if (ui !== "wait_start" && ui !== "match_ended") {
+        setScreenPhase("wait_start");
+      }
+    },
+    [
+      isInResultPresentation,
+      isWaitingForResult,
+      closePickingUi,
+      stopAdSession,
+      selectedMatch?.currentRound,
+    ],
+  );
 
   const rememberActiveBet = useCallback((bet: ActiveBet) => {
     activeBetRef.current = bet;
@@ -861,6 +938,20 @@ export function useLandscapePredictionFlow(
       predictionEnabledRef.current = enabled;
       setPredictionEnabled(enabled);
 
+      const serverPhase = matchData.atBatPhase;
+      if (
+        serverPhase === "idle" ||
+        serverPhase === "prediction_open" ||
+        serverPhase === "prediction_closed" ||
+        serverPhase === "result_confirmed"
+      ) {
+        applyServerAtBatPhase(
+          serverPhase,
+          typeof matchData.currentRound === "number" ? matchData.currentRound : undefined,
+        );
+        return;
+      }
+
       if (
         enabled &&
         screenPhaseRef.current === "wait_start" &&
@@ -870,14 +961,12 @@ export function useLandscapePredictionFlow(
         return;
       }
 
-      // WS prediction_stopped 누락 시 HTTP로 picking 잔상 제거
-      if (
-        !enabled &&
-        screenPhaseRef.current === "picking" &&
-        !waitingResultRef.current
-      ) {
-        closePickingUi();
-        setScreenPhase("wait_start");
+      // WS 누락 폴백 — 중지면 결과대기(뒷모습), 시작 전 대기가 아님
+      if (!enabled && screenPhaseRef.current === "picking") {
+        applyServerAtBatPhase(
+          "prediction_closed",
+          typeof matchData.currentRound === "number" ? matchData.currentRound : undefined,
+        );
       }
     } catch {
       /* ignore */
@@ -887,7 +976,7 @@ export function useLandscapePredictionFlow(
     selectedMatch?.startTime,
     selectedMatch?.matchStatus,
     handleMatchEnded,
-    closePickingUi,
+    applyServerAtBatPhase,
   ]);
 
   const syncMatchFromServerRef = useRef(syncMatchFromServer);
@@ -1128,7 +1217,11 @@ export function useLandscapePredictionFlow(
   );
 
   const wsHandlers: WSEventHandlers = {
-    onConnected: useCallback((data: { predictionEnabled?: boolean }) => {
+    onConnected: useCallback((data: {
+      predictionEnabled?: boolean;
+      atBatPhase?: string;
+      currentRound?: number;
+    }) => {
       if (data.predictionEnabled !== undefined) {
         setPredictionEnabled(data.predictionEnabled);
         const phase = screenPhaseRef.current;
@@ -1138,14 +1231,24 @@ export function useLandscapePredictionFlow(
           !isTransientAdOrEventPhase(phase) &&
           !isOutcomePresentationPhase(phase) &&
           phase !== "wait_result" &&
-          phase !== "match_ended"
+          phase !== "match_ended" &&
+          !data.atBatPhase
         ) {
           setScreenPhase(data.predictionEnabled ? "picking" : "wait_start");
         }
       }
+      const atBat = data.atBatPhase;
+      if (
+        atBat === "idle" ||
+        atBat === "prediction_open" ||
+        atBat === "prediction_closed" ||
+        atBat === "result_confirmed"
+      ) {
+        applyServerAtBatPhase(atBat, data.currentRound);
+      }
       // 전화·SNS 복귀 재연결 시 놓친 결과/타석을 /check 로 맞춤
       void checkPredictionStatus();
-    }, [checkPredictionStatus]),
+    }, [checkPredictionStatus, applyServerAtBatPhase]),
 
     onPredictionStarted: useCallback(() => {
       const key = consumeFirstPredictionOpen(selectedMatch?.id)
@@ -1397,6 +1500,28 @@ export function useLandscapePredictionFlow(
         });
       }
     }, [selectedMatch?.id]),
+
+    onAtBatPhase: useCallback(
+      (data: { phase?: string; currentRound?: number; roundNumber?: number }) => {
+        const phase = data?.phase;
+        if (
+          phase !== "idle" &&
+          phase !== "prediction_open" &&
+          phase !== "prediction_closed" &&
+          phase !== "result_confirmed"
+        ) {
+          return;
+        }
+        const round =
+          typeof data.currentRound === "number"
+            ? data.currentRound
+            : typeof data.roundNumber === "number"
+              ? data.roundNumber
+              : undefined;
+        applyServerAtBatPhase(phase, round);
+      },
+      [applyServerAtBatPhase],
+    ),
 
     onMatchEnd: useCallback(() => {
       handleMatchEnded();

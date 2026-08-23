@@ -33,10 +33,12 @@ export async function broadcastAtBatPhase(
   extra?: Record<string, unknown>,
 ): Promise<AtBatPhase> {
   const resolved = phase ?? (await resolveAtBatPhase(matchId));
+  const match = await MatchModel.findOne({ id: matchId }).select("currentRound").lean();
   broadcastManager.sendToMatch(matchId, "at_bat_phase", {
     matchId,
     phase: resolved,
     phaseLabel: atBatPhaseLabel(resolved),
+    currentRound: match?.currentRound ?? 1,
     ...extra,
   });
   return resolved;

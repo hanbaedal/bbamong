@@ -34,8 +34,8 @@ export const SUCCESS_ANNOUNCE_MS = 2000;
 /** 주루 도착 후 제자리 점프 3회 (레거시 — 단계표에서 사용 안 함) */
 export const SUCCESS_HOP_MS = 1350;
 
-/** 3번 화면에서 예측 결과 큰 글씨 표시 */
-export const RESULT_FLASH_MS = 1200;
+/** 3번 화면에서 예측 결과 큰 글씨 표시 (너무 짧으면 체감상 “결과 없음”) */
+export const RESULT_FLASH_MS = 2_200;
 
 /** 자리비움 따라잡기 — 다음 타석 예측 창을 남기기 위한 짧은 결과 배너 */
 export const CATCHUP_RESULT_MS = 700;
