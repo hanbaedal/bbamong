@@ -152,14 +152,20 @@ class WSManager {
         let predictionEnabled = false;
         let currentRound = 1;
         let atBatPhase: string = "idle";
+        let uiStage: string = "wait";
+        let settledResult: string | null = null;
         try {
           const matchInfo = await getMatchInfo(matchId);
           if (matchInfo) {
             predictionEnabled = matchInfo.predictionEnabled;
             currentRound = matchInfo.currentRound;
           }
-          const { resolveAtBatPhase } = await import("./atBatStateMachine");
-          atBatPhase = await resolveAtBatPhase(matchId);
+          const { buildPredictionUiStagePayload } = await import("./atBatStateMachine");
+          const ui = await buildPredictionUiStagePayload(matchId);
+          atBatPhase = ui.atBatPhase;
+          uiStage = ui.stage;
+          settledResult = ui.settledResult ?? null;
+          currentRound = ui.currentRound;
         } catch (e) {
           console.error("[WS] Error fetching match info:", e);
         }
@@ -174,6 +180,8 @@ class WSManager {
             predictionEnabled,
             currentRound,
             atBatPhase,
+            uiStage,
+            settledResult,
           },
         }));
 

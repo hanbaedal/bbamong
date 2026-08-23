@@ -29,8 +29,15 @@ export interface WSEventHandlers {
   onPinchHitterCleared?: (data: any) => void;
   onScoreboardUpdate?: (data: any) => void;
   onRewardedAdOffer?: (data: any) => void | Promise<void>;
-  /** 서버 타석 단계 — 화면 wait/picking/wait_result 권위 소스 */
-  onAtBatPhase?: (data: { phase?: string; matchId?: string; currentRound?: number }) => void;
+  onAtBatPhase?: (data: {
+    phase?: string;
+    atBatPhase?: string;
+    uiStage?: string;
+    stage?: string;
+    matchId?: string;
+    currentRound?: number;
+    settledResult?: string | null;
+  }) => void;
   onError?: (error: Error) => void;
   onReconnecting?: (attempt: number) => void;
 }

@@ -234,13 +234,14 @@ async function stopPredictionIfOpen(matchId: string, reason: string): Promise<vo
   const match = await MatchModel.findOne({ id: matchId }).select("predictionEnabled").lean();
   if (!match?.predictionEnabled) return;
   const updated = await stopRound(matchId);
+  // 단계 방송을 이벤트보다 먼저 — 클라가 uiStage 권위로 wait_result 고정
+  await emitPhaseIfChanged(matchId, "prediction_closed");
   broadcastManager.sendToMatch(matchId, "prediction_stopped", {
     matchId,
     currentRound: updated.currentRound,
     message: reason,
     source: "live_auto",
   });
-  await emitPhaseIfChanged(matchId, "prediction_closed");
 }
 
 async function startPredictionForBatter(matchId: string, batterName: string): Promise<void> {
@@ -249,13 +250,13 @@ async function startPredictionForBatter(matchId: string, batterName: string): Pr
     broadcastManager.stopAdPlaying(matchId, "prediction_start", "예측 시작으로 광고가 중지되었습니다.");
   }
   const started = await startRound(matchId);
+  await emitPhaseIfChanged(matchId, "prediction_open");
   broadcastManager.sendToMatch(matchId, "prediction_started", {
     matchId,
     currentRound: started.currentRound,
     message: `실황 자동 예측 시작 — ${batterName}`,
     source: "live_auto",
   });
-  await emitPhaseIfChanged(matchId, "prediction_open");
   scheduleAutoStop(matchId);
   console.log(`[LiveAuto] prediction start ${matchId} batter=${batterName}`);
 }

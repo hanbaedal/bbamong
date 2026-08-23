@@ -960,7 +960,7 @@ export async function updateRoundPredictionResult(
     if (roundPredictions.length === 0) {
       await RoundStatisticsModel.updateOne(
         roundStatsQuery(matchId, roundNumber),
-        { isResultSent: true },
+        { isResultSent: true, settledResult: result },
         { session },
       );
       await session.commitTransaction();
@@ -1020,6 +1020,7 @@ export async function updateRoundPredictionResult(
         totalPoints: totalPool,
         totalWinners: winnerCount,
         isResultSent: true,
+        settledResult: result,
       },
       { session },
     );

@@ -26,6 +26,7 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - **Replit Deploy**: `main` merge alone does **not** update `ppamong.com`. After merge, Replit → **Deploy → Redeploy** (or `git pull` on the Repl then Redeploy). Confirm with asset `Last-Modified` newer than the merge time.
 
 ### Prediction wait / black screen
+- 유저 예측 화면 단계(`wait`/`open`/`closed`/`result`)는 서버 `at_bat_phase`의 `uiStage`가 권위다. 클라는 이를 그린다 (`shared/predictionUiStage.ts`). `prediction_started`/`stopped`는 음성·광고 부수효과 + 폴백.
 - `/api/matches` 등 React Query는 **429·세션 오류 시 null로 캐시를 덮지 않는다** (throw → 이전 스냅샷 유지). null을 `[]`로 취급하면 가짜 `no_match` 검은 화면·`matchesData.some` 크래시가 난다.
 - 예측 화면 keepAlive는 **4분** 간격, WS 연결 전 access는 **만료 2분 전 refresh**, close `4005`는 **forceRefresh 후** 재연결.
 - **전화·문자·SNS 복귀**: 웹도 `visibilitychange`(hidden→visible)·bfcache `pageshow`로 WS를 강제 재연결하고, `/check`·경기 폴링으로 타석/결과를 맞춘다. 네이티브는 `appStateChange`도 같다. 자리비움 중 해당 타석 예측은 불가(서버 경기는 계속). 복귀 시 이미 본 결과는 ack로 중복 연출하지 않는다. 환불된 포인트는 `refetchUser`로 맞춘다.
