@@ -81,6 +81,17 @@ assert(pinch.playerName === "김태연", `live name ${pinch.playerName}`);
 assert(pinch.isPinchHitter === true, "대타 표시");
 assert(pinch.orderLabel.includes("1번"), pinch.orderLabel);
 
+// 타순 미등록 + 실황 타자명만 있으면 대타 오탐 금지
+const noLineup = resolveCurrentBatterPreview({
+  lineup: { home: [], away: [], source: "test" },
+  inningHalf: "top",
+  batterIndexInHalf: 1,
+  season: 2026,
+  liveBatterName: "김태연",
+});
+assert(noLineup.playerName === "김태연", `noLineup name ${noLineup.playerName}`);
+assert(noLineup.isPinchHitter === false, "타순 없으면 대타 아님");
+
 const next = deriveOperatorNextAction({
   liveAutoEnabled: true,
   atBatPhase: "prediction_closed",
