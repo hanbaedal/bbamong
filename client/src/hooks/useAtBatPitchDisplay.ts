@@ -28,6 +28,13 @@ export function useAtBatPitchDisplay(
     const prev = prevPhaseRef.current;
     prevPhaseRef.current = screenPhase;
 
+    // 3번(예측 중지)·결과 큰 글씨에서는 존 점을 다시 보여 줌
+    if (screenPhase === "wait_result" || screenPhase === "result_flash") {
+      setBlockedBatter(null);
+      blockedPitchCountRef.current = 0;
+      return;
+    }
+
     const resultEntered = isOutcomePresentationPhase(screenPhase) && screenPhase !== "result_flash";
 
     const adToWait = prev === "ad_playing" && screenPhase === "wait_start";

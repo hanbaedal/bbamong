@@ -219,11 +219,13 @@ export function resolveCurrentBatterPreview(input: {
   }
 
   const orderLabel = `${slotOrder}번 타자`;
-  // 대타 = 실황 타자가 해당 팀 선발 타순에 없을 때만 (단순 타순 슬롯 불일치는 대타 아님)
-  const liveIsPinch = Boolean(liveName && !player);
+  // 공격 측 선발 타순이 있을 때만「실황 타자 ∉ 선발」을 대타로 본다.
+  // 타순 미등록(빈 배열)인데 실황 이름만 있으면 대타 오탐 → 시작 전「대타가 나옵니다」방지
+  const attackLineupReady = sorted.length > 0;
+  const liveIsPinch = Boolean(liveName && attackLineupReady && !player);
 
   // 실황 타자가 선발 라인업에 없음 → 대타. 선발 이름으로 덮지 않음
-  if (liveName && !player) {
+  if (liveName && !player && attackLineupReady) {
     const empty = emptyBatterPreview(orderLabel, input.season);
     empty.playerName = liveName;
     empty.isPinchHitter = true;
@@ -240,9 +242,10 @@ export function resolveCurrentBatterPreview(input: {
     };
   }
 
-  if (sorted.length === 0 && !player) {
+  if ((!attackLineupReady || sorted.length === 0) && !player) {
     const empty = emptyBatterPreview(orderLabel, input.season);
     if (liveName) empty.playerName = liveName;
+    empty.isPinchHitter = false;
     return applyPinchHitter(empty, input.pinchHitter, input.inningHalf, slotOrder);
   }
 
