@@ -2,6 +2,7 @@
 import type { Express } from "express";
 import { matchStorage as storage } from "../UserStorage/matchStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
+import { resolveAtBatPhase } from "../liveMatch/atBatStateMachine";
 import { insertMatchSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 
@@ -29,9 +30,11 @@ export async function baMatchRoutes(app: Express): Promise<void> {
       if (!match)
         return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
 
+      const atBatPhase = await resolveAtBatPhase(id);
       return res.json({
         ...match,
         gamePhase: buildGamePhasePayload(match),
+        atBatPhase,
       });
     } catch (error) {
       console.error("Get match error:", error);

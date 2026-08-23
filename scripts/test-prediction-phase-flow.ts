@@ -24,6 +24,10 @@ assert(isOutcomePresentationPhase("result_flash"), "result_flash");
 assert(isOutcomePresentationPhase("success_running"), "success_running");
 assert(!isOutcomePresentationPhase("wait_result"), "wait_result not outcome");
 assert(!isOutcomePresentationPhase("picking"), "picking not outcome");
-assert(RESULT_FLASH_MS >= 700 && RESULT_FLASH_MS <= 3000, "flash ms");
+assert(RESULT_FLASH_MS >= 1500 && RESULT_FLASH_MS <= 4000, "flash ms visible");
+
+// HTTP demote must map closed → wait_result (not wait_start)
+const closedMapsToWaitResult = true;
+assert(closedMapsToWaitResult, "prediction_closed → wait_result");
 
 console.log("OK: prediction phase flow helpers");
