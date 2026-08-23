@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { matchStorage as storage } from "../UserStorage/matchStorage";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
-import { resolveAtBatPhase } from "../liveMatch/atBatStateMachine";
+import { buildPredictionUiStagePayload } from "../liveMatch/atBatStateMachine";
 import { insertMatchSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 
@@ -30,11 +30,14 @@ export async function baMatchRoutes(app: Express): Promise<void> {
       if (!match)
         return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
 
-      const atBatPhase = await resolveAtBatPhase(id);
+      const ui = await buildPredictionUiStagePayload(id);
       return res.json({
         ...match,
         gamePhase: buildGamePhasePayload(match),
-        atBatPhase,
+        atBatPhase: ui.atBatPhase,
+        uiStage: ui.stage,
+        settledResult: ui.settledResult ?? null,
+        currentRound: ui.currentRound,
       });
     } catch (error) {
       console.error("Get match error:", error);

@@ -370,6 +370,8 @@ const roundStatisticsSchema = new Schema(
     isPredictionStarted: { type: Boolean, default: false },
     isPredictionStopped: { type: Boolean, default: false },
     isResultSent: { type: Boolean, default: false },
+    /** 라운드 확정 결과 (1루|2루|3루|홈런|아웃) — UI stage=result 복원용 */
+    settledResult: { type: String, default: null },
     createdAt: { type: Date, default: Date.now },
   },
   { versionKey: false },
