@@ -8,7 +8,8 @@ import pyamongRunning2 from "@assets/game/pyamong-running-2.png";
 import pyamongRunning3 from "@assets/game/pyamong-running-3.png";
 import pyamongStandsWaiting from "@assets/game/pyamong-stands-waiting.png";
 import pyamongWaveGoodbye from "@assets/game/pyamong-wave-goodbye.png";
-import pyamongBatterReady from "@assets/game/pyamong-batter-ready.png";
+import pyamongBatterReadyRight from "@assets/game/pyamong-batter-ready-right.png";
+import pyamongBatterReadyLeft from "@assets/game/pyamong-batter-ready-left.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
@@ -82,6 +83,7 @@ function BackBatterReady({
   const anchorTransform = isLeftHanded
     ? "translate(-22%, -100%)"
     : "translate(-78%, -100%)";
+  const batterSrc = isLeftHanded ? pyamongBatterReadyLeft : pyamongBatterReadyRight;
   return (
     <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
       <div
@@ -93,12 +95,9 @@ function BackBatterReady({
         data-bats-side={handSide}
         data-batting-half={battingHalf ?? ""}
       >
-        <div
-          className="shrink-0"
-          style={isLeftHanded ? { transform: "scaleX(-1)", transformOrigin: "bottom center" } : undefined}
-        >
+        <div className="shrink-0">
           <img
-            src={pyamongBatterReady}
+            src={batterSrc}
             alt=""
             className={`${pyamongSpriteClass(battingHalf)} h-auto shrink-0 drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]`}
             style={{ width: PYAMONG_BATTER_BACK_WIDTH, transformOrigin: "bottom center" }}

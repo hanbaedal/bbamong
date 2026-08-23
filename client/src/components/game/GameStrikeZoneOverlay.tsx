@@ -36,12 +36,13 @@ export default function GameStrikeZoneOverlay({
   if (hidden || !pitches?.length) return null;
 
   const homePx = stadiumImagePointToPx(HOME_PLATE_IMAGE, fieldSize.width, fieldSize.height);
-  // 홈 바로 위. 타자 반대쪽으로 아주 살짝만 밀어 점이 몸통에 안 가리게
-  const zoneW = Math.min(fieldSize.width * 0.11, 92) * 0.9;
-  const zoneH = zoneW * 1.35;
+  // 폭 16% 축소 후 높이를 폭과 동일 → 정사각형 존
+  const zoneW = Math.min(fieldSize.width * 0.11, 92) * 0.9 * 0.84;
+  const zoneH = zoneW;
   const offsetX = batsSide === "left" ? -zoneW * 0.06 : zoneW * 0.06;
   const left = homePx.left + offsetX - zoneW / 2;
-  const top = homePx.top - zoneH * 1.15;
+  // 정사각형이므로 이전(1.35H)보다 위로 덜 올라감 — 홈 바로 위에 맞춤
+  const top = homePx.top - zoneH * 1.05;
 
   const topSz = pitches[pitches.length - 1]?.topSz || 3.5;
   const bottomSz = pitches[pitches.length - 1]?.bottomSz || 1.5;
