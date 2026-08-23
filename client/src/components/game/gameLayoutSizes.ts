@@ -1,8 +1,8 @@
 /** 레거시 옆모습 타자 — 뒷모습 2배 기준 */
 export const PYAMONG_BATTER_WIDTH = "min(11vw, 88px)";
 
-/** 뒷모습 타격대기 — 옆모습 대비 2배 */
-export const PYAMONG_BATTER_BACK_WIDTH = "min(22vw, 176px)";
+/** 뒷모습 타격대기 — 존 점과 겹치지 않게 옆모습 대비 약 1.7배 */
+export const PYAMONG_BATTER_BACK_WIDTH = "min(18vw, 148px)";
 
 /** 예측 시작 전 팔짱 대기 */
 export const PYAMONG_ARMS_WAIT_WIDTH = "min(12vw, 96px)";

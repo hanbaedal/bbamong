@@ -78,13 +78,17 @@ function BackBatterReady({
   badge?: ReactNode;
 }) {
   const isLeftHanded = handSide === "left";
+  // 우타(좌측)·좌타(우측): 앵커를 존 쪽 가장자리에 두어 몸통이 존 밖으로 나가게
+  const anchorTransform = isLeftHanded
+    ? "translate(-12%, -100%)"
+    : "translate(-88%, -100%)";
   return (
     <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
       <div
         className={`relative flex items-end pointer-events-none gap-4 sm:gap-5 ${
           isLeftHanded ? "flex-row" : "flex-row-reverse"
         }`}
-        style={{ transform: "translate(-50%, -100%)" }}
+        style={{ transform: anchorTransform }}
         data-testid={testId}
         data-bats-side={handSide}
         data-batting-half={battingHalf ?? ""}

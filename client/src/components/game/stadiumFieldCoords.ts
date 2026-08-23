@@ -43,16 +43,16 @@ export const STANDS_SEAT_IMAGE: ImagePoint = { ...BASE_IMAGE_POINTS["3루"] };
 export const HOME_PLATE_IMAGE = BASE_IMAGE_POINTS.아웃;
 export const PITCHER_MOUND_IMAGE: ImagePoint = { x: 0.5, y: 0.535 };
 
-/** 우타 박스 — 스트라이크존 왼쪽, 존·배지와 겹치지 않게 */
+/** 우타 박스 — 홈·스트라이크존 왼쪽(화면 좌측). 존 점과 안 겹치게 벌림 */
 export const BATTER_BOX_RIGHT_IMAGE: ImagePoint = {
-  x: HOME_PLATE_IMAGE.x - 0.138,
-  y: HOME_PLATE_IMAGE.y - 0.012,
+  x: HOME_PLATE_IMAGE.x - 0.225,
+  y: HOME_PLATE_IMAGE.y - 0.008,
 };
 
-/** 좌타 박스 — 스트라이크존 오른쪽 */
+/** 좌타 박스 — 홈·스트라이크존 오른쪽(화면 우측) */
 export const BATTER_BOX_LEFT_IMAGE: ImagePoint = {
-  x: HOME_PLATE_IMAGE.x + 0.138,
-  y: HOME_PLATE_IMAGE.y - 0.012,
+  x: HOME_PLATE_IMAGE.x + 0.225,
+  y: HOME_PLATE_IMAGE.y - 0.008,
 };
 
 const IMAGE_ASPECT = STADIUM_IMAGE.width / STADIUM_IMAGE.height;
