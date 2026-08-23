@@ -277,7 +277,9 @@ export default function GameCharacterLayer({
       {gameDayPhase === "live" && phase === "wait_start" ? (
         <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
           <div
-            className="flex flex-row items-end gap-1 sm:gap-2 pointer-events-none"
+            className={`flex items-end gap-1 sm:gap-2 pointer-events-none ${
+              handSide === "left" ? "flex-row" : "flex-row-reverse"
+            }`}
             style={{ transform: "translate(-50%, -92%)" }}
             data-testid="char-batter-box-wait-start"
             data-bats-side={handSide}

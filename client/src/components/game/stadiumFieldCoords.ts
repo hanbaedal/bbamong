@@ -44,9 +44,9 @@ export const HOME_PLATE_IMAGE = BASE_IMAGE_POINTS.아웃;
 export const PITCHER_MOUND_IMAGE: ImagePoint = { x: 0.5, y: 0.535 };
 
 /** 타석 박스 — 홈·스트라이크존에서 좌우로 벌림 (이미지 폭 비율).
- * 0.225는 겹침 방지용으로 과했고, 0.15면 존 박스와 안 겹치며 타석답게 보임.
+ * 0.225는 과했고, 0.12면 존 박스와 안 겹치며 타석에 붙어 보임.
  */
-export const BATTER_BOX_OFFSET_X = 0.15;
+export const BATTER_BOX_OFFSET_X = 0.12;
 
 /** 우타 박스 — 홈·스트라이크존 왼쪽(화면 좌측) */
 export const BATTER_BOX_RIGHT_IMAGE: ImagePoint = {
