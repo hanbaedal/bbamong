@@ -6,6 +6,12 @@ import { getMatchInfo } from "./predictionStorage";
 import { createSession, hasActiveSession, refreshSession } from "../sessionManager";
 import { assertUserSession } from "../userAuthSession";
 import type { UserType } from "../sessionValidator";
+import {
+  WS_CONNECTION_REPLACED_CODE,
+  WS_SERVER_KEEPALIVE_STALE_MS,
+  WS_SERVER_PROTOCOL_PING_MS,
+  shouldRemoveMappedWsClient,
+} from "@shared/wsHeartbeat";
 
 interface WSClient {
   clientId: string;
@@ -142,6 +148,9 @@ class WSManager {
         }
 
         this.addClient(matchId, role, subjectId, ws);
+        // DB 스냅샷 await 전에 ping/close를 받아야 한다. 운영자 클라는 onopen에서 JSON ping을 보내고
+        // 리스너가 없으면 유실 → 10초 pong 타임아웃 → 1006/4000 재연결 루프.
+        this.bindSocketLifetime(ws, matchId, role, subjectId);
 
         // WS 연결 시 Redis 세션 확인/갱신 (매니저, 유저 모두)
         this.ensureSession(role, subjectId).catch((err) => {
@@ -170,6 +179,10 @@ class WSManager {
           console.error("[WS] Error fetching match info:", e);
         }
 
+        if (ws.readyState !== WebSocket.OPEN) {
+          return;
+        }
+
         const matchState = this.getMatchState(matchId);
         ws.send(JSON.stringify({
           type: "connected",
@@ -194,6 +207,7 @@ class WSManager {
             const { getUserPredictionByMatchRound } = await import("./predictionStorage");
             const existingPrediction = await getUserPredictionByMatchRound(subjectId, matchId, currentRound);
             if (existingPrediction && (existingPrediction.status === 'pending' || existingPrediction.status === 'success' || existingPrediction.status === 'fail')) {
+              if (ws.readyState !== WebSocket.OPEN) return;
               ws.send(JSON.stringify({
                 type: "user_already_predicted",
                 data: {
@@ -214,40 +228,15 @@ class WSManager {
           }
         }
 
-        ws.send(JSON.stringify({
-          type: "ad_status",
-          data: {
-            isAdPlaying: matchState.isAdPlaying,
-            adStartedAt: matchState.adStartedAt,
-          },
-        }));
-
-        ws.on("message", (message: Buffer) => {
-          try {
-            const data = JSON.parse(message.toString());
-            this.handleMessage(matchId, `${role}:${subjectId}`, data, ws);
-          } catch (error) {
-            console.error("[WS] Error parsing message:", error);
-          }
-        });
-
-        ws.on("pong", () => {
-          const client = this.findClient(matchId, `${role}:${subjectId}`);
-          if (client) {
-            client.lastPong = Date.now();
-            client.isAlive = true;
-          }
-          this.throttledSessionRefresh(role, subjectId);
-        });
-
-        ws.on("close", () => {
-          this.removeClient(matchId, `${role}:${subjectId}`);
-        });
-
-        ws.on("error", (error) => {
-          console.error(`[WS] Error for client ${role}:${subjectId}:`, error);
-          this.removeClient(matchId, `${role}:${subjectId}`);
-        });
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: "ad_status",
+            data: {
+              isAdPlaying: matchState.isAdPlaying,
+              adStartedAt: matchState.adStartedAt,
+            },
+          }));
+        }
 
       } catch (error) {
         console.error("[WS] Connection error:", error);
@@ -271,12 +260,16 @@ class WSManager {
           const client = clients[i];
           if (!client.isAlive) {
             console.log(`[WS] Client ${client.clientId} timed out, closing connection`);
-            client.ws.terminate();
-            clients.splice(i, 1);
+            try {
+              client.ws.terminate();
+            } catch (error) {
+              console.error(`[WS] Error terminating ${client.clientId}:`, error);
+            }
+            this.removeClient(matchId, client.clientId, client.ws);
             continue;
           }
 
-          if (now - client.lastPong > 45000) {
+          if (now - client.lastPong > WS_SERVER_KEEPALIVE_STALE_MS) {
             client.isAlive = false;
           }
 
@@ -291,7 +284,7 @@ class WSManager {
           this.clients.delete(matchId);
         }
       });
-    }, 30000);
+    }, WS_SERVER_PROTOCOL_PING_MS);
   }
 
   private async ensureSession(role: string, subjectId: string): Promise<void> {
@@ -330,13 +323,57 @@ class WSManager {
     });
   }
 
+  private bindSocketLifetime(ws: WebSocket, matchId: string, role: string, subjectId: string) {
+    const clientId = `${role}:${subjectId}`;
+
+    ws.on("message", (message: Buffer | string) => {
+      try {
+        const data = JSON.parse(message.toString());
+        this.handleMessage(matchId, clientId, data, ws);
+      } catch (error) {
+        console.error("[WS] Error parsing message:", error);
+      }
+    });
+
+    ws.on("pong", () => {
+      this.touchKeepalive(ws);
+      this.throttledSessionRefresh(role, subjectId);
+    });
+
+    ws.on("close", () => {
+      this.removeClient(matchId, clientId, ws);
+    });
+
+    ws.on("error", (error) => {
+      console.error(`[WS] Error for client ${clientId}:`, error);
+      this.removeClient(matchId, clientId, ws);
+    });
+  }
+
+  private touchKeepalive(ws: WebSocket) {
+    for (const clients of this.clients.values()) {
+      const client = clients.find((c) => c.ws === ws);
+      if (client) {
+        client.lastPong = Date.now();
+        client.isAlive = true;
+        return;
+      }
+    }
+  }
+
   private handleMessage(matchId: string, clientId: string, data: any, ws: WebSocket) {
     switch (data.type) {
       case "ping":
-        ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+        this.touchKeepalive(ws);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+        }
         break;
       case "heartbeat":
-        ws.send(JSON.stringify({ type: "heartbeat_ack", timestamp: Date.now() }));
+        this.touchKeepalive(ws);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "heartbeat_ack", timestamp: Date.now() }));
+        }
         break;
       default:
         console.log(`[WS] Unknown message type from ${clientId}:`, data.type);
@@ -349,23 +386,22 @@ class WSManager {
   }
 
   addClient(matchId: string, role: string, subjectId: string, ws: WebSocket) {
-    if (!this.clients.has(matchId)) {
-      this.clients.set(matchId, []);
-    }
-
     const clientId = `${role}:${subjectId}`;
-    const clients = this.clients.get(matchId)!;
-
-    const existingIndex = clients.findIndex(c => c.clientId === clientId);
-    if (existingIndex !== -1) {
+    const existing = this.findClient(matchId, clientId);
+    if (existing) {
       console.log(`[WS] Replacing existing connection for ${clientId} on match ${matchId}`);
       try {
-        clients[existingIndex].ws.close(4010, "Connection replaced by reconnect");
+        existing.ws.close(WS_CONNECTION_REPLACED_CODE, "Connection replaced by reconnect");
       } catch (error) {
         console.error(`Error closing old connection for ${clientId}:`, error);
       }
-      clients.splice(existingIndex, 1);
+      this.removeClient(matchId, clientId, existing.ws);
     }
+
+    if (!this.clients.has(matchId)) {
+      this.clients.set(matchId, []);
+    }
+    const clients = this.clients.get(matchId)!;
 
     const newClient: WSClient = {
       clientId,
@@ -381,11 +417,14 @@ class WSManager {
     console.log(`[WS] Client ${clientId} connected to match ${matchId}. Total clients: ${clients.length}`);
   }
 
-  removeClient(matchId: string, clientId: string) {
+  removeClient(matchId: string, clientId: string, ws?: WebSocket) {
     const clients = this.clients.get(matchId);
     if (!clients) return;
 
-    const index = clients.findIndex(client => client.clientId === clientId);
+    const index = clients.findIndex((client) => {
+      if (ws) return shouldRemoveMappedWsClient(client.ws, ws);
+      return client.clientId === clientId;
+    });
     if (index !== -1) {
       const client = clients[index];
       if (client.role === "user") {
@@ -627,7 +666,9 @@ class WSManager {
         } catch (error) {
           console.error(`[WS] Error force disconnecting ${clientId}:`, error);
         }
-        clients.splice(clientIndex, 1);
+        if (clients[clientIndex]?.ws === client.ws) {
+          clients.splice(clientIndex, 1);
+        }
 
         if (clients.length === 0) {
           this.clients.delete(matchId);

@@ -23,6 +23,16 @@ import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import { resolveLiveInningPhaseLabel } from "@shared/matchPhaseDisplay";
 import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
 import { useQueryClient } from "@tanstack/react-query";
+import { isLiveAutoOperatorWsType } from "@shared/liveAutoWsEvents";
+import {
+  WS_CLIENT_HEARTBEAT_INTERVAL_MS,
+  WS_CLIENT_PONG_TIMEOUT_MS,
+  inboundWsTrafficProvesAlive,
+  isCurrentWsSocket,
+  isWsConnectionReplacedCode,
+  isWsNormalCloseCode,
+  shouldCloseForPongTimeout,
+} from "@shared/wsHeartbeat";
 import "./managerMatchDetail.css";
 
 const WS_BASE_URL = 'wss://ppamong.com';
@@ -134,8 +144,8 @@ export default function MatchDetailPage() {
   const operatorConfirmSpokenRef = useRef(false);
   const [showMatchEndedOverlay, setShowMatchEndedOverlay] = useState(false);
   const matchEndedLogoutRef = useRef(false);
-  const HEARTBEAT_INTERVAL = 25000; // 25초마다 ping
-  const PONG_TIMEOUT = 10000; // 10초 내 pong 없으면 재연결
+  const HEARTBEAT_INTERVAL = WS_CLIENT_HEARTBEAT_INTERVAL_MS;
+  const PONG_TIMEOUT = WS_CLIENT_PONG_TIMEOUT_MS;
 
   /** Android — 경기 운영 중 시스템 내비·뒤로가기 숨김 + 화면 꺼짐 방지 */
   useEffect(() => {
@@ -248,8 +258,38 @@ export default function MatchDetailPage() {
 
       console.log("[Manager WS] 연결 시도:", wsUrl);
 
+      const prev = wsRef.current;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
+      if (prev && prev !== ws) {
+        try {
+          prev.close(1000, "replaced");
+        } catch {
+          /* ignore */
+        }
+      }
+
+      const clearPongTimeout = () => {
+        if (pongTimeoutRef.current) {
+          clearTimeout(pongTimeoutRef.current);
+          pongTimeoutRef.current = null;
+        }
+      };
+
+      const sendPing = () => {
+        if (ws.readyState !== WebSocket.OPEN) return;
+        if (!isCurrentWsSocket(wsRef.current, ws)) return;
+        ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
+        console.log("[Manager WS] Ping 전송");
+        clearPongTimeout();
+        pongTimeoutRef.current = setTimeout(() => {
+          if (!shouldCloseForPongTimeout({ pingSocket: ws, currentSocket: wsRef.current })) {
+            return;
+          }
+          console.log("[Manager WS] Pong 타임아웃, 재연결...");
+          ws.close(4000, "heartbeat timeout");
+        }, PONG_TIMEOUT);
+      };
 
       ws.onopen = () => {
         console.log("[Manager WS] 연결됨");
@@ -258,28 +298,9 @@ export default function MatchDetailPage() {
         sessionExpiredRef.current = false;
         duplicateLoginRef.current = false;
         isUnmountingRef.current = false;
-        
-        // Heartbeat 시작 - 즉시 첫 ping 전송
-        const sendPing = () => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
-            console.log("[Manager WS] Ping 전송");
-            
-            // Pong 타임아웃 설정
-            if (pongTimeoutRef.current) {
-              clearTimeout(pongTimeoutRef.current);
-            }
-            pongTimeoutRef.current = setTimeout(() => {
-              console.log("[Manager WS] Pong 타임아웃, 재연결...");
-              ws.close(4000, "heartbeat timeout"); // 4000 코드로 재연결 트리거
-            }, PONG_TIMEOUT);
-          }
-        };
-        
-        // 즉시 첫 ping 전송
-        sendPing();
-        
-        // 이후 25초마다 ping
+
+        // 즉시 ping 하지 않음 — 서버 connected 스냅샷(DB) 전에 보내면 유실될 수 있음.
+        // 아무 inbound 메시지든 keepalive로 치고, 이후 25초마다 ping.
         if (heartbeatIntervalRef.current) {
           clearInterval(heartbeatIntervalRef.current);
         }
@@ -291,8 +312,7 @@ export default function MatchDetailPage() {
           const message = JSON.parse(event.data);
           const { type, data } = message;
 
-          // Pong 응답 처리 - heartbeat 타임아웃 해제
-          if (pongTimeoutRef.current && (type === "pong" || type === "heartbeat_ack")) {
+          if (inboundWsTrafficProvesAlive(type) && pongTimeoutRef.current) {
             clearTimeout(pongTimeoutRef.current);
             pongTimeoutRef.current = null;
           }
@@ -310,7 +330,6 @@ export default function MatchDetailPage() {
               break;
             case "pong":
             case "heartbeat_ack":
-              // Heartbeat 응답 - 별도 처리 불필요
               break;
             case "ad_started":
               console.log("[Manager WS] 광고 시작");
@@ -439,7 +458,14 @@ export default function MatchDetailPage() {
             case "match_ended":
               logoutOnMatchEnded();
               break;
+            case "rewarded_ad_offer":
+            case "banner_ad_show":
+            case "banner_ad_hide":
+              break;
             default:
+              if (typeof type === "string" && isLiveAutoOperatorWsType(type)) {
+                break;
+              }
               console.log("[Manager WS] 알 수 없는 메시지:", type);
           }
         } catch (error) {
@@ -457,6 +483,10 @@ export default function MatchDetailPage() {
 
       ws.onclose = (event) => {
         console.log("[Manager WS] 연결 종료:", event.code, event.reason);
+        if (!isCurrentWsSocket(wsRef.current, ws)) {
+          console.log("[Manager WS] 교체된 소켓 종료 무시");
+          return;
+        }
         setWsConnected(false);
         
         // Heartbeat 타이머 정리
@@ -515,9 +545,15 @@ export default function MatchDetailPage() {
           return;
         }
 
+        // 같은 운영자 재접속으로 서버가 기존 소켓을 교체 (4010) — 새 연결이 이미 있음
+        if (isWsConnectionReplacedCode(event.code)) {
+          console.log("[Manager WS] 연결이 새 소켓으로 교체됨, 재연결 생략");
+          return;
+        }
+
         // 비정상 종료 시 재연결 — 네트워크 끊김으로 토큰 갱신이 실패해도 로그아웃하지 않음
         // (refreshAccessToken이 진짜 인증 만료일 때만 스스로 manager-session-expired 발행)
-        if (event.code !== 1000 && event.code !== 1001) {
+        if (!isWsNormalCloseCode(event.code)) {
           // 실시간 채널만 재연결 — HTTP 예측 시작/중지는 WS와 무관하게 동작
           reconnectAttemptsRef.current += 1;
           const attempt = reconnectAttemptsRef.current;
