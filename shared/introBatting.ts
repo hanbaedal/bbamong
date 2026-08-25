@@ -14,9 +14,6 @@ export const INTRO_FRAME_END_MS = [
   480, 880, 1280, 1700, 2150, 2550, 3000, 3160, 3320, 3480, 3640, 3800, 4000, 4320,
 ] as const;
 
-/** 멘트 구간 끝: 실시간~ / 야구 예측게임! / 빠던나인! */
-export const INTRO_PHRASE_END_MS = [1280, 3000, 4320] as const;
-
 export const INTRO_FRAME_COUNT = INTRO_FRAME_END_MS.length;
 
 export function introFrameIndexAt(ms: number): number {
@@ -25,10 +22,4 @@ export function introFrameIndexAt(ms: number): number {
     if (t < INTRO_FRAME_END_MS[i]) return i;
   }
   return INTRO_FRAME_END_MS.length - 1;
-}
-
-export function introCaptionAt(ms: number): string {
-  if (ms < INTRO_PHRASE_END_MS[0]) return "실시간~";
-  if (ms < INTRO_PHRASE_END_MS[1]) return "실시간~  야구 예측게임!";
-  return INTRO_TAGLINE_TEXT;
 }
