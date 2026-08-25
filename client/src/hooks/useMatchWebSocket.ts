@@ -4,6 +4,7 @@ import { getOrRefreshAccessToken } from "@/lib/queryClient";
 import { notifyUserDuplicateLoginSafe, notifyUserLoginAttemptSafe } from "@/lib/sessionGuard";
 import { clearTokens } from "@/lib/tokenManager";
 import { subscribeForegroundResume } from "@/lib/foregroundResume";
+import { isLiveAutoOperatorWsType } from "@shared/liveAutoWsEvents";
 
 export type WSConnectionState = "connecting" | "connected" | "disconnected" | "reconnecting";
 
@@ -276,6 +277,9 @@ export function useMatchWebSocket({
             case "heartbeat_ack":
               break;
             default:
+              if (typeof message.type === "string" && isLiveAutoOperatorWsType(message.type)) {
+                break;
+              }
               console.log("[WS] Unknown message type:", message.type);
           }
         } catch (error) {
@@ -291,6 +295,11 @@ export function useMatchWebSocket({
 
       ws.onclose = (event) => {
         console.log(`[WS] Connection closed: code=${event.code}, reason=${event.reason}`);
+        // 경기 전환으로 교체된 소켓 — 1006이어도 재연결하지 않음 (heartbeat도 건드리지 않음)
+        if (wsRef.current !== ws) {
+          console.log("[WS] Ignoring close from replaced socket");
+          return;
+        }
         clearTimers();
         wsRef.current = null;
 
@@ -397,8 +406,9 @@ export function useMatchWebSocket({
       clearTimers();
       isIntentionalClose.current = true;
       if (wsRef.current) {
-        wsRef.current.close(1000, "Foreground resume");
+        const oldWs = wsRef.current;
         wsRef.current = null;
+        oldWs.close(1000, "Foreground resume");
       }
       isIntentionalClose.current = false;
       reconnectAttempts.current = 0;
@@ -442,9 +452,11 @@ export function useMatchWebSocket({
     if (hadParams && !hasParams) {
       console.log("[WS] Params cleared, disconnecting");
       isIntentionalClose.current = true;
+      clearTimers();
       if (wsRef.current) {
-        wsRef.current.close(1000, "Params cleared");
+        const oldWs = wsRef.current;
         wsRef.current = null;
+        oldWs.close(1000, "Params cleared");
       }
       setConnectionState("disconnected");
       prevMatchIdRef.current = matchId;
@@ -470,8 +482,10 @@ export function useMatchWebSocket({
       if ((matchIdChanged || userIdChanged) && wsRef.current) {
         console.log("[WS] Params changed, closing old connection", { matchIdChanged, userIdChanged });
         isIntentionalClose.current = true;
-        wsRef.current.close(1000, "Params changed");
+        clearTimers();
+        const oldWs = wsRef.current;
         wsRef.current = null;
+        oldWs.close(1000, "Params changed");
       }
 
       prevMatchIdRef.current = matchId;

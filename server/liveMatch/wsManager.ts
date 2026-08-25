@@ -398,11 +398,23 @@ class WSManager {
     }
   }
 
-  sendToMatch(matchId: string, eventType: string, data: any) {
-    const clients = this.clients.get(matchId);
-    if (!clients || clients.length === 0) {
+  sendToMatch(
+    matchId: string,
+    eventType: string,
+    data: any,
+    options?: { roles?: ReadonlyArray<string> },
+  ) {
+    const all = this.clients.get(matchId);
+    if (!all || all.length === 0) {
       console.log(`[WS] ⚠️ No clients connected to match ${matchId} for event ${eventType}`);
       console.log(`[WS] Available matches with clients: ${Array.from(this.clients.keys()).join(', ') || 'none'}`);
+      return;
+    }
+
+    const allow = options?.roles ? new Set(options.roles) : null;
+    const clients = allow ? all.filter((c) => allow.has(c.role)) : all;
+    if (clients.length === 0) {
+      console.log(`[WS] ⚠️ No matching-role clients for ${eventType} ${matchId} roles=${options?.roles?.join(",")}`);
       return;
     }
 
