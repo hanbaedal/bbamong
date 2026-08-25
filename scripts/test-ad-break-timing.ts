@@ -1,9 +1,12 @@
 /**
- * 광고 1분 만료·워치독 — 운영자 타이머가 5분으로 늘어나지 않게
+ * 광고 40초 만료·워치독 — 운영자 타이머가 늘어나지 않게
  * 실행: npx tsx scripts/test-ad-break-timing.ts
  */
 import {
   AD_PLAY_MS,
+  AD_PLAY_SECONDS,
+  AD_BREAK_TOTAL_MS,
+  AD_INTRO_DELAY_MS,
   isAdPlayExpired,
   resolveAdPlayingFromServer,
   adRemainingMs,
@@ -18,14 +21,20 @@ function assert(cond: unknown, msg: string) {
 const MATCH = "ad-break-timing-test";
 const now = Date.now();
 
+assert(AD_PLAY_MS === 40_000, "ad play is 40 seconds");
+assert(AD_PLAY_SECONDS === 40, "ad play seconds is 40");
+assert(AD_BREAK_TOTAL_MS === AD_INTRO_DELAY_MS + AD_PLAY_MS, "break = intro + play");
 assert(!isAdPlayExpired(now), "fresh start is not expired");
-assert(isAdPlayExpired(now - AD_PLAY_MS), "exactly 1 minute is expired");
+assert(isAdPlayExpired(now - AD_PLAY_MS), "exactly 40 seconds is expired");
 assert(isAdPlayExpired(now - 5 * 60_000), "5 minutes is expired");
-assert(adRemainingMs(now - 10_000) <= 50_000, "remaining shrinks");
+assert(adRemainingMs(now - 10_000, now) === 30_000, "remaining after 10s is 30s");
 
 const live = resolveAdPlayingFromServer(true, now - 5_000, now);
 assert(live.playing, "5s elapsed still playing");
 assert(live.elapsedSec >= 4 && live.elapsedSec <= 6, `elapsed ${live.elapsedSec}`);
+
+const stillAt39 = resolveAdPlayingFromServer(true, now - 39_000, now);
+assert(stillAt39.playing, "39s elapsed still playing");
 
 const stuck = resolveAdPlayingFromServer(true, now - 5 * 60_000, now);
 assert(!stuck.playing, "5-minute leftover snapshot must not display as playing");
@@ -42,9 +51,9 @@ const firstStart = wsManager.getMatchState(MATCH).adStartedAt;
 wsManager.setAdPlaying(MATCH, true);
 assert(
   wsManager.getMatchState(MATCH).adStartedAt === firstStart,
-  "second setAdPlaying(true) must not reset the 1-minute clock",
+  "second setAdPlaying(true) must not reset the ad clock",
 );
 wsManager.setAdPlaying(MATCH, false);
 
-console.log("OK: ad break timing + watchdog");
+console.log("OK: ad break timing 40s + watchdog");
 process.exit(0);

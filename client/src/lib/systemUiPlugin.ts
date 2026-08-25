@@ -3,6 +3,8 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 interface SystemUiPlugin {
   setImmersive(options: { enabled: boolean }): Promise<void>;
   setKeepScreenOn(options: { enabled: boolean }): Promise<void>;
+  dismissFullscreenAd(): Promise<void>;
+  clearPendingAdDismiss(): Promise<void>;
 }
 
 const SystemUi = registerPlugin<SystemUiPlugin>("SystemUi", {
@@ -13,6 +15,12 @@ const SystemUi = registerPlugin<SystemUiPlugin>("SystemUi", {
       },
       setKeepScreenOn: async () => {
         /* 웹 — Screen Wake Lock API는 screenWakeLock.ts에서 처리 */
+      },
+      dismissFullscreenAd: async () => {
+        /* 웹 — 전체화면 AdMob 없음 */
+      },
+      clearPendingAdDismiss: async () => {
+        /* 웹 — pending AdActivity 없음 */
       },
     }),
 });
@@ -39,4 +47,32 @@ export async function setNativeKeepScreenOn(enabled: boolean): Promise<void> {
   } catch (error) {
     console.warn("[SystemUi] setKeepScreenOn failed:", error);
   }
+}
+
+async function callDismissFullscreenAd(): Promise<void> {
+  try {
+    await SystemUi.dismissFullscreenAd();
+  } catch (error) {
+    console.warn("[SystemUi] dismissFullscreenAd failed:", error);
+  }
+}
+
+/** 새 리워드 세션 전에 이전 강제종료 pending을 푼다. */
+export async function clearPendingNativeAdDismiss(): Promise<void> {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") {
+    return;
+  }
+  try {
+    await SystemUi.clearPendingAdDismiss();
+  } catch (error) {
+    console.warn("[SystemUi] clearPendingAdDismiss failed:", error);
+  }
+}
+
+/** AdMob 리워드/전면(AdActivity)이 떠 있으면 finish 한다. MainActivity BACK은 보내지 않는다. */
+export async function dismissNativeFullscreenAd(): Promise<void> {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") {
+    return;
+  }
+  await callDismissFullscreenAd();
 }

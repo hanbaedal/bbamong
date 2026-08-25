@@ -73,6 +73,7 @@ type AutoState = {
   lastSwitchEmitAt: number;
   lastPitcherChangeEmitAt: number;
   resumeAfterAdBreak: boolean;
+  resumeInFlight: boolean;
   adResumeTimer: NodeJS.Timeout | null;
 };
 
@@ -105,6 +106,7 @@ function getState(matchId: string): AutoState {
       lastSwitchEmitAt: 0,
       lastPitcherChangeEmitAt: 0,
       resumeAfterAdBreak: false,
+      resumeInFlight: false,
       adResumeTimer: null,
     };
     stateByMatch.set(matchId, state);
@@ -171,6 +173,13 @@ function scheduleResumeAfterAdIntro(matchId: string): void {
   }, AD_INTRO_DELAY_MS);
 }
 
+function shouldDeferPredictionForAdBreak(matchId: string): boolean {
+  const state = stateByMatch.get(matchId);
+  return Boolean(
+    broadcastManager.isAdBreakActive(matchId) || state?.resumeAfterAdBreak || state?.adResumeTimer,
+  );
+}
+
 async function resumePredictionAfterAdBreak(
   matchId: string,
   reason: "prediction_start" | "operator_stop" | "round_advance",
@@ -179,18 +188,25 @@ async function resumePredictionAfterAdBreak(
   if (!state) return;
   if (reason === "prediction_start") {
     state.resumeAfterAdBreak = false;
+    state.resumeInFlight = false;
     clearAdResumeTimer(matchId);
     return;
   }
   if (reason !== "operator_stop") return;
   if (!state.resumeAfterAdBreak) return;
+  if (state.resumeInFlight) return;
   if (broadcastManager.isAdBreakActive(matchId)) return;
+  if (state.adResumeTimer) return;
 
+  state.resumeInFlight = true;
   try {
     const match = await MatchModel.findOne({ id: matchId })
       .select("predictionEnabled matchStatus outsInHalf liveScoreboard")
       .lean();
-    if (!match || match.matchStatus !== "ongoing") return;
+    if (!match || match.matchStatus !== "ongoing") {
+      state.resumeAfterAdBreak = false;
+      return;
+    }
     if (match.predictionEnabled) {
       state.resumeAfterAdBreak = false;
       return;
@@ -211,6 +227,9 @@ async function resumePredictionAfterAdBreak(
     console.log(`[LiveAuto] resume prediction after ad ${matchId} batter=${liveBatter}`);
   } catch (error) {
     console.warn(`[LiveAuto] resume after ad failed ${matchId}:`, error);
+  } finally {
+    const current = stateByMatch.get(matchId);
+    if (current) current.resumeInFlight = false;
   }
 }
 
@@ -838,7 +857,14 @@ export async function processLiveAutoOperator(
 
             const startPhase = await resolveAtBatPhase(matchId);
             if (startPhase === "idle") {
-              await startPredictionForBatter(matchId, batterName);
+              if (shouldDeferPredictionForAdBreak(matchId)) {
+                state.resumeAfterAdBreak = true;
+                console.log(
+                  `[LiveAuto] defer prediction start (ad break) ${matchId} batter=${batterName}`,
+                );
+              } else {
+                await startPredictionForBatter(matchId, batterName);
+              }
             } else {
               console.log(
                 `[LiveAuto] skip prediction start phase=${startPhase} ${matchId} batter=${batterName}`,
@@ -864,6 +890,16 @@ export async function processLiveAutoOperator(
     if (inning != null) state.lastInning = inning;
     if (!state.pendingPitcherName || namesEqual(state.pendingPitcherName, state.lastPitcherName)) {
       if (pitcherName && !state.lastPitcherName) state.lastPitcherName = pitcherName;
+    }
+
+    // 광고 40초가 끝났는데 재개 콜백이 빗나간 경우(타자명 없음·phase 미 idle) 폴링에서 재시도
+    if (
+      state.resumeAfterAdBreak &&
+      !state.resumeInFlight &&
+      !state.adResumeTimer &&
+      !broadcastManager.isAdBreakActive(matchId)
+    ) {
+      await resumePredictionAfterAdBreak(matchId, "operator_stop");
     }
   } finally {
     state.busy = false;

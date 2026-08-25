@@ -3,10 +3,11 @@
 /** 안내 연출(공수교대·투수교체) 후 광고 시작까지 — 클라 이벤트 표시와 동일 */
 export const AD_INTRO_DELAY_MS = 5_000;
 
-/** 광고 재생 고정 시간 (1분) — 종료 시 보상 가능 */
-export const AD_PLAY_MS = 60_000;
+/** 광고 재생 고정 시간 (40초) — 종료 시 보상 가능·예측 자동 재개 */
+export const AD_PLAY_MS = 40_000;
+export const AD_PLAY_SECONDS = Math.round(AD_PLAY_MS / 1000);
 
-/** 공수교대·투수교체 전체 브레이크 (1분 10초) */
+/** 공수교대·투수교체 전체 브레이크 (안내 5초 + 광고 40초) */
 export const AD_BREAK_TOTAL_MS = AD_INTRO_DELAY_MS + AD_PLAY_MS;
 
 /** 광고 재스케줄 최소 간격 (수동·자동 공통) */
@@ -23,7 +24,7 @@ export function adElapsedMs(
   return Math.max(0, now - adStartedAt);
 }
 
-/** 서버 시작 시각 기준 1분이 지났으면 광고 세션은 끝난 것으로 본다. */
+/** 서버 시작 시각 기준 AD_PLAY_MS가 지났으면 광고 세션은 끝난 것으로 본다. */
 export function isAdPlayExpired(
   adStartedAt: number | null | undefined,
   now = Date.now(),

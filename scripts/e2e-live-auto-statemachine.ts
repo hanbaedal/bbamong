@@ -81,6 +81,7 @@ async function ensureRoundStats(roundNumber: number) {
 
 async function resetMatchIdle(opts?: { half?: "top" | "bottom"; inning?: number; outs?: number }) {
   clearLiveAutoOperator(MATCH_ID);
+  broadcastManager.resetAdBreakForTest(MATCH_ID);
   await sleep(150);
   const half = opts?.half ?? "top";
   const inning = opts?.inning ?? 3;
@@ -283,11 +284,33 @@ async function main() {
   );
   pass("duplicate pitcher change within cooldown is ignored");
 
+  await assert(
+    Boolean(broadcastManager.isAdBreakActive(MATCH_ID)),
+    "ad intro/play should stay active after pitcher change",
+  );
+  await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ batter: "광고중타자", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
+  );
+  await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ batter: "광고중타자", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
+  );
+  phase = await resolveAtBatPhase(MATCH_ID);
+  const duringAd = await MatchModel.findOne({ id: MATCH_ID }).select("predictionEnabled").lean();
+  await assert(
+    phase === "idle" && !duringAd?.predictionEnabled,
+    `during ad break must not open prediction, got ${phase}`,
+  );
+  pass("batter change during ad break defers prediction");
+
   broadcastManager.stopAdPlaying(MATCH_ID, "operator_stop", "test ad complete");
   await sleep(250);
   phase = await resolveAtBatPhase(MATCH_ID);
-  await assert(phase === "prediction_open", `after ad stop same batter should open, got ${phase}`);
-  pass("pitcher ad stop resumes current batter prediction");
+  await assert(phase === "prediction_open", `after ad stop prediction should open, got ${phase}`);
+  pass("ad stop resumes prediction automatically");
 
   // —— 6) 수동 결과 확정 경로와 호환 (결과 후 공수) ——
   await resetMatchIdle({ half: "top", inning: 5, outs: 2 });

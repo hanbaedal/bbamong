@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { AD_EARLY_DISMISS_SECONDS } from "@shared/predictionOdds";
+import { AD_PLAY_SECONDS } from "@shared/adBreakTiming";
 
 interface GameAdOverlayProps {
   message?: string;
   /** 이 초 이후에만 X(광고 끄기) 활성. 기본 5초 */
   allowDismissAfterSeconds?: number;
-  /** 지정 시 이 초까지 X 없이 시청하면 onComplete (웹·오버레이 폴백 보상) */
+  /** 지정 시 이 초까지 시청하면 onComplete — 예측 자동 재개 */
   completeAfterSeconds?: number;
-  /** 사용자가 X로 광고 끄기 — 보상 없음 */
+  /** 사용자가 X로 광고 끄기 — 보상 없음 (웹). 스마트폰은 보통 숨김 */
   onDismiss?: () => void;
-  /** 오버레이를 끝까지 시청 — 보상 가능 */
+  /** 오버레이를 끝까지 시청 — 보상 가능·예측 재개 */
   onComplete?: () => void;
 }
 
@@ -29,6 +30,8 @@ export default function GameAdOverlay({
 
   const canDismiss = Boolean(onDismiss) && elapsed >= allowDismissAfterSeconds;
   const secondsUntilDismiss = Math.max(0, allowDismissAfterSeconds - elapsed);
+  const remainToResume =
+    completeAfterSeconds == null ? null : Math.max(0, completeAfterSeconds - elapsed);
 
   useEffect(() => {
     closedRef.current = false;
@@ -83,13 +86,31 @@ export default function GameAdOverlay({
           {canDismiss ? "×" : secondsUntilDismiss}
         </button>
       )}
-      <div className="flex flex-col items-center gap-4 px-8 text-center">
-        <div className="w-12 h-12 rounded-full border-4 border-[#CDFF00]/30 border-t-[#CDFF00] animate-spin" />
-        <p className="text-white text-lg sm:text-xl font-semibold">{message}</p>
-        <p className="text-white/60 text-sm">
+      <div className="flex flex-col items-center gap-3 px-8 text-center">
+        {remainToResume != null ? (
+          <>
+            <p
+              className="font-black tabular-nums leading-none text-[#CDFF00] drop-shadow-lg"
+              style={{ fontSize: "clamp(4.5rem, 22vw, 9rem)" }}
+              data-testid="text-ad-resume-countdown"
+            >
+              {remainToResume}
+            </p>
+            <p className="text-white text-lg sm:text-2xl font-bold">
+              초 후 예측이 자동으로 시작됩니다
+            </p>
+            <p className="text-white/55 text-sm sm:text-base max-w-md">{message}</p>
+          </>
+        ) : (
+          <>
+            <div className="w-12 h-12 rounded-full border-4 border-[#CDFF00]/30 border-t-[#CDFF00] animate-spin" />
+            <p className="text-white text-lg sm:text-xl font-semibold">{message}</p>
+          </>
+        )}
+        <p className="text-white/45 text-xs sm:text-sm">
           {onDismiss
-            ? "리워드 동영상을 끝까지 보면 500P입니다. 운영자가 광고를 끝낼 때 지급됩니다."
-            : "리워드 광고 시청이 완료되었습니다. 잠시 후 예측이 재개됩니다."}
+            ? `리워드 동영상을 끝까지 보면 500P입니다. ${AD_PLAY_SECONDS}초 후 예측이 자동으로 시작됩니다.`
+            : `${AD_PLAY_SECONDS}초가 끝나면 예측 화면으로 돌아갑니다.`}
         </p>
         {onDismiss && !canDismiss && (
           <p className="text-white/45 text-xs" data-testid="text-ad-dismiss-countdown">

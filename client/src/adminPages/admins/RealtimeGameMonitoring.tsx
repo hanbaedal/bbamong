@@ -740,7 +740,7 @@ export default function RealtimeGameMonitoring() {
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
-  // 광고 타이머 효과 (서버 시작 시각 기준, 1분이면 종료)
+  // 광고 타이머 효과 (서버 시작 시각 기준, AD_PLAY_MS면 종료)
   useEffect(() => {
     if (!isAdPlaying) {
       adStartTimeRef.current = null;

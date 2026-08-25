@@ -1003,7 +1003,7 @@ export default function MatchDetailPage() {
     );
   };
 
-  // 광고 타이머 (서버 시작 시각 기반으로 정확한 경과 시간 계산). 1분이면 로컬도 종료.
+  // 광고 타이머 (서버 시작 시각 기반으로 정확한 경과 시간 계산). AD_PLAY_MS면 로컬도 종료.
   useEffect(() => {
     if (!isAdPlaying) {
       adStartTimeRef.current = null;

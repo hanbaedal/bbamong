@@ -18,6 +18,7 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(SystemUiPlugin.class);
         super.onCreate(savedInstanceState);
+        ForegroundActivityTracker.install(getApplication());
     }
 
     @Override

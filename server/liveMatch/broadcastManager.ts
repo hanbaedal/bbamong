@@ -77,7 +77,7 @@ class BroadcastManager {
     }
   }
 
-  /** 1분 지난 광고를 타이머 유실과 관계없이 종료한다. */
+  /** AD_PLAY_MS가 지난 광고를 타이머 유실과 관계없이 종료한다. */
   enforceAdDeadlines(matchId?: string): void {
     const ids = matchId ? [matchId] : wsManager.getMatchIdsWithAds();
     for (const id of ids) {
@@ -189,6 +189,13 @@ class BroadcastManager {
       clearTimeout(play);
       this.adPlayTimers.delete(matchId);
     }
+  }
+
+  /** 테스트 — 광고 타이머·쿨다운을 지워 다음 시나리오가 독립되게 한다 */
+  resetAdBreakForTest(matchId: string) {
+    this.clearAdTimer(matchId);
+    this.setAdPlaying(matchId, false);
+    this.lastAdScheduledAt.delete(matchId);
   }
 }
 

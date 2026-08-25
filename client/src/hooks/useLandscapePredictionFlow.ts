@@ -145,6 +145,9 @@ export function useLandscapePredictionFlow(
   const successRunTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onMatchEndedRef = useRef(options?.onMatchEnded);
   onMatchEndedRef.current = options?.onMatchEnded;
+  const adHardStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exitAdSessionRef = useRef<(data?: { reason?: string }) => void>(() => {});
+  const adExitLockRef = useRef(false);
 
   const {
     startAdSession,
@@ -224,6 +227,24 @@ export function useLandscapePredictionFlow(
     setEventCountdown(null);
   }, []);
 
+  const clearAdHardStop = useCallback(() => {
+    if (!adHardStopTimerRef.current) return;
+    clearTimeout(adHardStopTimerRef.current);
+    adHardStopTimerRef.current = null;
+  }, []);
+
+  const armAdHardStop = useCallback(
+    (startedAt: number) => {
+      clearAdHardStop();
+      const remain = Math.max(250, AD_PLAY_MS - (Date.now() - startedAt));
+      adHardStopTimerRef.current = setTimeout(() => {
+        adHardStopTimerRef.current = null;
+        void exitAdSessionRef.current({ reason: "operator_stop" });
+      }, remain);
+    },
+    [clearAdHardStop],
+  );
+
   const goToWaitStart = useCallback(() => {
     clearResultTimers();
     clearEventTimers();
@@ -255,6 +276,7 @@ export function useLandscapePredictionFlow(
 
     pendingInterstitialRef.current = false;
     adSessionActiveRef.current = false;
+    clearAdHardStop();
     stopAdSession();
     setShowAdOverlay(false);
     setShowBetModal(false);
@@ -271,7 +293,7 @@ export function useLandscapePredictionFlow(
       clearTimeout(matchEndedTimerRef.current);
     }
     matchEndedTimerRef.current = setTimeout(exitGame, MATCH_ENDED_SHOW_MS);
-  }, [toast, stopAdSession]);
+  }, [toast, stopAdSession, clearAdHardStop]);
 
   useEffect(() => {
     matchEndedRef.current = false;
@@ -279,6 +301,7 @@ export function useLandscapePredictionFlow(
     predictionEpochRef.current += 1;
     lastLiveResultLabelRef.current = null;
     lastLiveResultBatterRef.current = null;
+    clearAdHardStop();
     if (matchEndedTimerRef.current) {
       clearTimeout(matchEndedTimerRef.current);
       matchEndedTimerRef.current = null;
@@ -290,11 +313,15 @@ export function useLandscapePredictionFlow(
       if (matchEndedTimerRef.current) {
         clearTimeout(matchEndedTimerRef.current);
       }
+      if (adHardStopTimerRef.current) {
+        clearTimeout(adHardStopTimerRef.current);
+      }
     },
     [],
   );
 
   const finishAdAndWaitStart = useCallback(() => {
+    clearAdHardStop();
     adSessionActiveRef.current = false;
     rewardedVideoCompletedRef.current = false;
     setAdOverlayMessage(undefined);
@@ -303,7 +330,7 @@ export function useLandscapePredictionFlow(
     setShowAdOverlay(false);
     pendingRewardKeyRef.current = null;
     goToWaitStart();
-  }, [stopAdSession, goToWaitStart]);
+  }, [stopAdSession, goToWaitStart, clearAdHardStop]);
 
   const rememberAdStartedAt = useCallback((startedAt?: number | null) => {
     if (typeof startedAt === "number" && Number.isFinite(startedAt)) {
@@ -367,7 +394,7 @@ export function useLandscapePredictionFlow(
     async (matchId?: string) => {
       if (!adSessionActiveRef.current || adDismissedEarlyRef.current) return;
       const eligible = isNativePlatform
-        ? rewardedVideoCompletedRef.current
+        ? rewardedVideoCompletedRef.current || !adDismissedEarlyRef.current
         : true;
       if (!eligible) return;
       await claimAdRewardIfPending(matchId);
@@ -439,6 +466,7 @@ export function useLandscapePredictionFlow(
         pendingInterstitialRef.current = false;
         if (adSessionActiveRef.current || ui === "ad_playing") {
           adSessionActiveRef.current = false;
+          clearAdHardStop();
           stopAdSession();
           setShowAdOverlay(false);
         }
@@ -489,6 +517,7 @@ export function useLandscapePredictionFlow(
       isWaitingForResult,
       closePickingUi,
       stopAdSession,
+      clearAdHardStop,
       selectedMatch?.currentRound,
     ],
   );
@@ -573,70 +602,46 @@ export function useLandscapePredictionFlow(
 
   const runInterstitialSession = useCallback(
     async (matchId?: string, startedAt?: number | null) => {
-      rememberAdStartedAt(startedAt);
-      if (isAdPlayExpired(startedAt ?? adStartedAtRef.current)) {
+      const started = startedAt ?? adStartedAtRef.current ?? Date.now();
+      rememberAdStartedAt(started);
+      if (isAdPlayExpired(started)) {
         pendingInterstitialRef.current = false;
         finishAdAndWaitStart();
         return;
       }
-      if (skipDismissedAdSession(matchId, startedAt ?? adStartedAtRef.current)) return;
+      if (skipDismissedAdSession(matchId, started)) return;
       if (adSessionActiveRef.current || screenPhaseRef.current === "ad_playing") return;
       adSessionActiveRef.current = true;
       adDismissedEarlyRef.current = false;
       rewardedVideoCompletedRef.current = false;
-      const remainSec = Math.max(
-        1,
-        Math.ceil(
-          (AD_PLAY_MS - (Date.now() - (startedAt ?? adStartedAtRef.current ?? Date.now()))) / 1000,
-        ),
-      );
+      const remainMs = Math.max(250, AD_PLAY_MS - (Date.now() - started));
+      const remainSec = Math.max(1, Math.ceil(remainMs / 1000));
+      const phoneLike =
+        isNativePlatform ||
+        (typeof window !== "undefined" &&
+          Boolean(window.matchMedia?.("(pointer: coarse)")?.matches));
       setAdOverlayCompleteSec(remainSec);
-      setAdOverlayMessage(undefined);
-      setAdOverlayDismissible(true);
+      setAdOverlayMessage("광고가 끝나면 예측이 자동으로 시작됩니다");
+      setAdOverlayDismissible(!phoneLike);
       setShowBetModal(false);
       setScreenPhase("ad_playing");
+      setShowAdOverlay(true);
+      armAdHardStop(started);
 
       if (isNativePlatform) {
-        const { dismissedEarly, mode, rewardEarned } = await startAdSession();
-        if (!adSessionActiveRef.current) {
-          setShowAdOverlay(false);
-          const keepPlay =
-            predictionEnabledRef.current ||
-            screenPhaseRef.current === "picking" ||
-            isInResultPresentation() ||
-            isWaitingForResult();
-          if (!keepPlay) finishAdAndWaitStart();
-          return;
-        }
-
-        if (mode === "overlay") {
-          setAdOverlayMessage("광고가 재생 중입니다...");
-          setAdOverlayDismissible(true);
+        void startAdSession({ maxMs: remainMs }).then((result) => {
+          if (!adSessionActiveRef.current) return;
+          if (result.rewardEarned) rewardedVideoCompletedRef.current = true;
+          if (result.dismissedEarly && !result.rewardEarned) {
+            adDismissedEarlyRef.current = true;
+            markAdSessionDismissed(matchId ?? selectedMatch?.id ?? "", adStartedAtRef.current);
+          }
+          setAdOverlayMessage("광고가 끝나면 예측이 자동으로 시작됩니다");
           setShowAdOverlay(true);
-          return;
-        }
-
-        if (!rewardEarned || dismissedEarly) {
-          adDismissedEarlyRef.current = true;
-          rewardedVideoCompletedRef.current = false;
-          markAdSessionDismissed(matchId ?? selectedMatch?.id ?? "", adStartedAtRef.current);
-          return;
-        }
-
-        rewardedVideoCompletedRef.current = true;
-        const nativeStarted = startedAt ?? adStartedAtRef.current;
-        if (nativeStarted && Date.now() - nativeStarted >= AD_PLAY_MS - 500) {
-          setShowAdOverlay(false);
-          return;
-        }
-        setAdOverlayMessage("리워드 광고 시청 완료. 잠시 후 예측이 재개됩니다.");
-        setAdOverlayDismissible(false);
-        setShowAdOverlay(true);
+        });
         return;
       }
 
-      setAdOverlayMessage("광고가 재생 중입니다...");
-      setAdOverlayDismissible(true);
       setShowAdOverlay(true);
     },
     [
@@ -646,8 +651,7 @@ export function useLandscapePredictionFlow(
       rememberAdStartedAt,
       skipDismissedAdSession,
       selectedMatch?.id,
-      isInResultPresentation,
-      isWaitingForResult,
+      armAdHardStop,
     ],
   );
 
@@ -1291,6 +1295,11 @@ export function useLandscapePredictionFlow(
         setShowAdOverlay(false);
         return;
       }
+      if (adExitLockRef.current) return;
+      adExitLockRef.current = true;
+      clearAdHardStop();
+
+      try {
 
       if (adStartedAtRef.current != null) {
         lastCompletedAdAtRef.current = adStartedAtRef.current;
@@ -1357,6 +1366,9 @@ export function useLandscapePredictionFlow(
       }
 
       finishAdAndWaitStart();
+      } finally {
+        adExitLockRef.current = false;
+      }
     },
     [
       grantRewardIfWatchedUntilOperatorStop,
@@ -1365,8 +1377,11 @@ export function useLandscapePredictionFlow(
       isInResultPresentation,
       isWaitingForResult,
       stopAdSession,
+      clearAdHardStop,
     ],
   );
+
+  exitAdSessionRef.current = exitAdSession;
 
   const handleAdOverlayComplete = useCallback(() => {
     void exitAdSession({ reason: "operator_stop" });
@@ -1396,6 +1411,7 @@ export function useLandscapePredictionFlow(
       bumpPredictionEpoch();
       pendingInterstitialRef.current = false;
       adSessionActiveRef.current = false;
+      clearAdHardStop();
       stopAdSession();
       setShowAdOverlay(false);
       setShowBetModal(false);
@@ -1427,6 +1443,7 @@ export function useLandscapePredictionFlow(
     }, [
       isInResultPresentation,
       stopAdSession,
+      clearAdHardStop,
       clearResultPresentationState,
       toast,
       selectedMatch?.id,
