@@ -27,7 +27,7 @@ const adminStorage = new AdminStorage();
 const MANAGER_APP_SCHEME = "ppamongmanager";
 const MANAGER_APP_PACKAGE = "com.ppamong.manager";
 
-/** 경기전(scheduled)에는 예측·진행 컨트롤 불가 — 시작 시각 이후면 ongoing 승격 */
+/** 경기전(scheduled)에는 예측·진행 컨트롤 불가 — 시작 5분 전부터 허용, 시작 시각 이후면 ongoing 승격 */
 async function assertMatchLiveForControls(matchId: string): Promise<void> {
   await ensureMatchLiveForOperatorControls(matchId);
 }
@@ -916,6 +916,12 @@ export async function managerRoutes(app: Express): Promise<void> {
         outsDelta,
       });
 
+      const liveDoc = await MatchModel.findOne({ id }).select("liveScoreboard").lean();
+      const liveDisplay =
+        (liveDoc as { liveScoreboard?: { situation?: { atBatResultDisplay?: string | null } } } | null)
+          ?.liveScoreboard?.situation?.atBatResultDisplay ?? null;
+      const displayResult = (liveDisplay ?? "").trim() || (result === "병살" || result === "삼살" ? result : settleResult);
+
       // 유저별 wonAmount를 포함한 개인화된 round_result 전송
       const userDataMap = new Map<string, any>();
       userWonAmounts.forEach((wonAmount, userId) => {
@@ -926,10 +932,9 @@ export async function managerRoutes(app: Express): Promise<void> {
         matchId: id,
         roundNumber: match.currentRound,
         result: settleResult,
+        displayResult,
         outsDelta: outsDelta ?? (settleResult === "아웃" ? 1 : 0),
-        message: `라운드 ${match.currentRound} 결과: ${settleResult}${
-          result === "병살" || result === "삼살" ? ` (${result})` : ""
-        }`
+        message: `라운드 ${match.currentRound} 결과: ${displayResult}`
       }, userDataMap);
 
       notifyManualAtBatAction(id, "result");

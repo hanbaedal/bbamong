@@ -71,6 +71,13 @@ class BroadcastManager {
       console.log(`[Ad] schedule skipped cooldown ${matchId}`);
       return false;
     }
+    if (
+      !options?.force &&
+      (this.isAdPlaying(matchId) || this.adDelayTimers.has(matchId) || this.adPlayTimers.has(matchId))
+    ) {
+      console.log(`[Ad] schedule skipped already playing ${matchId}`);
+      return false;
+    }
     this.lastAdScheduledAt.set(matchId, now);
     if (options?.rewardKey) {
       this.sendToMatch(matchId, "rewarded_ad_offer", {

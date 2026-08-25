@@ -1,10 +1,8 @@
-import type { PredictionOption } from "./gameTypes";
-
 /** 예측 중지(3번) 화면 위 — 라운드 결과만 큰 글씨 (적중/빗나감 없음) */
 export default function GameRoundResultFlash({
   result,
 }: {
-  result: PredictionOption;
+  result: string;
 }) {
   return (
     <div

@@ -18,7 +18,8 @@ import type {
   PredictionResult,
   RoundAdvanceType,
 } from "@/components/game/gameTypes";
-import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, RESULT_FLASH_MS, CATCHUP_RESULT_MS, isOutcomePresentationPhase, isTransientAdOrEventPhase, isPageHidden, normalizeRoundResultLabel } from "@/components/game/gameTypes";
+import { AD_PLAY_MS } from "@shared/adBreakTiming";
+import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, RESULT_FLASH_MS, CATCHUP_RESULT_MS, isOutcomePresentationPhase, isTransientAdOrEventPhase, isPageHidden, normalizeRoundResultLabel, displayRoundResultLabel } from "@/components/game/gameTypes";
 import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
 import { consumeFirstPredictionOpen } from "@/lib/gameVoiceSession";
 import {
@@ -89,7 +90,7 @@ export function useLandscapePredictionFlow(
   const [selectedBetAmount, setSelectedBetAmount] = useState<BetAmountOption>(DEFAULT_BET_AMOUNT);
   const [showBetModal, setShowBetModal] = useState(false);
   const [predictionResult, setPredictionResult] = useState<PredictionResult>("pending");
-  const [roundResultLabel, setRoundResultLabel] = useState<PredictionOption | null>(null);
+  const [roundResultLabel, setRoundResultLabel] = useState<string | null>(null);
   const [lastWonAmount, setLastWonAmount] = useState(0);
   const [lastBetAmount, setLastBetAmount] = useState(0);
   const [resultCountdown, setResultCountdown] = useState<number | null>(null);
@@ -121,6 +122,8 @@ export function useLandscapePredictionFlow(
   const adDismissedEarlyRef = useRef(false);
   const rewardedVideoCompletedRef = useRef(false);
   const adStartedAtRef = useRef<number | null>(null);
+  const lastCompletedAdAtRef = useRef<number | null>(null);
+  const [adOverlayCompleteSec, setAdOverlayCompleteSec] = useState(Math.round(AD_PLAY_MS / 1000));
   const matchEndedRef = useRef(false);
   const failVoiceSpokenRef = useRef(false);
   const matchEndedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -491,7 +494,7 @@ export function useLandscapePredictionFlow(
   );
 
   /** handleRoundResult 정의 전 — ref로 연결 */
-  const handleRoundResultRef = useRef<(data: { result?: string; wonAmount?: number }) => void>(
+  const handleRoundResultRef = useRef<(data: { result?: string; wonAmount?: number; displayResult?: string }) => void>(
     () => {},
   );
 
@@ -504,6 +507,7 @@ export function useLandscapePredictionFlow(
       currentRound?: number;
       roundNumber?: number;
       settledResult?: string | null;
+      displayResult?: string | null;
     }) => {
       const round =
         typeof data.currentRound === "number"
@@ -531,7 +535,10 @@ export function useLandscapePredictionFlow(
       applyPredictionUiStage(stage, { roundNumber: round });
 
       if (stage === "result" && data.settledResult && !resultShownRef.current) {
-        handleRoundResultRef.current({ result: data.settledResult });
+        handleRoundResultRef.current({
+          result: data.settledResult,
+          displayResult: data.displayResult ?? undefined,
+        });
       }
     },
     [applyPredictionUiStage],
@@ -565,6 +572,13 @@ export function useLandscapePredictionFlow(
       adSessionActiveRef.current = true;
       adDismissedEarlyRef.current = false;
       rewardedVideoCompletedRef.current = false;
+      const remainSec = Math.max(
+        1,
+        Math.ceil(
+          (AD_PLAY_MS - (Date.now() - (startedAt ?? adStartedAtRef.current ?? Date.now()))) / 1000,
+        ),
+      );
+      setAdOverlayCompleteSec(remainSec);
       setAdOverlayMessage(undefined);
       setAdOverlayDismissible(true);
       setShowBetModal(false);
@@ -598,6 +612,11 @@ export function useLandscapePredictionFlow(
         }
 
         rewardedVideoCompletedRef.current = true;
+        const nativeStarted = startedAt ?? adStartedAtRef.current;
+        if (nativeStarted && Date.now() - nativeStarted >= AD_PLAY_MS - 500) {
+          setShowAdOverlay(false);
+          return;
+        }
         setAdOverlayMessage("리워드 광고 시청 완료. 잠시 후 예측이 재개됩니다.");
         setAdOverlayDismissible(false);
         setShowAdOverlay(true);
@@ -768,7 +787,7 @@ export function useLandscapePredictionFlow(
   );
 
   const startResultFlash = useCallback(
-    (label: PredictionOption, personal: "success" | "fail" | "spectator") => {
+    (label: string, personal: "success" | "fail" | "spectator") => {
       resultShownRef.current = true;
       waitingResultRef.current = false;
       awaitingResultRoundRef.current = null;
@@ -1115,7 +1134,7 @@ export function useLandscapePredictionFlow(
   }, [screenPhase, scheduleResultDismiss]);
 
   const handleRoundResult = useCallback(
-    (data: { result?: string; wonAmount?: number }) => {
+    (data: { result?: string; wonAmount?: number; displayResult?: string | null }) => {
       if (resultShownRef.current) return;
 
       const outcome = normalizeRoundResultLabel(data.result);
@@ -1125,6 +1144,8 @@ export function useLandscapePredictionFlow(
         }
         return;
       }
+
+      const flashLabel = displayRoundResultLabel(data.result, data.displayResult) ?? outcome;
 
       const bet = activeBetRef.current ?? betSnapshotRef.current;
       if (bet?.predictionId) lastResultPredictionIdRef.current = bet.predictionId;
@@ -1152,7 +1173,7 @@ export function useLandscapePredictionFlow(
         void refetchUser();
       }
 
-      startResultFlash(outcome, personal);
+      startResultFlash(flashLabel, personal);
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
     },
     [user, isWaitingForResult, checkPredictionStatus, startResultFlash, refetchUser],
@@ -1169,6 +1190,12 @@ export function useLandscapePredictionFlow(
     }) => {
       rememberAdStartedAt(opts.adStartedAt);
       const matchId = opts.matchId ?? selectedMatch?.id;
+      if (
+        typeof opts.adStartedAt === "number" &&
+        lastCompletedAdAtRef.current === opts.adStartedAt
+      ) {
+        return;
+      }
       if (skipDismissedAdSession(matchId, opts.adStartedAt)) return;
       const phase = screenPhaseRef.current;
       const duringSwitchOrPitcher =
@@ -1202,6 +1229,18 @@ export function useLandscapePredictionFlow(
       const fromRoundAdvance = reason === "round_advance";
       // reason 없음 = ad_status(false) 재연결 캐치업
       const fromStatusCatchUp = reason == null;
+
+      if (!adSessionActiveRef.current && screenPhaseRef.current !== "ad_playing") {
+        pendingInterstitialRef.current = false;
+        setShowAdOverlay(false);
+        return;
+      }
+
+      if (adStartedAtRef.current != null) {
+        lastCompletedAdAtRef.current = adStartedAtRef.current;
+      }
+
+      pendingInterstitialRef.current = false;
 
       if (fromStatusCatchUp) {
         if (!adSessionActiveRef.current && screenPhaseRef.current !== "ad_playing") return;
@@ -1268,6 +1307,10 @@ export function useLandscapePredictionFlow(
       stopAdSession,
     ],
   );
+
+  const handleAdOverlayComplete = useCallback(() => {
+    void exitAdSession({ reason: "operator_stop" });
+  }, [exitAdSession]);
 
   const wsHandlers: WSEventHandlers = {
     onConnected: useCallback((data: {
@@ -1406,7 +1449,7 @@ export function useLandscapePredictionFlow(
       [clearResultPresentationState, isInResultPresentation, isWaitingForResult, toast, closePickingUi],
     ),
 
-    onRoundResult: useCallback((data: { result?: string; wonAmount?: number }) => {
+    onRoundResult: useCallback((data: { result?: string; wonAmount?: number; displayResult?: string }) => {
       handleRoundResult(data);
     }, [handleRoundResult]),
 
@@ -1664,6 +1707,7 @@ export function useLandscapePredictionFlow(
     showAdOverlay,
     adOverlayMessage,
     adOverlayDismissible,
+    adOverlayCompleteAfterSeconds: adOverlayCompleteSec,
     adSessionState,
     isNativePlatform,
     labelsVisible,
@@ -1674,5 +1718,6 @@ export function useLandscapePredictionFlow(
     handleBetSubmit,
     handleRunComplete,
     handleAdOverlayDismiss,
+    handleAdOverlayComplete,
   };
 }

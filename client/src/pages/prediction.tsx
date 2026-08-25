@@ -689,9 +689,11 @@ export default function PredictionPage() {
         showAdOverlay={isLivePlay && flow.showAdOverlay}
         adOverlayMessage={flow.adOverlayMessage}
         adOverlayDismissible={flow.adOverlayDismissible}
+        adOverlayCompleteAfterSeconds={flow.adOverlayCompleteAfterSeconds}
         adSessionState={flow.adSessionState}
         isNativePlatform={flow.isNativePlatform}
         onAdOverlayDismiss={flow.handleAdOverlayDismiss}
+        onAdOverlayComplete={flow.handleAdOverlayComplete}
         onMatchTitleClick={() => setMatchModalOpen(true)}
         onStadiumNameClick={() => setStadiumModalOpen(true)}
         matchSelectEnabled={canSelectMatch}

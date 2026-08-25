@@ -4,17 +4,12 @@
 }
 
 /**
- * 빠몽이 원본 스프라이트를 초=원정(빨강) / 말=홈(삼성 블루 #074CA1)으로 재채색.
- * 테두리 필터는 쓰지 않는다 — 그림 실루엣이 깨진다.
+ * 홈/원정 유니폼은 전용 PNG(흰색·청색)를 쓴다.
+ * 전역 hue-rotate 틴트는 피부·헬멧까지 물들여 쓰지 않는다.
  */
-.game-sprite-tint-away {
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45)) sepia(0.85) saturate(4.2) hue-rotate(-35deg)
-    brightness(0.98);
-}
-
+.game-sprite-tint-away,
 .game-sprite-tint-home {
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45)) sepia(0.9) saturate(5.4) hue-rotate(188deg)
-    brightness(0.68);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
 }
 
 @keyframes pyamong-idle-bob {

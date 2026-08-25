@@ -79,6 +79,7 @@ async function ensureRoundStats(roundNumber: number) {
 
 async function resetMatchIdle(opts?: { half?: "top" | "bottom"; inning?: number; outs?: number }) {
   clearLiveAutoOperator(MATCH_ID);
+  await sleep(150);
   const half = opts?.half ?? "top";
   const inning = opts?.inning ?? 3;
   const outs = opts?.outs ?? 0;

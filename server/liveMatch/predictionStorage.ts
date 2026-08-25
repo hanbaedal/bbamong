@@ -20,11 +20,12 @@ import {
   type MemberPlatform,
   buildUserPlatformMatchForAgg,
 } from "../utils/memberPlatform";
+import { isMatchLiveWindowOpen } from "@shared/matchLiveWindow";
 
 /**
- * 운영자 컨트롤용 — ongoing만 허용.
- * 단, 시작 시각이 지났는데 API 지연으로 scheduled에 남으면 ongoing으로 승격.
- * (오전 경기전 false start 방지: startTime 이전에는 거부)
+ * 운영자 컨트롤용 — ongoing, 또는 시작 5분 전~의 scheduled.
+ * 시작 시각이 지났는데 API 지연으로 scheduled에 남으면 ongoing으로 승격.
+ * 시작 5분 전~시작 시각은 scheduled를 유지한다 (실황 근거 없는 ongoing 고착 방지).
  */
 export async function ensureMatchLiveForOperatorControls(matchId: string): Promise<void> {
   const match = await MatchModel.findOne({ id: matchId })
@@ -40,24 +41,26 @@ export async function ensureMatchLiveForOperatorControls(matchId: string): Promi
 
   if (match.matchStatus === "scheduled") {
     const startMs = match.startTime ? new Date(match.startTime as Date).getTime() : Number.NaN;
-    if (!Number.isFinite(startMs) || Date.now() < startMs) {
-      throw new Error("경기전에 사용할 수 없습니다. 경기가 시작되면 이용해 주세요.");
+    if (!Number.isFinite(startMs) || !isMatchLiveWindowOpen(match.startTime as Date)) {
+      throw new Error("경기전에 사용할 수 없습니다. 경기 시작 5분 전부터 이용해 주세요.");
     }
 
-    await MatchModel.updateOne({ id: matchId }, { $set: { matchStatus: "ongoing" } });
-    console.log(
-      `[MatchStatus] operator control promoted scheduled→ongoing (${match.name ?? matchId}) — startTime passed`,
-    );
-    try {
-      const { syncOperatorAccountStatusForMatchId } = await import("../managerOperatorService");
-      await syncOperatorAccountStatusForMatchId(matchId);
-    } catch (err) {
-      console.warn("[MatchStatus] operator account sync after promote failed:", err);
+    if (Date.now() >= startMs) {
+      await MatchModel.updateOne({ id: matchId }, { $set: { matchStatus: "ongoing" } });
+      console.log(
+        `[MatchStatus] operator control promoted scheduled→ongoing (${match.name ?? matchId}) — startTime passed`,
+      );
+      try {
+        const { syncOperatorAccountStatusForMatchId } = await import("../managerOperatorService");
+        await syncOperatorAccountStatusForMatchId(matchId);
+      } catch (err) {
+        console.warn("[MatchStatus] operator account sync after promote failed:", err);
+      }
     }
     return;
   }
 
-  throw new Error("경기전에 사용할 수 없습니다. 경기가 시작되면 이용해 주세요.");
+  throw new Error("경기전에 사용할 수 없습니다. 경기 시작 5분 전부터 이용해 주세요.");
 }
 
 export async function getUserBalance(userId: string): Promise<number> {

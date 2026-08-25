@@ -1,10 +1,10 @@
-/** 레거시 옆모습 타자 */
-export const PYAMONG_BATTER_WIDTH = "min(11vw, 88px)";
+/** 레거시 옆모습 타자 (1.5배) */
+export const PYAMONG_BATTER_WIDTH = "min(16.5vw, 132px)";
 
-/** 예측 시작 전 팔짱 대기 */
-export const PYAMONG_ARMS_WAIT_WIDTH = "min(12vw, 96px)";
+/** 예측 시작 전 팔짱 대기 (1.5배) */
+export const PYAMONG_ARMS_WAIT_WIDTH = "min(18vw, 144px)";
 
-/** 뒷모습 타격대기 — 팔짱 대기와 동일 크기 */
+/** 타격대기 — 팔짱 대기와 동일 크기 */
 export const PYAMONG_BATTER_BACK_WIDTH = PYAMONG_ARMS_WAIT_WIDTH;
 
 /** 말풍선 — 가독성 위해 약간 확대 */

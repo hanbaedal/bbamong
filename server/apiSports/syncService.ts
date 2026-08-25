@@ -943,7 +943,7 @@ function isWithinLiveSyncWindow(startTime?: Date | null, nowMs = Date.now()): bo
   return nowMs >= startMs - LIVE_SCORE_SYNC_START_BEFORE_MS;
 }
 
-/** live sync 창(시작 1분 전~) 안에서만 — 진행 중 2.5초, NS·scheduled는 60초 간격 시작 감지 */
+/** live sync 창(시작 5분 전~) 안에서만 — 진행 중 2.5초, NS·scheduled는 60초 간격 시작 감지 */
 function shouldFetchLiveScoreFromApi(
   match: {
     matchStatus?: string | null;

@@ -3,18 +3,18 @@ import pyamongWaiting from "@assets/game/pyamong-waiting.png";
 import pyamongSuccess from "@assets/game/pyamong-success.png";
 import pyamongBatToss from "@assets/game/pyamong-bat-toss.png";
 import baseballBat from "@assets/game/baseball-bat.png";
-import pyamongRunning1 from "@assets/game/pyamong-running-1.png";
-import pyamongRunning2 from "@assets/game/pyamong-running-2.png";
-import pyamongRunning3 from "@assets/game/pyamong-running-3.png";
 import pyamongStandsWaiting from "@assets/game/pyamong-stands-waiting.png";
 import pyamongWaveGoodbye from "@assets/game/pyamong-wave-goodbye.png";
-import pyamongBatterReadyRight from "@assets/game/pyamong-batter-ready-right.png";
-import pyamongBatterReadyLeft from "@assets/game/pyamong-batter-ready-left.png";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 import { getRunDurationSec, SUCCESS_BAT_TOSS_MS } from "./fieldPositions";
+import {
+  pyamongBatterReadySrc,
+  pyamongRunFrames,
+  pyamongWaitingSrc,
+} from "./pyamongUniforms";
 import {
   BASE_IMAGE_POINTS,
   BATTER_BOX_LEFT_IMAGE,
@@ -33,8 +33,6 @@ import { PYAMONG_ARMS_WAIT_WIDTH, PYAMONG_BATTER_BACK_WIDTH } from "./gameLayout
 import type { BatterHandSide } from "@shared/batterHandedness";
 import "./gameAnimations.css";
 
-/** 주루 달리기 스프라이트 프레임 (우측을 바라보는 포즈) */
-const PYAMONG_RUN_FRAMES = [pyamongRunning1, pyamongRunning2, pyamongRunning3, pyamongRunning2] as const;
 const RUN_FRAME_MS = 120;
 
 interface GameCharacterLayerProps {
@@ -50,17 +48,8 @@ interface GameCharacterLayerProps {
   onRunComplete?: () => void;
 }
 
-function pyamongSpriteClass(
-  battingHalf: InningHalf | null | undefined,
-  extra = "",
-): string {
-  const tint =
-    battingHalf === "top"
-      ? "game-sprite game-sprite-tint-away"
-      : battingHalf === "bottom"
-        ? "game-sprite game-sprite-tint-home"
-        : "game-sprite";
-  return extra ? `${tint} ${extra}` : tint;
+function pyamongSpriteClass(_battingHalf: InningHalf | null | undefined, extra = ""): string {
+  return extra ? `game-sprite ${extra}` : "game-sprite";
 }
 
 function batterBoxPoint(side: BatterHandSide | null | undefined) {
@@ -83,7 +72,7 @@ function BackBatterReady({
   const anchorTransform = isLeftHanded
     ? "translate(-22%, -100%)"
     : "translate(-78%, -100%)";
-  const batterSrc = isLeftHanded ? pyamongBatterReadyLeft : pyamongBatterReadyRight;
+  const batterSrc = pyamongBatterReadySrc(battingHalf);
   return (
     <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
       <div
@@ -100,7 +89,11 @@ function BackBatterReady({
             src={batterSrc}
             alt=""
             className={`${pyamongSpriteClass(battingHalf)} h-auto shrink-0 drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]`}
-            style={{ width: PYAMONG_BATTER_BACK_WIDTH, transformOrigin: "bottom center" }}
+            style={{
+              width: PYAMONG_BATTER_BACK_WIDTH,
+              transformOrigin: "bottom center",
+              transform: isLeftHanded ? "scaleX(-1)" : undefined,
+            }}
             data-testid="char-batter-back-ready"
             data-bats-side={handSide}
             data-team-side={battingHalf === "bottom" ? "home" : "away"}
@@ -177,13 +170,13 @@ export default function GameCharacterLayer({
     let rafId = 0;
     const tick = (now: number) => {
       const elapsed = now - startedAt;
-      setRunFrameIdx(Math.floor(elapsed / RUN_FRAME_MS) % PYAMONG_RUN_FRAMES.length);
+      setRunFrameIdx(Math.floor(elapsed / RUN_FRAME_MS) % pyamongRunFrames(battingHalf).length);
       setRunFaceRight(getRunFacingRight(runPath, Math.min(1, elapsed / durationMs)));
       rafId = requestAnimationFrame(tick);
     };
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [phase, runDurationSec, runPath, batTossing]);
+  }, [phase, runDurationSec, runPath, batTossing, battingHalf]);
 
   const predictionBadge =
     selectedPrediction && phase === "wait_result" ? (
@@ -284,7 +277,7 @@ export default function GameCharacterLayer({
             data-bats-side={handSide}
           >
             <img
-              src={pyamongWaiting}
+              src={pyamongWaitingSrc(battingHalf)}
               alt=""
               className={`${pyamongSpriteClass(battingHalf)} h-auto shrink-0 drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]`}
               style={{ width: PYAMONG_ARMS_WAIT_WIDTH, transformOrigin: "bottom center" }}
@@ -386,7 +379,7 @@ export default function GameCharacterLayer({
             }}
           >
             <img
-              src={PYAMONG_RUN_FRAMES[runFrameIdx]}
+              src={pyamongRunFrames(battingHalf)[runFrameIdx]}
               alt=""
               className={pyamongSpriteClass(
                 battingHalf,
@@ -452,7 +445,7 @@ export default function GameCharacterLayer({
               후우…
             </div>
             <img
-              src={pyamongWaiting}
+              src={pyamongWaitingSrc(battingHalf)}
               alt=""
               className={pyamongSpriteClass(
                 battingHalf,
@@ -471,7 +464,9 @@ export default function GameCharacterLayer({
             style={{ transform: "translate(-50%, -100%)" }}
           >
             <img
-              src={pyamongWaiting}
+              src={pyamongWaitingSrc(
+                battingHalf === "top" ? "bottom" : battingHalf === "bottom" ? "top" : null,
+              )}
               alt=""
               className={pyamongSpriteClass(
                 battingHalf,
@@ -489,7 +484,7 @@ export default function GameCharacterLayer({
         <StadiumFieldMarker point={PITCHER_MOUND_IMAGE} center={false}>
           <div style={{ transform: "translate(-50%, -100%)" }}>
             <img
-              src={pyamongWaiting}
+              src={pyamongWaitingSrc(battingHalf)}
               alt=""
               className={pyamongSpriteClass(
                 battingHalf,

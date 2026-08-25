@@ -1,3 +1,5 @@
+import { MATCH_LIVE_WINDOW_BEFORE_MS } from "@shared/matchLiveWindow";
+
 /**
  * 경기관리 프리게임 시간당 sync (09:00 이후 ~ 첫 경기 시작 전).
  * 실제 타이머는 matchManagementSchedule.
@@ -11,10 +13,12 @@ export const LIVE_SCORE_SYNC_INTERVAL_MS = Math.max(
   1_500,
   parseInt(process.env.LIVE_SCORE_SYNC_INTERVAL_MS || "2000", 10) || 2_000,
 );
-/** 경기 시작 몇 ms 전부터 live sync (클라이언트 폴링과 동일 1분) */
+
+/** 경기 시작 몇 ms 전부터 live sync (클라이언트 폴링과 동일 5분) */
 export const LIVE_SCORE_SYNC_START_BEFORE_MS = Math.max(
   0,
-  parseInt(process.env.LIVE_SCORE_SYNC_START_BEFORE_MS || "60000", 10) || 60_000,
+  parseInt(process.env.LIVE_SCORE_SYNC_START_BEFORE_MS || String(MATCH_LIVE_WINDOW_BEFORE_MS), 10) ||
+    MATCH_LIVE_WINDOW_BEFORE_MS,
 );
 /** live sync 대상 registrationOrder 상한 (기본 5 = op1~op5 전부) */
 export const LIVE_SCORE_MAX_REGISTRATION_ORDER = Math.max(

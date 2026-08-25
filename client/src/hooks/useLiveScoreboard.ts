@@ -7,7 +7,7 @@ type LiveScoreboardOptions = {
   pollMs?: number;
   startTime?: string | Date | null;
   matchStatus?: string | null;
-  /** 관리자 실시간 모니터링 등 — 시작 1분 전 규칙 무시 */
+  /** 관리자 실시간 모니터링 등 — 시작 5분 전 규칙 무시 */
   alwaysPoll?: boolean;
 };
 

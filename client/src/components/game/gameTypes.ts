@@ -77,3 +77,16 @@ export function normalizeRoundResultLabel(raw?: string | null): PredictionOption
   if (r === "병살" || r === "삼살") return "아웃";
   return null;
 }
+
+/** 사용자에게 보여줄 타격 결과 — 실황 세분 문구 우선, 운영자 버킷은 폴백 */
+export function displayRoundResultLabel(
+  settleResult?: string | null,
+  liveDisplay?: string | null,
+): string | null {
+  const live = (liveDisplay ?? "").trim();
+  if (live) return live;
+  const settle = (settleResult ?? "").trim();
+  if (!settle) return null;
+  if (settle === "병살" || settle === "삼살") return "아웃";
+  return settle;
+}
