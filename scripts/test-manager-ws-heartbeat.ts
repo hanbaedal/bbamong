@@ -20,48 +20,36 @@ function sleep(ms: number) {
 }
 
 function cookieHeader(setCookie: string[] | undefined): string {
-  if (!setCookie?.length) return "";
-  return setCookie
-    .map((c) => c.split(";")[0])
-    .filter(Boolean)
-    .join("; ");
+  const map = new Map<string, string>();
+  for (const raw of setCookie ?? []) {
+    const pair = raw.split(";")[0] ?? "";
+    const eq = pair.indexOf("=");
+    if (eq < 0) continue;
+    const k = pair.slice(0, eq).trim();
+    const v = pair.slice(eq + 1).trim();
+    if (k && v) map.set(k, v);
+  }
+  return [...map.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
 }
 
-function onceMessage(ws: WebSocket, timeoutMs: number): Promise<{ type?: string }> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`message timeout ${timeoutMs}ms`)), timeoutMs);
-    ws.once("message", (raw) => {
-      clearTimeout(t);
-      try {
-        resolve(JSON.parse(raw.toString()));
-      } catch (e) {
-        reject(e);
-      }
-    });
+function collectTypes(ws: WebSocket, bag: string[]) {
+  ws.on("message", (raw) => {
+    try {
+      const parsed = JSON.parse(raw.toString()) as { type?: string };
+      if (parsed.type) bag.push(parsed.type);
+    } catch {
+      /* ignore */
+    }
   });
 }
 
-function waitType(
-  ws: WebSocket,
-  type: string,
-  timeoutMs: number,
-): Promise<{ type?: string; data?: unknown }> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`wait ${type} timeout ${timeoutMs}ms`)), timeoutMs);
-    const onMsg = (raw: WebSocket.RawData) => {
-      try {
-        const parsed = JSON.parse(raw.toString()) as { type?: string; data?: unknown };
-        if (parsed.type === type) {
-          clearTimeout(t);
-          ws.off("message", onMsg);
-          resolve(parsed);
-        }
-      } catch {
-        /* ignore non-json */
-      }
-    };
-    ws.on("message", onMsg);
-  });
+async function waitUntilHas(bag: string[], type: string, timeoutMs: number) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (bag.includes(type)) return;
+    await sleep(50);
+  }
+  throw new Error(`wait ${type} timeout ${timeoutMs}ms got=${bag.join(",")}`);
 }
 
 async function login(): Promise<string> {
@@ -86,6 +74,8 @@ async function main() {
   const matchId = randomUUID();
 
   const ws1 = connect(matchId, cookie);
+  const types1: string[] = [];
+  collectTypes(ws1, types1);
   const closed1: { code?: number; reason?: string } = {};
   ws1.on("close", (code, reason) => {
     closed1.code = code;
@@ -100,29 +90,33 @@ async function main() {
 
   // 구 운영자 클라와 같이 onopen 즉시 ping — 서버 리스너가 이미 붙어 pong이 와야 한다
   ws1.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
-  const first = await onceMessage(ws1, 3000);
-  assert(first.type === "pong" || first.type === "connected", `first frame ${first.type}`);
-
-  const need = first.type === "pong" ? "connected" : "pong";
-  await waitType(ws1, need, 8000);
+  await waitUntilHas(types1, "pong", 3000);
+  await waitUntilHas(types1, "connected", 8000);
   assert(ws1.readyState === WebSocket.OPEN, "ws1 still open after ping+connected");
 
   // 예전 버그는 10초 pong 타임아웃. 서버가 끊지 않는지 12초 대기
   await sleep(12_000);
   assert(ws1.readyState === WebSocket.OPEN, `ws1 died during 12s wait code=${closed1.code} ${closed1.reason}`);
 
+  const beforeSecond = types1.filter((t) => t === "pong").length;
   ws1.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
-  const pong2 = await waitType(ws1, "pong", 3000);
-  assert(pong2.type === "pong", "second pong");
+  const waitSecond = Date.now();
+  while (Date.now() - waitSecond < 3000) {
+    if (types1.filter((t) => t === "pong").length > beforeSecond) break;
+    await sleep(50);
+  }
+  assert(types1.filter((t) => t === "pong").length > beforeSecond, "second pong");
 
   const ws2 = connect(matchId, cookie);
+  const types2: string[] = [];
+  collectTypes(ws2, types2);
   await new Promise<void>((resolve, reject) => {
     ws2.once("open", () => resolve());
     ws2.once("error", reject);
     setTimeout(() => reject(new Error("ws2 open timeout")), 8000);
   });
   ws2.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
-  await waitType(ws2, "pong", 3000);
+  await waitUntilHas(types2, "pong", 3000);
 
   await sleep(500);
   assert(
@@ -131,8 +125,14 @@ async function main() {
   );
   assert(ws2.readyState === WebSocket.OPEN, "ws2 must stay mapped after replacing ws1");
 
+  const pongBefore = types2.filter((t) => t === "pong").length;
   ws2.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
-  await waitType(ws2, "pong", 3000);
+  const start = Date.now();
+  while (Date.now() - start < 3000) {
+    if (types2.filter((t) => t === "pong").length > pongBefore) break;
+    await sleep(50);
+  }
+  assert(types2.filter((t) => t === "pong").length > pongBefore, "ws2 pong after replace");
 
   ws2.close(1000, "test done");
   if (ws1.readyState === WebSocket.OPEN) ws1.close(1000, "test done");

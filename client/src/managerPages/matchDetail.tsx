@@ -446,6 +446,10 @@ export default function MatchDetailPage() {
             case "match_ended":
               logoutOnMatchEnded();
               break;
+            case "rewarded_ad_offer":
+            case "banner_ad_show":
+            case "banner_ad_hide":
+              break;
             default:
               if (typeof type === "string" && isLiveAutoOperatorWsType(type)) {
                 break;
