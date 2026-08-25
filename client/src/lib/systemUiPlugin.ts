@@ -45,7 +45,7 @@ export async function setNativeKeepScreenOn(enabled: boolean): Promise<void> {
   }
 }
 
-/** AdMob 리워드/전면이 예측 화면을 가리고 있을 때 닫기 시도 (Android) */
+/** AdMob 리워드/전면(AdActivity)이 떠 있으면 finish 한다. MainActivity BACK은 보내지 않는다. */
 export async function dismissNativeFullscreenAd(): Promise<void> {
   if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") {
     return;

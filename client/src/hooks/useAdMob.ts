@@ -191,7 +191,11 @@ export function useAdMob(): UseAdMobResult {
   const [isAdShowing, setIsAdShowing] = useState(false);
   const [adSessionState, setAdSessionState] = useState<AdSessionState>("idle");
   const adSessionStateRef = useRef<AdSessionState>("idle");
-  adSessionStateRef.current = adSessionState;
+
+  const assignAdSessionState = useCallback((next: AdSessionState) => {
+    adSessionStateRef.current = next;
+    setAdSessionState(next);
+  }, []);
 
   const isInitialized = useRef(false);
   const isNativePlatform = Capacitor.isNativePlatform();
@@ -242,7 +246,7 @@ export function useAdMob(): UseAdMobResult {
           `[AdMob] interstitial dismiss timed out after ${INTERSTITIAL_DISMISS_TIMEOUT_MS}ms — unblocking UI`,
         );
         setIsAdShowing(false);
-        setAdSessionState("idle");
+        assignAdSessionState("idle");
         finish({ dismissedEarly: true });
       }, INTERSTITIAL_DISMISS_TIMEOUT_MS);
 
@@ -361,21 +365,22 @@ export function useAdMob(): UseAdMobResult {
   }, [isNativePlatform]);
 
   const stopAdSession = useCallback(() => {
-    const wasShowing = adSessionStateRef.current === "showing";
+    const state = adSessionStateRef.current;
+    const shouldDismissNative =
+      state === "showing" || state === "preparing" || rewardedFinishRef.current != null;
     shouldContinueAds.current = false;
-    if (adSessionStateRef.current !== "idle") {
+    if (state !== "idle") {
       console.log("[AdMob] Stopping ad session");
     }
-    adSessionStateRef.current = "idle";
-    setAdSessionState("idle");
+    assignAdSessionState("idle");
     setIsAdShowing(false);
     resolveAdReady(false);
     resolveInterstitialDismiss({ dismissedEarly: true });
     const finishRewarded = rewardedFinishRef.current;
     rewardedFinishRef.current = null;
     finishRewarded?.(rewardedGrantedRef.current);
-    if (wasShowing) void dismissNativeFullscreenAd();
-  }, [resolveAdReady, resolveInterstitialDismiss]);
+    if (shouldDismissNative) void dismissNativeFullscreenAd();
+  }, [assignAdSessionState, resolveAdReady, resolveInterstitialDismiss]);
 
   const showRewardedAd = useCallback(async (maxMs?: number): Promise<boolean> => {
     if (!isNativePlatform) {
@@ -444,13 +449,13 @@ export function useAdMob(): UseAdMobResult {
   const startAdSession = useCallback(async (opts?: { maxMs?: number }): Promise<AdSessionResult> => {
     if (!isNativePlatform) {
       console.log("[AdMob] Not native platform, overlay mode");
-      setAdSessionState("overlay");
+      assignAdSessionState("overlay");
       return { dismissedEarly: false, mode: "overlay", rewardEarned: false };
     }
 
     console.log("[AdMob] Starting rewarded ad session");
     shouldContinueAds.current = true;
-    setAdSessionState("preparing");
+    assignAdSessionState("preparing");
 
     try {
       await AdMob.hideBanner();
@@ -472,7 +477,7 @@ export function useAdMob(): UseAdMobResult {
       return { dismissedEarly: true, mode: "rewarded", rewardEarned: false };
     }
 
-    setAdSessionState("showing");
+    assignAdSessionState("showing");
     const rewardEarned = await showRewardedAd(opts?.maxMs);
 
     if (!shouldContinueAds.current) {
@@ -480,14 +485,14 @@ export function useAdMob(): UseAdMobResult {
     }
 
     if (rewardEarned) {
-      setAdSessionState("idle");
+      assignAdSessionState("idle");
       return { dismissedEarly: false, mode: "rewarded", rewardEarned: true };
     }
 
     console.log("[AdMob] Rewarded ad skipped or failed — overlay fallback");
-    setAdSessionState("overlay");
+    assignAdSessionState("overlay");
     return { dismissedEarly: false, mode: "overlay", rewardEarned: false };
-  }, [isNativePlatform, initializeAdMob, showRewardedAd]);
+  }, [isNativePlatform, initializeAdMob, showRewardedAd, assignAdSessionState]);
 
   const handleAdDismissed = useCallback(() => {
     console.log("[AdMob] Interstitial ad dismissed");
@@ -502,15 +507,15 @@ export function useAdMob(): UseAdMobResult {
     interstitialShowedAtRef.current = null;
 
     if (!shouldContinueAds.current) {
-      setAdSessionState("idle");
+      assignAdSessionState("idle");
       resolveInterstitialDismiss({ dismissedEarly: true });
       return;
     }
 
     // 보상형 광고로 이어질 수 있으므로 오버레이로 붙잡지 않음
-    setAdSessionState("idle");
+    assignAdSessionState("idle");
     resolveInterstitialDismiss({ dismissedEarly });
-  }, [resolveInterstitialDismiss]);
+  }, [resolveInterstitialDismiss, assignAdSessionState]);
 
   useEffect(() => {
     if (!isNativePlatform) return;
@@ -537,7 +542,7 @@ export function useAdMob(): UseAdMobResult {
         isLoadingAd.current = false;
         resolveAdReady(false);
         if (shouldContinueAds.current) {
-          setAdSessionState("overlay");
+          assignAdSessionState("overlay");
         }
       }
     );
@@ -549,7 +554,7 @@ export function useAdMob(): UseAdMobResult {
         isAdReadyRef.current = false;
         setIsAdReady(false);
         setIsAdShowing(true);
-        setAdSessionState("showing");
+        assignAdSessionState("showing");
       }
     );
 
@@ -565,7 +570,7 @@ export function useAdMob(): UseAdMobResult {
         setIsAdShowing(false);
         interstitialBecameOverlayRef.current = true;
         if (shouldContinueAds.current) {
-          setAdSessionState("overlay");
+          assignAdSessionState("overlay");
         }
         resolveInterstitialDismiss({ dismissedEarly: false });
       }
@@ -601,7 +606,7 @@ export function useAdMob(): UseAdMobResult {
         `[AdMob] resume while waiting dismiss (${waitedMs}ms) — force unblock`,
       );
       setIsAdShowing(false);
-      setAdSessionState("idle");
+      assignAdSessionState("idle");
       resolveInterstitialDismiss({ dismissedEarly: true });
     }).then((handle) => {
       resumeHandle = handle;
@@ -610,7 +615,7 @@ export function useAdMob(): UseAdMobResult {
     return () => {
       resumeHandle?.remove();
     };
-  }, [isNativePlatform, resolveInterstitialDismiss]);
+  }, [isNativePlatform, resolveInterstitialDismiss, assignAdSessionState]);
 
   return {
     isAdReady,
