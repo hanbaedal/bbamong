@@ -1,3 +1,4 @@
 Intro tagline voice: client/public/audio/intro-tagline.mp3
-Line: "실시간으로 즐기는 야구 예측게임. 빠던나인!"
-Generated with gTTS for mobile playback. Browser TTS is the fallback.
+Line: "실시간~ 야구 예측게임! 빠던나인!"
+Duration: 4.32s (gTTS). Browser TTS is the fallback.
+Timing lives in shared/introBatting.ts — 14 batting frames sync to this clip.

@@ -13,14 +13,21 @@ import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 import { getFullUrl } from "@/lib/queryClient";
 import { isGuestLoginAllowed } from "@/lib/shopRoutes";
 import { finalizeUserSessionLogin, tryRestoreUserSession } from "@/lib/userLoginAuth";
-import { peekSkipLoginBootstrap, shouldSkipLoginBootstrap, consumeSignupLoginPrefill } from "@/lib/loginSession";
+import IntroSplash from "@/components/user/IntroSplash";
+import {
+  peekSkipLoginBootstrap,
+  shouldSkipLoginBootstrap,
+  consumeSignupLoginPrefill,
+  hasSeenIntro,
+  markIntroSeen,
+} from "@/lib/loginSession";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import SimpleInfoPopup from "@/components/customUi/simpleInfoPopup";
 import splashDisclaimer from "@assets/user/splash-disclaimer.webp";
 
-type LoginBootstrapPhase = "checking" | "ready";
+type LoginBootstrapPhase = "checking" | "welcome" | "ready";
 type LoginLeftPanel = "find-id" | "find-password";
 
 function hasSocialLoginCallback(search: string): boolean {
@@ -93,13 +100,24 @@ export default function LoginPage() {
     let cancelled = false;
 
     void (async () => {
+      let restored = false;
       try {
-        await tryRestoreUserSession(setUser, setLocation);
+        restored = await tryRestoreUserSession(setUser, setLocation);
       } catch (error) {
         console.log("[Login] session restore failed:", error);
-      } finally {
-        if (!cancelled) setBootstrapPhase("ready");
       }
+      if (cancelled) return;
+      if (restored) {
+        markIntroSeen();
+        setBootstrapPhase("ready");
+        return;
+      }
+      if (hasSeenIntro()) {
+        setBootstrapPhase("ready");
+        return;
+      }
+      markIntroSeen();
+      setBootstrapPhase("welcome");
     })();
 
     return () => {
@@ -528,6 +546,10 @@ export default function LoginPage() {
 
   if (bootstrapPhase === "checking") {
     return <LoginBootstrapLoading />;
+  }
+
+  if (bootstrapPhase === "welcome") {
+    return <IntroSplash onDone={() => setBootstrapPhase("ready")} />;
   }
 
   return (
