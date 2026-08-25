@@ -440,7 +440,14 @@ export async function finalizeMatchEnd(matchId: string): Promise<{
   // 운영자·유저가 「경기종료」연출(약 10초)을 본 뒤 자격 만료되도록 지연
   const { revokeOperatorAccessForMatchEnd } = await import("../managerOperatorService");
   setTimeout(() => {
-    void revokeOperatorAccessForMatchEnd(matchId).catch((err) => {
+    void (async () => {
+      const latest = await MatchModel.findOne({ id: matchId }).select("matchStatus").lean();
+      if (latest?.matchStatus !== "completed") {
+        console.log(`[MatchEnd] skip operator revoke — match reopened ${matchId}`);
+        return;
+      }
+      await revokeOperatorAccessForMatchEnd(matchId);
+    })().catch((err) => {
       console.warn(`[MatchEnd] delayed revoke failed ${matchId}:`, err);
     });
   }, 12_000);

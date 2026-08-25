@@ -1,7 +1,9 @@
 import type { InningRunsMap, LiveScoreboard } from "@shared/apiSportsTypes";
 import { formatInningWithHalf, type InningHalf } from "@shared/gamePhaseTypes";
 import { formatKboTeamShortName } from "@shared/kboHomeStadium";
+import { shouldTreatKboScoreboardAsFinal } from "@shared/kboGameComplete";
 import { reconcileTeamRuns } from "@shared/liveScoreTotals";
+import { inferCurrentInningFromRuns, inferInningHalfFromRuns } from "@shared/matchPhaseDisplay";
 import {
   daumTeamLogo,
   daumTeamName,
@@ -113,19 +115,45 @@ export function parseDaumLiveScoreboard(game: DaumListGame): LiveScoreboard {
   const explicitPregame = DAUM_PREGAME_STATUSES.has(rawStatus);
   const isPregame = explicitPregame || (mapped.statusShort === "NS" && period.inning == null);
   let statusShort = mapped.statusShort;
+  let inning = isPregame ? null : period.inning;
+  let inningHalf = isPregame ? null : period.inningHalf;
+
   if (isPregame) {
     statusShort = "NS";
   } else if (
     period.inning != null &&
     period.statusShort &&
-    (mapped.statusShort === "IN" || mapped.statusShort === "NS")
+    mapped.statusShort !== "CAN" &&
+    mapped.statusShort !== "PST" &&
+    mapped.statusShort !== "SUSP"
   ) {
+    // T9/B10 등 실황 period가 있으면 END/RESULT보다 이닝을 우선한다 (연장 진입)
     statusShort = period.statusShort;
+  } else if (mapped.statusShort === "FT") {
+    const inferredInning = inferCurrentInningFromRuns(awayInnings, homeInnings);
+    const inferredHalf =
+      inferredInning != null
+        ? inferInningHalfFromRuns(inferredInning, awayInnings, homeInnings)
+        : null;
+    const asFinal = shouldTreatKboScoreboardAsFinal({
+      statusShort: "FT",
+      periodType: game.periodType,
+      inning: inferredInning,
+      inningHalf: inferredHalf,
+      homeScore: homeRun,
+      awayScore: awayRun,
+      homeInnings,
+      awayInnings,
+    });
+    if (!asFinal) {
+      statusShort = "IN";
+      inning = inferredInning;
+      inningHalf = inferredHalf;
+    }
   }
-  const inning = isPregame ? null : period.inning;
-  const inningHalf = isPregame ? null : period.inningHalf;
+
   const inningLabel =
-    mapped.statusShort === "FT" || statusShort === "FT"
+    statusShort === "FT"
       ? "경기 종료"
       : isPregame || statusShort === "NS"
         ? "시작 전"

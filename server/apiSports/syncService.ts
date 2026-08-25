@@ -34,6 +34,10 @@ import {
 import { buildInningKey, resolveScoreboardForApiWrite } from "./liveScoreboardPolicy";
 import { formatInningWithHalf, parseInningHalf, type InningHalf } from "@shared/gamePhaseTypes";
 import {
+  shouldKeepPollingCompletedKboGame,
+  shouldTreatKboScoreboardAsFinal,
+} from "@shared/kboGameComplete";
+import {
   daumGameStartDate,
   daumTeamLogo,
   daumVenueName,
@@ -302,18 +306,18 @@ export function resolveMatchStatusFromScoreboard(
 
   if (
     isGameFinished(scoreboard.statusShort) &&
+    shouldTreatKboScoreboardAsFinal({
+      statusShort: scoreboard.statusShort,
+      inning: scoreboard.inning,
+      inningHalf: scoreboard.inningHalf,
+      homeScore: scoreboard.homeScore,
+      awayScore: scoreboard.awayScore,
+      homeInnings: scoreboard.homeInnings,
+      awayInnings: scoreboard.awayInnings,
+    }) &&
     !isStaleFinishedScoreboard(staleInput)
   ) {
     return "completed";
-  }
-  if (currentStatus === "completed" || currentStatus === "cancelled") {
-    const staleCompleted =
-      currentStatus === "completed" && isStaleFinishedScoreboard(staleInput);
-    const staleCancelled =
-      currentStatus === "cancelled" && isStalePostponedScoreboard(staleInput);
-    if (!staleCompleted && !staleCancelled) {
-      return currentStatus;
-    }
   }
   if (isGameLiveStatus(scoreboard.statusShort) || scoreboard.inning !== null) {
     const liveInning = hasLiveInningProgress({
@@ -1089,7 +1093,15 @@ async function persistIncomingLiveScoreboard(
     return true;
   }
 
-  if (isGameFinished(scoreboard.statusShort)) return true;
+  if (isGameFinished(scoreboard.statusShort) && shouldTreatKboScoreboardAsFinal({
+    statusShort: scoreboard.statusShort,
+    inning: scoreboard.inning,
+    inningHalf: scoreboard.inningHalf,
+    homeScore: scoreboard.homeScore,
+    awayScore: scoreboard.awayScore,
+    homeInnings: scoreboard.homeInnings,
+    awayInnings: scoreboard.awayInnings,
+  })) return true;
   return false;
 }
 
@@ -1108,7 +1120,22 @@ async function runLiveAutoAfterPersist(
 export async function refreshMatchLiveScoreFromApi(matchId: string): Promise<boolean> {
   const match = await MatchModel.findOne({ id: matchId }).lean();
   if (!match) return true;
-  if (match.matchStatus === "completed" || match.matchStatus === "cancelled") return true;
+  if (match.matchStatus === "cancelled") return true;
+  if (match.matchStatus === "completed") {
+    const sb = match.liveScoreboard as LiveScoreboard | null | undefined;
+    if (
+      !shouldKeepPollingCompletedKboGame({
+        homeScore: sb?.homeScore,
+        awayScore: sb?.awayScore,
+        inning: sb?.inning,
+        statusShort: sb?.statusShort,
+        homeInnings: sb?.homeInnings,
+        awayInnings: sb?.awayInnings,
+      })
+    ) {
+      return true;
+    }
+  }
 
   const order = match.registrationOrder ?? 99;
   if (order < 1 || order > 5) return true;
