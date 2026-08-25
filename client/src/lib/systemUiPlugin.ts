@@ -3,6 +3,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 interface SystemUiPlugin {
   setImmersive(options: { enabled: boolean }): Promise<void>;
   setKeepScreenOn(options: { enabled: boolean }): Promise<void>;
+  dismissFullscreenAd(): Promise<void>;
 }
 
 const SystemUi = registerPlugin<SystemUiPlugin>("SystemUi", {
@@ -13,6 +14,9 @@ const SystemUi = registerPlugin<SystemUiPlugin>("SystemUi", {
       },
       setKeepScreenOn: async () => {
         /* 웹 — Screen Wake Lock API는 screenWakeLock.ts에서 처리 */
+      },
+      dismissFullscreenAd: async () => {
+        /* 웹 — 전체화면 AdMob 없음 */
       },
     }),
 });
@@ -38,5 +42,17 @@ export async function setNativeKeepScreenOn(enabled: boolean): Promise<void> {
     await SystemUi.setKeepScreenOn({ enabled });
   } catch (error) {
     console.warn("[SystemUi] setKeepScreenOn failed:", error);
+  }
+}
+
+/** AdMob 리워드/전면이 예측 화면을 가리고 있을 때 닫기 시도 (Android) */
+export async function dismissNativeFullscreenAd(): Promise<void> {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== "android") {
+    return;
+  }
+  try {
+    await SystemUi.dismissFullscreenAd();
+  } catch (error) {
+    console.warn("[SystemUi] dismissFullscreenAd failed:", error);
   }
 }

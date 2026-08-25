@@ -11,6 +11,7 @@ import {
 import { AD_EARLY_DISMISS_SECONDS } from "@shared/predictionOdds";
 import { isGoogleTestAdMobId } from "@shared/admobConstants";
 import { getFullUrl } from "@/lib/queryClient";
+import { dismissNativeFullscreenAd } from "@/lib/systemUiPlugin";
 
 /** 개발 빌드에서만 Google 테스트 광고 사용 */
 const IS_TESTING = import.meta.env.DEV;
@@ -143,8 +144,8 @@ export type AdSessionState = "idle" | "preparing" | "showing" | "overlay";
 
 /** 전면 광고 Dismiss 이벤트 누락 시 검정 화면 고착 방지 */
 const INTERSTITIAL_DISMISS_TIMEOUT_MS = 75_000;
-/** 보상형 광고 Dismiss 누락 방지 */
-const REWARDED_DISMISS_TIMEOUT_MS = 90_000;
+/** 보상형 광고 Dismiss 누락 방지 — 예측 브레이크(40초)보다 길면 게임이 안 돌아옴 */
+const REWARDED_DISMISS_TIMEOUT_MS = 45_000;
 /** prepare/show SDK 호출이 응답 없을 때 */
 const AD_SDK_CALL_TIMEOUT_MS = 12_000;
 
@@ -178,7 +179,7 @@ interface UseAdMobResult {
   isAdReady: boolean;
   isAdShowing: boolean;
   adSessionState: AdSessionState;
-  startAdSession: () => Promise<AdSessionResult>;
+  startAdSession: (opts?: { maxMs?: number }) => Promise<AdSessionResult>;
   stopAdSession: () => void;
   preloadAd: () => Promise<void>;
   showRewardedAd: () => Promise<boolean>;
@@ -204,6 +205,7 @@ export function useAdMob(): UseAdMobResult {
   const interstitialDismissResolverRef = useRef<((result: { dismissedEarly: boolean }) => void) | null>(
     null,
   );
+  const rewardedFinishRef = useRef<((value: boolean) => void) | null>(null);
   /** showInterstitial 이후 FailedToShow 등으로 오버레이 폴백이 된 경우 */
   const interstitialBecameOverlayRef = useRef(false);
 
@@ -359,6 +361,7 @@ export function useAdMob(): UseAdMobResult {
   }, [isNativePlatform]);
 
   const stopAdSession = useCallback(() => {
+    const wasShowing = adSessionStateRef.current === "showing";
     shouldContinueAds.current = false;
     if (adSessionStateRef.current !== "idle") {
       console.log("[AdMob] Stopping ad session");
@@ -368,9 +371,13 @@ export function useAdMob(): UseAdMobResult {
     setIsAdShowing(false);
     resolveAdReady(false);
     resolveInterstitialDismiss({ dismissedEarly: true });
+    const finishRewarded = rewardedFinishRef.current;
+    rewardedFinishRef.current = null;
+    finishRewarded?.(rewardedGrantedRef.current);
+    if (wasShowing) void dismissNativeFullscreenAd();
   }, [resolveAdReady, resolveInterstitialDismiss]);
 
-  const showRewardedAd = useCallback(async (): Promise<boolean> => {
+  const showRewardedAd = useCallback(async (maxMs?: number): Promise<boolean> => {
     if (!isNativePlatform) {
       return true;
     }
@@ -382,6 +389,7 @@ export function useAdMob(): UseAdMobResult {
     if (!isInitialized.current) await initializeAdMob();
 
     rewardedGrantedRef.current = false;
+    const waitMs = Math.max(1_000, Math.min(REWARDED_DISMISS_TIMEOUT_MS, maxMs ?? REWARDED_DISMISS_TIMEOUT_MS));
 
     return new Promise<boolean>((resolve) => {
       let settled = false;
@@ -394,16 +402,19 @@ export function useAdMob(): UseAdMobResult {
       const finish = (value: boolean) => {
         if (settled) return;
         settled = true;
+        rewardedFinishRef.current = null;
         cleanup();
         resolve(value);
       };
+      rewardedFinishRef.current = finish;
 
       const timer = setTimeout(() => {
         console.warn(
-          `[AdMob] rewarded dismiss timed out after ${REWARDED_DISMISS_TIMEOUT_MS}ms — skipping reward`,
+          `[AdMob] rewarded wait timed out after ${waitMs}ms — returning to prediction`,
         );
-        finish(false);
-      }, REWARDED_DISMISS_TIMEOUT_MS);
+        void dismissNativeFullscreenAd();
+        finish(rewardedGrantedRef.current);
+      }, waitMs);
 
       const rewardListener = AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
         rewardedGrantedRef.current = true;
@@ -430,7 +441,7 @@ export function useAdMob(): UseAdMobResult {
     });
   }, [isNativePlatform, initializeAdMob]);
 
-  const startAdSession = useCallback(async (): Promise<AdSessionResult> => {
+  const startAdSession = useCallback(async (opts?: { maxMs?: number }): Promise<AdSessionResult> => {
     if (!isNativePlatform) {
       console.log("[AdMob] Not native platform, overlay mode");
       setAdSessionState("overlay");
@@ -462,7 +473,7 @@ export function useAdMob(): UseAdMobResult {
     }
 
     setAdSessionState("showing");
-    const rewardEarned = await showRewardedAd();
+    const rewardEarned = await showRewardedAd(opts?.maxMs);
 
     if (!shouldContinueAds.current) {
       return { dismissedEarly: true, mode: "rewarded", rewardEarned: false };
