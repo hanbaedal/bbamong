@@ -1,7 +1,5 @@
 /** 예측 참고용 TV 위젯. 이닝·점수는 다음, 다이아몬드·카운트·타자·투수는 네이버. */
-import { useEffect, useState } from "react";
 import type { LiveBatterTodayStats, LivePitcherSummary, LiveScoreboard } from "@shared/apiSportsTypes";
-import type { LiveAtBatResultDisplay } from "@shared/atBatResultDisplay";
 import { formatStatCount } from "@shared/batterDisplay";
 import { kboTeamPrimaryColor } from "@shared/kboTeamColors";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
@@ -14,6 +12,8 @@ interface GameLiveSituationWidgetProps {
   onAwayTeamClick?: () => void;
   onHomeTeamClick?: () => void;
   onPitcherClick?: (pitcher: LivePitcherSummary) => void;
+  /** 대기·광고·교체 안내 중에는 직전 타자 이름/오늘기록을 남기지 않음 */
+  hideBatterIdentity?: boolean;
 }
 
 function formatBatterTodayLine(today: LiveBatterTodayStats | null | undefined): string | null {
@@ -33,6 +33,7 @@ export default function GameLiveSituationWidget({
   onAwayTeamClick,
   onHomeTeamClick,
   onPitcherClick,
+  hideBatterIdentity = false,
 }: GameLiveSituationWidgetProps) {
   if (hidden) return null;
   if (!scoreboard && !awayFallback && !homeFallback) return null;
@@ -54,8 +55,7 @@ export default function GameLiveSituationWidget({
   const pitcherName = pitcher?.name?.trim() || situation?.pitcherName?.trim() || "";
   const pitchLabel = situation?.pitchLabel?.trim() || "";
   const pitchDetail = situation?.pitchDetail?.trim() || "";
-  const atBatResult = situation?.atBatResultDisplay ?? null;
-  const showBatter = Boolean(batterName || pitchLabel || pitchDetail || atBatResult);
+  const showBatter = !hideBatterIdentity && Boolean(batterName || pitchLabel || pitchDetail);
   const showPitcher = Boolean(pitcherName);
   const showLiveBits = Boolean(scoreboard);
   const batterTodayLine = formatBatterTodayLine(situation?.batterToday);
@@ -176,61 +176,8 @@ export default function GameLiveSituationWidget({
               {batterTodayLine}
             </p>
           ) : null}
-          <AtBatResultBanner
-            batterName={batterName}
-            result={atBatResult}
-            balls={balls}
-            strikes={strikes}
-            hasTodayLine={Boolean(batterTodayLine)}
-          />
         </div>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * 오늘 기록 아래 ~5줄 여백 후 큰 글씨로 타석 결과.
- * 서버 라벨이 비어도 직전 결과를 유지. 다음 타석 투구가 시작되면 지움.
- */
-function AtBatResultBanner({
-  batterName,
-  result,
-  balls,
-  strikes,
-  hasTodayLine,
-}: {
-  batterName: string;
-  result: LiveAtBatResultDisplay | null;
-  balls: number;
-  strikes: number;
-  hasTodayLine: boolean;
-}) {
-  const [sticky, setSticky] = useState<LiveAtBatResultDisplay | null>(null);
-
-  useEffect(() => {
-    if (result) {
-      setSticky(result);
-      return;
-    }
-    if (balls > 0 || strikes > 0) {
-      setSticky(null);
-    }
-  }, [result, balls, strikes, batterName]);
-
-  const label = result ?? sticky;
-  if (!label) return null;
-
-  return (
-    <div
-      className={`ml-[1.9rem] flex flex-col ${hasTodayLine ? "" : "mt-0.5"}`}
-      data-testid="game-live-atbat-result"
-    >
-      {/* 오늘 기록 아래 약 5줄 간격 */}
-      <div className="h-[5.625rem] shrink-0" aria-hidden />
-      <p className="text-2xl font-black leading-none tracking-tight text-white sm:text-3xl drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-        {label}
-      </p>
     </div>
   );
 }

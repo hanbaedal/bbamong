@@ -123,6 +123,9 @@ export function useLandscapePredictionFlow(
   const rewardedVideoCompletedRef = useRef(false);
   const adStartedAtRef = useRef<number | null>(null);
   const lastCompletedAdAtRef = useRef<number | null>(null);
+  const lastLiveResultLabelRef = useRef<string | null>(null);
+  const lastLiveResultBatterRef = useRef<string | null>(null);
+  const lastLiveResultAtRef = useRef(0);
   const [adOverlayCompleteSec, setAdOverlayCompleteSec] = useState(Math.round(AD_PLAY_MS / 1000));
   const matchEndedRef = useRef(false);
   const failVoiceSpokenRef = useRef(false);
@@ -274,6 +277,8 @@ export function useLandscapePredictionFlow(
     matchEndedRef.current = false;
     failVoiceSpokenRef.current = false;
     predictionEpochRef.current += 1;
+    lastLiveResultLabelRef.current = null;
+    lastLiveResultBatterRef.current = null;
     if (matchEndedTimerRef.current) {
       clearTimeout(matchEndedTimerRef.current);
       matchEndedTimerRef.current = null;
@@ -432,9 +437,11 @@ export function useLandscapePredictionFlow(
 
       if (stage === "open") {
         pendingInterstitialRef.current = false;
-        adSessionActiveRef.current = false;
-        stopAdSession();
-        setShowAdOverlay(false);
+        if (adSessionActiveRef.current || ui === "ad_playing") {
+          adSessionActiveRef.current = false;
+          stopAdSession();
+          setShowAdOverlay(false);
+        }
         waitingResultRef.current = false;
         awaitingResultRoundRef.current = null;
         setBetLocked(false);
@@ -803,6 +810,8 @@ export function useLandscapePredictionFlow(
       awaitingResultRoundRef.current = null;
       setBetLocked(false);
       setRoundResultLabel(label);
+      lastLiveResultLabelRef.current = label;
+      lastLiveResultAtRef.current = Date.now();
       setPredictionResult(personal === "success" ? "success" : personal === "fail" ? "fail" : "pending");
       setScreenPhase("result_flash");
       if (resultFlashTimerRef.current) {
@@ -820,6 +829,33 @@ export function useLandscapePredictionFlow(
       }, ms);
     },
     [continueAfterResultFlash],
+  );
+
+  /** 폴링 실황 결과 — 예측 미참여자도 큰 글씨 한 번만. 같은 타석 라벨은 다시 안 띄움 */
+  const notifyLiveAtBatResult = useCallback(
+    (display?: string | null, batterName?: string | null) => {
+      const label = (display ?? "").trim();
+      const batterKey = (batterName ?? "").replace(/\s+/g, "");
+      if (!label) {
+        lastLiveResultLabelRef.current = null;
+        lastLiveResultBatterRef.current = null;
+        return;
+      }
+      if (
+        lastLiveResultLabelRef.current === label &&
+        lastLiveResultBatterRef.current === batterKey
+      ) {
+        return;
+      }
+      if (resultShownRef.current || isInResultPresentation()) return;
+      if (isWaitingForResult() || activeBetRef.current || betSnapshotRef.current) return;
+      const phase = screenPhaseRef.current;
+      if (phase === "picking" || isTransientAdOrEventPhase(phase)) return;
+      if (phase !== "wait_start") return;
+      lastLiveResultBatterRef.current = batterKey;
+      startResultFlash(label, "spectator");
+    },
+    [isInResultPresentation, isWaitingForResult, startResultFlash],
   );
 
   type PredictionSnapshot = {
@@ -1750,5 +1786,6 @@ export function useLandscapePredictionFlow(
     handleRunComplete,
     handleAdOverlayDismiss,
     handleAdOverlayComplete,
+    notifyLiveAtBatResult,
   };
 }

@@ -243,6 +243,8 @@ async function main() {
     !mSwitch?.predictionEnabled,
     "same tick after switch must not start prediction (ad/event window)",
   );
+  const peekSwitch = peekLiveAutoAdResume(MATCH_ID);
+  await assert(peekSwitch.resumeAfterAdBreak, "switch half should queue resume after ad");
   pass("3-out with suggested out: result then switch, no same-tick predict");
 
   // —— 5) 투수교체(예측 중) → skippedResult, 같은 tick 타자 예측 시작 안 함 ——
@@ -263,7 +265,7 @@ async function main() {
   const mPitch = await MatchModel.findOne({ id: MATCH_ID }).select("predictionEnabled currentRound").lean();
   await assert(!mPitch?.predictionEnabled, "pitcher tick must not also reopen prediction");
   const peek = peekLiveAutoAdResume(MATCH_ID);
-  await assert(Boolean(peek.pendingResumeBatter), "pitcher change should queue same-batter resume");
+  await assert(peek.resumeAfterAdBreak, "pitcher change should queue same-batter resume");
   pass("pitcher change during open prediction refunds and defers batter");
 
   const roundAfterPitch = mPitch?.currentRound ?? 0;

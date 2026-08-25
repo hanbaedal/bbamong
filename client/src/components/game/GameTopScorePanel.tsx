@@ -19,6 +19,7 @@ interface GameTopScorePanelProps {
   matchSelectEnabled?: boolean;
   stadiumSelectEnabled?: boolean;
   onStadiumNameClick?: () => void;
+  hideBatterCard?: boolean;
 }
 
 const titleShadow = "drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]";
@@ -89,6 +90,7 @@ export default function GameTopScorePanel({
   matchSelectEnabled = false,
   stadiumSelectEnabled = false,
   onStadiumNameClick,
+  hideBatterCard = false,
 }: GameTopScorePanelProps) {
   const titleClass = `text-sm sm:text-base font-bold leading-none whitespace-nowrap text-white ${titleShadow}`;
   const displayStadium = stadiumName?.trim() || null;
@@ -150,7 +152,7 @@ export default function GameTopScorePanel({
           ) : null}
         </div>
       </div>
-      {!isLoading && currentBatter ? (
+      {!isLoading && currentBatter && !hideBatterCard ? (
         <div className="origin-top-right mt-0.5">
           <BatterStatsBlock batter={currentBatter} />
         </div>

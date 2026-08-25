@@ -1,6 +1,12 @@
 /**
- * 사용자 위젯용 타석 결과 표시 문구.
- * 예측 버튼(1루·아웃 등)과 분리 — 포볼/사구/삼진 등을 구분한다.
+ * 사용자에게 한 번만 크게 보여줄 타석 결과 문구.
+ * 예측 버튼(1루·아웃 등)과 분리한다.
+ *
+ * 표시 집합: 포볼 / 사구 / 1루타 / 2루타 / 3루타 / 홈런 /
+ * 타격아웃 / 삼진아웃 / 병살타 아웃 / 삼살타 아웃
+ * 희생플라이·희생번트·뜬공·땅볼 → 타격아웃
+ * 실책출루·야수선택·내야안타 → 1루타
+ * 고의사구·볼넷 → 포볼
  */
 export type LiveAtBatResultDisplay =
   | "1루타"
@@ -75,4 +81,38 @@ export function inferAtBatResultDisplayFromText(blob: string): LiveAtBatResultDi
   }
 
   return null;
+}
+
+function compactPlayerName(name?: string | null): string {
+  return (name ?? "").replace(/\s+/g, "");
+}
+
+/** 다음 타석이 이미 시작됐는지 — "1구 …" 만. 직전 타석의 "2구 스트라이크"는 새 타석이 아님 */
+export function isNextPlateAppearancePitch(pitchLabel?: string | null): boolean {
+  const m = (pitchLabel ?? "").trim().match(/^(\d+)\s*구/);
+  if (!m) return false;
+  return Number.parseInt(m[1]!, 10) === 1;
+}
+
+/**
+ * 직전 타석 결과 문구를 다음 스냅샷에 붙일지.
+ * 타자·투수가 바뀌었거나 다음 타석 1구가 나오면 붙이지 않는다.
+ */
+export function shouldCarryForwardAtBatResult(input: {
+  prevResult?: string | null;
+  prevBatterName?: string | null;
+  nextBatterName?: string | null;
+  prevPitcherName?: string | null;
+  nextPitcherName?: string | null;
+  nextPitchLabel?: string | null;
+}): boolean {
+  if (!input.prevResult) return false;
+  const prevBatter = compactPlayerName(input.prevBatterName);
+  const nextBatter = compactPlayerName(input.nextBatterName);
+  if (prevBatter && nextBatter && prevBatter !== nextBatter) return false;
+  const prevPitcher = compactPlayerName(input.prevPitcherName);
+  const nextPitcher = compactPlayerName(input.nextPitcherName);
+  if (prevPitcher && nextPitcher && prevPitcher !== nextPitcher) return false;
+  if (isNextPlateAppearancePitch(input.nextPitchLabel)) return false;
+  return true;
 }

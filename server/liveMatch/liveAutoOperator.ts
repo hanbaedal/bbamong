@@ -72,7 +72,7 @@ type AutoState = {
    */
   lastSwitchEmitAt: number;
   lastPitcherChangeEmitAt: number;
-  pendingResumeBatter: string | null;
+  resumeAfterAdBreak: boolean;
   adResumeTimer: NodeJS.Timeout | null;
 };
 
@@ -104,7 +104,7 @@ function getState(matchId: string): AutoState {
       resultWatchdogFired: false,
       lastSwitchEmitAt: 0,
       lastPitcherChangeEmitAt: 0,
-      pendingResumeBatter: null,
+      resumeAfterAdBreak: false,
       adResumeTimer: null,
     };
     stateByMatch.set(matchId, state);
@@ -154,7 +154,15 @@ function scheduleAdIfAllowed(
   return ok;
 }
 
-function scheduleResumeAfterPitcherIntro(matchId: string): void {
+function queueResumeAfterAdBreak(matchId: string, adScheduled: boolean): void {
+  const state = getState(matchId);
+  state.resumeAfterAdBreak = true;
+  if (!adScheduled && !broadcastManager.isAdBreakActive(matchId)) {
+    scheduleResumeAfterAdIntro(matchId);
+  }
+}
+
+function scheduleResumeAfterAdIntro(matchId: string): void {
   const state = getState(matchId);
   clearAdResumeTimer(matchId);
   state.adResumeTimer = setTimeout(() => {
@@ -170,33 +178,37 @@ async function resumePredictionAfterAdBreak(
   const state = stateByMatch.get(matchId);
   if (!state) return;
   if (reason === "prediction_start") {
-    state.pendingResumeBatter = null;
+    state.resumeAfterAdBreak = false;
     clearAdResumeTimer(matchId);
     return;
   }
   if (reason !== "operator_stop") return;
-  const batter = state.pendingResumeBatter?.trim();
-  if (!batter) return;
+  if (!state.resumeAfterAdBreak) return;
   if (broadcastManager.isAdBreakActive(matchId)) return;
 
   try {
     const match = await MatchModel.findOne({ id: matchId })
-      .select("predictionEnabled matchStatus outsInHalf")
+      .select("predictionEnabled matchStatus outsInHalf liveScoreboard")
       .lean();
     if (!match || match.matchStatus !== "ongoing") return;
     if (match.predictionEnabled) {
-      state.pendingResumeBatter = null;
+      state.resumeAfterAdBreak = false;
       return;
     }
     if ((match.outsInHalf ?? 0) >= 3) {
-      state.pendingResumeBatter = null;
+      state.resumeAfterAdBreak = false;
       return;
     }
     const phase = await resolveAtBatPhase(matchId);
     if (phase !== "idle") return;
-    state.pendingResumeBatter = null;
-    await startPredictionForBatter(matchId, batter);
-    console.log(`[LiveAuto] resume prediction after pitcher ad ${matchId} batter=${batter}`);
+    const liveBatter =
+      (match as { liveScoreboard?: { situation?: { batterName?: string | null } } }).liveScoreboard
+        ?.situation?.batterName?.trim() ||
+      state.lastBatterName;
+    if (!liveBatter) return;
+    state.resumeAfterAdBreak = false;
+    await startPredictionForBatter(matchId, liveBatter);
+    console.log(`[LiveAuto] resume prediction after ad ${matchId} batter=${liveBatter}`);
   } catch (error) {
     console.warn(`[LiveAuto] resume after ad failed ${matchId}:`, error);
   }
@@ -363,7 +375,7 @@ async function startPredictionForBatter(matchId: string, batterName: string): Pr
   if (broadcastManager.isAdPlaying(matchId)) {
     broadcastManager.stopAdPlaying(matchId, "prediction_start", "예측 시작으로 광고가 중지되었습니다.");
   }
-  state.pendingResumeBatter = null;
+  state.resumeAfterAdBreak = false;
   clearAdResumeTimer(matchId);
   const started = await startRound(matchId);
   await emitPhaseIfChanged(matchId, "prediction_open");
@@ -612,7 +624,8 @@ export async function processLiveAutoOperator(
               }
               await emitPhaseSnapshot(matchId, "switch_half", "실황 자동 공수교대");
               state.lastSwitchEmitAt = now;
-              scheduleAdIfAllowed(matchId, "switch_half", "idle");
+              const adScheduled = scheduleAdIfAllowed(matchId, "switch_half", "idle");
+              queueResumeAfterAdBreak(matchId, adScheduled);
               console.log(`[LiveAuto] switch half ${matchId}`);
               switchHandled = true;
             } catch (advanceErr) {
@@ -636,8 +649,6 @@ export async function processLiveAutoOperator(
       }
 
       if (switchHandled) {
-        state.pendingResumeBatter = null;
-        clearAdResumeTimer(matchId);
         if (batterStableChanged && batterName) {
           state.lastBatterName = batterName;
           state.pendingBatterName = batterName;
@@ -678,10 +689,7 @@ export async function processLiveAutoOperator(
         );
         const adScheduled = scheduleAdIfAllowed(matchId, "pitcher_change", "idle");
         state.lastPitcherChangeEmitAt = now;
-        state.pendingResumeBatter = batterName || state.lastBatterName;
-        if (!adScheduled && !broadcastManager.isAdBreakActive(matchId)) {
-          scheduleResumeAfterPitcherIntro(matchId);
-        }
+        queueResumeAfterAdBreak(matchId, adScheduled);
         state.lastPitcherName = pitcherName;
         state.pendingPitcherName = pitcherName;
         state.pendingPitcherSince = now;
@@ -902,12 +910,11 @@ export function notifyManualAtBatAction(
   // 수동 공수교대 직후 실황 3아웃/초말 변경이 같은 교대를 재방송하지 않게
   if (action === "switch") {
     state.lastSwitchEmitAt = Date.now();
-    state.pendingResumeBatter = null;
-    clearAdResumeTimer(matchId);
+    state.resumeAfterAdBreak = true;
   }
   if (action === "pitcher") {
     state.lastPitcherChangeEmitAt = Date.now();
-    state.pendingResumeBatter = state.lastBatterName;
+    state.resumeAfterAdBreak = true;
   }
   state.lastPhaseBroadcast = null;
 }
@@ -919,11 +926,11 @@ broadcastManager.onAdStopped((matchId, reason) => {
 /** 테스트 — 투수교체 광고 재개 상태 */
 export function peekLiveAutoAdResume(matchId: string): {
   lastPitcherChangeEmitAt: number;
-  pendingResumeBatter: string | null;
+  resumeAfterAdBreak: boolean;
 } {
   const state = stateByMatch.get(matchId);
   return {
     lastPitcherChangeEmitAt: state?.lastPitcherChangeEmitAt ?? 0,
-    pendingResumeBatter: state?.pendingResumeBatter ?? null,
+    resumeAfterAdBreak: Boolean(state?.resumeAfterAdBreak),
   };
 }

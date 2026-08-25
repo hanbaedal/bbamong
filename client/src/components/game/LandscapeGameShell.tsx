@@ -24,8 +24,8 @@ import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import type { PregameCountdownDisplay } from "./GamePregameCountdown";
 import type { SideBetBottomSummary } from "./GameBottomStatusBar";
 import { AD_PLAY_MS } from "@shared/adBreakTiming";
-import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { BetAmountOption } from "@shared/predictionOdds";
+import { isTransientAdOrEventPhase, type GameScreenPhase, type PredictionOption } from "./gameTypes";
 import { useAtBatPitchDisplay } from "@/hooks/useAtBatPitchDisplay";
 import "./gameAnimations.css";
 
@@ -152,6 +152,11 @@ export default function LandscapeGameShell({
 
   const displayPitches = useAtBatPitchDisplay(scoreboard, screenPhase);
   const pitchLocationCount = displayPitches?.length ?? 0;
+  /** 대기·결과 큰 글씨·교체/광고 중에는 직전 타자 이름·시즌 카드를 남기지 않음 */
+  const hideStaleBatter =
+    screenPhase === "wait_start" ||
+    screenPhase === "result_flash" ||
+    isTransientAdOrEventPhase(screenPhase);
   /** 3. 예측 중지·결과 큰 글씨에서만 존 투구 점 */
   const strikeZoneVisible =
     pitchLocationCount > 0 &&
@@ -169,6 +174,7 @@ export default function LandscapeGameShell({
         <GameLiveSituationWidget
           scoreboard={scoreboard}
           hidden={noticeSuppressed}
+          hideBatterIdentity={hideStaleBatter}
           awayFallback={headToHead?.awayName}
           homeFallback={headToHead?.homeName}
           onAwayTeamClick={onAwayTeamClick}
@@ -196,6 +202,7 @@ export default function LandscapeGameShell({
               matchSelectEnabled={matchSelectEnabled}
               stadiumSelectEnabled={stadiumSelectEnabled}
               onStadiumNameClick={onStadiumNameClick}
+              hideBatterCard={hideStaleBatter}
             />
 
             {pregameCountdown ? (
