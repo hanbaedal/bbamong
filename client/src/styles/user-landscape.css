@@ -905,7 +905,7 @@
   min-height: 0;
   max-width: none;
   max-height: 100%;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
   padding-bottom: clamp(16px, 3.2vh, 24px);
 }
