@@ -551,7 +551,7 @@ class WSManager {
     }
     const state = this.matchStates.get(matchId)!;
     if (isPlaying) {
-      // 이미 재생 중이면 시작 시각을 리셋하지 않는다 (1분 시계가 늘어나지 않게).
+      // 이미 재생 중이면 시작 시각을 리셋하지 않는다 (광고 시계가 늘어나지 않게).
       if (!state.isAdPlaying) {
         state.isAdPlaying = true;
         state.adStartedAt = Date.now();

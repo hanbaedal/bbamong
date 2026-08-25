@@ -629,7 +629,7 @@ export function useLandscapePredictionFlow(
           setShowAdOverlay(false);
           return;
         }
-        setAdOverlayMessage("리워드 광고 시청 완료. 잠시 후 예측이 재개됩니다.");
+        setAdOverlayMessage("리워드 광고 시청 완료. 광고가 끝나면 예측이 자동으로 재개됩니다.");
         setAdOverlayDismissible(false);
         setShowAdOverlay(true);
         return;

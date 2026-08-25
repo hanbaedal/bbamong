@@ -7,6 +7,7 @@ import {
   WINNER_ODDS,
   EXACT_SCORE_ODDS,
 } from "@shared/predictionOdds";
+import { AD_PLAY_SECONDS } from "@shared/adBreakTiming";
 
 const SECTIONS: { title: string; items: string[] }[] = [
   {
@@ -79,7 +80,7 @@ const SECTIONS: { title: string; items: string[] }[] = [
     items: [
       "공수교대·투수교체 때 리워드 동영상 광고가 나올 수 있습니다. 예측 게임 중 하단 배너 광고는 없습니다.",
       "앱: 동영상을 끝까지 시청해야 500P 대상입니다. 웹: 약 5초 후 「×」로 끌 수 있으나 보상은 없습니다.",
-      `운영자가 광고를 중지하거나 약 1분이 지나면 ${AD_REWARD_POINTS}P가 지급됩니다.`,
+      `운영자가 광고를 중지하거나 약 ${AD_PLAY_SECONDS}초가 지나면 ${AD_REWARD_POINTS}P가 지급되고, 예측이 자동으로 재개됩니다.`,
       "「예측 시작」으로 광고가 중지되거나, 5초 만에 「×」로 끄면 보상은 없습니다.",
     ],
   },

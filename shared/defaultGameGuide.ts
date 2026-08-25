@@ -1,4 +1,7 @@
 /** 홈 「야구 예측 게임이란?」 — DB 비어 있을 때·초기 시드용 */
+import { AD_PLAY_SECONDS } from "./adBreakTiming";
+import { AD_REWARD_POINTS } from "./predictionOdds";
+
 export const DEFAULT_GAME_GUIDE_TITLE = "야구 예측 게임이란?";
 
 export const DEFAULT_GAME_GUIDE_SUMMARY =
@@ -24,7 +27,7 @@ export const DEFAULT_GAME_GUIDE_CONTENT = `빠몽이(PPAMONG)는 진행 중인 �
 ■ 광고
 공수교대·투수교체 때 리워드 동영상 광고가 나올 수 있습니다. 예측 중 하단 배너 광고는 없습니다.
 앱에서는 동영상을 끝까지 시청해야 보상 대상이며, 웹에서는 약 5초 후 ×로 끌 수 있습니다(보상 없음).
-운영자가 광고를 중지하거나 1분이 지나면 500P가 지급됩니다. 「예측 시작」으로 광고가 꺼지면 보상은 없습니다.
+운영자가 광고를 중지하거나 ${AD_PLAY_SECONDS}초가 지나면 ${AD_REWARD_POINTS}P가 지급되고 예측이 자동으로 재개됩니다. 「예측 시작」으로 광고가 꺼지면 보상은 없습니다.
 
 ■ 연습
 홈의 「사용설명서」와 「게임 시뮬레이션」에서 화면 구성·사이드·타석·정산 흐름을 미리 익힐 수 있습니다.`;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AD_EARLY_DISMISS_SECONDS } from "@shared/predictionOdds";
+import { AD_PLAY_SECONDS } from "@shared/adBreakTiming";
 
 interface GameAdOverlayProps {
   message?: string;
@@ -88,9 +89,14 @@ export default function GameAdOverlay({
         <p className="text-white text-lg sm:text-xl font-semibold">{message}</p>
         <p className="text-white/60 text-sm">
           {onDismiss
-            ? "리워드 동영상을 끝까지 보면 500P입니다. 운영자가 광고를 끝낼 때 지급됩니다."
-            : "리워드 광고 시청이 완료되었습니다. 잠시 후 예측이 재개됩니다."}
+            ? `리워드 동영상을 끝까지 보면 500P입니다. ${AD_PLAY_SECONDS}초 후 또는 운영자가 광고를 끝낼 때 지급됩니다.`
+            : "리워드 광고 시청이 완료되었습니다. 광고가 끝나면 예측이 자동으로 재개됩니다."}
         </p>
+        {completeAfterSeconds != null && elapsed < completeAfterSeconds && (
+          <p className="text-white/45 text-xs" data-testid="text-ad-resume-countdown">
+            {Math.max(0, completeAfterSeconds - elapsed)}초 후 예측이 자동으로 재개됩니다
+          </p>
+        )}
         {onDismiss && !canDismiss && (
           <p className="text-white/45 text-xs" data-testid="text-ad-dismiss-countdown">
             {secondsUntilDismiss}초 후 광고 끄기 가능
