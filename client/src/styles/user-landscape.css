@@ -734,8 +734,11 @@
 .user-home-credit--right {
   right: 0;
   left: auto;
-  max-width: min(96%, 280px);
+  max-width: none;
+  width: max-content;
   text-align: right;
+  white-space: nowrap;
+  font-size: clamp(7px, 1.1vw, 10px);
 }
 
 /* 홈 — 사용 설명서 좌측 패널 모달 본문 */
@@ -902,9 +905,9 @@
   min-height: 0;
   max-width: none;
   max-height: 100%;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
-  padding-bottom: clamp(22px, 4.5vh, 32px);
+  padding-bottom: clamp(16px, 3.2vh, 24px);
 }
 
 .user-landscape-page--home .user-home-greeting-row {
