@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { OpsPlatformTabs, type OpsPlatform } from "../ops/opsLoginStatusUi";
 import { countMatchesByPlatform, resolveMatchPlatform } from "@/lib/matchPlatform";
 import { cn } from "@/lib/utils";
+import { isLiveAutoOperatorWsType } from "@shared/liveAutoWsEvents";
 
 interface Match {
   id: string;
@@ -472,6 +473,7 @@ export default function RealtimeGameMonitoring() {
             }
             break;
           default:
+            if (typeof type === "string" && isLiveAutoOperatorWsType(type)) break;
             console.log(`[Admin WS] 알 수 없는 메시지 유형: ${type}`);
         }
       } catch (error) {

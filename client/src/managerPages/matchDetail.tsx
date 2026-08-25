@@ -363,6 +363,23 @@ export default function MatchDetailPage() {
               }
               fetchMatchDetail();
               break;
+            case "auto_action_suggested":
+              toast({
+                description: data?.message || "실황 감지 — 1탭으로 확정할 수 있습니다.",
+              });
+              fetchMatchDetail();
+              break;
+            case "auto_result_timeout":
+              toast({
+                variant: "destructive",
+                description: data?.message || "결과가 감지되지 않습니다. 수동으로 결과를 입력해 주세요.",
+              });
+              if (data?.suggestedResult) {
+                setSuggestedAutoResult(String(data.suggestedResult));
+                setSelectedResult(String(data.suggestedResult));
+              }
+              fetchMatchDetail();
+              break;
             case "auto_action_blocked":
               toast({
                 variant: "destructive",

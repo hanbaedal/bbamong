@@ -376,7 +376,7 @@ export async function processLiveAutoOperator(
         now - state.predictionClosedAt >= RESULT_WATCHDOG_MS
       ) {
         state.resultWatchdogFired = true;
-        broadcastManager.sendToMatch(matchId, "auto_result_timeout", {
+        broadcastManager.sendToMatchStaff(matchId, "auto_result_timeout", {
           matchId,
           currentRound: match.currentRound ?? 1,
           message: "결과가 감지되지 않습니다. 수동으로 결과를 입력해 주세요.",
@@ -481,7 +481,7 @@ export async function processLiveAutoOperator(
       if (await roundNeedsResult(matchId, round)) {
         if (state.lastSuggestedResultKey !== key) {
           state.lastSuggestedResultKey = key;
-          broadcastManager.sendToMatch(matchId, "auto_result_suggested", {
+          broadcastManager.sendToMatchStaff(matchId, "auto_result_suggested", {
             matchId,
             currentRound: round,
             suggestedResult: suggested,
@@ -516,7 +516,7 @@ export async function processLiveAutoOperator(
           let p = await resolveAtBatPhase(matchId);
 
           if (blocksAdvanceUntilResult(p)) {
-            broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
+            broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
               matchId,
               action: "switch_half",
               message: "공수교대 전 예측 결과를 입력해 주세요.",
@@ -524,7 +524,7 @@ export async function processLiveAutoOperator(
             });
             switchHandled = true;
           } else if (await roundNeedsResult(matchId, round)) {
-            broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
+            broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
               matchId,
               action: "switch_half",
               message: "공수교대 전 예측 결과를 입력해 주세요.",
@@ -552,7 +552,7 @@ export async function processLiveAutoOperator(
               switchHandled = true;
             } catch (advanceErr) {
               console.warn(`[LiveAuto] switch half advance failed ${matchId}:`, advanceErr);
-              broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
+              broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
                 matchId,
                 action: "switch_half",
                 message:
@@ -618,7 +618,7 @@ export async function processLiveAutoOperator(
         console.warn(`[LiveAuto] pitcher change failed ${matchId}:`, error);
         if (!state.pitcherChangeSuggested) {
           state.pitcherChangeSuggested = true;
-          broadcastManager.sendToMatch(matchId, "auto_action_suggested", {
+          broadcastManager.sendToMatchStaff(matchId, "auto_action_suggested", {
             matchId,
             action: "pitcher_change",
             pitcherName,
@@ -637,7 +637,7 @@ export async function processLiveAutoOperator(
       if (batterStableChanged && phaseAfterResult === "prediction_open" && outs < 3) {
         clearStopTimer(matchId);
         await stopPredictionIfOpen(matchId, "실황 자동: 타자 변경으로 예측 중지");
-        broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
+        broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
           matchId,
           action: "next_batter",
           message: "다음 타자 전 예측 결과를 입력해 주세요.",
@@ -674,7 +674,7 @@ export async function processLiveAutoOperator(
         const p = await resolveAtBatPhase(matchId);
 
         if (blocksAdvanceUntilResult(p)) {
-          broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
+          broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
             matchId,
             action: "next_batter",
             message: "다음 타자 전 예측 결과를 입력해 주세요.",
@@ -693,7 +693,7 @@ export async function processLiveAutoOperator(
             } catch (advanceErr) {
               advancedOk = false;
               console.warn(`[LiveAuto] next batter advance failed ${matchId}:`, advanceErr);
-              broadcastManager.sendToMatch(matchId, "auto_action_blocked", {
+              broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
                 matchId,
                 action: "next_batter",
                 message:
@@ -720,7 +720,7 @@ export async function processLiveAutoOperator(
                 findLineupBatterByName(side ?? [], batterName),
               );
               if (!inStartingLineup && !namesEqual(batterName, state.lastPinchName)) {
-                broadcastManager.sendToMatch(matchId, "auto_pinch_suggested", {
+                broadcastManager.sendToMatchStaff(matchId, "auto_pinch_suggested", {
                   matchId,
                   expectedName: expected?.name ?? null,
                   liveName: batterName,

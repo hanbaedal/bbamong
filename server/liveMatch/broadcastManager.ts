@@ -3,6 +3,7 @@ import {
   AD_PLAY_MS,
   AD_SCHEDULE_COOLDOWN_MS,
 } from "@shared/adBreakTiming";
+import { LIVE_AUTO_STAFF_WS_ROLES } from "@shared/liveAutoWsEvents";
 import { wsManager } from "./wsManager";
 
 class BroadcastManager {
@@ -12,6 +13,11 @@ class BroadcastManager {
 
   sendToMatch(matchId: string, eventType: string, data: any) {
     wsManager.sendToMatch(matchId, eventType, data);
+  }
+
+  /** 운영자·관리자만 — 회원 예측 클라에 auto_* 안내를 보내지 않는다 */
+  sendToMatchStaff(matchId: string, eventType: string, data: any) {
+    wsManager.sendToMatch(matchId, eventType, data, { roles: LIVE_AUTO_STAFF_WS_ROLES });
   }
 
   sendToMatchWithUserData(matchId: string, eventType: string, baseData: any, userDataMap: Map<string, any>) {
