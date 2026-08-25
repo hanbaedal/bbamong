@@ -1,4 +1,5 @@
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
+import { shouldCarryForwardAtBatResult } from "@shared/atBatResultDisplay";
 
 /**
  * 실황 피드는 예측 게임과 분리된 참고 표시다.
@@ -33,27 +34,29 @@ export function attachNaverSituation(
   };
 }
 
-/** 타자가 바뀌어 실황 결과가 비어도 직전 타석 결과를 유지한다 (새 타석 투구가 시작되면 지움) */
+/** 같은 타석에서 실황 결과가 잠깐 비면 유지. 다음 타자·1구·투수교체에는 붙이지 않음 */
 export function carryForwardAtBatResult(
   next: LiveScoreboard["situation"] | null | undefined,
   prev: LiveScoreboard["situation"] | null | undefined,
 ): LiveScoreboard["situation"] | null {
   if (!next) return prev ?? null;
   if (next.atBatResultDisplay) return next;
-  if (!prev?.atBatResultDisplay) return next;
-  const batterChanged =
-    Boolean(next.batterName) &&
-    Boolean(prev.batterName) &&
-    next.batterName !== prev.batterName;
-  const newAtBatPitches =
-    (next.balls ?? 0) > 0 ||
-    (next.strikes ?? 0) > 0 ||
-    (next.pitchLocations?.length ?? 0) > 0;
-  if (batterChanged && newAtBatPitches) return next;
+  if (
+    !shouldCarryForwardAtBatResult({
+      prevResult: prev?.atBatResultDisplay,
+      prevBatterName: prev?.batterName,
+      nextBatterName: next.batterName,
+      prevPitcherName: prev?.pitcherName,
+      nextPitcherName: next.pitcherName,
+      nextPitchLabel: next.pitchLabel,
+    })
+  ) {
+    return next;
+  }
   return {
     ...next,
-    atBatResultDisplay: prev.atBatResultDisplay,
-    suggestedResult: next.suggestedResult ?? prev.suggestedResult ?? null,
+    atBatResultDisplay: prev!.atBatResultDisplay,
+    suggestedResult: next.suggestedResult ?? prev?.suggestedResult ?? null,
   };
 }
 

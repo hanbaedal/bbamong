@@ -45,7 +45,7 @@ const nextEmpty = {
   suggestedResult: null,
 };
 const carried = carryForwardAtBatResult(nextEmpty, prev);
-assert(carried?.atBatResultDisplay === "삼진아웃", "carry result across batter change");
+assert(carried?.atBatResultDisplay == null, "do not carry result across batter change");
 
 const nextPitches = { ...nextEmpty, balls: 1, atBatResultDisplay: null };
 const cleared = carryForwardAtBatResult(nextPitches, prev);

@@ -183,6 +183,7 @@ class WSManager {
           return;
         }
 
+        const matchState = this.getMatchState(matchId);
         ws.send(JSON.stringify({
           type: "connected",
           data: {
@@ -195,6 +196,8 @@ class WSManager {
             atBatPhase,
             uiStage,
             settledResult,
+            isAdPlaying: matchState.isAdPlaying,
+            adStartedAt: matchState.adStartedAt,
           },
         }));
 
@@ -225,11 +228,13 @@ class WSManager {
           }
         }
 
-        const matchState = this.getMatchState(matchId);
-        if (matchState.isAdPlaying && ws.readyState === WebSocket.OPEN) {
+        if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: "ad_status",
-            data: { isAdPlaying: true, adStartedAt: matchState.adStartedAt },
+            data: {
+              isAdPlaying: matchState.isAdPlaying,
+              adStartedAt: matchState.adStartedAt,
+            },
           }));
         }
 
@@ -545,8 +550,16 @@ class WSManager {
       this.matchStates.set(matchId, { isAdPlaying: false, adStartedAt: null });
     }
     const state = this.matchStates.get(matchId)!;
-    state.isAdPlaying = isPlaying;
-    state.adStartedAt = isPlaying ? Date.now() : null;
+    if (isPlaying) {
+      // 이미 재생 중이면 시작 시각을 리셋하지 않는다 (1분 시계가 늘어나지 않게).
+      if (!state.isAdPlaying) {
+        state.isAdPlaying = true;
+        state.adStartedAt = Date.now();
+      }
+      return;
+    }
+    state.isAdPlaying = false;
+    state.adStartedAt = null;
   }
 
   isAdPlaying(matchId: string): boolean {
@@ -558,6 +571,21 @@ class WSManager {
       this.matchStates.set(matchId, { isAdPlaying: false, adStartedAt: null });
     }
     return this.matchStates.get(matchId)!;
+  }
+
+  getMatchIdsWithAds(): string[] {
+    const ids: string[] = [];
+    this.matchStates.forEach((state, matchId) => {
+      if (state.isAdPlaying) ids.push(matchId);
+    });
+    return ids;
+  }
+
+  /** 테스트 전용 — 광고 시작 시각을 과거로 되돌린다 */
+  backdateAdStartedAtForTest(matchId: string, startedAt: number): void {
+    const state = this.getMatchState(matchId);
+    state.isAdPlaying = true;
+    state.adStartedAt = startedAt;
   }
 
   private recentlyDisconnectedUsers: Map<string, number> = new Map();

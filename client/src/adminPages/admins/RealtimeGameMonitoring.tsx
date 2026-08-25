@@ -13,6 +13,7 @@ import { OpsPlatformTabs, type OpsPlatform } from "../ops/opsLoginStatusUi";
 import { countMatchesByPlatform, resolveMatchPlatform } from "@/lib/matchPlatform";
 import { cn } from "@/lib/utils";
 import { isLiveAutoOperatorWsType } from "@shared/liveAutoWsEvents";
+import { AD_PLAY_MS, resolveAdPlayingFromServer } from "@shared/adBreakTiming";
 import {
   WS_CLIENT_HEARTBEAT_INTERVAL_MS,
   WS_CLIENT_PONG_TIMEOUT_MS,
@@ -95,6 +96,7 @@ export default function RealtimeGameMonitoring() {
   const [localMatchStatus, setLocalMatchStatus] = useState<string | null>(null);
   const [isAdPlaying, setIsAdPlaying] = useState(false);
   const [adElapsedTime, setAdElapsedTime] = useState(0);
+  const adStartTimeRef = useRef<number | null>(null);
   const [isAdLoading, setIsAdLoading] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempts = useRef<number>(0);
@@ -443,6 +445,12 @@ export default function RealtimeGameMonitoring() {
         switch (type) {
           case "connected":
             console.log("[Admin WS] 연결 확인:", data);
+            {
+              const resolved = resolveAdPlayingFromServer(data?.isAdPlaying, data?.adStartedAt);
+              setIsAdPlaying(resolved.playing);
+              adStartTimeRef.current = resolved.startedAt;
+              setAdElapsedTime(resolved.elapsedSec);
+            }
             break;
           case "round_start":
           case "round_stop":
@@ -470,17 +478,25 @@ export default function RealtimeGameMonitoring() {
             break;
           case "ad_started":
             console.log("광고 시작 이벤트 수신");
-            setIsAdPlaying(true);
-            setAdElapsedTime(0);
+            {
+              const resolved = resolveAdPlayingFromServer(true, data?.adStartedAt ?? Date.now());
+              setIsAdPlaying(resolved.playing);
+              adStartTimeRef.current = resolved.startedAt;
+              setAdElapsedTime(resolved.elapsedSec);
+            }
             break;
           case "ad_stopped":
             console.log("광고 중지 이벤트 수신");
             setIsAdPlaying(false);
             setAdElapsedTime(0);
+            adStartTimeRef.current = null;
             break;
           case "ad_status":
-            if (data.isAdPlaying !== undefined) {
-              setIsAdPlaying(data.isAdPlaying);
+            {
+              const resolved = resolveAdPlayingFromServer(data?.isAdPlaying, data?.adStartedAt);
+              setIsAdPlaying(resolved.playing);
+              adStartTimeRef.current = resolved.startedAt;
+              setAdElapsedTime(resolved.elapsedSec);
             }
             break;
           case "pong":
@@ -724,21 +740,27 @@ export default function RealtimeGameMonitoring() {
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
-  // 광고 타이머 효과
+  // 광고 타이머 효과 (서버 시작 시각 기준, 1분이면 종료)
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-
-    if (isAdPlaying) {
-      interval = setInterval(() => {
-        setAdElapsedTime((prev) => prev + 1);
-      }, 1000);
+    if (!isAdPlaying) {
+      adStartTimeRef.current = null;
+      return;
     }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
+    if (!adStartTimeRef.current) {
+      adStartTimeRef.current = Date.now();
+      setAdElapsedTime(0);
+    }
+    const interval = setInterval(() => {
+      if (!adStartTimeRef.current) return;
+      const elapsed = Math.max(0, Math.floor((Date.now() - adStartTimeRef.current) / 1000));
+      setAdElapsedTime(elapsed);
+      if (elapsed >= Math.round(AD_PLAY_MS / 1000)) {
+        setIsAdPlaying(false);
+        setAdElapsedTime(0);
+        adStartTimeRef.current = null;
       }
-    };
+    }, 500);
+    return () => clearInterval(interval);
   }, [isAdPlaying]);
 
   const getPredictionStatus = (

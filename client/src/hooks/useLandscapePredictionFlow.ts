@@ -18,7 +18,7 @@ import type {
   PredictionResult,
   RoundAdvanceType,
 } from "@/components/game/gameTypes";
-import { AD_PLAY_MS } from "@shared/adBreakTiming";
+import { AD_PLAY_MS, isAdPlayExpired, resolveAdPlayingFromServer } from "@shared/adBreakTiming";
 import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, RESULT_FLASH_MS, CATCHUP_RESULT_MS, isOutcomePresentationPhase, isTransientAdOrEventPhase, isPageHidden, normalizeRoundResultLabel, displayRoundResultLabel } from "@/components/game/gameTypes";
 import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
 import { consumeFirstPredictionOpen } from "@/lib/gameVoiceSession";
@@ -123,6 +123,9 @@ export function useLandscapePredictionFlow(
   const rewardedVideoCompletedRef = useRef(false);
   const adStartedAtRef = useRef<number | null>(null);
   const lastCompletedAdAtRef = useRef<number | null>(null);
+  const lastLiveResultLabelRef = useRef<string | null>(null);
+  const lastLiveResultBatterRef = useRef<string | null>(null);
+  const lastLiveResultAtRef = useRef(0);
   const [adOverlayCompleteSec, setAdOverlayCompleteSec] = useState(Math.round(AD_PLAY_MS / 1000));
   const matchEndedRef = useRef(false);
   const failVoiceSpokenRef = useRef(false);
@@ -274,6 +277,8 @@ export function useLandscapePredictionFlow(
     matchEndedRef.current = false;
     failVoiceSpokenRef.current = false;
     predictionEpochRef.current += 1;
+    lastLiveResultLabelRef.current = null;
+    lastLiveResultBatterRef.current = null;
     if (matchEndedTimerRef.current) {
       clearTimeout(matchEndedTimerRef.current);
       matchEndedTimerRef.current = null;
@@ -432,9 +437,11 @@ export function useLandscapePredictionFlow(
 
       if (stage === "open") {
         pendingInterstitialRef.current = false;
-        adSessionActiveRef.current = false;
-        stopAdSession();
-        setShowAdOverlay(false);
+        if (adSessionActiveRef.current || ui === "ad_playing") {
+          adSessionActiveRef.current = false;
+          stopAdSession();
+          setShowAdOverlay(false);
+        }
         waitingResultRef.current = false;
         awaitingResultRoundRef.current = null;
         setBetLocked(false);
@@ -567,6 +574,11 @@ export function useLandscapePredictionFlow(
   const runInterstitialSession = useCallback(
     async (matchId?: string, startedAt?: number | null) => {
       rememberAdStartedAt(startedAt);
+      if (isAdPlayExpired(startedAt ?? adStartedAtRef.current)) {
+        pendingInterstitialRef.current = false;
+        finishAdAndWaitStart();
+        return;
+      }
       if (skipDismissedAdSession(matchId, startedAt ?? adStartedAtRef.current)) return;
       if (adSessionActiveRef.current || screenPhaseRef.current === "ad_playing") return;
       adSessionActiveRef.current = true;
@@ -666,8 +678,10 @@ export function useLandscapePredictionFlow(
       const advanceType = pending.advanceType;
       if (advanceType === "pitcher_change") {
         void speakGameVoice("user.pitcherChange");
-        // 서버 AD_INTRO_DELAY 와 이벤트 종료를 맞춤 — 광고는 ad_started 또는 flush 한 곳에서만
         pendingInterstitialRef.current = true;
+        if (screenPhaseRef.current === "pitcher_change_event") {
+          return;
+        }
         setScreenPhase("pitcher_change_event");
         scheduleEventDismiss(GAME_EVENT_SHOW_MS, () => {
           void flushPendingInterstitial();
@@ -677,6 +691,9 @@ export function useLandscapePredictionFlow(
       if (advanceType === "switch_half") {
         void speakGameVoice("user.switchHalf");
         pendingInterstitialRef.current = true;
+        if (screenPhaseRef.current === "inning_switch_event") {
+          return;
+        }
         setEventSubtitle(pending.gamePhaseDisplayLabel ?? "");
         setScreenPhase("inning_switch_event");
         scheduleEventDismiss(GAME_EVENT_SHOW_MS, () => {
@@ -793,6 +810,8 @@ export function useLandscapePredictionFlow(
       awaitingResultRoundRef.current = null;
       setBetLocked(false);
       setRoundResultLabel(label);
+      lastLiveResultLabelRef.current = label;
+      lastLiveResultAtRef.current = Date.now();
       setPredictionResult(personal === "success" ? "success" : personal === "fail" ? "fail" : "pending");
       setScreenPhase("result_flash");
       if (resultFlashTimerRef.current) {
@@ -810,6 +829,33 @@ export function useLandscapePredictionFlow(
       }, ms);
     },
     [continueAfterResultFlash],
+  );
+
+  /** 폴링 실황 결과 — 예측 미참여자도 큰 글씨 한 번만. 같은 타석 라벨은 다시 안 띄움 */
+  const notifyLiveAtBatResult = useCallback(
+    (display?: string | null, batterName?: string | null) => {
+      const label = (display ?? "").trim();
+      const batterKey = (batterName ?? "").replace(/\s+/g, "");
+      if (!label) {
+        lastLiveResultLabelRef.current = null;
+        lastLiveResultBatterRef.current = null;
+        return;
+      }
+      if (
+        lastLiveResultLabelRef.current === label &&
+        lastLiveResultBatterRef.current === batterKey
+      ) {
+        return;
+      }
+      if (resultShownRef.current || isInResultPresentation()) return;
+      if (isWaitingForResult() || activeBetRef.current || betSnapshotRef.current) return;
+      const phase = screenPhaseRef.current;
+      if (phase === "picking" || isTransientAdOrEventPhase(phase)) return;
+      if (phase !== "wait_start") return;
+      lastLiveResultBatterRef.current = batterKey;
+      startResultFlash(label, "spectator");
+    },
+    [isInResultPresentation, isWaitingForResult, startResultFlash],
   );
 
   type PredictionSnapshot = {
@@ -1190,6 +1236,11 @@ export function useLandscapePredictionFlow(
     }) => {
       rememberAdStartedAt(opts.adStartedAt);
       const matchId = opts.matchId ?? selectedMatch?.id;
+      if (isAdPlayExpired(opts.adStartedAt)) {
+        pendingInterstitialRef.current = false;
+        finishAdAndWaitStart();
+        return;
+      }
       if (
         typeof opts.adStartedAt === "number" &&
         lastCompletedAdAtRef.current === opts.adStartedAt
@@ -1219,6 +1270,7 @@ export function useLandscapePredictionFlow(
       isWaitingForResult,
       isInResultPresentation,
       runInterstitialSession,
+      finishAdAndWaitStart,
     ],
   );
 
@@ -1231,6 +1283,10 @@ export function useLandscapePredictionFlow(
       const fromStatusCatchUp = reason == null;
 
       if (!adSessionActiveRef.current && screenPhaseRef.current !== "ad_playing") {
+        if (fromStatusCatchUp && isTransientAdOrEventPhase(screenPhaseRef.current)) {
+          setShowAdOverlay(false);
+          return;
+        }
         pendingInterstitialRef.current = false;
         setShowAdOverlay(false);
         return;
@@ -1278,6 +1334,10 @@ export function useLandscapePredictionFlow(
 
       const phase = screenPhaseRef.current;
       if (phase === "pitcher_change_event" || phase === "inning_switch_event") {
+        pendingInterstitialRef.current = false;
+        if (!eventTimerRef.current) {
+          setScreenPhase("wait_start");
+        }
         return;
       }
 
@@ -1537,12 +1597,19 @@ export function useLandscapePredictionFlow(
     onAdStatus: useCallback(
       async (data: { isPlaying?: boolean; isAdPlaying?: boolean; adStartedAt?: number }) => {
         const playing = Boolean(data.isAdPlaying ?? data.isPlaying);
-        if (playing) {
+        const resolved = resolveAdPlayingFromServer(playing, data.adStartedAt);
+        if (resolved.playing) {
           await enterAdSessionFromServer({
             matchId: selectedMatch?.id,
-            adStartedAt: data.adStartedAt,
+            adStartedAt: resolved.startedAt ?? data.adStartedAt,
             deferIfAlreadyActive: true,
           });
+          return;
+        }
+        if (
+          isTransientAdOrEventPhase(screenPhaseRef.current) &&
+          !adSessionActiveRef.current
+        ) {
           return;
         }
         await exitAdSession();
@@ -1719,5 +1786,6 @@ export function useLandscapePredictionFlow(
     handleRunComplete,
     handleAdOverlayDismiss,
     handleAdOverlayComplete,
+    notifyLiveAtBatResult,
   };
 }

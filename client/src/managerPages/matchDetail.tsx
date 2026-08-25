@@ -18,6 +18,7 @@ import { useManagerProactiveSessionRefresh } from "@/hooks/useManagerProactiveSe
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
 import { isMatchLiveWindowOpen } from "@shared/matchLiveWindow";
+import { AD_PLAY_MS, resolveAdPlayingFromServer } from "@shared/adBreakTiming";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import { resolveLiveInningPhaseLabel } from "@shared/matchPhaseDisplay";
 import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
@@ -109,6 +110,7 @@ export default function MatchDetailPage() {
   const [isAdPlaying, setIsAdPlaying] = useState(false);
   const [adElapsedTime, setAdElapsedTime] = useState(0);
   const adStartTimeRef = useRef<number | null>(null);
+  const adExpiredStopSentRef = useRef(false);
   const [isStartingPrediction, setIsStartingPrediction] = useState(false);
   const [isStoppingPrediction, setIsStoppingPrediction] = useState(false);
   const [advanceBusy, setAdvanceBusy] = useState<"next" | "switch" | "pitcher" | null>(null);
@@ -318,32 +320,42 @@ export default function MatchDetailPage() {
           switch (type) {
             case "connected":
               console.log("[Manager WS] 서버 연결 확인:", data);
+              {
+                const resolved = resolveAdPlayingFromServer(data?.isAdPlaying, data?.adStartedAt);
+                setIsAdPlaying(resolved.playing);
+                adStartTimeRef.current = resolved.startedAt;
+                setAdElapsedTime(resolved.elapsedSec);
+                adExpiredStopSentRef.current = false;
+              }
               break;
             case "pong":
             case "heartbeat_ack":
               break;
             case "ad_started":
               console.log("[Manager WS] 광고 시작");
-              setIsAdPlaying(true);
-              if (data?.adStartedAt) {
-                adStartTimeRef.current = data.adStartedAt;
-                setAdElapsedTime(Math.max(0, Math.floor((Date.now() - data.adStartedAt) / 1000)));
-              } else {
-                adStartTimeRef.current = Date.now();
-                setAdElapsedTime(0);
+              {
+                const resolved = resolveAdPlayingFromServer(true, data?.adStartedAt ?? Date.now());
+                setIsAdPlaying(resolved.playing);
+                adStartTimeRef.current = resolved.startedAt;
+                setAdElapsedTime(resolved.elapsedSec);
+                adExpiredStopSentRef.current = false;
               }
               break;
             case "ad_stopped":
               console.log("[Manager WS] 광고 중지");
               setIsAdPlaying(false);
               setAdElapsedTime(0);
+              adStartTimeRef.current = null;
+              adExpiredStopSentRef.current = false;
               break;
             case "ad_status":
               console.log("[Manager WS] 광고 상태:", data);
-              setIsAdPlaying(data?.isAdPlaying || false);
-              if (data?.isAdPlaying && data?.adStartedAt) {
-                adStartTimeRef.current = data.adStartedAt;
-                setAdElapsedTime(Math.max(0, Math.floor((Date.now() - data.adStartedAt) / 1000)));
+              {
+                const resolved = resolveAdPlayingFromServer(data?.isAdPlaying, data?.adStartedAt);
+                setIsAdPlaying(resolved.playing);
+                adStartTimeRef.current = resolved.startedAt;
+                setAdElapsedTime(resolved.elapsedSec);
+                if (!resolved.playing) adExpiredStopSentRef.current = false;
               }
               break;
             case "round_start":
@@ -991,7 +1003,7 @@ export default function MatchDetailPage() {
     );
   };
 
-  // 광고 타이머 (서버 시작 시각 기반으로 정확한 경과 시간 계산)
+  // 광고 타이머 (서버 시작 시각 기반으로 정확한 경과 시간 계산). 1분이면 로컬도 종료.
   useEffect(() => {
     if (!isAdPlaying) {
       adStartTimeRef.current = null;
@@ -1004,13 +1016,24 @@ export default function MatchDetailPage() {
     }
 
     const timer = setInterval(() => {
-      if (adStartTimeRef.current) {
-        setAdElapsedTime(Math.max(0, Math.floor((Date.now() - adStartTimeRef.current) / 1000)));
+      if (!adStartTimeRef.current) return;
+      const elapsed = Math.max(0, Math.floor((Date.now() - adStartTimeRef.current) / 1000));
+      setAdElapsedTime(elapsed);
+      if (elapsed >= Math.round(AD_PLAY_MS / 1000)) {
+        setIsAdPlaying(false);
+        setAdElapsedTime(0);
+        adStartTimeRef.current = null;
+        if (!adExpiredStopSentRef.current) {
+          adExpiredStopSentRef.current = true;
+          void managerFetch(`/api/manager/matches/${id}/ad/stop`, { method: "POST" }).catch(
+            () => undefined,
+          );
+        }
       }
     }, 500);
 
     return () => clearInterval(timer);
-  }, [isAdPlaying]);
+  }, [isAdPlaying, id]);
 
   const formatAdTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

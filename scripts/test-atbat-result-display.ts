@@ -5,6 +5,7 @@
 import {
   inferAtBatResultDisplayFromText,
   mapAtBatResultDisplayToSuggested,
+  shouldCarryForwardAtBatResult,
 } from "../shared/atBatResultDisplay";
 import {
   inferAtBatResultDisplayFromRelays,
@@ -44,6 +45,33 @@ assert(mapAtBatResultDisplayToSuggested("삼진아웃") === "아웃", "삼진→
 assert(mapAtBatResultDisplayToSuggested("1루타") === "1루", "1루타→1루");
 
 assert(
+  !shouldCarryForwardAtBatResult({
+    prevResult: "1루타",
+    prevBatterName: "김도영",
+    nextBatterName: "박찬호",
+  }),
+  "different batter does not keep 1루타",
+);
+assert(
+  shouldCarryForwardAtBatResult({
+    prevResult: "1루타",
+    prevBatterName: "김도영",
+    nextBatterName: "김도영",
+    nextPitchLabel: "2구 볼",
+  }),
+  "same batter mid-PA may keep result until 1구",
+);
+assert(
+  !shouldCarryForwardAtBatResult({
+    prevResult: "1루타",
+    prevBatterName: "김도영",
+    nextBatterName: "김도영",
+    nextPitchLabel: "1구 스트라이크",
+  }),
+  "next PA 1구 clears result",
+);
+
+assert(
   inferAtBatResultDisplayFromRelays([{ textOptions: [{ text: "사구로 출루" }] }], null) === "사구",
   "relay 사구",
 );
@@ -60,8 +88,15 @@ assert(
       { title: "이타자", textOptions: [] },
     ],
     "이타자",
-  ) === "삼진아웃",
-  "next batter still shows previous 삼진아웃",
+  ) == null,
+  "next batter must not keep previous 삼진아웃",
+);
+assert(
+  inferAtBatResultDisplayFromRelays(
+    [{ title: "결과", textOptions: [{ text: "김타자 삼진 아웃" }] }],
+    "이타자",
+  ) == null,
+  "generic 결과 without next batter name is not reused",
 );
 
 const payload = {

@@ -189,6 +189,8 @@ export function useAdMob(): UseAdMobResult {
   const [isAdReady, setIsAdReady] = useState(false);
   const [isAdShowing, setIsAdShowing] = useState(false);
   const [adSessionState, setAdSessionState] = useState<AdSessionState>("idle");
+  const adSessionStateRef = useRef<AdSessionState>("idle");
+  adSessionStateRef.current = adSessionState;
 
   const isInitialized = useRef(false);
   const isNativePlatform = Capacitor.isNativePlatform();
@@ -357,8 +359,11 @@ export function useAdMob(): UseAdMobResult {
   }, [isNativePlatform]);
 
   const stopAdSession = useCallback(() => {
-    console.log("[AdMob] Stopping ad session");
     shouldContinueAds.current = false;
+    if (adSessionStateRef.current !== "idle") {
+      console.log("[AdMob] Stopping ad session");
+    }
+    adSessionStateRef.current = "idle";
     setAdSessionState("idle");
     setIsAdShowing(false);
     resolveAdReady(false);
