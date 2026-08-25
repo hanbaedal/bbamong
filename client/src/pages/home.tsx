@@ -187,25 +187,23 @@ export default function HomePage() {
               {buttonText}
             </button>
           ) : null}
-          <div className="user-home-left-stack">
-            <button
-              type="button"
-              data-testid="button-friend-rooms"
-              onClick={() => navigateUserApp("/home/rooms", setLocation)}
-              className="user-home-friend-room-btn"
-            >
-              친구·동호회 방
-            </button>
-            <a
-              className="user-home-credit user-home-credit--left"
-              href="https://sports.daum.net/schedule/kbo"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="home-daum-schedule-credit"
-            >
-              일정 - KBO리그 - Daum 스포츠
-            </a>
-          </div>
+          <button
+            type="button"
+            data-testid="button-friend-rooms"
+            onClick={() => navigateUserApp("/home/rooms", setLocation)}
+            className="user-home-friend-room-btn"
+          >
+            친구·동호회 방
+          </button>
+          <a
+            className="user-home-credit user-home-credit--left"
+            href="https://sports.daum.net/schedule/kbo"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="home-daum-schedule-credit"
+          >
+            일정 - KBO리그 - Daum 스포츠
+          </a>
 
           <AuthPanelModal
             anchor="left"

@@ -684,19 +684,11 @@
   object-fit: contain;
 }
 
-.user-home-left-stack {
+.user-home-friend-room-btn {
   position: absolute;
   left: 50%;
   top: calc(50% + clamp(28px, 8vh, 52px) + clamp(30px, 5vh, 44px) + clamp(34px, 6vh, 44px));
   transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: clamp(6px, 1.2vh, 10px);
-  z-index: 2;
-}
-
-.user-home-friend-room-btn {
   padding: clamp(3px, 0.9vh, 5px) clamp(10px, 2.5vw, 14px);
   border-radius: 6px;
   border: 1px solid #3a3a3a;
@@ -710,6 +702,7 @@
   cursor: pointer;
   line-height: 1.2;
   white-space: nowrap;
+  z-index: 2;
 }
 
 /* 홈 — 좌우 하단 다음 스포츠 출처 */
@@ -724,7 +717,12 @@
 }
 
 .user-home-credit--left {
-  display: block;
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: max-content;
   text-align: center;
   text-decoration: none;
   color: #6e6e6e;
