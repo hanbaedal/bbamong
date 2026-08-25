@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   INTRO_BATTING_MS,
+  INTRO_CROSSFADE_MS,
   INTRO_FRAME_COUNT,
   introFrameIndexAt,
 } from "@shared/introBatting";
@@ -45,27 +46,37 @@ type IntroBattingAnimationProps = {
   frameIndex?: number;
 };
 
-/** 가로 중앙 빠몽이 — 14장 플립북 (스윙 6 + 타격 후 8) */
+/** 가로 중앙 빠몽이 — 14장 플립북, 프레임 전환은 짧게 크로스페이드 */
 export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimationProps) {
   const [index, setIndex] = useState(0);
+  const [prevIndex, setPrevIndex] = useState(0);
 
   useEffect(() => {
     if (typeof frameIndex === "number") {
-      setIndex(Math.max(0, Math.min(INTRO_FRAME_COUNT - 1, frameIndex)));
+      const next = Math.max(0, Math.min(INTRO_FRAME_COUNT - 1, frameIndex));
+      setPrevIndex(next);
+      setIndex(next);
       return;
     }
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
       setIndex(INTRO_FRAME_COUNT - 1);
+      setPrevIndex(INTRO_FRAME_COUNT - 1);
       return;
     }
 
     const startedAt = performance.now();
     let raf = 0;
+    let last = 0;
     const tick = (now: number) => {
       const elapsed = now - startedAt;
-      setIndex(introFrameIndexAt(elapsed));
+      const next = introFrameIndexAt(elapsed);
+      if (next !== last) {
+        setPrevIndex(last);
+        setIndex(next);
+        last = next;
+      }
       if (elapsed < INTRO_BATTING_MS) {
         raf = requestAnimationFrame(tick);
       }
@@ -74,12 +85,28 @@ export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimat
     return () => cancelAnimationFrame(raf);
   }, [frameIndex]);
 
+  const showCrossfade = index !== prevIndex;
+
   return (
     <div className="intro-batting-stage intro-batting-stage--flipbook" aria-hidden>
+      {showCrossfade ? (
+        <img
+          src={INTRO_BATTING_FRAMES[prevIndex]}
+          alt=""
+          className="intro-batting-flip intro-batting-flip--under"
+          draggable={false}
+        />
+      ) : null}
       <img
+        key={index}
         src={INTRO_BATTING_FRAMES[index]}
         alt=""
-        className="intro-batting-flip"
+        className={`intro-batting-flip${showCrossfade ? " intro-batting-flip--over" : ""}`}
+        style={
+          showCrossfade
+            ? ({ ["--intro-crossfade-ms"]: `${INTRO_CROSSFADE_MS}ms` } as CSSProperties)
+            : undefined
+        }
         data-testid="intro-batting-animation"
         data-intro-frame={index + 1}
         draggable={false}
