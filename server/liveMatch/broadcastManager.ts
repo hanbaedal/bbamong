@@ -190,6 +190,13 @@ class BroadcastManager {
       this.adPlayTimers.delete(matchId);
     }
   }
+
+  /** 테스트 — 광고 타이머·쿨다운을 지워 다음 시나리오가 독립되게 한다 */
+  resetAdBreakForTest(matchId: string) {
+    this.clearAdTimer(matchId);
+    this.setAdPlaying(matchId, false);
+    this.lastAdScheduledAt.delete(matchId);
+  }
 }
 
 export const broadcastManager = new BroadcastManager();
