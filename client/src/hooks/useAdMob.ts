@@ -11,7 +11,7 @@ import {
 import { AD_EARLY_DISMISS_SECONDS } from "@shared/predictionOdds";
 import { isGoogleTestAdMobId } from "@shared/admobConstants";
 import { getFullUrl } from "@/lib/queryClient";
-import { dismissNativeFullscreenAd } from "@/lib/systemUiPlugin";
+import { clearPendingNativeAdDismiss, dismissNativeFullscreenAd } from "@/lib/systemUiPlugin";
 
 /** 개발 빌드에서만 Google 테스트 광고 사용 */
 const IS_TESTING = import.meta.env.DEV;
@@ -366,8 +366,6 @@ export function useAdMob(): UseAdMobResult {
 
   const stopAdSession = useCallback(() => {
     const state = adSessionStateRef.current;
-    const shouldDismissNative =
-      state === "showing" || state === "preparing" || rewardedFinishRef.current != null;
     shouldContinueAds.current = false;
     if (state !== "idle") {
       console.log("[AdMob] Stopping ad session");
@@ -379,8 +377,8 @@ export function useAdMob(): UseAdMobResult {
     const finishRewarded = rewardedFinishRef.current;
     rewardedFinishRef.current = null;
     finishRewarded?.(rewardedGrantedRef.current);
-    if (shouldDismissNative) void dismissNativeFullscreenAd();
-  }, [assignAdSessionState, resolveAdReady, resolveInterstitialDismiss]);
+    if (isNativePlatform) void dismissNativeFullscreenAd();
+  }, [assignAdSessionState, isNativePlatform, resolveAdReady, resolveInterstitialDismiss]);
 
   const showRewardedAd = useCallback(async (maxMs?: number): Promise<boolean> => {
     if (!isNativePlatform) {
@@ -392,6 +390,10 @@ export function useAdMob(): UseAdMobResult {
       return false;
     }
     if (!isInitialized.current) await initializeAdMob();
+    if (!shouldContinueAds.current) {
+      void dismissNativeFullscreenAd();
+      return false;
+    }
 
     rewardedGrantedRef.current = false;
     const waitMs = Math.max(1_000, Math.min(REWARDED_DISMISS_TIMEOUT_MS, maxMs ?? REWARDED_DISMISS_TIMEOUT_MS));
@@ -436,9 +438,20 @@ export function useAdMob(): UseAdMobResult {
         isTesting: IS_TESTING,
       };
       withTimeout(AdMob.prepareRewardVideoAd(options), AD_SDK_CALL_TIMEOUT_MS, "prepareRewardVideoAd")
-        .then(() =>
-          withTimeout(AdMob.showRewardVideoAd(), AD_SDK_CALL_TIMEOUT_MS, "showRewardVideoAd"),
-        )
+        .then(async () => {
+          if (settled || !shouldContinueAds.current) {
+            console.log("[AdMob] skip showRewardVideoAd — session aborted");
+            void dismissNativeFullscreenAd();
+            return;
+          }
+          // 이전 세션의 pending finish가 새 광고를 즉시 닫지 않게, show 직전에만 해제
+          await clearPendingNativeAdDismiss();
+          if (settled || !shouldContinueAds.current) {
+            void dismissNativeFullscreenAd();
+            return;
+          }
+          return withTimeout(AdMob.showRewardVideoAd(), AD_SDK_CALL_TIMEOUT_MS, "showRewardVideoAd");
+        })
         .catch((error) => {
           console.error("[AdMob] Rewarded ad error:", error);
           finish(false);

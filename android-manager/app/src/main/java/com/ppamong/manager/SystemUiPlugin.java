@@ -31,4 +31,14 @@ public class SystemUiPlugin extends Plugin {
         activity.setKeepScreenOn(Boolean.TRUE.equals(enabled));
         call.resolve();
     }
+
+    @PluginMethod
+    public void dismissFullscreenAd(PluginCall call) {
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void clearPendingAdDismiss(PluginCall call) {
+        call.resolve();
+    }
 }
