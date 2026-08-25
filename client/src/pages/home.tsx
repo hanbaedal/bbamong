@@ -195,6 +195,15 @@ export default function HomePage() {
           >
             친구·동호회 방
           </button>
+          <a
+            className="user-home-credit user-home-credit--left"
+            href="https://sports.daum.net/schedule/kbo"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="home-daum-schedule-credit"
+          >
+            일정 - KBO리그 - Daum 스포츠
+          </a>
 
           <AuthPanelModal
             anchor="left"
@@ -266,6 +275,9 @@ export default function HomePage() {
               </button>
             ))}
           </nav>
+          <p className="user-home-credit user-home-credit--right" data-testid="home-daum-data-credit">
+            본 게임은 다음(Daum) 야구 실시간 문자 중계 데이터를 기반으로 운영됩니다.
+          </p>
           {showLogoutPopup &&
             createPortal(
               <SimpleConfirmPopup
