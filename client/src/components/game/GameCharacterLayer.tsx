@@ -475,7 +475,6 @@ export default function GameCharacterLayer({
               style={{ transformOrigin: "bottom center" }}
               data-testid="char-pyamong-pitcher-change"
             />
-            <GameThoughtBubble text="투수가 교체됩니다!" className="mb-[min(4vw,28px)]" />
           </div>
         </StadiumFieldMarker>
       )}

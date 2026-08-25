@@ -598,6 +598,17 @@ export default function PredictionPage() {
     isMatchEndSequence ? null : gameDayOverlayKind;
 
   useEffect(() => {
+    if (!isLivePlay) return;
+    const sit = liveScoreboard?.situation;
+    flow.notifyLiveAtBatResult(sit?.atBatResultDisplay, sit?.batterName);
+  }, [
+    isLivePlay,
+    liveScoreboard?.situation?.atBatResultDisplay,
+    liveScoreboard?.situation?.batterName,
+    flow.notifyLiveAtBatResult,
+  ]);
+
+  useEffect(() => {
     if (!gameDayOverlayKind || isMatchEndSequence) return;
     setMatchModalOpen(false);
     setStadiumModalOpen(false);
