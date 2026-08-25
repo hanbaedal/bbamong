@@ -684,11 +684,19 @@
   object-fit: contain;
 }
 
-.user-home-friend-room-btn {
+.user-home-left-stack {
   position: absolute;
   left: 50%;
   top: calc(50% + clamp(28px, 8vh, 52px) + clamp(30px, 5vh, 44px) + clamp(34px, 6vh, 44px));
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(6px, 1.2vh, 10px);
+  z-index: 2;
+}
+
+.user-home-friend-room-btn {
   padding: clamp(3px, 0.9vh, 5px) clamp(10px, 2.5vw, 14px);
   border-radius: 6px;
   border: 1px solid #3a3a3a;
@@ -704,23 +712,19 @@
   white-space: nowrap;
 }
 
-/* 홈 — 좌우 하단 다음 스포츠 출처 (컴팩트) */
+/* 홈 — 좌우 하단 다음 스포츠 출처 */
 .user-home-credit {
-  position: absolute;
-  z-index: 2;
-  bottom: 0;
   margin: 0;
   color: #6e6e6e;
-  font-size: clamp(8px, 1.45vw, 10px);
+  font-size: clamp(10px, 2.4vw, 12px);
   font-weight: 500;
-  line-height: 1.28;
-  letter-spacing: -0.04em;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 .user-home-credit--left {
-  left: 0;
-  max-width: min(92%, 240px);
-  text-align: left;
+  text-align: center;
   text-decoration: none;
   color: #6e6e6e;
 }
@@ -732,13 +736,13 @@
 }
 
 .user-home-credit--right {
+  position: absolute;
+  z-index: 2;
   right: 0;
+  bottom: 0;
   left: auto;
-  max-width: none;
   width: max-content;
   text-align: right;
-  white-space: nowrap;
-  font-size: clamp(7px, 1.1vw, 10px);
 }
 
 /* 홈 — 사용 설명서 좌측 패널 모달 본문 */
@@ -907,7 +911,7 @@
   max-height: 100%;
   overflow: visible;
   box-sizing: border-box;
-  padding-bottom: clamp(16px, 3.2vh, 24px);
+  padding-bottom: clamp(18px, 3.6vh, 28px);
 }
 
 .user-landscape-page--home .user-home-greeting-row {
@@ -989,10 +993,6 @@
 
   .user-landscape-page--home .user-home-greeting-top {
     font-size: clamp(10px, 2.3vw, 13px);
-  }
-
-  .user-home-credit {
-    font-size: clamp(7px, 1.3vw, 9px);
   }
 }
 
