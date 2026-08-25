@@ -207,7 +207,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  max-width: min(720px, 100%);
+  max-width: min(1280px, 100%);
   overflow: visible;
 }
 
@@ -305,6 +305,47 @@
   height: clamp(180px, 42vh, 300px);
   flex-shrink: 0;
   overflow: visible;
+}
+
+.intro-batting-stage--flipbook {
+  position: relative;
+  width: min(100%, 1100px);
+  height: min(78dvh, 720px);
+  max-width: 100%;
+}
+
+.intro-batting-flip {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.intro-batting-flip--under,
+.intro-batting-flip--over {
+  position: absolute;
+  inset: 0;
+}
+
+.intro-batting-flip--under {
+  z-index: 0;
+}
+
+.intro-batting-flip--over {
+  z-index: 1;
+  animation: intro-batting-crossfade var(--intro-crossfade-ms, 220ms) ease-out both;
+}
+
+@keyframes intro-batting-crossfade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .intro-batting-scene {
@@ -475,6 +516,11 @@
   .intro-batting-ball {
     animation: none;
     opacity: 0;
+  }
+
+  .intro-batting-flip--over {
+    animation: none;
+    opacity: 1;
   }
 
   .intro-brand-ball--zoom {

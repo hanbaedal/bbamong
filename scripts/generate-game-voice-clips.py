@@ -36,7 +36,9 @@ CLIPS = {
     "voice-operator-start-prediction.mp3": "예측 시작을 눌러주세요",
     "voice-operator-match-ended.mp3": "경기가 종료되었습니다",
     # 인트로
-    "intro-tagline.mp3": "실시간으로 즐기는 야구 예측게임. 빠던나인!",
+    "intro-tagline.mp3": (
+        "문자 중계보다 빠른 직감! 빠던나인과 함께 다음 타자의 운명을 예측하세요."
+    ),
 }
 
 

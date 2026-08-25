@@ -1,27 +1,29 @@
 import { useEffect, useRef, useState } from "react";
 import IntroBattingAnimation from "@/components/user/IntroBattingAnimation";
+import { INTRO_BATTING_MS, INTRO_FADE_MS, INTRO_SPLASH_MS } from "@shared/introBatting";
+import { INTRO_TAGLINE_AUDIO_SRC } from "@/lib/introSpeech";
 
-const INTRO_JINGLE_SRC = "/audio/intro-jingle.mp3";
+export { INTRO_SPLASH_MS, INTRO_BATTING_MS, INTRO_FADE_MS };
 
-export const INTRO_BATTING_CYCLE_MS = 1400;
-export const INTRO_BATTING_CYCLES = 2;
-export const INTRO_FADE_MS = 400;
-export const INTRO_SPLASH_MS =
-  INTRO_BATTING_CYCLE_MS * INTRO_BATTING_CYCLES + INTRO_FADE_MS;
+type IntroSplashProps = {
+  onDone?: () => void;
+};
 
-/** 흰 바탕 · 가로 중앙 타격 · 동일 징글 */
-export default function IntroSplash() {
+/** 흰 가로 화면 중앙 타격 + 멘트 음성(화면 글자 없음) */
+export default function IntroSplash({ onDone }: IntroSplashProps) {
   const [fading, setFading] = useState(false);
-  const jingleRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
-    const jingle = new Audio(INTRO_JINGLE_SRC);
-    jingle.volume = 0.55;
-    jingle.preload = "auto";
-    jingleRef.current = jingle;
+    const audio = new Audio(INTRO_TAGLINE_AUDIO_SRC);
+    audio.volume = 1;
+    audio.preload = "auto";
+    audioRef.current = audio;
 
     const tryPlay = () => {
-      void jingle.play().catch(() => {
+      void audio.play().catch(() => {
         // WebView 자동재생 차단 시 첫 탭에서 재생
       });
     };
@@ -33,24 +35,23 @@ export default function IntroSplash() {
     document.addEventListener("pointerdown", onTap, { capture: true, once: true, passive: true });
 
     let volumeFade: number | undefined;
-    const fadeAt = INTRO_BATTING_CYCLE_MS * INTRO_BATTING_CYCLES;
     const fadeTimer = window.setTimeout(() => {
       setFading(true);
-
       const fadeSteps = 8;
       let step = 0;
       volumeFade = window.setInterval(() => {
         step += 1;
-        jingle.volume = Math.max(0, 0.55 * (1 - step / fadeSteps));
+        audio.volume = Math.max(0, 1 - step / fadeSteps);
         if (step >= fadeSteps) {
           if (volumeFade !== undefined) window.clearInterval(volumeFade);
-          jingle.pause();
+          audio.pause();
         }
       }, Math.max(30, Math.floor(INTRO_FADE_MS / fadeSteps)));
-    }, fadeAt);
+    }, INTRO_BATTING_MS);
 
     const stopTimer = window.setTimeout(() => {
-      jingle.pause();
+      audio.pause();
+      onDoneRef.current?.();
     }, INTRO_SPLASH_MS);
 
     return () => {
@@ -58,10 +59,10 @@ export default function IntroSplash() {
       window.clearTimeout(stopTimer);
       if (volumeFade !== undefined) window.clearInterval(volumeFade);
       document.removeEventListener("pointerdown", onTap, true);
-      jingle.pause();
-      jingle.removeAttribute("src");
-      jingle.load();
-      jingleRef.current = null;
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+      audioRef.current = null;
     };
   }, []);
 
@@ -72,10 +73,7 @@ export default function IntroSplash() {
       data-intro-phase={fading ? "fade" : "batting"}
     >
       <div className="user-intro-splash-inner">
-        <IntroBattingAnimation
-          cycleMs={INTRO_BATTING_CYCLE_MS}
-          cycles={INTRO_BATTING_CYCLES}
-        />
+        <IntroBattingAnimation />
       </div>
     </div>
   );
