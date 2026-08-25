@@ -5,6 +5,13 @@ import { notifyUserDuplicateLoginSafe, notifyUserLoginAttemptSafe } from "@/lib/
 import { clearTokens } from "@/lib/tokenManager";
 import { subscribeForegroundResume } from "@/lib/foregroundResume";
 import { isLiveAutoOperatorWsType } from "@shared/liveAutoWsEvents";
+import {
+  WS_CLIENT_HEARTBEAT_INTERVAL_MS,
+  WS_CLIENT_PONG_TIMEOUT_MS,
+  inboundWsTrafficProvesAlive,
+  isCurrentWsSocket,
+  shouldCloseForPongTimeout,
+} from "@shared/wsHeartbeat";
 
 export type WSConnectionState = "connecting" | "connected" | "disconnected" | "reconnecting";
 
@@ -61,8 +68,8 @@ interface UseMatchWebSocketResult {
 const MAX_RECONNECT_ATTEMPTS = 50;
 const RECONNECT_BASE_DELAY = 1000;
 const RECONNECT_MAX_DELAY = 30000;
-const HEARTBEAT_INTERVAL = 25000;
-const PONG_TIMEOUT = 15000;
+const HEARTBEAT_INTERVAL = WS_CLIENT_HEARTBEAT_INTERVAL_MS;
+const PONG_TIMEOUT = WS_CLIENT_PONG_TIMEOUT_MS;
 
 export function useMatchWebSocket({
   matchId,
@@ -105,12 +112,18 @@ export function useMatchWebSocket({
     clearTimers();
 
     heartbeatInterval.current = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.readyState === WebSocket.OPEN && isCurrentWsSocket(wsRef.current, ws)) {
         ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
 
+        if (pongTimeout.current) {
+          clearTimeout(pongTimeout.current);
+        }
         pongTimeout.current = setTimeout(() => {
+          if (!shouldCloseForPongTimeout({ pingSocket: ws, currentSocket: wsRef.current })) {
+            return;
+          }
           console.log("[WS] Pong timeout, reconnecting...");
-          ws.close();
+          ws.close(4000, "heartbeat timeout");
         }, PONG_TIMEOUT);
       }
     }, HEARTBEAT_INTERVAL);
@@ -203,7 +216,7 @@ export function useMatchWebSocket({
         try {
           const message = JSON.parse(event.data);
           
-          if (pongTimeout.current && (message.type === "pong" || message.type === "heartbeat_ack")) {
+          if (inboundWsTrafficProvesAlive(message.type) && pongTimeout.current) {
             clearTimeout(pongTimeout.current);
             pongTimeout.current = null;
           }

@@ -13,6 +13,13 @@ import { OpsPlatformTabs, type OpsPlatform } from "../ops/opsLoginStatusUi";
 import { countMatchesByPlatform, resolveMatchPlatform } from "@/lib/matchPlatform";
 import { cn } from "@/lib/utils";
 import { isLiveAutoOperatorWsType } from "@shared/liveAutoWsEvents";
+import {
+  WS_CLIENT_HEARTBEAT_INTERVAL_MS,
+  WS_CLIENT_PONG_TIMEOUT_MS,
+  inboundWsTrafficProvesAlive,
+  isCurrentWsSocket,
+  shouldCloseForPongTimeout,
+} from "@shared/wsHeartbeat";
 
 interface Match {
   id: string;
@@ -100,8 +107,8 @@ export default function RealtimeGameMonitoring() {
   const isConnectingRef = useRef(false);
   const currentMatchIdRef = useRef<string | null>(null);
   
-  const HEARTBEAT_INTERVAL = 25000;
-  const PONG_TIMEOUT = 10000;
+  const HEARTBEAT_INTERVAL = WS_CLIENT_HEARTBEAT_INTERVAL_MS;
+  const PONG_TIMEOUT = WS_CLIENT_PONG_TIMEOUT_MS;
 
   // 모든 경기 조회
   const { data: matchesData } = useQuery<Match[]>({
@@ -319,13 +326,19 @@ export default function RealtimeGameMonitoring() {
     clearHeartbeat();
     
     heartbeatIntervalRef.current = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.readyState === WebSocket.OPEN && isCurrentWsSocket(wsRef.current, ws)) {
         ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
         console.log("[Admin WS] Heartbeat ping 전송");
         
+        if (pongTimeoutRef.current) {
+          clearTimeout(pongTimeoutRef.current);
+        }
         pongTimeoutRef.current = setTimeout(() => {
+          if (!shouldCloseForPongTimeout({ pingSocket: ws, currentSocket: wsRef.current })) {
+            return;
+          }
           console.log("[Admin WS] Pong timeout, 재연결 시도...");
-          ws.close();
+          ws.close(4000, "heartbeat timeout");
         }, PONG_TIMEOUT);
       }
     }, HEARTBEAT_INTERVAL);
@@ -420,6 +433,11 @@ export default function RealtimeGameMonitoring() {
         const message = JSON.parse(event.data);
         const { type, data } = message;
         
+        if (inboundWsTrafficProvesAlive(type) && pongTimeoutRef.current) {
+          clearTimeout(pongTimeoutRef.current);
+          pongTimeoutRef.current = null;
+        }
+
         console.log(`[Admin WS] 메시지 수신: ${type}`, data);
 
         switch (type) {
