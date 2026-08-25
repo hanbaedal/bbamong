@@ -9,12 +9,14 @@ import { MatchModel, RoundStatisticsModel } from "../server/UserStorage/db";
 import {
   processLiveAutoOperator,
   clearLiveAutoOperator,
+  peekLiveAutoAdResume,
   LIVE_AUTO_BATTER_STABLE_MS,
   LIVE_AUTO_PITCHER_STABLE_MS,
 } from "../server/liveMatch/liveAutoOperator";
 import { resolveAtBatPhase } from "../server/liveMatch/atBatStateMachine";
 import { getNextSequence } from "../server/UserStorage/db";
 import { stopRound, updateRoundPredictionResult } from "../server/liveMatch/predictionStorage";
+import { broadcastManager } from "../server/liveMatch/broadcastManager";
 
 const MATCH_ID = "5081ab3a-fbdf-4a1a-adb9-2766752af6c0";
 
@@ -258,23 +260,32 @@ async function main() {
   );
   phase = await resolveAtBatPhase(MATCH_ID);
   await assert(phase === "idle", `after pitcher change expect idle (defer batter), got ${phase}`);
-  const mPitch = await MatchModel.findOne({ id: MATCH_ID }).select("predictionEnabled").lean();
+  const mPitch = await MatchModel.findOne({ id: MATCH_ID }).select("predictionEnabled currentRound").lean();
   await assert(!mPitch?.predictionEnabled, "pitcher tick must not also reopen prediction");
+  const peek = peekLiveAutoAdResume(MATCH_ID);
+  await assert(Boolean(peek.pendingResumeBatter), "pitcher change should queue same-batter resume");
   pass("pitcher change during open prediction refunds and defers batter");
 
-  // next poll: 이미 lastBatter=새타자로 맞춰졌을 수 있어 새 이름으로 예측 오픈
+  const roundAfterPitch = mPitch?.currentRound ?? 0;
+  await sleep(LIVE_AUTO_PITCHER_STABLE_MS + 100);
   await processLiveAutoOperator(
     MATCH_ID,
-    board({ batter: "새타자2", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
+    board({ batter: "새타자", pitcher: "다른투수", outs: 1, half: "top", inning: 4 }),
   );
-  await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
-  await processLiveAutoOperator(
-    MATCH_ID,
-    board({ batter: "새타자2", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
+  const roundAfterFlicker = (
+    await MatchModel.findOne({ id: MATCH_ID }).select("currentRound").lean()
+  )?.currentRound;
+  await assert(
+    roundAfterFlicker === roundAfterPitch,
+    "cooldown must not re-advance pitcher change",
   );
+  pass("duplicate pitcher change within cooldown is ignored");
+
+  broadcastManager.stopAdPlaying(MATCH_ID, "operator_stop", "test ad complete");
+  await sleep(250);
   phase = await resolveAtBatPhase(MATCH_ID);
-  await assert(phase === "prediction_open", `next poll should open prediction, got ${phase}`);
-  pass("next poll after pitcher opens prediction");
+  await assert(phase === "prediction_open", `after ad stop same batter should open, got ${phase}`);
+  pass("pitcher ad stop resumes current batter prediction");
 
   // —— 6) 수동 결과 확정 경로와 호환 (결과 후 공수) ——
   await resetMatchIdle({ half: "top", inning: 5, outs: 2 });
@@ -299,7 +310,9 @@ async function main() {
 
   console.log("\nlive-auto state machine E2E OK");
   console.log(logs.join("\n"));
+  broadcastManager.stopAdPlaying(MATCH_ID, "round_advance", "test cleanup");
   await mongoose.disconnect();
+  process.exit(0);
 }
 
 main().catch(async (e) => {

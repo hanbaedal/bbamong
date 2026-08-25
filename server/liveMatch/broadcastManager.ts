@@ -1,15 +1,21 @@
 import {
   AD_INTRO_DELAY_MS,
-  AD_PLAY_MS,
   AD_SCHEDULE_COOLDOWN_MS,
+  adRemainingMs,
+  isAdPlayExpired,
 } from "@shared/adBreakTiming";
 import { LIVE_AUTO_STAFF_WS_ROLES } from "@shared/liveAutoWsEvents";
 import { wsManager } from "./wsManager";
+
+type AdStopReason = "prediction_start" | "operator_stop" | "round_advance";
+type AdStopListener = (matchId: string, reason: AdStopReason) => void;
 
 class BroadcastManager {
   private adDelayTimers: Map<string, NodeJS.Timeout> = new Map();
   private adPlayTimers: Map<string, NodeJS.Timeout> = new Map();
   private lastAdScheduledAt: Map<string, number> = new Map();
+  private adStopListeners: AdStopListener[] = [];
+  private adWatchdog: NodeJS.Timeout | null = null;
 
   sendToMatch(matchId: string, eventType: string, data: any) {
     wsManager.sendToMatch(matchId, eventType, data);
@@ -36,10 +42,23 @@ class BroadcastManager {
     return wsManager.isAdPlaying(matchId);
   }
 
+  onAdStopped(listener: AdStopListener): void {
+    this.adStopListeners.push(listener);
+  }
+
+  /** 안내 지연·재생 타이머 또는 재생 플래그가 있으면 브레이크 중 */
+  isAdBreakActive(matchId: string): boolean {
+    return (
+      this.isAdPlaying(matchId) ||
+      this.adDelayTimers.has(matchId) ||
+      this.adPlayTimers.has(matchId)
+    );
+  }
+
   /** 광고 중지. reason으로 회원 보상·화면 전이를 구분한다. */
   stopAdPlaying(
     matchId: string,
-    reason: "prediction_start" | "operator_stop" | "round_advance",
+    reason: AdStopReason,
     message: string,
   ) {
     this.clearAdTimer(matchId);
@@ -49,6 +68,31 @@ class BroadcastManager {
       message,
       reason,
     });
+    for (const listener of this.adStopListeners) {
+      try {
+        listener(matchId, reason);
+      } catch (error) {
+        console.warn("[Ad] stop listener failed", error);
+      }
+    }
+  }
+
+  /** 1분 지난 광고를 타이머 유실과 관계없이 종료한다. */
+  enforceAdDeadlines(matchId?: string): void {
+    const ids = matchId ? [matchId] : wsManager.getMatchIdsWithAds();
+    for (const id of ids) {
+      const state = this.getMatchState(id);
+      if (!state.isAdPlaying) continue;
+      if (!isAdPlayExpired(state.adStartedAt)) continue;
+      console.log(`[Ad] watchdog stop ${id} startedAt=${state.adStartedAt}`);
+      this.stopAdPlaying(id, "operator_stop", "광고 시청이 완료되었습니다.");
+    }
+  }
+
+  startAdWatchdog(): void {
+    if (this.adWatchdog) return;
+    this.adWatchdog = setInterval(() => this.enforceAdDeadlines(), 2_000);
+    this.adWatchdog.unref();
   }
 
   getMatchState(matchId: string) {
@@ -94,11 +138,24 @@ class BroadcastManager {
       });
     }
     this.scheduleAdStart(matchId, AD_INTRO_DELAY_MS);
+    this.startAdWatchdog();
     return true;
   }
 
   scheduleAdStart(matchId: string, delayMs: number) {
     this.clearAdTimer(matchId);
+
+    const armPlayTimer = () => {
+      const matchState = this.getMatchState(matchId);
+      const remaining = adRemainingMs(matchState.adStartedAt);
+      const playTimer = setTimeout(() => {
+        this.adPlayTimers.delete(matchId);
+        if (this.isAdPlaying(matchId)) {
+          this.stopAdPlaying(matchId, "operator_stop", "광고 시청이 완료되었습니다.");
+        }
+      }, Math.max(250, remaining));
+      this.adPlayTimers.set(matchId, playTimer);
+    };
 
     const startAd = () => {
       this.adDelayTimers.delete(matchId);
@@ -110,13 +167,7 @@ class BroadcastManager {
         adStartedAt: matchState.adStartedAt,
       });
       // 광고 재생 고정 시간 후 자동 종료 (보상 가능 = operator_stop)
-      const playTimer = setTimeout(() => {
-        this.adPlayTimers.delete(matchId);
-        if (this.isAdPlaying(matchId)) {
-          this.stopAdPlaying(matchId, "operator_stop", "광고 시청이 완료되었습니다.");
-        }
-      }, AD_PLAY_MS);
-      this.adPlayTimers.set(matchId, playTimer);
+      armPlayTimer();
     };
 
     if (delayMs === 0) {

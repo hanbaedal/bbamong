@@ -42,6 +42,12 @@ export default function GameAdOverlay({
 
   useEffect(() => {
     if (completeAfterSeconds == null) return;
+    if (completeAfterSeconds <= 0) {
+      if (closedRef.current) return;
+      closedRef.current = true;
+      onCompleteRef.current?.();
+      return;
+    }
     const timer = setTimeout(() => {
       if (closedRef.current) return;
       closedRef.current = true;
