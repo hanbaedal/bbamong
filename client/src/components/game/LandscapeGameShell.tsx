@@ -24,7 +24,7 @@ import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import type { PregameCountdownDisplay } from "./GamePregameCountdown";
 import type { SideBetBottomSummary } from "./GameBottomStatusBar";
 import { AD_PLAY_MS } from "@shared/adBreakTiming";
-import type { GameScreenPhase, PredictionOption } from "./gameTypes";
+import { isTransientAdOrEventPhase, type GameScreenPhase, type PredictionOption } from "./gameTypes";
 import type { BetAmountOption } from "@shared/predictionOdds";
 import { useAtBatPitchDisplay } from "@/hooks/useAtBatPitchDisplay";
 import "./gameAnimations.css";
@@ -169,6 +169,11 @@ export default function LandscapeGameShell({
         <GameLiveSituationWidget
           scoreboard={scoreboard}
           hidden={noticeSuppressed}
+          hideAtBatResult={
+            screenPhase === "wait_start" ||
+            screenPhase === "picking" ||
+            isTransientAdOrEventPhase(screenPhase)
+          }
           awayFallback={headToHead?.awayName}
           homeFallback={headToHead?.homeName}
           onAwayTeamClick={onAwayTeamClick}

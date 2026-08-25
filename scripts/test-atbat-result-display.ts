@@ -60,8 +60,15 @@ assert(
       { title: "이타자", textOptions: [] },
     ],
     "이타자",
-  ) === "삼진아웃",
-  "next batter still shows previous 삼진아웃",
+  ) == null,
+  "next batter must not keep previous 삼진아웃",
+);
+assert(
+  inferAtBatResultDisplayFromRelays(
+    [{ title: "결과", textOptions: [{ text: "김타자 삼진 아웃" }] }],
+    "이타자",
+  ) == null,
+  "generic 결과 without next batter name is not reused",
 );
 
 const payload = {

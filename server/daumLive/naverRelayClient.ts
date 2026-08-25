@@ -476,8 +476,10 @@ export function inferAtBatResultDisplayFromRelays(
   const texts: string[] = [];
   for (const relay of [...(relays ?? [])].reverse()) {
     const title = (relay.title ?? "").replace(/\s+/g, "");
-    if (name && title && !title.includes(name) && !title.includes("결과")) {
-      continue;
+    if (name && title && !title.includes(name)) {
+      if (!title.includes("결과")) continue;
+      const blob = [...(relay.textOptions ?? [])].map((o) => (o.text ?? "").replace(/\s+/g, "")).join("");
+      if (!blob.includes(name)) continue;
     }
     for (const option of [...(relay.textOptions ?? [])].reverse()) {
       const text = (option.text ?? "").trim();
@@ -487,19 +489,7 @@ export function inferAtBatResultDisplayFromRelays(
   }
   const fromBatter = inferAtBatResultDisplayFromText(texts.join(" "));
   if (fromBatter) return fromBatter;
-
-  // 타자가 바뀌어 현재 타자 문구가 없으면 직전 타석 결과를 최근 중계에서 복구
-  if (name && texts.length === 0) {
-    const recent: string[] = [];
-    for (const relay of [...(relays ?? [])].reverse()) {
-      for (const option of [...(relay.textOptions ?? [])].reverse()) {
-        const text = (option.text ?? "").trim();
-        if (text) recent.push(text);
-      }
-      if (recent.length >= 8) break;
-    }
-    return inferAtBatResultDisplayFromText(recent.join(" "));
-  }
+  // 현재 타자 중계에 결과가 없으면 직전 타자 삼진/안타를 붙이지 않음
   return null;
 }
 

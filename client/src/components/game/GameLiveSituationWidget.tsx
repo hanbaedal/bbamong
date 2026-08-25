@@ -1,7 +1,10 @@
 /** 예측 참고용 TV 위젯. 이닝·점수는 다음, 다이아몬드·카운트·타자·투수는 네이버. */
 import { useEffect, useState } from "react";
 import type { LiveBatterTodayStats, LivePitcherSummary, LiveScoreboard } from "@shared/apiSportsTypes";
-import type { LiveAtBatResultDisplay } from "@shared/atBatResultDisplay";
+import {
+  type LiveAtBatResultDisplay,
+  shouldCarryForwardAtBatResult,
+} from "@shared/atBatResultDisplay";
 import { formatStatCount } from "@shared/batterDisplay";
 import { kboTeamPrimaryColor } from "@shared/kboTeamColors";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
@@ -9,6 +12,8 @@ import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
 interface GameLiveSituationWidgetProps {
   scoreboard: LiveScoreboard | null;
   hidden?: boolean;
+  /** 다음 타석 대기·예측·투수교체·광고 중에는 직전 타석 결과 큰 글씨를 숨긴다 */
+  hideAtBatResult?: boolean;
   awayFallback?: string | null;
   homeFallback?: string | null;
   onAwayTeamClick?: () => void;
@@ -28,6 +33,7 @@ function formatBatterTodayLine(today: LiveBatterTodayStats | null | undefined): 
 export default function GameLiveSituationWidget({
   scoreboard,
   hidden = false,
+  hideAtBatResult = false,
   awayFallback,
   homeFallback,
   onAwayTeamClick,
@@ -178,10 +184,10 @@ export default function GameLiveSituationWidget({
           ) : null}
           <AtBatResultBanner
             batterName={batterName}
-            result={atBatResult}
-            balls={balls}
-            strikes={strikes}
+            result={hideAtBatResult ? null : atBatResult}
+            pitchLabel={pitchLabel}
             hasTodayLine={Boolean(batterTodayLine)}
+            hide={hideAtBatResult}
           />
         </div>
       ) : null}
@@ -191,34 +197,59 @@ export default function GameLiveSituationWidget({
 
 /**
  * 오늘 기록 아래 ~5줄 여백 후 큰 글씨로 타석 결과.
- * 서버 라벨이 비어도 직전 결과를 유지. 다음 타석 투구가 시작되면 지움.
+ * 같은 타석에서만 유지. 타자 교체·1구·투수교체·예측 창에서는 지움.
  */
 function AtBatResultBanner({
   batterName,
   result,
-  balls,
-  strikes,
+  pitchLabel,
   hasTodayLine,
+  hide,
 }: {
   batterName: string;
   result: LiveAtBatResultDisplay | null;
-  balls: number;
-  strikes: number;
+  pitchLabel: string;
   hasTodayLine: boolean;
+  hide: boolean;
 }) {
-  const [sticky, setSticky] = useState<LiveAtBatResultDisplay | null>(null);
+  const [sticky, setSticky] = useState<{
+    batter: string;
+    result: LiveAtBatResultDisplay;
+  } | null>(null);
 
   useEffect(() => {
-    if (result) {
-      setSticky(result);
+    if (hide) {
+      setSticky(null);
       return;
     }
-    if (balls > 0 || strikes > 0) {
-      setSticky(null);
+    if (result && batterName) {
+      setSticky({ batter: batterName, result });
+      return;
     }
-  }, [result, balls, strikes, batterName]);
+    setSticky((prev) => {
+      if (!prev) return null;
+      if (prev.batter !== batterName) return null;
+      if (
+        !shouldCarryForwardAtBatResult({
+          prevResult: prev.result,
+          prevBatterName: prev.batter,
+          nextBatterName: batterName,
+          nextPitchLabel: pitchLabel,
+        })
+      ) {
+        return null;
+      }
+      return prev;
+    });
+  }, [hide, result, batterName, pitchLabel]);
 
-  const label = result ?? sticky;
+  if (hide) return null;
+  const label =
+    result && batterName
+      ? result
+      : sticky && sticky.batter === batterName
+        ? sticky.result
+        : null;
   if (!label) return null;
 
   return (
