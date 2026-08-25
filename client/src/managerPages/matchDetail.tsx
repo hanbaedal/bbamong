@@ -17,6 +17,7 @@ import { refreshGameKeepAwake, setGameKeepAwake } from "@/lib/screenWakeLock";
 import { useManagerProactiveSessionRefresh } from "@/hooks/useManagerProactiveSessionRefresh";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
+import { isMatchLiveWindowOpen } from "@shared/matchLiveWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import { resolveLiveInningPhaseLabel } from "@shared/matchPhaseDisplay";
 import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
@@ -611,7 +612,7 @@ export default function MatchDetailPage() {
     }
   }, [id]);
 
-  // 경기 시작 1분 전부터 MongoDB 폴링 (선택 경기 1건)
+  // 경기 시작 5분 전부터 MongoDB 폴링 (선택 경기 1건)
   useEffect(() => {
     if (!id || !match?.startTime) return;
 
@@ -1066,15 +1067,10 @@ export default function MatchDetailPage() {
     match.needsAdvanceAfterResult || match.isResultSent,
   );
   const showThreeOutsHint = Boolean(match.showThreeOutsHint);
-  /** 경기중(ongoing) 또는 시작 시각 경과(API 지연으로 scheduled 잔류) */
-  const startTimeReached = Boolean(
-    match.startTime && Number.isFinite(new Date(match.startTime).getTime())
-      ? Date.now() >= new Date(match.startTime).getTime()
-      : false,
-  );
+  /** 경기중(ongoing) 또는 시작 5분 전~(scheduled) */
   const isMatchLive =
     match.matchStatus === "ongoing" ||
-    (match.matchStatus === "scheduled" && startTimeReached);
+    (match.matchStatus === "scheduled" && isMatchLiveWindowOpen(match.startTime));
   const predictionRunning = Boolean(match.predictionEnabled);
   const withinStartCancel =
     predictionRunning &&

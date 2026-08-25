@@ -485,7 +485,22 @@ export function inferAtBatResultDisplayFromRelays(
     }
     if (texts.length >= 12) break;
   }
-  return inferAtBatResultDisplayFromText(texts.join(" "));
+  const fromBatter = inferAtBatResultDisplayFromText(texts.join(" "));
+  if (fromBatter) return fromBatter;
+
+  // 타자가 바뀌어 현재 타자 문구가 없으면 직전 타석 결과를 최근 중계에서 복구
+  if (name && texts.length === 0) {
+    const recent: string[] = [];
+    for (const relay of [...(relays ?? [])].reverse()) {
+      for (const option of [...(relay.textOptions ?? [])].reverse()) {
+        const text = (option.text ?? "").trim();
+        if (text) recent.push(text);
+      }
+      if (recent.length >= 8) break;
+    }
+    return inferAtBatResultDisplayFromText(recent.join(" "));
+  }
+  return null;
 }
 
 /** 문자중계 최근 문장에서 예측 결과 추정 */
@@ -497,12 +512,43 @@ export function inferSuggestedResultFromRelays(
   return display ? mapAtBatResultDisplayToSuggested(display) : null;
 }
 
+/** 경기 시작 직후 currentGameState 가 비어 있어도 선발 투수·첫 타자를 보여 준다 */
+function parseNaverPregameSituation(
+  relay: NonNullable<NaverRelayPayload["result"]>["textRelayData"],
+): LiveScoreSituation | null {
+  if (!relay) return null;
+  const battingAway = String(relay.homeOrAway ?? "0") !== "1";
+  const pitcher = resolveCurrentPitcher(relay, battingAway);
+  const lineup = battingAway ? relay.awayLineup?.batter : relay.homeLineup?.batter;
+  const entry = battingAway ? relay.awayEntry?.batter : relay.homeEntry?.batter;
+  const first = lineup?.[0] ?? entry?.[0];
+  const batterName = first?.name?.trim() || null;
+  if (!pitcher?.name && !batterName) return null;
+  return {
+    balls: 0,
+    strikes: 0,
+    outs: 0,
+    first: false,
+    second: false,
+    third: false,
+    batterName,
+    pitcherName: pitcher?.name ?? null,
+    pitcher,
+    batsSide: batsSideFromHitType(first?.hitType ?? first?.hittype) ?? null,
+    suggestedResult: null,
+    atBatResultDisplay: null,
+  };
+}
+
 /** 네이버 문자중계 → 주자·카운트·타자·구종 전용. 점수·이닝은 파싱하지 않는다. */
 export function parseNaverLiveSituation(payload: unknown): LiveScoreSituation | null {
   const relay =
     payload && typeof payload === "object" ? (payload as NaverRelayPayload).result?.textRelayData : null;
+  if (!relay) return null;
   const state = relay?.currentGameState;
-  if (!state || typeof state !== "object") return null;
+  if (!state || typeof state !== "object") {
+    return parseNaverPregameSituation(relay);
+  }
 
   const batterId = String(state.batter ?? "").trim();
   const battingAway = String(relay?.homeOrAway ?? "0") !== "1";

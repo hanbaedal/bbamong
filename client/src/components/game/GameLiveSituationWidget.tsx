@@ -54,11 +54,11 @@ export default function GameLiveSituationWidget({
   const pitcherName = pitcher?.name?.trim() || situation?.pitcherName?.trim() || "";
   const pitchLabel = situation?.pitchLabel?.trim() || "";
   const pitchDetail = situation?.pitchDetail?.trim() || "";
-  const showBatter = Boolean(batterName || pitchLabel || pitchDetail);
+  const atBatResult = situation?.atBatResultDisplay ?? null;
+  const showBatter = Boolean(batterName || pitchLabel || pitchDetail || atBatResult);
   const showPitcher = Boolean(pitcherName);
   const showLiveBits = Boolean(scoreboard);
   const batterTodayLine = formatBatterTodayLine(situation?.batterToday);
-  const atBatResult = situation?.atBatResultDisplay ?? null;
 
   return (
     <div
@@ -179,6 +179,8 @@ export default function GameLiveSituationWidget({
           <AtBatResultBanner
             batterName={batterName}
             result={atBatResult}
+            balls={balls}
+            strikes={strikes}
             hasTodayLine={Boolean(batterTodayLine)}
           />
         </div>
@@ -189,34 +191,34 @@ export default function GameLiveSituationWidget({
 
 /**
  * 오늘 기록 아래 ~5줄 여백 후 큰 글씨로 타석 결과.
- * 서버 라벨이 잠깐 비어도 같은 타자면 유지, 타자 바뀌면 지움.
+ * 서버 라벨이 비어도 직전 결과를 유지. 다음 타석 투구가 시작되면 지움.
  */
 function AtBatResultBanner({
   batterName,
   result,
+  balls,
+  strikes,
   hasTodayLine,
 }: {
   batterName: string;
   result: LiveAtBatResultDisplay | null;
+  balls: number;
+  strikes: number;
   hasTodayLine: boolean;
 }) {
-  const [sticky, setSticky] = useState<{ batter: string; label: LiveAtBatResultDisplay } | null>(
-    null,
-  );
+  const [sticky, setSticky] = useState<LiveAtBatResultDisplay | null>(null);
 
   useEffect(() => {
     if (result) {
-      setSticky({ batter: batterName, label: result });
+      setSticky(result);
       return;
     }
-    setSticky((prev) => {
-      if (!prev) return null;
-      if (prev.batter !== batterName) return null;
-      return prev;
-    });
-  }, [result, batterName]);
+    if (balls > 0 || strikes > 0) {
+      setSticky(null);
+    }
+  }, [result, balls, strikes, batterName]);
 
-  const label = result ?? (sticky?.batter === batterName ? sticky.label : null);
+  const label = result ?? sticky;
   if (!label) return null;
 
   return (

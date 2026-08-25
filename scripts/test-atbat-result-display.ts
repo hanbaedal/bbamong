@@ -53,6 +53,16 @@ assert(
     "포볼",
   "relay 포볼",
 );
+assert(
+  inferAtBatResultDisplayFromRelays(
+    [
+      { title: "김타자", textOptions: [{ text: "삼진 아웃" }] },
+      { title: "이타자", textOptions: [] },
+    ],
+    "이타자",
+  ) === "삼진아웃",
+  "next batter still shows previous 삼진아웃",
+);
 
 const payload = {
   result: {
@@ -86,5 +96,17 @@ const payload = {
 const sit = parseNaverLiveSituation(payload);
 assert(sit?.atBatResultDisplay === "사구", `parse display ${sit?.atBatResultDisplay}`);
 assert(sit?.suggestedResult === "1루", `parse suggested ${sit?.suggestedResult}`);
+
+const pregame = parseNaverLiveSituation({
+  result: {
+    textRelayData: {
+      homeOrAway: "0",
+      awayLineup: { batter: [{ pcode: "100", name: "선발타자", hitType: "우타" }] },
+      homeLineup: { pitcher: [{ pcode: "200", name: "선발투수" }] },
+    },
+  },
+});
+assert(pregame?.pitcherName === "선발투수", `pregame pitcher ${pregame?.pitcherName}`);
+assert(pregame?.batterName === "선발타자", `pregame batter ${pregame?.batterName}`);
 
 console.log("OK: at-bat result display (incl. 사구)");

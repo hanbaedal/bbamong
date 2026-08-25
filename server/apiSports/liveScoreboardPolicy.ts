@@ -29,7 +29,31 @@ export function attachNaverSituation(
 ): LiveScoreboard {
   return {
     ...board,
-    situation: situation ?? previous ?? null,
+    situation: carryForwardAtBatResult(situation ?? previous ?? null, previous ?? null),
+  };
+}
+
+/** 타자가 바뀌어 실황 결과가 비어도 직전 타석 결과를 유지한다 (새 타석 투구가 시작되면 지움) */
+export function carryForwardAtBatResult(
+  next: LiveScoreboard["situation"] | null | undefined,
+  prev: LiveScoreboard["situation"] | null | undefined,
+): LiveScoreboard["situation"] | null {
+  if (!next) return prev ?? null;
+  if (next.atBatResultDisplay) return next;
+  if (!prev?.atBatResultDisplay) return next;
+  const batterChanged =
+    Boolean(next.batterName) &&
+    Boolean(prev.batterName) &&
+    next.batterName !== prev.batterName;
+  const newAtBatPitches =
+    (next.balls ?? 0) > 0 ||
+    (next.strikes ?? 0) > 0 ||
+    (next.pitchLocations?.length ?? 0) > 0;
+  if (batterChanged && newAtBatPitches) return next;
+  return {
+    ...next,
+    atBatResultDisplay: prev.atBatResultDisplay,
+    suggestedResult: next.suggestedResult ?? prev.suggestedResult ?? null,
   };
 }
 
@@ -42,7 +66,10 @@ export function mergeExclusiveLiveScoreboard(
   incoming: LiveScoreboard,
   options: { preserveScoreFields: boolean },
 ): LiveScoreboard {
-  const situation = incoming.situation ?? existing?.situation ?? null;
+  const situation = carryForwardAtBatResult(
+    incoming.situation ?? existing?.situation ?? null,
+    existing?.situation ?? null,
+  );
   if (options.preserveScoreFields && existing) {
     return {
       ...existing,

@@ -79,6 +79,7 @@ async function ensureRoundStats(roundNumber: number) {
 
 async function resetMatchIdle(opts?: { half?: "top" | "bottom"; inning?: number; outs?: number }) {
   clearLiveAutoOperator(MATCH_ID);
+  await sleep(150);
   const half = opts?.half ?? "top";
   const inning = opts?.inning ?? 3;
   const outs = opts?.outs ?? 0;
@@ -128,12 +129,18 @@ async function resetMatchIdle(opts?: { half?: "top" | "bottom"; inning?: number;
   );
 }
 
-async function openPredictionViaAuto(batter: string, pitcher = "박투수") {
+async function openPredictionViaAuto(
+  batter: string,
+  pitcher = "박투수",
+  opts?: { half?: "top" | "bottom"; inning?: number },
+) {
+  const half = opts?.half;
+  const inning = opts?.inning;
   // seed 기준선(다른 이름) → 목표 타자 안정화 후에만 prediction_open
-  await processLiveAutoOperator(MATCH_ID, board({ batter: "__seed__", pitcher, outs: 0 }));
-  await processLiveAutoOperator(MATCH_ID, board({ batter, pitcher, outs: 0 }));
+  await processLiveAutoOperator(MATCH_ID, board({ batter: "__seed__", pitcher, outs: 0, half, inning }));
+  await processLiveAutoOperator(MATCH_ID, board({ batter, pitcher, outs: 0, half, inning }));
   await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
-  await processLiveAutoOperator(MATCH_ID, board({ batter, pitcher, outs: 0 }));
+  await processLiveAutoOperator(MATCH_ID, board({ batter, pitcher, outs: 0, half, inning }));
   const phase = await resolveAtBatPhase(MATCH_ID);
   await assert(phase === "prediction_open", `expected prediction_open, got ${phase}`);
 }
@@ -238,7 +245,7 @@ async function main() {
 
   // —— 5) 투수교체(예측 중) → skippedResult, 같은 tick 타자 예측 시작 안 함 ——
   await resetMatchIdle({ half: "top", inning: 4, outs: 0 });
-  await openPredictionViaAuto("타자병", "투수구");
+  await openPredictionViaAuto("타자병", "투수구", { half: "top", inning: 4 });
   // 투수·타자 동시 변경 후보
   await processLiveAutoOperator(
     MATCH_ID,
@@ -271,7 +278,7 @@ async function main() {
 
   // —— 6) 수동 결과 확정 경로와 호환 (결과 후 공수) ——
   await resetMatchIdle({ half: "top", inning: 5, outs: 2 });
-  await openPredictionViaAuto("타자정");
+  await openPredictionViaAuto("타자정", "박투수", { half: "top", inning: 5 });
   await stopRound(MATCH_ID);
   const round = (await MatchModel.findOne({ id: MATCH_ID }).select("currentRound").lean())?.currentRound ?? 1;
   await updateRoundPredictionResult(MATCH_ID, round, "아웃");

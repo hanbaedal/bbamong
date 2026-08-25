@@ -23,6 +23,7 @@ import type { LiveScoreboard, CurrentBatterPreview, LivePitcherSummary } from "@
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import type { PregameCountdownDisplay } from "./GamePregameCountdown";
 import type { SideBetBottomSummary } from "./GameBottomStatusBar";
+import { AD_PLAY_MS } from "@shared/adBreakTiming";
 import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { BetAmountOption } from "@shared/predictionOdds";
 import { useAtBatPitchDisplay } from "@/hooks/useAtBatPitchDisplay";
@@ -41,8 +42,8 @@ interface LandscapeGameShellProps {
   emptyMessage?: string;
   screenPhase: GameScreenPhase;
   selectedPrediction: PredictionOption | null;
-  /** 라운드 확정 결과 큰 글씨 (result_flash) */
-  roundResultLabel?: PredictionOption | null;
+  /** 라운드 확정 결과 큰 글씨 (result_flash) — 실황 타격 결과 문구 우선 */
+  roundResultLabel?: string | null;
   labelsVisible: boolean;
   labelsInteractive: boolean;
   blinkPrediction: PredictionOption | null;
@@ -61,9 +62,11 @@ interface LandscapeGameShellProps {
   showAdOverlay?: boolean;
   adOverlayMessage?: string;
   adOverlayDismissible?: boolean;
+  adOverlayCompleteAfterSeconds?: number;
   adSessionState?: AdSessionState;
   isNativePlatform?: boolean;
   onAdOverlayDismiss?: () => void;
+  onAdOverlayComplete?: () => void;
   onMatchTitleClick?: () => void;
   onStadiumNameClick?: () => void;
   matchSelectEnabled?: boolean;
@@ -119,9 +122,11 @@ export default function LandscapeGameShell({
   showAdOverlay,
   adOverlayMessage,
   adOverlayDismissible = true,
+  adOverlayCompleteAfterSeconds,
   adSessionState,
   isNativePlatform,
   onAdOverlayDismiss,
+  onAdOverlayComplete,
   onMatchTitleClick,
   onStadiumNameClick,
   matchSelectEnabled,
@@ -317,6 +322,10 @@ export default function LandscapeGameShell({
               ? "리워드 광고 준비 중입니다..."
               : "광고가 재생 중입니다...")
           }
+          completeAfterSeconds={
+            adOverlayCompleteAfterSeconds ?? Math.round(AD_PLAY_MS / 1000)
+          }
+          onComplete={onAdOverlayComplete}
           onDismiss={
             adOverlayDismissible && adSessionState !== "preparing"
               ? onAdOverlayDismiss

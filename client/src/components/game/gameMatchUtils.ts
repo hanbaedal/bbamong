@@ -126,7 +126,7 @@ export function sortMatchesByOrder<T extends { name: string }>(matches: T[]): T[
   return [...matches].sort((a, b) => matchOrderKey(a.name) - matchOrderKey(b.name));
 }
 
-/** 시작 1분 전 ~ 종료 전, 또는 진행 중인 경기만 참여 가능 */
+/** 시작 5분 전 ~ 종료 전, 또는 진행 중인 경기만 참여 가능 */
 export function filterJoinableMatches(
   matches: GameMatchItem[],
   nowMs = Date.now(),
