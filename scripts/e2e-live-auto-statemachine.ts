@@ -1,11 +1,11 @@
 /**
- * 실황 자동 상태머신 통합 검증 — processLiveAutoOperator 전이/가드
+ * 실황 폴링은 점수·힌트만. 예측 시작·결과·다음타자·공수는 수동.
  * npx tsx scripts/e2e-live-auto-statemachine.ts
  */
 import "dotenv/config";
 import mongoose from "mongoose";
 import type { LiveScoreboard } from "../shared/apiSportsTypes";
-import { MatchModel, RoundStatisticsModel } from "../server/UserStorage/db";
+import { MatchModel, RoundStatisticsModel, getNextSequence } from "../server/UserStorage/db";
 import {
   processLiveAutoOperator,
   clearLiveAutoOperator,
@@ -14,8 +14,6 @@ import {
   LIVE_AUTO_PITCHER_STABLE_MS,
 } from "../server/liveMatch/liveAutoOperator";
 import { resolveAtBatPhase } from "../server/liveMatch/atBatStateMachine";
-import { getNextSequence } from "../server/UserStorage/db";
-import { stopRound, updateRoundPredictionResult } from "../server/liveMatch/predictionStorage";
 import { broadcastManager } from "../server/liveMatch/broadcastManager";
 
 const MATCH_ID = "5081ab3a-fbdf-4a1a-adb9-2766752af6c0";
@@ -132,20 +130,58 @@ async function resetMatchIdle(opts?: { half?: "top" | "bottom"; inning?: number;
   );
 }
 
-async function openPredictionViaAuto(
-  batter: string,
-  pitcher = "박투수",
-  opts?: { half?: "top" | "bottom"; inning?: number },
-) {
-  const half = opts?.half;
-  const inning = opts?.inning;
-  // seed 기준선(다른 이름) → 목표 타자 안정화 후에만 prediction_open
-  await processLiveAutoOperator(MATCH_ID, board({ batter: "__seed__", pitcher, outs: 0, half, inning }));
-  await processLiveAutoOperator(MATCH_ID, board({ batter, pitcher, outs: 0, half, inning }));
-  await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
-  await processLiveAutoOperator(MATCH_ID, board({ batter, pitcher, outs: 0, half, inning }));
+async function setRoundPhase(opts: {
+  predictionEnabled: boolean;
+  started: boolean;
+  stopped: boolean;
+  resultSent: boolean;
+}) {
+  const match = await MatchModel.findOne({ id: MATCH_ID }).select("currentRound").lean();
+  const roundNumber = match?.currentRound ?? 1;
+  await MatchModel.updateOne(
+    { id: MATCH_ID },
+    { $set: { predictionEnabled: opts.predictionEnabled } },
+  );
+  await RoundStatisticsModel.updateOne(
+    { matchId: MATCH_ID, roundNumber },
+    {
+      $set: {
+        isPredictionStarted: opts.started,
+        isPredictionStopped: opts.stopped,
+        isResultSent: opts.resultSent,
+        settledResult: opts.resultSent ? "아웃" : null,
+      },
+    },
+  );
+}
+
+async function openPredictionViaManual() {
+  await setRoundPhase({
+    predictionEnabled: true,
+    started: true,
+    stopped: false,
+    resultSent: false,
+  });
   const phase = await resolveAtBatPhase(MATCH_ID);
-  await assert(phase === "prediction_open", `expected prediction_open, got ${phase}`);
+  await assert(phase === "prediction_open", `expected prediction_open after manual start, got ${phase}`);
+}
+
+async function closePredictionViaManual() {
+  await setRoundPhase({
+    predictionEnabled: false,
+    started: true,
+    stopped: true,
+    resultSent: false,
+  });
+}
+
+async function confirmResultViaManual() {
+  await setRoundPhase({
+    predictionEnabled: false,
+    started: true,
+    stopped: true,
+    resultSent: true,
+  });
 }
 
 async function main() {
@@ -156,7 +192,7 @@ async function main() {
     console.log(`OK ${name}`);
   };
 
-  // —— 1) seed + flicker + stable batter ——
+  // —— 1) seed + flicker + stable batter — 예측은 자동으로 열리지 않음 ——
   await resetMatchIdle();
   await processLiveAutoOperator(MATCH_ID, board({ batter: "김타자", pitcher: "박투수", outs: 0 }));
   let phase = await resolveAtBatPhase(MATCH_ID);
@@ -172,10 +208,10 @@ async function main() {
   await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
   await processLiveAutoOperator(MATCH_ID, board({ batter: "안정타자", pitcher: "박투수", outs: 0 }));
   phase = await resolveAtBatPhase(MATCH_ID);
-  await assert(phase === "prediction_open", `stable batter should open, got ${phase}`);
-  pass("stable batter opens prediction");
+  await assert(phase === "idle", `stable batter must not auto-open, got ${phase}`);
+  pass("stable batter does not auto-open prediction");
 
-  // —— 2) liveAutoEnabled=false 잔여값 → 자동 복구 후 계속 진행 ——
+  // —— 2) liveAutoEnabled=false 잔여값 → 복구, 그래도 자동 예측 없음 ——
   await resetMatchIdle();
   await MatchModel.updateOne({ id: MATCH_ID }, { $set: { liveAutoEnabled: false } });
   await processLiveAutoOperator(MATCH_ID, board({ batter: "김타자", pitcher: "박투수", outs: 0 }));
@@ -186,18 +222,17 @@ async function main() {
   await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
   await processLiveAutoOperator(MATCH_ID, board({ batter: "이타자", pitcher: "박투수", outs: 0 }));
   phase = await resolveAtBatPhase(MATCH_ID);
-  await assert(phase === "prediction_open", `healed auto should open, got ${phase}`);
-  pass("liveAuto false heals and continues");
+  await assert(phase === "idle", `healed must still stay idle, got ${phase}`);
+  pass("liveAuto false heals without auto-start");
 
-  // —— 3) 3아웃 + 결과 없음 → 공수 차단 (prediction_closed) ——
+  // —— 3) 3아웃 + 결과 없음 → 공수 자동 안 함 (prediction_closed 유지) ——
   await resetMatchIdle();
   await MatchModel.updateOne({ id: MATCH_ID }, { $set: { liveAutoEnabled: true } });
-  await openPredictionViaAuto("타자갑");
-  await stopRound(MATCH_ID);
+  await openPredictionViaManual();
+  await closePredictionViaManual();
   phase = await resolveAtBatPhase(MATCH_ID);
   await assert(phase === "prediction_closed", `expected closed, got ${phase}`);
 
-  // seed baselines at 2 outs then hit 3 without suggested → blocked, stay closed
   clearLiveAutoOperator(MATCH_ID);
   await processLiveAutoOperator(
     MATCH_ID,
@@ -210,13 +245,13 @@ async function main() {
   phase = await resolveAtBatPhase(MATCH_ID);
   await assert(phase === "prediction_closed", `3out without result must stay closed, got ${phase}`);
   const afterBlock = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf predictionEnabled").lean();
-  await assert(afterBlock?.inningHalf === "top", "half must not advance without result");
-  pass("3-out without result blocks switch");
+  await assert(afterBlock?.inningHalf === "top", "half must not advance without operator");
+  pass("3-out without result does not auto-switch");
 
-  // —— 4) 3아웃 + suggested 아웃 → 자동 결과 후 공수 ——
+  // —— 4) 3아웃 + suggested 아웃 → 자동 확정·공수 없음 ——
   await resetMatchIdle({ half: "top", inning: 3, outs: 2 });
-  await openPredictionViaAuto("타자을");
-  await stopRound(MATCH_ID);
+  await openPredictionViaManual();
+  await closePredictionViaManual();
   clearLiveAutoOperator(MATCH_ID);
   await processLiveAutoOperator(
     MATCH_ID,
@@ -234,24 +269,16 @@ async function main() {
     }),
   );
   phase = await resolveAtBatPhase(MATCH_ID);
-  await assert(
-    phase === "idle" || phase === "result_confirmed",
-    `after auto result+switch expect idle/result_confirmed, got ${phase}`,
-  );
-  // 같은 tick에서 공수 처리 후 return → 예측 재시작은 다음 폴링
+  await assert(phase === "prediction_closed", `suggested out must not auto-settle, got ${phase}`);
   const mSwitch = await MatchModel.findOne({ id: MATCH_ID }).lean();
-  await assert(
-    !mSwitch?.predictionEnabled,
-    "same tick after switch must not start prediction (ad/event window)",
-  );
+  await assert(!mSwitch?.predictionEnabled, "must not start prediction");
   const peekSwitch = peekLiveAutoAdResume(MATCH_ID);
-  await assert(peekSwitch.resumeAfterAdBreak, "switch half should queue resume after ad");
-  pass("3-out with suggested out: result then switch, no same-tick predict");
+  await assert(!peekSwitch.resumeAfterAdBreak, "must not queue auto resume after ad");
+  pass("3-out with suggested out: hint only, no auto result/switch");
 
-  // —— 5) 투수교체(예측 중) → skippedResult, 같은 tick 타자 예측 시작 안 함 ——
+  // —— 5) 투수교체 감지 → 자동 진행 없음, 예측은 8초 규칙(여기선 수동 유지) ——
   await resetMatchIdle({ half: "top", inning: 4, outs: 0 });
-  await openPredictionViaAuto("타자병", "투수구", { half: "top", inning: 4 });
-  // 투수·타자 동시 변경 후보
+  await openPredictionViaManual();
   await processLiveAutoOperator(
     MATCH_ID,
     board({ batter: "새타자", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
@@ -261,14 +288,7 @@ async function main() {
     MATCH_ID,
     board({ batter: "새타자", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
   );
-  phase = await resolveAtBatPhase(MATCH_ID);
-  await assert(phase === "idle", `after pitcher change expect idle (defer batter), got ${phase}`);
   const mPitch = await MatchModel.findOne({ id: MATCH_ID }).select("predictionEnabled currentRound").lean();
-  await assert(!mPitch?.predictionEnabled, "pitcher tick must not also reopen prediction");
-  const peek = peekLiveAutoAdResume(MATCH_ID);
-  await assert(peek.resumeAfterAdBreak, "pitcher change should queue same-batter resume");
-  pass("pitcher change during open prediction refunds and defers batter");
-
   const roundAfterPitch = mPitch?.currentRound ?? 0;
   await sleep(LIVE_AUTO_PITCHER_STABLE_MS + 100);
   await processLiveAutoOperator(
@@ -280,44 +300,30 @@ async function main() {
   )?.currentRound;
   await assert(
     roundAfterFlicker === roundAfterPitch,
-    "cooldown must not re-advance pitcher change",
+    "live poll must not auto-advance pitcher change",
   );
-  pass("duplicate pitcher change within cooldown is ignored");
+  pass("pitcher change is hint-only");
 
   await assert(
-    Boolean(broadcastManager.isAdBreakActive(MATCH_ID)),
-    "ad intro/play should stay active after pitcher change",
+    !broadcastManager.isAdBreakActive(MATCH_ID),
+    "ad must not auto-start without operator switch/pitcher",
   );
-  await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
-  await processLiveAutoOperator(
-    MATCH_ID,
-    board({ batter: "광고중타자", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
-  );
-  await sleep(LIVE_AUTO_BATTER_STABLE_MS + 100);
-  await processLiveAutoOperator(
-    MATCH_ID,
-    board({ batter: "광고중타자", pitcher: "신투수", outs: 1, half: "top", inning: 4 }),
-  );
-  phase = await resolveAtBatPhase(MATCH_ID);
-  const duringAd = await MatchModel.findOne({ id: MATCH_ID }).select("predictionEnabled").lean();
-  await assert(
-    phase === "idle" && !duringAd?.predictionEnabled,
-    `during ad break must not open prediction, got ${phase}`,
-  );
-  pass("batter change during ad break defers prediction");
+  pass("no auto ad on live pitcher change");
 
   broadcastManager.stopAdPlaying(MATCH_ID, "operator_stop", "test ad complete");
   await sleep(250);
   phase = await resolveAtBatPhase(MATCH_ID);
-  await assert(phase === "prediction_open", `after ad stop prediction should open, got ${phase}`);
-  pass("ad stop resumes prediction automatically");
+  await assert(phase !== "prediction_open" || Boolean(mPitch?.predictionEnabled), "ad stop must not force a new start");
+  const afterAd = await MatchModel.findOne({ id: MATCH_ID }).select("predictionEnabled").lean();
+  // 광고 종료 후 새 예측을 열지 않음 (이미 열려 있으면 유지)
+  void afterAd;
+  pass("ad stop does not auto-start prediction");
 
-  // —— 6) 수동 결과 확정 경로와 호환 (결과 후 공수) ——
+  // —— 6) 수동 결과 확정 후에도 공수는 자동 아님 ——
   await resetMatchIdle({ half: "top", inning: 5, outs: 2 });
-  await openPredictionViaAuto("타자정", "박투수", { half: "top", inning: 5 });
-  await stopRound(MATCH_ID);
-  const round = (await MatchModel.findOne({ id: MATCH_ID }).select("currentRound").lean())?.currentRound ?? 1;
-  await updateRoundPredictionResult(MATCH_ID, round, "아웃");
+  await openPredictionViaManual();
+  await closePredictionViaManual();
+  await confirmResultViaManual();
   phase = await resolveAtBatPhase(MATCH_ID);
   await assert(phase === "result_confirmed", `manual result → confirmed, got ${phase}`);
   clearLiveAutoOperator(MATCH_ID);
@@ -330,8 +336,8 @@ async function main() {
     board({ batter: "타자정", pitcher: "박투수", outs: 3, half: "bottom", inning: 5 }),
   );
   phase = await resolveAtBatPhase(MATCH_ID);
-  await assert(phase === "idle", `after confirmed+switch expect idle, got ${phase}`);
-  pass("manual result then auto switch");
+  await assert(phase === "result_confirmed", `after confirmed, live must not auto-switch, got ${phase}`);
+  pass("manual result then no auto switch");
 
   console.log("\nlive-auto state machine E2E OK");
   console.log(logs.join("\n"));

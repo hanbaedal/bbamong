@@ -1,5 +1,4 @@
 import type { AtBatPhase } from "./atBatPhase";
-import { atBatPhaseLabel } from "./atBatPhase";
 
 export type OperatorNextActionKind =
   | "none"
@@ -19,10 +18,11 @@ export type OperatorNextAction = {
 
 /**
  * 운영자 화면「지금 할 일 1개」
- * 하이브리드: 실황이 진행하고, 운영자가 먼저 누르면 그게 우선.
+ * 진행(예측 시작·결과·다음타자·공수·투수·대타)은 운영자 버튼.
+ * 예측 중지만 시작 8초 후 자동.
  */
 export function deriveOperatorNextAction(input: {
-  /** @deprecated 항상 하이브리드 — 무시됨 */
+  /** @deprecated 진행은 수동 — 무시됨 */
   liveAutoEnabled?: boolean | null;
   atBatPhase?: AtBatPhase | null;
   suggestedResult?: string | null;
@@ -42,6 +42,13 @@ export function deriveOperatorNextAction(input: {
   const phase = input.atBatPhase ?? "idle";
   const suggested = input.suggestedResult?.trim() || null;
 
+  if (phase === "prediction_open" || input.predictionEnabled) {
+    return {
+      kind: "wait_auto",
+      label: "예측 중 · 8초 후 자동 중지",
+    };
+  }
+
   if (phase === "prediction_closed" || input.needsResultBeforeAdvance) {
     if (suggested) {
       return {
@@ -58,18 +65,18 @@ export function deriveOperatorNextAction(input: {
   }
 
   if (input.showThreeOutsHint || (phase === "result_confirmed" && (input.showThreeOutsHint ?? false))) {
-    return { kind: "switch_half", label: "공수교대 (3아웃, 막히면 직접)" };
+    return { kind: "switch_half", label: "공수교대" };
   }
 
   if (phase === "result_confirmed" || input.needsAdvanceAfterResult) {
     if (input.showThreeOutsHint) {
       return { kind: "switch_half", label: "공수교대" };
     }
-    return { kind: "next_batter", label: "다음 타자 (실황 진행, 막히면 직접)" };
+    return { kind: "next_batter", label: "다음 타자" };
   }
 
   return {
-    kind: "wait_auto",
-    label: `실황 진행 중 · ${atBatPhaseLabel(phase)} (필요하면 버튼)`,
+    kind: "start_prediction",
+    label: "예측 시작",
   };
 }

@@ -1,21 +1,12 @@
 import type { LiveScoreboard, MatchLineupSnapshot } from "@shared/apiSportsTypes";
-import { AD_INTRO_DELAY_MS, AD_SCHEDULE_COOLDOWN_MS, PREDICTION_AUTO_STOP_MS } from "@shared/adBreakTiming";
+import { PREDICTION_AUTO_STOP_MS } from "@shared/adBreakTiming";
 import { blocksAdvanceUntilResult, type AtBatPhase } from "@shared/atBatPhase";
 import { findLineupBatterByName, normalizeBatterName } from "@shared/batterDisplay";
 import { parseInningHalf, wrapBatterOrder, type InningHalf } from "@shared/gamePhaseTypes";
 import { MatchModel, RoundStatisticsModel } from "../UserStorage/db";
 import { broadcastManager } from "./broadcastManager";
 import { broadcastAtBatPhase, resolveAtBatPhase } from "./atBatStateMachine";
-import { buildGamePhasePayload } from "./gamePhase";
-import {
-  advancePitcherChange,
-  advanceToNextBatter,
-  advanceInningHalf,
-  nextRound,
-  startRound,
-  stopRound,
-  updateRoundPredictionResult,
-} from "./predictionStorage";
+import { stopRound } from "./predictionStorage";
 import { hasRelayPitcherChangeText, getCachedRelayTexts } from "../daumLive/naverRelayClient";
 
 /** 타자 변경 후 예측 중지까지 (수동·자동 공통 기본 8초) */
@@ -24,7 +15,7 @@ export const LIVE_AUTO_PRED_STOP_MS = Math.max(
   parseInt(process.env.LIVE_AUTO_PRED_STOP_MS || String(PREDICTION_AUTO_STOP_MS), 10) ||
     PREDICTION_AUTO_STOP_MS,
 );
-/** 타자명 깜빡임 방지 — 동일 이름 유지 후 예측 시작 (기존 3s) */
+/** 타자명 깜빡임 방지 — 동일 이름 유지 후 힌트·타석종료 판정 */
 export const LIVE_AUTO_BATTER_STABLE_MS = Math.max(
   1_000,
   parseInt(process.env.LIVE_AUTO_BATTER_STABLE_MS || "2000", 10) || 2_000,
@@ -135,102 +126,15 @@ function clearAdResumeTimer(matchId: string): void {
   state.adResumeTimer = null;
 }
 
-function scheduleAdIfAllowed(
-  matchId: string,
-  reason: "switch_half" | "pitcher_change",
-  phase: AtBatPhase,
-): boolean {
-  if (blocksAdvanceUntilResult(phase)) {
-    console.log(`[LiveAuto] ad blocked (${reason}) phase=${phase} ${matchId}`);
-    return false;
-  }
-  const now = Date.now();
-  const rewardKey = `${matchId}:auto-${reason}:${now}`;
-  const ok = broadcastManager.tryScheduleAdBreak(matchId, {
-    rewardKey,
-    reason,
-  });
-  if (!ok) {
-    console.log(`[LiveAuto] ad skipped (${reason}) cooldown ${matchId}`);
-  }
-  return ok;
-}
-
-function queueResumeAfterAdBreak(matchId: string, adScheduled: boolean): void {
-  const state = getState(matchId);
-  state.resumeAfterAdBreak = true;
-  if (!adScheduled && !broadcastManager.isAdBreakActive(matchId)) {
-    scheduleResumeAfterAdIntro(matchId);
-  }
-}
-
-function scheduleResumeAfterAdIntro(matchId: string): void {
-  const state = getState(matchId);
-  clearAdResumeTimer(matchId);
-  state.adResumeTimer = setTimeout(() => {
-    state.adResumeTimer = null;
-    void resumePredictionAfterAdBreak(matchId, "operator_stop");
-  }, AD_INTRO_DELAY_MS);
-}
-
-function shouldDeferPredictionForAdBreak(matchId: string): boolean {
-  const state = stateByMatch.get(matchId);
-  return Boolean(
-    broadcastManager.isAdBreakActive(matchId) || state?.resumeAfterAdBreak || state?.adResumeTimer,
-  );
-}
-
 async function resumePredictionAfterAdBreak(
   matchId: string,
-  reason: "prediction_start" | "operator_stop" | "round_advance",
+  _reason: "prediction_start" | "operator_stop" | "round_advance",
 ): Promise<void> {
   const state = stateByMatch.get(matchId);
   if (!state) return;
-  if (reason === "prediction_start") {
-    state.resumeAfterAdBreak = false;
-    state.resumeInFlight = false;
-    clearAdResumeTimer(matchId);
-    return;
-  }
-  if (reason !== "operator_stop") return;
-  if (!state.resumeAfterAdBreak) return;
-  if (state.resumeInFlight) return;
-  if (broadcastManager.isAdBreakActive(matchId)) return;
-  if (state.adResumeTimer) return;
-
-  state.resumeInFlight = true;
-  try {
-    const match = await MatchModel.findOne({ id: matchId })
-      .select("predictionEnabled matchStatus outsInHalf liveScoreboard")
-      .lean();
-    if (!match || match.matchStatus !== "ongoing") {
-      state.resumeAfterAdBreak = false;
-      return;
-    }
-    if (match.predictionEnabled) {
-      state.resumeAfterAdBreak = false;
-      return;
-    }
-    if ((match.outsInHalf ?? 0) >= 3) {
-      state.resumeAfterAdBreak = false;
-      return;
-    }
-    const phase = await resolveAtBatPhase(matchId);
-    if (phase !== "idle") return;
-    const liveBatter =
-      (match as { liveScoreboard?: { situation?: { batterName?: string | null } } }).liveScoreboard
-        ?.situation?.batterName?.trim() ||
-      state.lastBatterName;
-    if (!liveBatter) return;
-    state.resumeAfterAdBreak = false;
-    await startPredictionForBatter(matchId, liveBatter);
-    console.log(`[LiveAuto] resume prediction after ad ${matchId} batter=${liveBatter}`);
-  } catch (error) {
-    console.warn(`[LiveAuto] resume after ad failed ${matchId}:`, error);
-  } finally {
-    const current = stateByMatch.get(matchId);
-    if (current) current.resumeInFlight = false;
-  }
+  state.resumeAfterAdBreak = false;
+  state.resumeInFlight = false;
+  clearAdResumeTimer(matchId);
 }
 
 /** 수동·자동 공통 — 예측 열림 후 자동 중지 타이머 */
@@ -306,71 +210,6 @@ async function roundNeedsResult(matchId: string, currentRound: number): Promise<
   return Boolean(stats.isPredictionStopped);
 }
 
-async function autoSettleRoundResult(
-  matchId: string,
-  result: string,
-  displayResult?: string | null,
-): Promise<boolean> {
-  const match = await MatchModel.findOne({ id: matchId }).select("currentRound").lean();
-  if (!match) return false;
-  const round = match.currentRound ?? 1;
-  if (!(await roundNeedsResult(matchId, round))) return false;
-  try {
-    const userWonAmounts = await updateRoundPredictionResult(matchId, round, result);
-    const userDataMap = new Map<string, { wonAmount: number }>();
-    userWonAmounts.forEach((wonAmount, userId) => {
-      userDataMap.set(userId, { wonAmount });
-    });
-    const shown = (displayResult ?? "").trim() || result;
-    broadcastManager.sendToMatchWithUserData(
-      matchId,
-      "round_result",
-      {
-        matchId,
-        roundNumber: round,
-        result,
-        displayResult: shown,
-        source: "live_auto",
-        message: `실황 자동 결과: ${shown}`,
-      },
-      userDataMap,
-    );
-    await emitPhaseIfChanged(matchId, "result_confirmed");
-    console.log(`[LiveAuto] auto result ${matchId} ${result} display=${shown}`);
-    return true;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    if (msg.includes("이미 전송")) {
-      await emitPhaseIfChanged(matchId, "result_confirmed");
-      return true;
-    }
-    console.warn(`[LiveAuto] auto result failed ${matchId}:`, error);
-    return false;
-  }
-}
-
-async function emitPhaseSnapshot(
-  matchId: string,
-  advanceType: "next_batter" | "switch_half" | "pitcher_change",
-  message: string,
-  skippedResult = false,
-): Promise<void> {
-  const match = await MatchModel.findOne({ id: matchId }).lean();
-  if (!match) return;
-  const gamePhase = buildGamePhasePayload(match as never);
-  broadcastManager.sendToMatch(matchId, "round_next", {
-    matchId,
-    currentRound: match.currentRound,
-    predictionEnabled: match.predictionEnabled,
-    advanceType,
-    gamePhase,
-    skippedResult,
-    message,
-    source: "live_auto",
-  });
-  await emitPhaseIfChanged(matchId, "idle");
-}
-
 async function stopPredictionIfOpen(matchId: string, reason: string): Promise<void> {
   const match = await MatchModel.findOne({ id: matchId }).select("predictionEnabled").lean();
   if (!match?.predictionEnabled) return;
@@ -385,36 +224,13 @@ async function stopPredictionIfOpen(matchId: string, reason: string): Promise<vo
   });
 }
 
-async function startPredictionForBatter(matchId: string, batterName: string): Promise<void> {
-  const state = getState(matchId);
-  state.lastSuggestedResult = null;
-  state.lastAtBatResultDisplay = null;
-  state.lastSuggestedResultKey = null;
-  broadcastManager.clearAdTimer(matchId);
-  if (broadcastManager.isAdPlaying(matchId)) {
-    broadcastManager.stopAdPlaying(matchId, "prediction_start", "예측 시작으로 광고가 중지되었습니다.");
-  }
-  state.resumeAfterAdBreak = false;
-  clearAdResumeTimer(matchId);
-  const started = await startRound(matchId);
-  await emitPhaseIfChanged(matchId, "prediction_open");
-  broadcastManager.sendToMatch(matchId, "prediction_started", {
-    matchId,
-    currentRound: started.currentRound,
-    message: `실황 자동 예측 시작 — ${batterName}`,
-    source: "live_auto",
-  });
-  scheduleAutoStop(matchId);
-  console.log(`[LiveAuto] prediction start ${matchId} batter=${batterName}`);
-}
-
 function namesEqual(a: string | null | undefined, b: string | null | undefined): boolean {
   if (!a || !b) return false;
   return normalizeBatterName(a) === normalizeBatterName(b);
 }
 
 /**
- * 실황 폴링 직후 — DB 초/말·아웃·타순 동기화 + 상태머신 허용 전이만 수행.
+ * 실황 폴링 직후 — DB 초/말·아웃·타순 동기화 + 운영자 힌트. 진행은 수동.
  */
 export async function processLiveAutoOperator(
   matchId: string,
@@ -434,7 +250,7 @@ export async function processLiveAutoOperator(
 
     await syncPhaseFromLive(matchId, scoreboard);
 
-    // 운영자 UI에 ON/OFF 없음 — 하이브리드만. 예전 OFF 잔여값은 자동 복구.
+    // 운영자 UI에 ON/OFF 없음. 예전 liveAutoEnabled=false 잔여값은 복구만 하고 진행은 수동.
     if (match.liveAutoEnabled === false) {
       await MatchModel.updateOne({ id: matchId }, { $set: { liveAutoEnabled: true } });
     }
@@ -543,34 +359,15 @@ export async function processLiveAutoOperator(
 
     const playEnded = outsIncreased || halfChanged || batterStableChanged;
     const pitcherChangingNow = pitcherStableChanged && Boolean(pitcherName) && outs < 3;
-    // 3아웃·공수교대는 결과 정산을 먼저. 그 외 투수교체는 환불·스킵이 우선.
-    const deferSettleForPitcher = pitcherChangingNow && !outsHitThree && !halfChanged;
+    const HINT_MS = 8_000;
 
-    if (playEnded && phase === "prediction_open" && !deferSettleForPitcher) {
+    // 타석이 이미 끝났는데 예측 창이 열려 있으면 8초 타이머를 기다리지 않고 닫는다.
+    if (playEnded && phase === "prediction_open") {
       clearStopTimer(matchId);
-      await stopPredictionIfOpen(matchId, "실황 자동: 타석 종료로 예측 중지");
+      await stopPredictionIfOpen(matchId, "실황: 타석 종료로 예측 중지");
     }
 
-    // —— 실황 결과 자동 확정 (운영자 1탭 없이도 타격 결과가 반드시 나감) ——
-    if (playEnded && !deferSettleForPitcher) {
-      const settleCandidate = suggested || state.lastSuggestedResult;
-      if (settleCandidate) {
-        const closedPhase = await resolveAtBatPhase(matchId);
-        if (closedPhase === "prediction_closed") {
-          const settled = await autoSettleRoundResult(
-            matchId,
-            settleCandidate,
-            displayLabel || state.lastAtBatResultDisplay,
-          );
-          if (settled) {
-            state.lastSuggestedResult = null;
-            state.lastSuggestedResultKey = null;
-          }
-        }
-      }
-    }
-
-    // —— 결과 제안 (자동 확정 실패·애매한 경우 운영자 1탭) ——
+    // —— 결과 제안만. 확정·다음타자·공수·투수·대타·예측 시작은 운영자 버튼 ——
     if (suggested && (await resolveAtBatPhase(matchId)) === "prediction_closed") {
       const round = match.currentRound ?? 1;
       const key = `${round}:${suggested}:${batterName || prevBatter || ""}`;
@@ -589,317 +386,93 @@ export async function processLiveAutoOperator(
       }
     }
 
-    // —— 공수교대 (idle | result_confirmed만 — 결과 미전송이면 절대 emit 하지 않음) ——
-    // 성공·차단 모두 이 tick에서는 투수/타자 전이로 이어가지 않음 (광고·연출 겹침 방지)
-    if (halfChanged || outsHitThree) {
-      // 3아웃 emit 직후 실황 초/말만 바뀌는 틱 — 동일 교대를 다시 방송하지 않음
-      if (now - state.lastSwitchEmitAt < AD_SCHEDULE_COOLDOWN_MS) {
-        state.lastOuts = outs;
-        if (half) state.lastHalf = half;
-        if (inning != null) state.lastInning = inning;
-        // 성공한 공수교대와 같이 이 tick에서는 다른 전이로 이어가지 않음
-        return;
-      }
+    const phaseNow = await resolveAtBatPhase(matchId);
 
-      let switchHandled = false;
-      try {
-        await stopPredictionIfOpen(matchId, "실황 자동: 공수교대 전 예측 중지");
-        const fresh = await MatchModel.findOne({ id: matchId }).lean();
-        if (!fresh) {
-          /* skip */
-        } else {
-          const round = fresh.currentRound ?? 1;
-          let p = await resolveAtBatPhase(matchId);
-
-          if (blocksAdvanceUntilResult(p)) {
-            broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
-              matchId,
-              action: "switch_half",
-              message: "공수교대 전 예측 결과를 입력해 주세요.",
-              suggestedResult: suggested,
-            });
-            switchHandled = true;
-          } else if (await roundNeedsResult(matchId, round)) {
-            broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
-              matchId,
-              action: "switch_half",
-              message: "공수교대 전 예측 결과를 입력해 주세요.",
-              suggestedResult: suggested,
-            });
-            console.log(`[LiveAuto] switch half blocked (needs result) ${matchId}`);
-            switchHandled = true;
-          } else {
-            const stats = await RoundStatisticsModel.findOne({ matchId, roundNumber: round })
-              .select("isResultSent isPredictionStarted")
-              .lean();
-            try {
-              if (stats?.isResultSent || p === "result_confirmed") {
-                await advanceInningHalf(matchId);
-              } else if (!stats) {
-                // 이 타석에 예측이 없었음 — 실황 초/말만 이미 sync됨, 라운드 bump 없이 UI 통지
-              } else {
-                await nextRound(matchId);
-                await syncPhaseFromLive(matchId, scoreboard);
-              }
-              await emitPhaseSnapshot(matchId, "switch_half", "실황 자동 공수교대");
-              state.lastSwitchEmitAt = now;
-              const adScheduled = scheduleAdIfAllowed(matchId, "switch_half", "idle");
-              queueResumeAfterAdBreak(matchId, adScheduled);
-              console.log(`[LiveAuto] switch half ${matchId}`);
-              switchHandled = true;
-            } catch (advanceErr) {
-              console.warn(`[LiveAuto] switch half advance failed ${matchId}:`, advanceErr);
-              broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
-                matchId,
-                action: "switch_half",
-                message:
-                  advanceErr instanceof Error
-                    ? advanceErr.message
-                    : "공수교대 전 예측 결과를 입력해 주세요.",
-                suggestedResult: suggested,
-              });
-              switchHandled = true;
-            }
-          }
-        }
-      } catch (error) {
-        console.warn(`[LiveAuto] switch half failed ${matchId}:`, error);
-        switchHandled = true;
-      }
-
-      if (switchHandled) {
-        if (batterStableChanged && batterName) {
-          state.lastBatterName = batterName;
-          state.pendingBatterName = batterName;
-          state.pendingBatterSince = now;
-        }
-        // 투수명은 기준만 맞추지 않음 — 공수 다음 tick에서 필요 시 교체 처리
-        state.lastOuts = outs;
-        if (half) state.lastHalf = half;
-        if (inning != null) state.lastInning = inning;
-        return;
+    if ((halfChanged || outsHitThree) && now - state.lastSwitchEmitAt >= HINT_MS) {
+      state.lastSwitchEmitAt = now;
+      if (blocksAdvanceUntilResult(phaseNow) || (await roundNeedsResult(matchId, match.currentRound ?? 1))) {
+        broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
+          matchId,
+          action: "switch_half",
+          message: "공수교대 전 예측 결과를 입력해 주세요.",
+          suggestedResult: suggested,
+        });
+      } else {
+        broadcastManager.sendToMatchStaff(matchId, "auto_action_suggested", {
+          matchId,
+          action: "switch_half",
+          message: "공수교대 — 운영자가 버튼을 눌러 주세요.",
+          oneTapConfirm: true,
+          suggestedResult: suggested,
+        });
       }
     }
 
-    // —— 투수 교체: 투수명 안정화 후 자동 확정 (운영자 1탭 불필요). 중계 문구는 로그용. ——
-    // 3아웃·공수 우선. 성공 시 같은 tick에서 타자/예측 시작으로 이어가지 않음.
-    if (pitcherChangingNow && pitcherName) {
-      if (
-        state.lastPitcherChangeEmitAt > 0 &&
-        now - state.lastPitcherChangeEmitAt < AD_SCHEDULE_COOLDOWN_MS
-      ) {
-        state.lastPitcherName = pitcherName;
-        state.pendingPitcherName = pitcherName;
-        state.pendingPitcherSince = now;
-        state.lastOuts = outs;
-        if (half) state.lastHalf = half;
-        if (inning != null) state.lastInning = inning;
-        return;
-      }
+    if (pitcherChangingNow && pitcherName && now - state.lastPitcherChangeEmitAt >= HINT_MS) {
       const relayConfirmed = hasRelayPitcherChangeText(cachedRelays);
-      try {
-        const { skippedResult } = await advancePitcherChange(matchId);
-        await syncPhaseFromLive(matchId, scoreboard);
-        await emitPhaseSnapshot(
-          matchId,
-          "pitcher_change",
-          `실황 자동 투수교체 — ${pitcherName}`,
-          skippedResult,
-        );
-        const adScheduled = scheduleAdIfAllowed(matchId, "pitcher_change", "idle");
-        state.lastPitcherChangeEmitAt = now;
-        queueResumeAfterAdBreak(matchId, adScheduled);
-        state.lastPitcherName = pitcherName;
-        state.pendingPitcherName = pitcherName;
-        state.pendingPitcherSince = now;
-        state.pitcherChangeSuggested = false;
-        if (batterStableChanged && batterName) {
-          state.lastBatterName = batterName;
-          state.pendingBatterName = batterName;
-          state.pendingBatterSince = now;
-        }
-        state.lastOuts = outs;
-        if (half) state.lastHalf = half;
-        if (inning != null) state.lastInning = inning;
-        console.log(
-          `[LiveAuto] pitcher change ${matchId} → ${pitcherName}${relayConfirmed ? " (relay)" : ""}`,
-        );
-        return;
-      } catch (error) {
-        console.warn(`[LiveAuto] pitcher change failed ${matchId}:`, error);
-        if (!state.pitcherChangeSuggested) {
-          state.pitcherChangeSuggested = true;
-          broadcastManager.sendToMatchStaff(matchId, "auto_action_suggested", {
-            matchId,
-            action: "pitcher_change",
-            pitcherName,
-            message: `투수교체 감지 — ${pitcherName} (자동 확정 실패, 1탭 확정)`,
-            oneTapConfirm: true,
-          });
-        }
-      }
+      state.lastPitcherChangeEmitAt = now;
+      state.pitcherChangeSuggested = true;
+      broadcastManager.sendToMatchStaff(matchId, "auto_action_suggested", {
+        matchId,
+        action: "pitcher_change",
+        pitcherName,
+        message: `투수교체 감지 — ${pitcherName}${relayConfirmed ? " (중계)" : ""}`,
+        oneTapConfirm: true,
+      });
     } else if (!pitcherStableChanged && state.pitcherChangeSuggested && namesEqual(pitcherName, prevPitcher)) {
       state.pitcherChangeSuggested = false;
     }
 
-    // 결과 대기 중이면 다음타자·광고 금지 (투수교체는 위에서 처리)
-    const phaseAfterResult = await resolveAtBatPhase(matchId);
-    if (blocksAdvanceUntilResult(phaseAfterResult)) {
-      if (batterStableChanged && phaseAfterResult === "prediction_open" && outs < 3) {
-        clearStopTimer(matchId);
-        await stopPredictionIfOpen(matchId, "실황 자동: 타자 변경으로 예측 중지");
-        broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
+    if (batterStableChanged && batterName) {
+      const lineup = (match.matchLineup as MatchLineupSnapshot | null) ?? null;
+      const halfNow = parseInningHalf(match.inningHalf) ?? half;
+      if (lineup && halfNow) {
+        const side = halfNow === "top" ? lineup.away : lineup.home;
+        const inStartingLineup = Boolean(findLineupBatterByName(side ?? [], batterName));
+        if (!inStartingLineup && !namesEqual(batterName, state.lastPinchName)) {
+          const idx = match.batterIndexInHalf ?? 1;
+          const expected = [...(side ?? [])]
+            .sort((a, b) => a.battingOrder - b.battingOrder)
+            .find((row) => wrapBatterOrder(row.battingOrder) === wrapBatterOrder(idx));
+          state.lastPinchName = batterName;
+          broadcastManager.sendToMatchStaff(matchId, "auto_pinch_suggested", {
+            matchId,
+            expectedName: expected?.name ?? null,
+            liveName: batterName,
+            message: `대타 감지: 실황 ${batterName} — 운영자가 대타를 눌러 주세요.`,
+          });
+        } else if (inStartingLineup) {
+          state.lastPinchName = null;
+        }
+      }
+      if (outs < 3 && (phaseNow === "idle" || phaseNow === "result_confirmed")) {
+        broadcastManager.sendToMatchStaff(matchId, "auto_action_suggested", {
           matchId,
           action: "next_batter",
-          message: "다음 타자 전 예측 결과를 입력해 주세요.",
-          suggestedResult: suggested,
+          message: `다음 타자 ${batterName} — 운영자가 버튼을 눌러 주세요.`,
+          oneTapConfirm: true,
         });
       }
-
-      if (batterStableChanged && batterName) {
-        state.lastBatterName = batterName;
-        state.pendingBatterName = batterName;
-        state.pendingBatterSince = now;
-      }
-      state.lastOuts = outs;
-      if (half) state.lastHalf = half;
-      if (inning != null) state.lastInning = inning;
-      return;
     }
 
-    // —— 타자 변경 → 다음타자 + 예측 시작 (idle | result_confirmed) ——
-    const phaseForBatter = await resolveAtBatPhase(matchId);
-    if (
-      batterStableChanged &&
-      outs < 3 &&
-      !blocksAdvanceUntilResult(phaseForBatter) &&
-      batterName
-    ) {
-      try {
-        clearStopTimer(matchId);
-        await stopPredictionIfOpen(matchId, "실황 자동: 타자 변경으로 예측 중지");
-
-        let current = await MatchModel.findOne({ id: matchId }).lean();
-        if (!current) return;
-        const round = current.currentRound ?? 1;
-        const p = await resolveAtBatPhase(matchId);
-
-        if (blocksAdvanceUntilResult(p)) {
-          broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
-            matchId,
-            action: "next_batter",
-            message: "다음 타자 전 예측 결과를 입력해 주세요.",
-            suggestedResult: suggested,
-          });
-        } else {
-          const stats = await RoundStatisticsModel.findOne({ matchId, roundNumber: round })
-            .select("isResultSent isPredictionStarted")
-            .lean();
-          let advancedOk = true;
-          if (stats?.isResultSent || phaseForBatter === "result_confirmed") {
-            try {
-              await advanceToNextBatter(matchId);
-              await syncPhaseFromLive(matchId, scoreboard);
-              await emitPhaseSnapshot(matchId, "next_batter", `실황 자동 다음 타자 — ${batterName}`);
-            } catch (advanceErr) {
-              advancedOk = false;
-              console.warn(`[LiveAuto] next batter advance failed ${matchId}:`, advanceErr);
-              broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
-                matchId,
-                action: "next_batter",
-                message:
-                  advanceErr instanceof Error
-                    ? advanceErr.message
-                    : "다음 타자 전 예측 결과를 입력해 주세요.",
-                suggestedResult: suggested,
-              });
-            }
-          }
-
-          if (advancedOk) {
-            current = await MatchModel.findOne({ id: matchId }).lean();
-            const lineup = (current?.matchLineup as MatchLineupSnapshot | null) ?? null;
-            const halfNow = parseInningHalf(current?.inningHalf) ?? half;
-            if (lineup && halfNow && batterName && current) {
-              const side = halfNow === "top" ? lineup.away : lineup.home;
-              const idx = current.batterIndexInHalf ?? 1;
-              const expected = [...(side ?? [])]
-                .sort((a, b) => a.battingOrder - b.battingOrder)
-                .find((row) => wrapBatterOrder(row.battingOrder) === wrapBatterOrder(idx));
-              // 대타 = 실황 타자가 선발 타순에 없을 때만 (슬롯 불일치만으로는 대타 아님)
-              const inStartingLineup = Boolean(
-                findLineupBatterByName(side ?? [], batterName),
-              );
-              if (!inStartingLineup && !namesEqual(batterName, state.lastPinchName)) {
-                broadcastManager.sendToMatchStaff(matchId, "auto_pinch_suggested", {
-                  matchId,
-                  expectedName: expected?.name ?? null,
-                  liveName: batterName,
-                  message: `대타: 실황 ${batterName}`,
-                });
-                try {
-                  const { setMatchPinchHitter } = await import("../apiSports/pinchHitterService");
-                  const pinch = await setMatchPinchHitter(matchId, { playerName: batterName });
-                  state.lastPinchName = batterName;
-                  broadcastManager.sendToMatch(matchId, "pinch_hitter_set", {
-                    matchId,
-                    pinchHitter: pinch,
-                    message: `대타 ${batterName}`,
-                    source: "live_auto",
-                  });
-                } catch (pinchErr) {
-                  console.warn(`[LiveAuto] pinch set failed ${matchId}:`, pinchErr);
-                }
-              } else if (inStartingLineup) {
-                state.lastPinchName = null;
-              }
-            }
-
-            const startPhase = await resolveAtBatPhase(matchId);
-            if (startPhase === "idle") {
-              if (shouldDeferPredictionForAdBreak(matchId)) {
-                state.resumeAfterAdBreak = true;
-                console.log(
-                  `[LiveAuto] defer prediction start (ad break) ${matchId} batter=${batterName}`,
-                );
-              } else {
-                await startPredictionForBatter(matchId, batterName);
-              }
-            } else {
-              console.log(
-                `[LiveAuto] skip prediction start phase=${startPhase} ${matchId} batter=${batterName}`,
-              );
-            }
-          }
-
-          state.lastBatterName = batterName;
-          state.pendingBatterName = batterName;
-          state.pendingBatterSince = now;
-        }
-      } catch (error) {
-        console.warn(`[LiveAuto] batter change flow failed ${matchId}:`, error);
-      }
+    if (batterStableChanged && batterName) {
+      state.lastBatterName = batterName;
+      state.pendingBatterName = batterName;
+      state.pendingBatterSince = now;
     }
-
-    // 기준선 갱신 (아직 안정화되지 않은 이름은 last에 올리지 않음)
     if (!state.pendingBatterName || namesEqual(state.pendingBatterName, state.lastBatterName)) {
       if (batterName && !state.lastBatterName) state.lastBatterName = batterName;
     }
     state.lastOuts = outs;
     if (half) state.lastHalf = half;
     if (inning != null) state.lastInning = inning;
+    if (pitcherChangingNow && pitcherName) {
+      state.lastPitcherName = pitcherName;
+      state.pendingPitcherName = pitcherName;
+      state.pendingPitcherSince = now;
+    }
     if (!state.pendingPitcherName || namesEqual(state.pendingPitcherName, state.lastPitcherName)) {
       if (pitcherName && !state.lastPitcherName) state.lastPitcherName = pitcherName;
-    }
-
-    // 광고 40초가 끝났는데 재개 콜백이 빗나간 경우(타자명 없음·phase 미 idle) 폴링에서 재시도
-    if (
-      state.resumeAfterAdBreak &&
-      !state.resumeInFlight &&
-      !state.adResumeTimer &&
-      !broadcastManager.isAdBreakActive(matchId)
-    ) {
-      await resumePredictionAfterAdBreak(matchId, "operator_stop");
     }
   } finally {
     state.busy = false;
@@ -946,11 +519,9 @@ export function notifyManualAtBatAction(
   // 수동 공수교대 직후 실황 3아웃/초말 변경이 같은 교대를 재방송하지 않게
   if (action === "switch") {
     state.lastSwitchEmitAt = Date.now();
-    state.resumeAfterAdBreak = true;
   }
   if (action === "pitcher") {
     state.lastPitcherChangeEmitAt = Date.now();
-    state.resumeAfterAdBreak = true;
   }
   state.lastPhaseBroadcast = null;
 }

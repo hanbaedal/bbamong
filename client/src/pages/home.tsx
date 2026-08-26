@@ -14,11 +14,12 @@ import SimpleConfirmPopup from "@/components/customUi/simpleConfirmPopup";
 import { setCurrentFriendRoom } from "@/lib/friendRoomSession";
 import { navigateUserApp } from "@/lib/landscapeSplitRoutes";
 import { USER_GUIDE_OPEN_KEY } from "@/pages/home/user-guide";
-import { getFullUrl } from "@/lib/queryClient";
+import { getFullUrl, queryClient } from "@/lib/queryClient";
 import { navigateToMall } from "@/lib/appNavigation";
 import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 import { USER_LOGIN_PATH } from "@/lib/loginSession";
 import { clearGuestSessionArtifacts } from "@/lib/shopRoutes";
+import { readPersistedSelectedMatchId } from "@/lib/selectedMatchPersistence";
 import "@/styles/user-landscape.css";
 
 interface HomePageSettings {
@@ -80,9 +81,28 @@ export default function HomePage() {
   const gameGuideEnabled = settings?.gameGuideEnabled ?? true;
   const gameGuideTitle = settings?.gameGuideTitle ?? "야구 예측 게임이란?";
 
+  const prefetchPredictionData = () => {
+    void queryClient.prefetchQuery({ queryKey: ["/api/matches"] });
+    const matchId = readPersistedSelectedMatchId();
+    if (!matchId) return;
+    void queryClient.prefetchQuery({
+      queryKey: ["/api/matches", matchId, "scoreboard"],
+      queryFn: async () => {
+        const res = await fetch(getFullUrl(`/api/matches/${matchId}/scoreboard`));
+        if (!res.ok) throw new Error("스코어보드 조회 실패");
+        return res.json();
+      },
+    });
+  };
+
+  useEffect(() => {
+    prefetchPredictionData();
+  }, []);
+
   const goToGame = () => {
     // 홈「예측게임 하러가기」= 공개 예측 (친구방 배지·맥락 해제)
     setCurrentFriendRoom(null);
+    prefetchPredictionData();
     navigateUserApp("/prediction", setLocation);
   };
 

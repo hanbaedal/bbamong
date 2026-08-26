@@ -163,11 +163,13 @@ class WSManager {
         let atBatPhase: string = "idle";
         let uiStage: string = "wait";
         let settledResult: string | null = null;
+        let liveScoreboard: unknown = null;
         try {
           const matchInfo = await getMatchInfo(matchId);
           if (matchInfo) {
             predictionEnabled = matchInfo.predictionEnabled;
             currentRound = matchInfo.currentRound;
+            liveScoreboard = (matchInfo as { liveScoreboard?: unknown }).liveScoreboard ?? null;
           }
           const { buildPredictionUiStagePayload } = await import("./atBatStateMachine");
           const ui = await buildPredictionUiStagePayload(matchId);
@@ -196,6 +198,7 @@ class WSManager {
             atBatPhase,
             uiStage,
             settledResult,
+            liveScoreboard,
             isAdPlaying: matchState.isAdPlaying,
             adStartedAt: matchState.adStartedAt,
           },

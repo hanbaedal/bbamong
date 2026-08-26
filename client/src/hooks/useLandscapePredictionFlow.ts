@@ -1394,10 +1394,14 @@ export function useLandscapePredictionFlow(
       uiStage?: string;
       settledResult?: string | null;
       currentRound?: number;
+      liveScoreboard?: LiveScoreboard | null;
     }) => {
       if (data.predictionEnabled !== undefined) {
         predictionEnabledRef.current = data.predictionEnabled;
         setPredictionEnabled(data.predictionEnabled);
+      }
+      if (data.liveScoreboard && typeof data.liveScoreboard.homeScore === "number") {
+        onScoreboardRef.current?.(data.liveScoreboard);
       }
       applyUiStagePayload(data);
       void checkPredictionStatus();
