@@ -266,9 +266,26 @@ export function formatGameMatchSelectDetail(
   return statusPart;
 }
 
-/** 실황 연동 ON + 경기전·경기중만 선택 가능 */
+/** 실황 연동 ON + 경기전·경기중만 선택 가능 (경기 고르기 모달) */
 export function isMatchSelectableForGame(match: GameMatchItem, _nowMs = Date.now()): boolean {
   return getGameMatchSelectDisabledReason(match) === null;
+}
+
+/**
+ * 이미 들어간 예측 화면을 유지해도 되는지.
+ * 실황 연동 OFF(`sideBetEnabled`)는 선택 모달에서만 막고, 진행 중 추방 사유가 아니다.
+ */
+export function canRemainInGameMatch(match: GameMatchItem, _nowMs = Date.now()): boolean {
+  const short = normalizeApiStatusShort(match.liveScoreboard?.statusShort);
+  if (isGameCancelledStatus(short) || match.matchStatus === "cancelled") return false;
+  if (isGameSuspendedStatus(short)) return false;
+
+  const phase = resolveOperatorMatchPhase({
+    matchStatus: match.matchStatus,
+    statusShort: match.liveScoreboard?.statusShort,
+    statusLong: match.liveScoreboard?.statusLong,
+  });
+  return phase === "경기전" || phase === "경기중";
 }
 
 export interface StadiumOption {

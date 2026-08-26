@@ -115,6 +115,14 @@ function aggregateTerminalKind(kinds: GameTerminalKind[]): GameTerminalKind {
 }
 
 /** 당일 경기 안내 오버레이 — 미등록·종료·취소·연기 (참여 가능 경기 없을 때) */
+export function shouldSuppressEmptyMatchOverlay(args: {
+  matchCount: number;
+  selectedMatchId: string | null;
+  matchesError?: boolean;
+}): boolean {
+  return args.matchCount === 0 && Boolean(args.selectedMatchId || args.matchesError);
+}
+
 export function resolveGameDayOverlayKind(
   matches: GameMatchItem[],
   loading: boolean,
