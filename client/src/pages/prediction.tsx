@@ -46,7 +46,10 @@ import {
 } from "@/lib/sideBetMatchUtils";
 import type { SideBetRecord } from "@/lib/sideBetMatchUtils";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
-import { useLandscapePredictionFlow } from "@/hooks/useLandscapePredictionFlow";
+import {
+  useLandscapePredictionFlow,
+  type MatchFlowData,
+} from "@/hooks/useLandscapePredictionFlow";
 import { keepAliveUserSession } from "@/lib/queryClient";
 import { flushDeferredSessionEvents, setGameSessionProtected } from "@/lib/sessionGuard";
 import { lockGameLandscape } from "@/lib/gameOrientation";
@@ -89,6 +92,7 @@ export default function PredictionPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const matchEndedHandledRef = useRef(false);
+  const prevSelectedMatchIdRef = useRef<string | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(() =>
     readPersistedSelectedMatchId(),
   );
@@ -274,7 +278,18 @@ export default function PredictionPage() {
     };
   }, [gameDayPhase, displayMatch, nowMs]);
 
-  const flowMatch = selectedMatch;
+  /** 목록 도착 전에도 저장된 경기 ID로 WS·스냅샷을 붙인다 */
+  const flowMatch: MatchFlowData | null = selectedMatch
+    ? selectedMatch
+    : selectedMatchId
+      ? {
+          id: selectedMatchId,
+          name: "",
+          stadiumName: "",
+          startTime: new Date(0).toISOString(),
+          matchStatus: "ongoing",
+        }
+      : null;
 
   const { data: currentSideBets } = useQuery<SideBetsMeResponse>({
     queryKey: ["/api/live-match/matches", displayMatch?.id, "side-bets/me"],
@@ -437,9 +452,14 @@ export default function PredictionPage() {
   }, [matchesLoading, matchesAwaitingData, selectedMatchId, gameDayOverlayKind]);
 
   useEffect(() => {
-    setLiveScoreboard(null);
-    setGamePhase(null);
-    prevSituationRef.current = null;
+    if (prevSelectedMatchIdRef.current === selectedMatchId) return;
+    const previous = prevSelectedMatchIdRef.current;
+    prevSelectedMatchIdRef.current = selectedMatchId;
+    if (previous != null && previous !== selectedMatchId) {
+      setLiveScoreboard(null);
+      setGamePhase(null);
+      prevSituationRef.current = null;
+    }
   }, [selectedMatchId]);
 
   useEffect(() => {
@@ -484,13 +504,21 @@ export default function PredictionPage() {
   });
 
   const { data: scoreboardData, isLoading: scoreLoading } = useLiveScoreboard(
-    selectedMatch?.id ?? null,
+    selectedMatchId,
     {
       startTime: selectedMatch?.startTime,
       matchStatus: selectedMatch?.matchStatus,
       pollMs: 2_000,
+      alwaysPoll: Boolean(selectedMatchId) && !selectedMatch,
     },
   );
+
+  useEffect(() => {
+    const snapshot = selectedMatch?.liveScoreboard;
+    if (!snapshot || typeof snapshot.homeScore !== "number") return;
+    if (liveScoreboard) return;
+    applyLiveScoreboard(snapshot);
+  }, [selectedMatch, liveScoreboard, applyLiveScoreboard]);
 
   useEffect(() => {
     if (scoreboardData?.scoreboard) {
@@ -675,8 +703,8 @@ export default function PredictionPage() {
         headToHead={matchHeaderLines.headToHead}
         currentBatter={isLivePlay ? currentBatter : null}
         scoreboard={liveScoreboard}
-        scoreLoading={Boolean(displayMatch) && scoreLoading}
-        matchesInitialLoading={Boolean(displayMatch) && matchesInitialLoading}
+        scoreLoading={Boolean(displayMatch) && scoreLoading && !liveScoreboard}
+        matchesInitialLoading={Boolean(displayMatch) && matchesInitialLoading && !liveScoreboard}
         activePanel={null}
         onMenuSelect={handleMenuSelect}
         screenPhase={shellScreenPhase}

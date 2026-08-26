@@ -36,7 +36,7 @@ export interface GameMatchItem {
 /** 관리자 실황 연동 ON/OFF와 동일 (opN, 다음·네이버) */
   sideBetEnabled?: boolean;
   sideBetsLocked?: boolean;
-  liveScoreboard?: Pick<LiveScoreboard, "statusShort" | "statusLong" | "inningLabel"> | null;
+  liveScoreboard?: LiveScoreboard | null;
   startingLineupReady?: boolean;
   matchLineup?: { home?: unknown[] | null; away?: unknown[] | null } | null;
 }

@@ -127,6 +127,7 @@ export default function MatchDetailPage() {
   const { data: scoreboardPayload } = useLiveScoreboard(id ?? null, {
     startTime: match?.startTime,
     matchStatus: match?.matchStatus,
+    pollMs: 2_000,
   });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
