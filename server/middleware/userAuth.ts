@@ -43,7 +43,11 @@ export async function userAuthMiddleware(
     const accessToken = authHeader.substring(7);
     const decoded = verifyUserAccessToken(accessToken);
 
-    const sessionCheck = await assertUserSession(decoded.userId, decoded.sessionId);
+    const sessionCheck = await assertUserSession(
+      decoded.userId,
+      decoded.sessionId,
+      decoded.username,
+    );
     if (sessionCheck === "replaced") {
       res.status(401).json({
         message: SESSION_REPLACED_MESSAGE,

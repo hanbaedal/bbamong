@@ -922,8 +922,18 @@ export async function userRoutes(app: Express): Promise<void> {
 
       const decoded = verifyUserRefreshToken(refreshToken);
 
-      const sessionCheck = await assertUserSession(decoded.userId, decoded.sessionId);
-      if (sessionCheck === "replaced" || !decoded.sessionId) {
+      if (!decoded.sessionId) {
+        return res.status(401).json({
+          error: "유효하지 않거나 만료된 refresh token입니다.",
+        });
+      }
+
+      const sessionCheck = await assertUserSession(
+        decoded.userId,
+        decoded.sessionId,
+        decoded.username,
+      );
+      if (sessionCheck === "replaced") {
         return res.status(401).json({
           error: SESSION_REPLACED_MESSAGE,
           code: SESSION_REPLACED_CODE,

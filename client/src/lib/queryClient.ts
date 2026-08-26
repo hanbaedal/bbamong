@@ -10,6 +10,9 @@ import {
 } from "./tokenManager";
 import {
   isGameSessionProtected,
+  isUserSessionReplaced,
+  markUserSessionReplaced,
+  clearUserSessionReplaced,
   notifyUserDuplicateLoginSafe,
   notifyUserSessionExpiredSafe,
 } from "./sessionGuard";
@@ -28,6 +31,7 @@ async function readSessionReplaced(res: Response): Promise<boolean> {
 
 function notifyAuthFailure(sessionReplaced: boolean): void {
   if (sessionReplaced) {
+    markUserSessionReplaced();
     notifyUserDuplicateLoginSafe();
   } else {
     notifyUserSessionExpiredSafe();
@@ -162,6 +166,7 @@ async function refreshUserAccessToken(): Promise<boolean> {
       setAccessToken(data.accessToken);
       await saveRefreshToken(data.refreshToken);
       refreshFailedAt = 0;
+      clearUserSessionReplaced();
 
       return true;
     } catch (error) {
@@ -211,10 +216,18 @@ export async function getOrRefreshAccessToken(options?: {
     resetRefreshCooldown();
     const refreshed = await refreshUserAccessToken();
     if (refreshed) return getAccessToken();
+    if (isUserSessionReplaced()) return null;
     // 갱신 실패해도 아직 유효한 access 가 있으면 사용 (게임 보호 구간)
     const fallback = getAccessToken() ?? (await hydrateAccessToken());
     const remainingMs = fallback ? getAccessTokenRemainingMs(fallback) : null;
     return remainingMs != null && remainingMs > 0 ? fallback : null;
+  }
+
+  // Redis 재시작 오탐이면 다음 refresh가 세션을 복구한다. leftover access로 WS를 돌리지 않는다.
+  if (isUserSessionReplaced()) {
+    console.log("[Token] Session marked replaced — retrying refresh, not leftover access");
+    const refreshed = await refreshUserAccessToken();
+    return refreshed ? getAccessToken() : null;
   }
 
   let token = getAccessToken();

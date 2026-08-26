@@ -6,6 +6,7 @@ import {
   hasActiveSession,
   refreshSession,
 } from "./sessionManager";
+import { getSessionKey, SESSION_TTL } from "./sessionValidator";
 import {
   generateUserAccessToken,
   generateUserRefreshToken,
@@ -13,6 +14,7 @@ import {
 } from "./utils/jwt";
 import { getRedisClient } from "./redis";
 import { wsManager } from "./liveMatch/wsManager";
+import { interpretUserSession } from "@shared/userSessionVerdict";
 
 export const SESSION_REPLACED_CODE = "SESSION_REPLACED";
 export const SESSION_REPLACED_MESSAGE =
@@ -141,20 +143,76 @@ export async function renewUserAuthTokens(
 
 export type UserSessionCheck = "ok" | "replaced" | "unavailable";
 
-/** JWT sessionId와 Redis 세션 일치 여부 */
+export type UserSessionClassify = UserSessionCheck | "missing" | "legacy";
+
+export async function classifyUserSession(
+  userId: string,
+  jwtSessionId: string | undefined,
+): Promise<UserSessionClassify> {
+  try {
+    const session = await getSession("user", userId);
+    return interpretUserSession(session?.sessionId, jwtSessionId);
+  } catch (error) {
+    console.error(`[Session] classifyUserSession failed for user:${userId}:`, error);
+    return "unavailable";
+  }
+}
+
+/**
+ * Redis에 세션이 없을 때만 JWT sessionId로 복구 (SET NX).
+ * 재배포·redis-server 재시작 후 "다른 기기" 오탐을 막는다.
+ * 이미 다른 sessionId가 있으면 replaced.
+ */
+export async function restoreUserSessionIfMissing(
+  user: { id: string; username?: string },
+  sessionId: string,
+): Promise<"ok" | "replaced"> {
+  const redis = getRedisClient();
+  const key = getSessionKey("user", user.id);
+  const data = JSON.stringify({
+    userId: user.id,
+    userType: "user",
+    loginTime: new Date().toISOString(),
+    username: user.username,
+    sessionId,
+    restoredFromJwt: true,
+  });
+  const created = await redis.set(key, data, "EX", SESSION_TTL, "NX");
+  if (created === "OK") {
+    console.log(`[Session] Restored missing Redis session for user:${user.id}`);
+    return "ok";
+  }
+  const existing = await getSession("user", user.id);
+  if (existing?.sessionId && existing.sessionId !== sessionId) {
+    return "replaced";
+  }
+  if (existing?.sessionId === sessionId) return "ok";
+  await redis.set(key, data, "EX", SESSION_TTL);
+  console.log(`[Session] Filled Redis sessionId for user:${user.id}`);
+  return "ok";
+}
+
+/**
+ * JWT sessionId와 Redis 세션 일치 여부.
+ * - replaced: Redis에 **다른** sessionId (실제 다른 기기)
+ * - missing: Redis 없음 → JWT로 복구 후 ok
+ * - legacy: JWT에 sessionId 없음 → 다른 기기로 취급하지 않음
+ */
 export async function assertUserSession(
   userId: string,
   sessionId: string | undefined,
+  username?: string,
 ): Promise<UserSessionCheck> {
-  if (!sessionId) return "replaced";
+  const verdict = await classifyUserSession(userId, sessionId);
+  if (verdict === "ok" || verdict === "unavailable") return verdict;
+  if (verdict === "legacy") return "ok";
+  if (verdict === "replaced") return "replaced";
+
+  if (!sessionId) return "ok";
   try {
-    const session = await getSession("user", userId);
-    if (!session?.sessionId || session.sessionId !== sessionId) {
-      return "replaced";
-    }
-    return "ok";
+    return await restoreUserSessionIfMissing({ id: userId, username }, sessionId);
   } catch (error) {
-    console.error(`[Session] assertUserSession failed for user:${userId}:`, error);
+    console.error(`[Session] restoreUserSession failed for user:${userId}:`, error);
     return "unavailable";
   }
 }

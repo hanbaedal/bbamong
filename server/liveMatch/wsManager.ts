@@ -113,7 +113,11 @@ class WSManager {
             const decoded = verifyUserAccessToken(token);
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             if (decoded.userId && typeof decoded.userId === "string" && uuidRegex.test(decoded.userId)) {
-              const sessionCheck = await assertUserSession(decoded.userId, decoded.sessionId);
+              const sessionCheck = await assertUserSession(
+                decoded.userId,
+                decoded.sessionId,
+                decoded.username,
+              );
               if (sessionCheck === "replaced") {
                 console.log(`[WS] User session replaced — rejecting ${decoded.userId}`);
                 ws.close(4008, "Session replaced");

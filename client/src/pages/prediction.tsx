@@ -278,18 +278,8 @@ export default function PredictionPage() {
     };
   }, [gameDayPhase, displayMatch, nowMs]);
 
-  /** 목록 도착 전에도 저장된 경기 ID로 WS·스냅샷을 붙인다 */
-  const flowMatch: MatchFlowData | null = selectedMatch
-    ? selectedMatch
-    : selectedMatchId
-      ? {
-          id: selectedMatchId,
-          name: "",
-          stadiumName: "",
-          startTime: new Date(0).toISOString(),
-          matchStatus: "ongoing",
-        }
-      : null;
+  /** WS는 목록에서 실제 경기가 잡힌 뒤에만 붙인다 (스코어 HTTP prefetch는 selectedMatchId) */
+  const flowMatch: MatchFlowData | null = selectedMatch;
 
   const { data: currentSideBets } = useQuery<SideBetsMeResponse>({
     queryKey: ["/api/live-match/matches", displayMatch?.id, "side-bets/me"],
