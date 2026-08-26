@@ -78,6 +78,25 @@ const RECONNECT_MAX_DELAY = 30000;
 const HEARTBEAT_INTERVAL = WS_CLIENT_HEARTBEAT_INTERVAL_MS;
 const PONG_TIMEOUT = WS_CLIENT_PONG_TIMEOUT_MS;
 
+/** 같은 탭에서 훅이 두 번 떠도 소켓은 하나 — 서버 4010(프록시는 1006) 서로 차기 방지 */
+let sharedUserMatchWs: WebSocket | null = null;
+
+function replaceSharedUserMatchWs(next: WebSocket | null): void {
+  if (sharedUserMatchWs && sharedUserMatchWs !== next) {
+    const prev = sharedUserMatchWs;
+    sharedUserMatchWs = next;
+    try {
+      if (prev.readyState === WebSocket.OPEN || prev.readyState === WebSocket.CONNECTING) {
+        prev.close(1000, "Superseded");
+      }
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  sharedUserMatchWs = next;
+}
+
 export function useMatchWebSocket({
   matchId,
   userId,
@@ -225,6 +244,7 @@ export function useMatchWebSocket({
       console.log(`[WS] Connecting to ${wsUrl.replace(token, "***")}`);
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
+      replaceSharedUserMatchWs(ws);
 
       ws.onopen = () => {
         console.log("[WS] Connection opened");
@@ -343,8 +363,22 @@ export function useMatchWebSocket({
           console.log("[WS] Ignoring close from replaced socket");
           return;
         }
+        if (sharedUserMatchWs && sharedUserMatchWs !== ws) {
+          console.log("[WS] Ignoring close — another socket is active");
+          wsRef.current = null;
+          return;
+        }
+        if (event.reason === "Superseded") {
+          console.log("[WS] Closed as superseded, not reconnecting");
+          clearTimers();
+          wsRef.current = null;
+          if (sharedUserMatchWs === ws) sharedUserMatchWs = null;
+          setConnectionState("disconnected");
+          return;
+        }
         clearTimers();
         wsRef.current = null;
+        if (sharedUserMatchWs === ws) sharedUserMatchWs = null;
 
         consecutiveQuickAbnormalCloses.current = nextQuickAbnormalCloseCount({
           closeCode: event.code,
@@ -435,8 +469,10 @@ export function useMatchWebSocket({
     reconnectAttempts.current = 0;
 
     if (wsRef.current) {
-      wsRef.current.close(1000, "User disconnect");
+      const old = wsRef.current;
       wsRef.current = null;
+      if (sharedUserMatchWs === old) sharedUserMatchWs = null;
+      old.close(1000, "User disconnect");
     }
     setConnectionState("disconnected");
   }, [clearTimers]);
@@ -464,8 +500,12 @@ export function useMatchWebSocket({
       clearTimers();
       reconnectAttempts.current = 0;
       if (wsRef.current) {
-        wsRef.current.close(1000, "Component unmount");
+        const old = wsRef.current;
         wsRef.current = null;
+        if (sharedUserMatchWs === old) {
+          sharedUserMatchWs = null;
+          old.close(1000, "Component unmount");
+        }
       }
       setConnectionState("disconnected");
     };

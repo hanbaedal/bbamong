@@ -26,6 +26,7 @@ import {
   resolveGameMatchHeaderLines,
   formatGameMatchSelectDetail,
   isMatchSelectableForGame,
+  canRemainInGameMatch,
   sortMatchesByOrder,
   type GameMatchItem,
 } from "@/components/game/gameMatchUtils";
@@ -34,7 +35,7 @@ import { useNowMs } from "@/hooks/useNowMs";
 import { useUser } from "@/contexts/UserContext";
 import { apiRequest } from "@/lib/queryClient";
 import { useGameDayVoice } from "@/hooks/useGameDayVoice";
-import { resolveGameDayOverlayKind, resolveGameDayPhase } from "@/lib/gameDayPhase";
+import { resolveGameDayOverlayKind, resolveGameDayPhase, shouldSuppressEmptyMatchOverlay } from "@/lib/gameDayPhase";
 import {
   formatCountdownMs,
   formatStartTimeKst,
@@ -249,10 +250,25 @@ export default function PredictionPage() {
     [orderedMatches, matchesLoading, matchesAwaitingData, nowMs],
   );
 
-  const gameDayOverlayKind = useMemo(
-    () => resolveGameDayOverlayKind(orderedMatches, matchesLoading || matchesAwaitingData, nowMs),
-    [orderedMatches, matchesLoading, matchesAwaitingData, nowMs],
-  );
+  const gameDayOverlayKind = useMemo(() => {
+    if (
+      shouldSuppressEmptyMatchOverlay({
+        matchCount: orderedMatches.length,
+        selectedMatchId,
+        matchesError,
+      })
+    ) {
+      return null;
+    }
+    return resolveGameDayOverlayKind(orderedMatches, matchesLoading || matchesAwaitingData, nowMs);
+  }, [
+    orderedMatches,
+    matchesLoading,
+    matchesAwaitingData,
+    nowMs,
+    selectedMatchId,
+    matchesError,
+  ]);
 
   const viewableMatches = useMemo(
     () => orderedMatches.filter((m) => m.matchStatus !== "cancelled"),
@@ -262,7 +278,7 @@ export default function PredictionPage() {
   const selectedMatch = useMemo(() => {
     if (!selectedMatchId) return null;
     const found = orderedMatches.find((m) => m.id === selectedMatchId);
-    if (!found || !isMatchSelectableForGame(found, nowMs)) return null;
+    if (!found || !canRemainInGameMatch(found, nowMs)) return null;
     return found;
   }, [orderedMatches, selectedMatchId, nowMs]);
 
@@ -410,6 +426,7 @@ export default function PredictionPage() {
     if (!selectedMatchId) return;
     // 매치 목록 로드 전에는 비어 있어 복원값을 지우면 안 됨
     if (matchesLoading || !hasMatchesSnapshot) return;
+    if (viewableMatches.length === 0) return;
     const stillViewable = viewableMatches.some((m) => m.id === selectedMatchId);
     if (!stillViewable) {
       setSelectedMatchId(null);
@@ -420,7 +437,11 @@ export default function PredictionPage() {
     if (!selectedMatchId) return;
     if (matchesLoading || !hasMatchesSnapshot) return;
     const found = orderedMatches.find((m) => m.id === selectedMatchId);
-    if (found && isMatchSelectableForGame(found, nowMs)) return;
+    if (found && canRemainInGameMatch(found, nowMs)) return;
+    if (found) {
+      // 종료·취소만 선택 해제. 실황 OFF는 유지.
+      return;
+    }
     setSelectedMatchId(null);
     matchPickPromptedRef.current = false;
     if (!gameDayOverlayKind) setMatchModalOpen(true);
@@ -458,6 +479,7 @@ export default function PredictionPage() {
 
   useEffect(() => {
     if (matchesLoading || !selectedMatchId || !hasMatchesSnapshot) return;
+    if (matchesData.length === 0) return;
     if (matchesData.some((m) => m.id === selectedMatchId)) return;
     if (matchEndedHandledRef.current) return;
     matchEndedHandledRef.current = true;
@@ -573,9 +595,9 @@ export default function PredictionPage() {
     sideBetAutoForMatchRef.current = null;
   };
 
-  /** 경기 미선택 상태에서 닫기/바깥클릭 → 게임 홈. 선택 후 재오픈이면 모달만 닫기 */
+  /** 경기 미선택 상태에서 닫기/바깥클릭 → 게임 홈. 이미 고른 경기가 있으면 모달만 닫기 */
   const handleMatchModalClose = useCallback(() => {
-    if (selectedMatchId && selectedMatch) {
+    if (selectedMatchId || selectedMatch) {
       setMatchModalOpen(false);
       return;
     }
@@ -628,10 +650,11 @@ export default function PredictionPage() {
 
   useEffect(() => {
     if (!gameDayOverlayKind || isMatchEndSequence) return;
+    if (selectedMatch) return;
     setMatchModalOpen(false);
     setStadiumModalOpen(false);
     setSelectedMatchId(null);
-  }, [gameDayOverlayKind, isMatchEndSequence]);
+  }, [gameDayOverlayKind, isMatchEndSequence, selectedMatch]);
 
   useGameDayVoice({
     gameDayPhase,
