@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { getOrRefreshAccessToken } from "@/lib/queryClient";
-import { notifyUserDuplicateLoginSafe, notifyUserLoginAttemptSafe } from "@/lib/sessionGuard";
+import { isUserSessionReplaced, notifyUserDuplicateLoginSafe, notifyUserLoginAttemptSafe, markUserSessionReplaced } from "@/lib/sessionGuard";
 import { clearTokens } from "@/lib/tokenManager";
 import { subscribeForegroundResume } from "@/lib/foregroundResume";
 import { isLiveAutoOperatorWsType } from "@shared/liveAutoWsEvents";
@@ -12,6 +12,13 @@ import {
   isCurrentWsSocket,
   shouldCloseForPongTimeout,
 } from "@shared/wsHeartbeat";
+import {
+  WS_QUICK_ABNORMAL_CLOSE_LIMIT,
+  nextQuickAbnormalCloseCount,
+  shouldResetWsReconnectAttemptsOnOpen,
+  shouldSkipForegroundWsResume,
+  shouldStopUserWsReconnect,
+} from "@shared/wsUserReconnect";
 
 export type WSConnectionState = "connecting" | "connected" | "disconnected" | "reconnecting";
 
@@ -89,6 +96,10 @@ export function useMatchWebSocket({
   const userIdRef = useRef(userId);
   const connectRef = useRef<() => void>(() => {});
   const pingAfterReadyRef = useRef<(() => void) | null>(null);
+  const lastOpenAtMs = useRef<number | null>(null);
+  const openedAtMs = useRef<number | null>(null);
+  const consecutiveQuickAbnormalCloses = useRef(0);
+  const didForceRefreshOnQuickClose = useRef(false);
 
   handlersRef.current = handlers;
   matchIdRef.current = matchId;
@@ -134,6 +145,11 @@ export function useMatchWebSocket({
 
   const scheduleReconnect = useCallback(() => {
     if (isIntentionalClose.current) return;
+    if (isUserSessionReplaced()) {
+      console.log("[WS] Stop reconnect — session replaced by another device");
+      setConnectionState("disconnected");
+      return;
+    }
     if (reconnectAttempts.current >= MAX_RECONNECT_ATTEMPTS) {
       console.log("[WS] Max reconnect attempts reached");
       setConnectionState("disconnected");
@@ -181,7 +197,9 @@ export function useMatchWebSocket({
       if (!token) {
         console.log("[WS] No access token available after refresh attempt");
         setConnectionState("disconnected");
-        handlersRef.current.onError?.(new Error("인증 토큰이 없습니다. 다시 로그인해주세요."));
+        if (!isUserSessionReplaced()) {
+          handlersRef.current.onError?.(new Error("인증 토큰이 없습니다. 다시 로그인해주세요."));
+        }
         return;
       }
 
@@ -210,8 +228,13 @@ export function useMatchWebSocket({
 
       ws.onopen = () => {
         console.log("[WS] Connection opened");
+        const now = Date.now();
+        lastOpenAtMs.current = now;
+        openedAtMs.current = now;
         setConnectionState("connected");
-        reconnectAttempts.current = 0;
+        if (shouldResetWsReconnectAttemptsOnOpen()) {
+          reconnectAttempts.current = 0;
+        }
         startHeartbeat(ws);
       };
 
@@ -227,6 +250,9 @@ export function useMatchWebSocket({
           switch (message.type) {
             case "connected":
               pingAfterReadyRef.current?.();
+              reconnectAttempts.current = 0;
+              consecutiveQuickAbnormalCloses.current = 0;
+              didForceRefreshOnQuickClose.current = false;
               handlersRef.current.onConnected?.(message.data);
               break;
             case "prediction_started":
@@ -320,12 +346,29 @@ export function useMatchWebSocket({
         clearTimers();
         wsRef.current = null;
 
-        const noReconnectCodes = [4002, 4006, 4007, 4008, 4010];
-        if (noReconnectCodes.includes(event.code)) {
+        consecutiveQuickAbnormalCloses.current = nextQuickAbnormalCloseCount({
+          closeCode: event.code,
+          openedAtMs: openedAtMs.current,
+          closedAtMs: Date.now(),
+          previousCount: consecutiveQuickAbnormalCloses.current,
+        });
+        openedAtMs.current = null;
+
+        const sessionReplaced = isUserSessionReplaced();
+        if (
+          shouldStopUserWsReconnect({
+            closeCode: event.code,
+            sessionReplaced,
+            consecutiveQuickAbnormalCloses: consecutiveQuickAbnormalCloses.current,
+          })
+        ) {
           console.log(`[WS] Close code ${event.code} - not reconnecting`);
           setConnectionState("disconnected");
-          if (event.code === 4008) {
-            void clearTokens();
+          if (event.code === 4008 || sessionReplaced) {
+            if (event.code === 4008) {
+              markUserSessionReplaced();
+              void clearTokens();
+            }
             notifyUserDuplicateLoginSafe();
           } else if (event.code === 4007) {
             handlersRef.current.onError?.(new Error("비활성화된 계정입니다."));
@@ -340,7 +383,7 @@ export function useMatchWebSocket({
           console.log("[WS] Session terminated (4005) - attempting reconnect with fresh token");
           void (async () => {
             const fresh = await getOrRefreshAccessToken({ forceRefresh: true });
-            if (!fresh) {
+            if (!fresh || isUserSessionReplaced()) {
               console.log("[WS] No fresh token after 4005 — stopping reconnect");
               setConnectionState("disconnected");
               handlersRef.current.onError?.(
@@ -354,6 +397,23 @@ export function useMatchWebSocket({
         }
 
         if (!isIntentionalClose.current && event.code !== 1000) {
+          if (
+            consecutiveQuickAbnormalCloses.current >= WS_QUICK_ABNORMAL_CLOSE_LIMIT &&
+            !didForceRefreshOnQuickClose.current
+          ) {
+            didForceRefreshOnQuickClose.current = true;
+            console.log("[WS] Repeated immediate 1006 — forcing token refresh once");
+            void (async () => {
+              const fresh = await getOrRefreshAccessToken({ forceRefresh: true });
+              if (!fresh || isUserSessionReplaced()) {
+                console.log("[WS] Stop reconnect after quick-close refresh");
+                setConnectionState("disconnected");
+                return;
+              }
+              scheduleReconnect();
+            })();
+            return;
+          }
           scheduleReconnect();
         } else {
           setConnectionState("disconnected");
@@ -418,6 +478,16 @@ export function useMatchWebSocket({
     const unsubscribe = subscribeForegroundResume(() => {
       if (!isMountedRef.current) return;
       if (!matchIdRef.current || !userIdRef.current) return;
+      if (
+        shouldSkipForegroundWsResume({
+          socketOpen: wsRef.current?.readyState === WebSocket.OPEN,
+          lastOpenAtMs: lastOpenAtMs.current,
+          nowMs: Date.now(),
+        })
+      ) {
+        console.log("[WS] Foreground resume ignored — socket just opened");
+        return;
+      }
 
       console.log("[WS] Foreground resume, forcing reconnect");
       clearTimers();

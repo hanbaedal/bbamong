@@ -6,6 +6,19 @@ let gameSessionProtected = false;
 let pendingSessionExpired = false;
 let pendingDuplicateLogin = false;
 let pendingLoginAttempt = false;
+let sessionReplaced = false;
+
+export function markUserSessionReplaced(): void {
+  sessionReplaced = true;
+}
+
+export function clearUserSessionReplaced(): void {
+  sessionReplaced = false;
+}
+
+export function isUserSessionReplaced(): boolean {
+  return sessionReplaced;
+}
 
 export function setGameSessionProtected(active: boolean): void {
   gameSessionProtected = active;

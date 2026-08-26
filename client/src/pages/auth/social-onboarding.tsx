@@ -13,6 +13,7 @@ import { Term } from "@shared/schema";
 import { getFullUrl } from "@/lib/queryClient";
 import { setAccessToken, saveRefreshToken } from "@/lib/tokenManager";
 import { resetRefreshCooldown } from "@/lib/queryClient";
+import { clearUserSessionReplaced } from "@/lib/sessionGuard";
 import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appNavigation";
 import PageHeader from "@/components/PageHeader";
 import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
@@ -372,6 +373,7 @@ export default function SocialOnboardingPage() {
       if (response.ok) {
         if (data.accessToken && data.refreshToken) {
           resetRefreshCooldown();
+          clearUserSessionReplaced();
           setAccessToken(data.accessToken);
           await saveRefreshToken(data.refreshToken);
         }

@@ -3,13 +3,14 @@ import { completeLoginNavigation, DEFAULT_POST_LOGIN_FALLBACK } from "@/lib/appN
 import { getFullUrl, getOrRefreshAccessToken, resetRefreshCooldown } from "@/lib/queryClient";
 import { clearGuestSessionArtifacts } from "@/lib/shopRoutes";
 import { clearTokens, getRefreshToken, saveRefreshToken, setAccessToken } from "@/lib/tokenManager";
-import { notifyUserSessionExpiredSafe } from "@/lib/sessionGuard";
+import { clearUserSessionReplaced, notifyUserSessionExpiredSafe } from "@/lib/sessionGuard";
 
 type NavigateFn = (to: string, options?: { replace?: boolean }) => void;
 
 async function applyUserAuthTokens(accessToken: string, refreshToken: string): Promise<void> {
   clearGuestSessionArtifacts();
   resetRefreshCooldown();
+  clearUserSessionReplaced();
   setAccessToken(accessToken);
   await saveRefreshToken(refreshToken);
 }
