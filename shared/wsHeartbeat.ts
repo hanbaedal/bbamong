@@ -15,8 +15,14 @@ export const WS_CLIENT_PONG_TIMEOUT_MS = 20_000;
 /** 서버 WebSocket 프로토콜 ping 주기 */
 export const WS_SERVER_PROTOCOL_PING_MS = 30_000;
 
-/** 프로토콜 pong·JSON keepalive 둘 다 없으면 서버가 종료 */
-export const WS_SERVER_KEEPALIVE_STALE_MS = 45_000;
+/**
+ * 프로토콜 pong·JSON keepalive 둘 다 없으면 서버가 종료.
+ * 45초는 핑 1회만 유실돼도(프록시가 프로토콜 ping을 버릴 때) terminate → 클라 1006이 났다.
+ */
+export const WS_SERVER_KEEPALIVE_STALE_MS = 90_000;
+
+/** 서버 keepalive 만료 close — 프록시가 핸드셰이크를 버리면 클라는 1006으로 보일 수 있음 */
+export const WS_KEEPALIVE_TIMEOUT_CODE = 4001;
 
 /** 같은 역할·subject 재접속 시 기존 소켓에 보내는 close code */
 export const WS_CONNECTION_REPLACED_CODE = 4010;

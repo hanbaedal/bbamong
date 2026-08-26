@@ -328,6 +328,7 @@ export default function MatchDetailPage() {
                 setAdElapsedTime(resolved.elapsedSec);
                 adExpiredStopSentRef.current = false;
               }
+              sendPing();
               break;
             case "pong":
             case "heartbeat_ack":
@@ -343,7 +344,7 @@ export default function MatchDetailPage() {
               }
               break;
             case "ad_stopped":
-              console.log("[Manager WS] 광고 중지");
+              console.log("[Manager WS] 광고 중지", data?.reason ?? "");
               setIsAdPlaying(false);
               setAdElapsedTime(0);
               adStartTimeRef.current = null;
@@ -361,6 +362,7 @@ export default function MatchDetailPage() {
               break;
             case "round_start":
             case "prediction_started":
+              console.log("[Manager WS] 예측 시작");
               setIsAdPlaying(false);
               setAdElapsedTime(0);
               fetchMatchDetail();
@@ -686,10 +688,9 @@ export default function MatchDetailPage() {
 
     const startPolling = () => {
       if (!shouldClientPollMatch(match.startTime, match.matchStatus)) return;
-      console.log("[Manager] 폴링: 경기 정보 갱신");
+      console.log("[Manager] 폴링 시작: 경기 정보 10초");
       fetchMatchDetail(true);
       intervalId = setInterval(() => {
-        console.log("[Manager] 폴링: 경기 정보 갱신");
         fetchMatchDetail(true);
       }, 10000);
     };

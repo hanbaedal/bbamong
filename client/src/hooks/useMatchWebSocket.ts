@@ -88,6 +88,7 @@ export function useMatchWebSocket({
   const matchIdRef = useRef(matchId);
   const userIdRef = useRef(userId);
   const connectRef = useRef<() => void>(() => {});
+  const pingAfterReadyRef = useRef<(() => void) | null>(null);
 
   handlersRef.current = handlers;
   matchIdRef.current = matchId;
@@ -111,22 +112,24 @@ export function useMatchWebSocket({
   const startHeartbeat = useCallback((ws: WebSocket) => {
     clearTimers();
 
-    heartbeatInterval.current = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN && isCurrentWsSocket(wsRef.current, ws)) {
-        ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
-
-        if (pongTimeout.current) {
-          clearTimeout(pongTimeout.current);
-        }
-        pongTimeout.current = setTimeout(() => {
-          if (!shouldCloseForPongTimeout({ pingSocket: ws, currentSocket: wsRef.current })) {
-            return;
-          }
-          console.log("[WS] Pong timeout, reconnecting...");
-          ws.close(4000, "heartbeat timeout");
-        }, PONG_TIMEOUT);
+    const sendPing = () => {
+      if (ws.readyState !== WebSocket.OPEN || !isCurrentWsSocket(wsRef.current, ws)) return;
+      ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
+      if (pongTimeout.current) {
+        clearTimeout(pongTimeout.current);
       }
-    }, HEARTBEAT_INTERVAL);
+      pongTimeout.current = setTimeout(() => {
+        if (!shouldCloseForPongTimeout({ pingSocket: ws, currentSocket: wsRef.current })) {
+          return;
+        }
+        console.log("[WS] Pong timeout, reconnecting...");
+        ws.close(4000, "heartbeat timeout");
+      }, PONG_TIMEOUT);
+    };
+
+    heartbeatInterval.current = setInterval(sendPing, HEARTBEAT_INTERVAL);
+    pingAfterReadyRef.current = sendPing;
+    return sendPing;
   }, [clearTimers]);
 
   const scheduleReconnect = useCallback(() => {
@@ -223,6 +226,7 @@ export function useMatchWebSocket({
 
           switch (message.type) {
             case "connected":
+              pingAfterReadyRef.current?.();
               handlersRef.current.onConnected?.(message.data);
               break;
             case "prediction_started":

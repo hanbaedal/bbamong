@@ -8,6 +8,7 @@ import { assertUserSession } from "../userAuthSession";
 import type { UserType } from "../sessionValidator";
 import {
   WS_CONNECTION_REPLACED_CODE,
+  WS_KEEPALIVE_TIMEOUT_CODE,
   WS_SERVER_KEEPALIVE_STALE_MS,
   WS_SERVER_PROTOCOL_PING_MS,
   shouldRemoveMappedWsClient,
@@ -264,9 +265,14 @@ class WSManager {
           if (!client.isAlive) {
             console.log(`[WS] Client ${client.clientId} timed out, closing connection`);
             try {
-              client.ws.terminate();
+              client.ws.close(WS_KEEPALIVE_TIMEOUT_CODE, "keepalive timeout");
             } catch (error) {
-              console.error(`[WS] Error terminating ${client.clientId}:`, error);
+              console.error(`[WS] Error closing ${client.clientId}:`, error);
+              try {
+                client.ws.terminate();
+              } catch {
+                /* ignore */
+              }
             }
             this.removeClient(matchId, client.clientId, client.ws);
             continue;

@@ -55,14 +55,16 @@ class BroadcastManager {
     );
   }
 
-  /** 광고 중지. reason으로 회원 보상·화면 전이를 구분한다. */
+  /** 광고 중지. reason으로 회원 보상·화면 전이를 구분한다. 이미 꺼져 있으면 이벤트를 다시 보내지 않는다. */
   stopAdPlaying(
     matchId: string,
     reason: AdStopReason,
     message: string,
   ) {
+    const wasActive = this.isAdBreakActive(matchId);
     this.clearAdTimer(matchId);
     this.setAdPlaying(matchId, false);
+    if (!wasActive) return;
     this.sendToMatch(matchId, "ad_stopped", {
       matchId,
       message,
