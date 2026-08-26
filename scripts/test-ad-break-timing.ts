@@ -46,6 +46,9 @@ assert(wsManager.isAdPlaying(MATCH), "backdated session still flagged on server"
 broadcastManager.enforceAdDeadlines(MATCH);
 assert(!wsManager.isAdPlaying(MATCH), "watchdog must stop expired ads");
 
+broadcastManager.stopAdPlaying(MATCH, "operator_stop", "already idle");
+assert(!wsManager.isAdPlaying(MATCH), "idle stop stays idle");
+
 wsManager.setAdPlaying(MATCH, true);
 const firstStart = wsManager.getMatchState(MATCH).adStartedAt;
 wsManager.setAdPlaying(MATCH, true);
