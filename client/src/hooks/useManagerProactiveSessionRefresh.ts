@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
-import { refreshAccessToken } from "@/lib/managerQueryClient";
+import { isManagerMatchEndLogoutStarted, refreshAccessToken } from "@/lib/managerQueryClient";
 
 /** access JWT 15분 — 만료 전 선제 갱신 (경기 종료 전까지 세션 유지) */
 export const MANAGER_PROACTIVE_REFRESH_MS = 5 * 60_000;
@@ -15,6 +15,7 @@ export function useManagerProactiveSessionRefresh(enabled: boolean): void {
     if (!enabled) return;
 
     const tick = () => {
+      if (isManagerMatchEndLogoutStarted()) return;
       void refreshAccessToken().catch(() => {});
     };
     tick();
