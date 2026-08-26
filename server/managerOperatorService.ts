@@ -6,6 +6,7 @@ import { getKstDateString } from "./utils/dateUtils";
 import {
   operatorAccountStatusFromPhase,
   resolveOperatorMatchPhase,
+  shouldDeferOperatorDeactivation,
   type OperatorMatchPhase,
 } from "../shared/operatorMatchStatus";
 import {
@@ -177,11 +178,14 @@ async function getAssignedMatchForOperator(slot: number): Promise<{ id: string; 
 }
 
 /** 시스템 운영자(op1~op5) 로그인 정보가 담당 경기 종료 전인지 확인 */
-export async function assertOperatorLoginAllowed(doc: {
-  id?: string;
-  username: string;
-  operatorSlot?: number | null;
-}): Promise<void> {
+export async function assertOperatorLoginAllowed(
+  doc: {
+    id?: string;
+    username: string;
+    operatorSlot?: number | null;
+  },
+  opts?: { allowEndedMatchSession?: boolean },
+): Promise<void> {
   if (!OPERATOR_USERNAMES.includes(doc.username as (typeof OPERATOR_USERNAMES)[number])) {
     return;
   }
@@ -206,7 +210,9 @@ export async function assertOperatorLoginAllowed(doc: {
   if (!match) {
     throw new Error("오늘 배정된 경기가 없습니다. 관리자에게 문의하세요.");
   }
-  if (isMatchEnded(match.matchStatus)) {
+  // 이미 붙은 세션(refresh·/me)은 연출 동안 유지. 종료 직후 로그인은 막는다.
+  // 자격 만료는 12초 뒤 revoke(dailyPassword 삭제)에서 한다.
+  if (isMatchEnded(match.matchStatus) && !opts?.allowEndedMatchSession) {
     throw new Error("담당 경기가 종료되어 로그인 정보가 만료되었습니다. 관리자에게 새 정보를 요청하세요.");
   }
 }
@@ -273,11 +279,14 @@ export async function isOperatorCredentialsActive(managerId: string): Promise<bo
     return true;
   }
   try {
-    await assertOperatorLoginAllowed({
-      id: doc.id,
-      username: doc.username,
-      operatorSlot: (doc as { operatorSlot?: number }).operatorSlot,
-    });
+    await assertOperatorLoginAllowed(
+      {
+        id: doc.id,
+        username: doc.username,
+        operatorSlot: (doc as { operatorSlot?: number }).operatorSlot,
+      },
+      { allowEndedMatchSession: true },
+    );
     return true;
   } catch {
     return false;
@@ -464,6 +473,9 @@ export async function syncOperatorAccountStatusForSlot(
   if (slot < 1 || slot > OPERATOR_COUNT) return;
 
   const username = `op${slot}`;
+  if (shouldDeferOperatorDeactivation(phase)) {
+    return;
+  }
   const nextStatus = operatorAccountStatusFromPhase(phase);
   const operator = await AdminUserModel.findOne({ username, userType: "매니저" })
     .select("status")

@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
 import AdminConfirmPopup from "@/components/customUi/AdminConfirmPopup";
-import { managerFetch, refreshAccessToken, dispatchManagerMatchEnded } from "@/lib/managerQueryClient";
+import { managerFetch, refreshAccessToken, requestManagerMatchEndedLogout, isManagerMatchEndLogoutStarted } from "@/lib/managerQueryClient";
+import { shouldSkipOperatorWsReconnect } from "@shared/operatorMatchStatus";
 import { getManagerAccessToken } from "@/lib/managerTokenManager";
 import { useManagerAssets } from "@/contexts/ManagerAssetContext";
 import { useToast } from "@/hooks/use-toast";
@@ -172,8 +173,8 @@ export default function MatchDetailPage() {
     };
   }, [id]);
 
-  /** access 15분 — 5분마다 선제 갱신 + 앱/탭 복귀 시 갱신 */
-  useManagerProactiveSessionRefresh(Boolean(id));
+  /** access 15분 — 5분마다 선제 갱신 + 앱/탭 복귀 시 갱신. 경기종료 연출 중에는 중단. */
+  useManagerProactiveSessionRefresh(Boolean(id) && !showMatchEndedOverlay);
 
   useEffect(() => {
     if (!startToggleAt) return;
@@ -212,25 +213,34 @@ export default function MatchDetailPage() {
   }, [toast]);
 
   const logoutOnMatchEnded = useCallback(() => {
-    if (matchEndedLogoutRef.current) return;
-    matchEndedLogoutRef.current = true;
-    void speakGameVoice("operator.matchEnded", 8_000);
-    setShowMatchEndedOverlay(true);
-    window.setTimeout(() => {
-      dispatchManagerMatchEnded("담당 경기가 종료되어 로그아웃됩니다.");
-    }, 10_000);
+    requestManagerMatchEndedLogout("담당 경기가 종료되어 로그아웃됩니다.");
+  }, []);
+
+  useEffect(() => {
+    const onOverlay = () => {
+      if (matchEndedLogoutRef.current) return;
+      matchEndedLogoutRef.current = true;
+      void speakGameVoice("operator.matchEnded", 8_000);
+      setShowMatchEndedOverlay(true);
+    };
+    window.addEventListener("manager-match-end-overlay", onOverlay);
+    return () => window.removeEventListener("manager-match-end-overlay", onOverlay);
   }, []);
 
   // WebSocket 연결 및 관리
   useEffect(() => {
     if (!id || !managerId) return;
 
+    const shouldStopManagerWs = () =>
+      shouldSkipOperatorWsReconnect({
+        overlayStarted: isManagerMatchEndLogoutStarted(),
+        sessionExpired: sessionExpiredRef.current,
+        duplicateLogin: duplicateLoginRef.current,
+        unmounting: isUnmountingRef.current,
+      });
+
     const connect = async () => {
-      if (
-        sessionExpiredRef.current ||
-        duplicateLoginRef.current ||
-        isUnmountingRef.current
-      ) {
+      if (shouldStopManagerWs()) {
         return;
       }
 
@@ -240,11 +250,7 @@ export default function MatchDetailPage() {
         console.warn("[Manager WS] 연결 전 토큰 갱신 실패(연결 시도 계속):", error);
       }
 
-      if (
-        sessionExpiredRef.current ||
-        duplicateLoginRef.current ||
-        isUnmountingRef.current
-      ) {
+      if (shouldStopManagerWs()) {
         return;
       }
 
@@ -511,21 +517,17 @@ export default function MatchDetailPage() {
 
         // 세션 종료 (4005) — 사용자 앱과 같이 토큰 갱신 후 재연결. 진짜 만료일 때만 로그아웃.
         if (event.code === 4005) {
-          if (sessionExpiredRef.current || duplicateLoginRef.current || isUnmountingRef.current) {
+          if (shouldStopManagerWs()) {
             return;
           }
           console.log("[Manager WS] 4005 — 토큰 갱신 후 재연결 시도");
           reconnectTimeoutRef.current = setTimeout(async () => {
-            if (
-              sessionExpiredRef.current ||
-              duplicateLoginRef.current ||
-              isUnmountingRef.current
-            ) {
+            if (shouldStopManagerWs()) {
               return;
             }
             const ok = await refreshAccessToken();
             if (!ok) {
-              if (sessionExpiredRef.current) return;
+              if (sessionExpiredRef.current || isManagerMatchEndLogoutStarted()) return;
               sessionExpiredRef.current = true;
               console.log("[Manager WS] 4005 갱신 실패, 로그인 페이지로 이동");
               window.dispatchEvent(new CustomEvent("manager-session-expired"));
@@ -538,7 +540,7 @@ export default function MatchDetailPage() {
 
         // 세션 없음 (4006) - 재시도 없이 로그인 페이지로
         if (event.code === 4006) {
-          if (sessionExpiredRef.current) return;
+          if (sessionExpiredRef.current || isManagerMatchEndLogoutStarted()) return;
           sessionExpiredRef.current = true;
           console.log("[Manager WS] 세션 없음, 로그인 페이지로 이동:", event.code);
           window.dispatchEvent(new CustomEvent("manager-session-expired"));
@@ -564,6 +566,7 @@ export default function MatchDetailPage() {
         // 비정상 종료 시 재연결 — 네트워크 끊김으로 토큰 갱신이 실패해도 로그아웃하지 않음
         // (refreshAccessToken이 진짜 인증 만료일 때만 스스로 manager-session-expired 발행)
         if (!isWsNormalCloseCode(event.code)) {
+          if (shouldStopManagerWs()) return;
           // 실시간 채널만 재연결 — HTTP 예측 시작/중지는 WS와 무관하게 동작
           reconnectAttemptsRef.current += 1;
           const attempt = reconnectAttemptsRef.current;
@@ -571,11 +574,7 @@ export default function MatchDetailPage() {
           console.log(`[Manager WS] 재연결 시도 ${attempt} (${delay}ms)...`);
 
           reconnectTimeoutRef.current = setTimeout(async () => {
-            if (
-              sessionExpiredRef.current ||
-              duplicateLoginRef.current ||
-              isUnmountingRef.current
-            ) {
+            if (shouldStopManagerWs()) {
               return;
             }
             try {
@@ -583,11 +582,7 @@ export default function MatchDetailPage() {
             } catch (error) {
               console.warn("[Manager WS] 토큰 갱신 시도 실패(재연결은 계속):", error);
             }
-            if (
-              sessionExpiredRef.current ||
-              duplicateLoginRef.current ||
-              isUnmountingRef.current
-            ) {
+            if (shouldStopManagerWs()) {
               return;
             }
             void connectFnRef.current?.();
@@ -623,6 +618,7 @@ export default function MatchDetailPage() {
   }, [id, managerId, toast, logoutOnMatchEnded]);
 
   const fetchMatchDetail = useCallback(async (isPolling = false) => {
+    if (isManagerMatchEndLogoutStarted()) return;
     if (!isPolling && Date.now() < skipRemoteDetailUntilRef.current) {
       return;
     }
@@ -658,6 +654,16 @@ export default function MatchDetailPage() {
           description: data.error || "경기 정보를 불러오는데 실패했습니다.",
         });
         setLocation("/manager/home");
+      } else if (response.status === 401) {
+        try {
+          const data = await response.json();
+          if (data.deactivated || data.matchEnded) {
+            logoutOnMatchEnded();
+          }
+        } catch {
+          /* ignore */
+        }
+        return;
       } else {
         toast({
           variant: "destructive",
@@ -694,10 +700,12 @@ export default function MatchDetailPage() {
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const startPolling = () => {
+      if (isManagerMatchEndLogoutStarted()) return;
       if (!shouldClientPollMatch(match.startTime, match.matchStatus)) return;
       console.log("[Manager] 폴링 시작: 경기 정보 10초");
       fetchMatchDetail(true);
       intervalId = setInterval(() => {
+        if (isManagerMatchEndLogoutStarted()) return;
         fetchMatchDetail(true);
       }, 10000);
     };
@@ -1538,7 +1546,7 @@ export default function MatchDetailPage() {
         </footer>
       </div>
 
-      {/* 예측 미시작 안내 팝업 */}
+      {/* 경기종료 연출 — 10초 후 로그아웃 */}
       {showMatchEndedOverlay && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70"

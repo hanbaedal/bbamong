@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import InfoPopup from "./customUi/infoPopup";
 import { clearManagerTokens } from "@/lib/managerTokenManager";
-import { managerQueryClient, getFullUrl } from "@/lib/managerQueryClient";
+import { managerQueryClient, getFullUrl, isManagerMatchEndLogoutStarted } from "@/lib/managerQueryClient";
 import { adminQueryClient } from "@/lib/adminQueryClient";
 import { Capacitor } from "@capacitor/core";
 
@@ -35,6 +35,7 @@ export function SessionExpiredPopup() {
     };
 
     const handleManagerSessionExpired = async () => {
+      if (isManagerMatchEndLogoutStarted()) return;
       if (isProcessingRef.current) return;
       isProcessingRef.current = true;
       await clearManagerTokens();

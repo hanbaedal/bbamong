@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { managerFetch, managerQueryClient, getFullUrl, dispatchManagerMatchEnded } from "@/lib/managerQueryClient";
+import { managerFetch, managerQueryClient, getFullUrl, requestManagerMatchEndedLogout, isManagerMatchEndLogoutStarted } from "@/lib/managerQueryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
@@ -74,7 +74,7 @@ export default function ManagerHomePage() {
     shouldClientPollMatch(m.startTime, m.matchStatus),
   );
 
-  useManagerProactiveSessionRefresh(hasActiveAssignedMatch);
+  useManagerProactiveSessionRefresh(hasActiveAssignedMatch && !showMatchEndedBanner);
 
   useEffect(() => {
     if (!hasActiveAssignedMatch) {
@@ -91,6 +91,7 @@ export default function ManagerHomePage() {
     fetchManagerInfo();
     
     const handleSessionExpired = async () => {
+      if (isManagerMatchEndLogoutStarted()) return;
       await clearManagerTokens();
       managerQueryClient.clear();
       if (!Capacitor.isNativePlatform()) {
@@ -122,6 +123,10 @@ export default function ManagerHomePage() {
     
     window.addEventListener("manager-session-expired", handleSessionExpired);
     window.addEventListener("manager-match-ended", handleMatchEnded);
+    const handleMatchEndOverlay = () => {
+      setShowMatchEndedBanner(true);
+    };
+    window.addEventListener("manager-match-end-overlay", handleMatchEndOverlay);
 
     let appListenerHandle: { remove: () => void } | null = null;
     let isMounted = true;
@@ -143,6 +148,7 @@ export default function ManagerHomePage() {
       isMounted = false;
       window.removeEventListener("manager-session-expired", handleSessionExpired);
       window.removeEventListener("manager-match-ended", handleMatchEnded);
+      window.removeEventListener("manager-match-end-overlay", handleMatchEndOverlay);
       if (appListenerHandle) {
         appListenerHandle.remove();
       }
@@ -150,21 +156,13 @@ export default function ManagerHomePage() {
   }, []);
 
   useEffect(() => {
-    if (isLoadingMatches || matchEndedLogoutRef.current) return;
+    if (isLoadingMatches || isManagerMatchEndLogoutStarted() || matchEndedLogoutRef.current) return;
     const assignedEnded = matches.some(
       (m) => m.matchStatus === "completed" || m.matchStatus === "cancelled",
     );
     if (assignedEnded) {
       matchEndedLogoutRef.current = true;
-      try {
-        sessionStorage.setItem("manager-match-ended-message", "담당 경기가 종료되어 로그아웃됩니다.");
-      } catch {
-        /* ignore */
-      }
-      setShowMatchEndedBanner(true);
-      window.setTimeout(() => {
-        dispatchManagerMatchEnded("담당 경기가 종료되어 로그아웃됩니다.");
-      }, 10_000);
+      requestManagerMatchEndedLogout("담당 경기가 종료되어 로그아웃됩니다.");
     }
   }, [matches, isLoadingMatches]);
 
@@ -176,6 +174,16 @@ export default function ManagerHomePage() {
         const data = await response.json();
         setManager(data.manager);
       } else if (response.status === 401) {
+        if (isManagerMatchEndLogoutStarted()) return;
+        try {
+          const data = await response.json();
+          if (data.matchEnded || data.deactivated) {
+            requestManagerMatchEndedLogout("담당 경기가 종료되어 로그아웃됩니다.");
+            return;
+          }
+        } catch {
+          /* ignore */
+        }
         setLocation("/manager/login");
       } else {
         console.error("Failed to fetch manager info, status:", response.status);

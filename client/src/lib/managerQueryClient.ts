@@ -7,6 +7,8 @@ import {
   saveManagerRefreshToken, 
   clearManagerTokens 
 } from "./managerTokenManager";
+import { MATCH_ENDED_SHOW_MS } from "@/components/game/gameTypes";
+import { shouldHoldOperatorSessionOnAuthError } from "@shared/operatorMatchStatus";
 
 const PRODUCTION_API_URL = 'https://ppamong.com';
 
@@ -44,40 +46,62 @@ export function resetManagerRefreshCooldown(): void {
   refreshFailedAt = 0;
   networkFailCount = 0;
   refreshPromise = null;
+  matchEndLogoutStarted = false;
 }
 
 const MATCH_ENDED_MESSAGE = "담당 경기가 종료되어 로그아웃되었습니다.";
+let matchEndLogoutStarted = false;
+
+export function isManagerMatchEndLogoutStarted(): boolean {
+  return matchEndLogoutStarted;
+}
 
 export function dispatchManagerMatchEnded(message = MATCH_ENDED_MESSAGE): void {
   window.dispatchEvent(new CustomEvent("manager-match-ended", { detail: { message } }));
 }
 
+/** 10초 「경기종료」 연출 후 로그아웃. 연출 중 401/403이 즉시 언마운트하지 않게. */
+export function requestManagerMatchEndedLogout(message = MATCH_ENDED_MESSAGE): void {
+  if (matchEndLogoutStarted) return;
+  matchEndLogoutStarted = true;
+  window.dispatchEvent(new CustomEvent("manager-match-end-overlay", { detail: { message } }));
+  window.setTimeout(() => {
+    dispatchManagerMatchEnded(message);
+  }, MATCH_ENDED_SHOW_MS);
+}
+
+async function peekManagerMatchEnded(res: Response | null): Promise<boolean> {
+  if (!res) return false;
+  try {
+    const body = await res.clone().json();
+    return body.matchEnded === true || body.deactivated === true;
+  } catch {
+    return false;
+  }
+}
+
 async function handleManagerAuthFailure(res: Response | null): Promise<void> {
+  const matchEnded = await peekManagerMatchEnded(res);
+
+  if (shouldHoldOperatorSessionOnAuthError({ matchEnded, overlayStarted: matchEndLogoutStarted })) {
+    requestManagerMatchEndedLogout();
+    return;
+  }
+
   refreshFailedAt = Date.now();
   await clearManagerTokens();
   managerQueryClient.clear();
   if (!isNative) {
     fetch(getFullUrl("/api/manager/clear-session"), { method: "POST", credentials: "include" }).catch(() => {});
   }
-
-  let matchEnded = false;
-  if (res) {
-    try {
-      const body = await res.clone().json();
-      matchEnded = body.matchEnded === true || body.deactivated === true;
-    } catch {
-      /* ignore */
-    }
-  }
-
-  if (matchEnded) {
-    dispatchManagerMatchEnded();
-  } else {
-    window.dispatchEvent(new CustomEvent("manager-session-expired"));
-  }
+  window.dispatchEvent(new CustomEvent("manager-session-expired"));
 }
 
 export async function refreshAccessToken(): Promise<boolean> {
+  if (matchEndLogoutStarted) {
+    return false;
+  }
+
   if (refreshFailedAt && Date.now() - refreshFailedAt < REFRESH_COOLDOWN_MS) {
     return false;
   }
@@ -113,7 +137,12 @@ export async function refreshAccessToken(): Promise<boolean> {
         networkFailCount = 0;
         return true;
       }
-      
+
+      if (await peekManagerMatchEnded(res)) {
+        await handleManagerAuthFailure(res);
+        return false;
+      }
+
       refreshFailedAt = Date.now();
       await handleManagerAuthFailure(res);
       return false;
@@ -178,7 +207,12 @@ export async function managerApiRequest(
     credentials: isNative ? "omit" : "include",
   });
 
-  if (res.status === 401 && !url.includes("/api/manager/login") && !url.includes("/api/manager/refresh")) {
+  if (
+    res.status === 401 &&
+    !matchEndLogoutStarted &&
+    !url.includes("/api/manager/login") &&
+    !url.includes("/api/manager/refresh")
+  ) {
     const refreshed = await refreshAccessToken();
     
     if (refreshed) {
@@ -287,7 +321,12 @@ export async function managerFetch(
     credentials: isNative ? "omit" : "include",
   });
 
-  if (res.status === 401 && !url.includes("/api/manager/login") && !url.includes("/api/manager/refresh")) {
+  if (
+    res.status === 401 &&
+    !matchEndLogoutStarted &&
+    !url.includes("/api/manager/login") &&
+    !url.includes("/api/manager/refresh")
+  ) {
     const refreshed = await refreshAccessToken();
     
     if (refreshed) {
