@@ -754,9 +754,14 @@ export async function nextRound(
     ).lean();
 
     await session.commitTransaction();
+    if (!updatedMatch) throw new Error("경기를 찾을 수 없습니다.");
     return { match: updatedMatch as Match, predictionAutoStopped: false };
   } catch (error) {
-    await session.abortTransaction();
+    try {
+      await session.abortTransaction();
+    } catch {
+      /* ignore abort errors */
+    }
     throw error;
   } finally {
     session.endSession();

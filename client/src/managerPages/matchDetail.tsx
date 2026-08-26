@@ -327,6 +327,11 @@ export default function MatchDetailPage() {
                 adStartTimeRef.current = resolved.startedAt;
                 setAdElapsedTime(resolved.elapsedSec);
                 adExpiredStopSentRef.current = false;
+                if (typeof data?.predictionEnabled === "boolean") {
+                  setMatch((prev) =>
+                    prev ? { ...prev, predictionEnabled: data.predictionEnabled } : prev,
+                  );
+                }
               }
               sendPing();
               break;
@@ -438,10 +443,12 @@ export default function MatchDetailPage() {
               if (data?.phase || data?.phaseLabel) {
                 setMatch((prev) => {
                   if (!prev) return prev;
+                  const phase = data.phase ?? prev.atBatPhase;
                   const next = {
                     ...prev,
-                    atBatPhase: data.phase ?? prev.atBatPhase,
+                    atBatPhase: phase,
                     atBatPhaseLabel: data.phaseLabel ?? prev.atBatPhaseLabel,
+                    predictionEnabled: phase === "prediction_open",
                   };
                   if (data.phase === "prediction_open") {
                     operatorConfirmSpokenRef.current = false;
@@ -943,6 +950,10 @@ export default function MatchDetailPage() {
   };
 
   const handleNextBatter = () => {
+    if (match?.predictionEnabled) {
+      toast({ description: "예측이 열려 있습니다. 중지(8초 자동)와 결과 전송 뒤에 「다음 타자」를 누르세요." });
+      return;
+    }
     if (match?.showThreeOutsHint) {
       toast({ description: "3아웃입니다. 공수교대를 눌러주세요." });
       return;
@@ -952,7 +963,7 @@ export default function MatchDetailPage() {
       return;
     }
     if (!awaitAdvanceAfterResult) {
-      toast({ description: "실황이 다음 타자로 진행합니다. 결과가 나온 뒤에만 직접 누르세요." });
+      toast({ description: "예측 결과를 전송한 뒤에 「다음 타자」를 누르세요." });
       return;
     }
     void handleAdvanceRound(
@@ -1176,7 +1187,7 @@ export default function MatchDetailPage() {
     !showThreeOutsHint &&
     !anyAdvanceBusy &&
     !isAdPlaying;
-  /** 다음 타자 — 결과 전송 후에만. 대기 중에는 실황 자동. 3아웃이면 공수교대만 */
+  /** 다음 타자 — 예측 중지·결과 전송 후에만. 3아웃이면 공수교대만 */
   const canNextBatter =
     isMatchLive &&
     !showThreeOutsHint &&
@@ -1455,7 +1466,7 @@ export default function MatchDetailPage() {
               className="manager-match-notice manager-match-notice--three-outs"
               data-testid="text-three-outs-hint"
             >
-              3아웃 — 공수교대 (실황이 진행, 막히면 직접)
+              3아웃 — 「공수교대」를 누르세요
             </div>
           )}
 
@@ -1465,7 +1476,7 @@ export default function MatchDetailPage() {
               data-testid="text-await-next-batter"
               style={{ background: "#E8F5E9", color: "#2E7D32" }}
             >
-              결과 전송됨 — 실황이 다음 타자로 진행합니다
+              결과 전송됨 — 「다음 타자」를 누르세요
             </div>
           )}
 

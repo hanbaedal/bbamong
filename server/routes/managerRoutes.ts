@@ -22,6 +22,7 @@ import {
   PPAMONG_OPERATOR_LINK_ONLY,
   PPAMONG_OPERATOR_LOGIN_DENIED,
 } from "../../shared/operatorLoginPolicy";
+import { operatorControlErrorStatus } from "../../shared/operatorControlError";
 
 const adminStorage = new AdminStorage();
 const MANAGER_APP_SCHEME = "ppamongmanager";
@@ -1022,16 +1023,10 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: "인증이 만료되었습니다." });
       }
       console.error("Next batter error:", error);
-      const message = error instanceof Error ? error.message : "다음 타자 이동에 실패했습니다.";
-      if (
-        message.includes("결과를 전송") ||
-        message.includes("예측을 시작") ||
-        message.includes("경기전에") ||
-        message.includes("3아웃")
-      ) {
-        return res.status(400).json({ error: message });
-      }
-      return res.status(500).json({ error: message });
+      const { status, message } = operatorControlErrorStatus(error);
+      return res.status(status).json({
+        error: status === 500 ? message || "다음 타자 이동에 실패했습니다." : message,
+      });
     }
   });
 
@@ -1109,17 +1104,10 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: "인증이 만료되었습니다." });
       }
       console.error("Pitcher change error:", error);
-      const message = error instanceof Error ? error.message : "투수 교체 처리에 실패했습니다.";
-      if (
-        message.includes("다음 타자") ||
-        message.includes("결과") ||
-        message.includes("예측") ||
-        message.includes("경기전에") ||
-        message.includes("3아웃")
-      ) {
-        return res.status(400).json({ error: message });
-      }
-      return res.status(500).json({ error: message });
+      const { status, message } = operatorControlErrorStatus(error);
+      return res.status(status).json({
+        error: status === 500 ? message || "투수 교체 처리에 실패했습니다." : message,
+      });
     }
   });
 
@@ -1408,15 +1396,10 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: "인증이 만료되었습니다." });
       }
       console.error("Switch half error:", error);
-      const message = error instanceof Error ? error.message : "공수교대 처리에 실패했습니다.";
-      if (
-        message.includes("결과를 전송") ||
-        message.includes("예측을 시작") ||
-        message.includes("경기전에")
-      ) {
-        return res.status(400).json({ error: message });
-      }
-      return res.status(500).json({ error: message });
+      const { status, message } = operatorControlErrorStatus(error);
+      return res.status(status).json({
+        error: status === 500 ? message || "공수교대 처리에 실패했습니다." : message,
+      });
     }
   });
 
