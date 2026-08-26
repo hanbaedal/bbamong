@@ -9,6 +9,7 @@ import {
   RewardAdPluginEvents,
 } from "@capacitor-community/admob";
 import { AD_EARLY_DISMISS_SECONDS } from "@shared/predictionOdds";
+import { AD_PLAY_MS } from "@shared/adBreakTiming";
 import { isGoogleTestAdMobId } from "@shared/admobConstants";
 import { getFullUrl } from "@/lib/queryClient";
 import { clearPendingNativeAdDismiss, dismissNativeFullscreenAd } from "@/lib/systemUiPlugin";
@@ -144,8 +145,8 @@ export type AdSessionState = "idle" | "preparing" | "showing" | "overlay";
 
 /** 전면 광고 Dismiss 이벤트 누락 시 검정 화면 고착 방지 */
 const INTERSTITIAL_DISMISS_TIMEOUT_MS = 75_000;
-/** 보상형 광고 Dismiss 누락 방지 — 예측 브레이크(40초)보다 길면 게임이 안 돌아옴 */
-const REWARDED_DISMISS_TIMEOUT_MS = 45_000;
+/** 보상형 광고 Dismiss 누락 방지 — 광고 50초보다 짧으면 게임이 안 돌아옴 */
+const REWARDED_DISMISS_TIMEOUT_MS = AD_PLAY_MS + 15_000;
 /** prepare/show SDK 호출이 응답 없을 때 */
 const AD_SDK_CALL_TIMEOUT_MS = 12_000;
 

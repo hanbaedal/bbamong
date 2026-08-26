@@ -1,5 +1,5 @@
 /**
- * 광고 40초 만료·워치독 — 운영자 타이머가 늘어나지 않게
+ * 광고 50초 만료·워치독 — 운영자 타이머가 늘어나지 않게
  * 실행: npx tsx scripts/test-ad-break-timing.ts
  */
 import {
@@ -21,20 +21,20 @@ function assert(cond: unknown, msg: string) {
 const MATCH = "ad-break-timing-test";
 const now = Date.now();
 
-assert(AD_PLAY_MS === 40_000, "ad play is 40 seconds");
-assert(AD_PLAY_SECONDS === 40, "ad play seconds is 40");
+assert(AD_PLAY_MS === 50_000, "ad play is 50 seconds");
+assert(AD_PLAY_SECONDS === 50, "ad play seconds is 50");
 assert(AD_BREAK_TOTAL_MS === AD_INTRO_DELAY_MS + AD_PLAY_MS, "break = intro + play");
 assert(!isAdPlayExpired(now), "fresh start is not expired");
-assert(isAdPlayExpired(now - AD_PLAY_MS), "exactly 40 seconds is expired");
+assert(isAdPlayExpired(now - AD_PLAY_MS), "exactly 50 seconds is expired");
 assert(isAdPlayExpired(now - 5 * 60_000), "5 minutes is expired");
-assert(adRemainingMs(now - 10_000, now) === 30_000, "remaining after 10s is 30s");
+assert(adRemainingMs(now - 10_000, now) === 40_000, "remaining after 10s is 40s");
 
 const live = resolveAdPlayingFromServer(true, now - 5_000, now);
 assert(live.playing, "5s elapsed still playing");
 assert(live.elapsedSec >= 4 && live.elapsedSec <= 6, `elapsed ${live.elapsedSec}`);
 
-const stillAt39 = resolveAdPlayingFromServer(true, now - 39_000, now);
-assert(stillAt39.playing, "39s elapsed still playing");
+const stillAt49 = resolveAdPlayingFromServer(true, now - 49_000, now);
+assert(stillAt49.playing, "49s elapsed still playing");
 
 const stuck = resolveAdPlayingFromServer(true, now - 5 * 60_000, now);
 assert(!stuck.playing, "5-minute leftover snapshot must not display as playing");
@@ -55,5 +55,5 @@ assert(
 );
 wsManager.setAdPlaying(MATCH, false);
 
-console.log("OK: ad break timing 40s + watchdog");
+console.log("OK: ad break timing 50s + watchdog");
 process.exit(0);

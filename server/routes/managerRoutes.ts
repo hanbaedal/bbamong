@@ -1009,35 +1009,13 @@ export async function managerRoutes(app: Express): Promise<void> {
       notifyManualAtBatAction(id, "next");
       await syncAtBatPhaseAfterManual(id, "manual_next_batter");
 
-      // 다음 타자 → 자동 예측 시작 (+ 8초 후 자동 중지)
-      let predictionStarted = false;
-      let currentRound = updatedMatch.currentRound;
-      try {
-        if ((updatedMatch.outsInHalf ?? 0) < 3) {
-          const started = await startRound(id);
-          currentRound = started.currentRound;
-          predictionStarted = true;
-          broadcastManager.sendToMatch(id, "prediction_started", {
-            matchId: id,
-            currentRound: started.currentRound,
-            message: `라운드 ${started.currentRound} 예측이 시작되었습니다.`,
-          });
-          schedulePredictionAutoStop(id);
-          await syncAtBatPhaseAfterManual(id, "manual_start");
-        }
-      } catch (startErr) {
-        console.warn(`[Manager] next-batter auto start failed ${id}:`, startErr);
-      }
-
       return res.json({
         success: true,
-        message: predictionStarted
-          ? "다음 타자로 이동하고 예측을 시작했습니다."
-          : "다음 타자로 이동했습니다.",
-        currentRound,
+        message: "다음 타자로 이동했습니다.",
+        currentRound: updatedMatch.currentRound,
         gamePhase,
         predictionAutoStopped: false,
-        predictionStarted,
+        predictionStarted: false,
       });
     } catch (error: unknown) {
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
