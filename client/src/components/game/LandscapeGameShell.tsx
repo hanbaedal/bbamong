@@ -27,6 +27,7 @@ import { AD_PLAY_MS } from "@shared/adBreakTiming";
 import type { BetAmountOption } from "@shared/predictionOdds";
 import { isTransientAdOrEventPhase, type GameScreenPhase, type PredictionOption } from "./gameTypes";
 import { useAtBatPitchDisplay } from "@/hooks/useAtBatPitchDisplay";
+import { isCinematicGameScene, resolveGameSceneKind } from "./gameSceneBackground";
 import "./gameAnimations.css";
 
 interface LandscapeGameShellProps {
@@ -152,16 +153,27 @@ export default function LandscapeGameShell({
 
   const displayPitches = useAtBatPitchDisplay(scoreboard, screenPhase);
   const pitchLocationCount = displayPitches?.length ?? 0;
+  const battingHalf =
+    scoreboard?.inningHalf === "top" || scoreboard?.inningHalf === "bottom"
+      ? scoreboard.inningHalf
+      : inningHalf ?? null;
+  const sceneKind = resolveGameSceneKind({
+    gameDayPhase,
+    screenPhase,
+    inningHalf: battingHalf,
+  });
+  const cinematicScene = isCinematicGameScene(sceneKind);
   /** 대기·결과 큰 글씨·교체/광고 중에는 직전 타자 이름·시즌 카드를 남기지 않음 */
   const hideStaleBatter =
     screenPhase === "wait_start" ||
     screenPhase === "result_flash" ||
     isTransientAdOrEventPhase(screenPhase);
-  /** 3. 예측 중지·결과 큰 글씨에서만 존 투구 점 */
+  /** 3. 예측 중지·결과 큰 글씨에서만 존 투구 점 — 시네마틱 사진은 홈플레이트 좌표가 안 맞음 */
   const strikeZoneVisible =
     pitchLocationCount > 0 &&
     !noticeSuppressed &&
     !showBetModal &&
+    !cinematicScene &&
     gameDayPhase === "live" &&
     (screenPhase === "wait_result" || screenPhase === "result_flash");
 
@@ -170,7 +182,7 @@ export default function LandscapeGameShell({
       className="fixed inset-0 w-[100dvw] h-[100dvh] overflow-hidden bg-black"
       data-testid="landscape-game-shell"
     >
-      <GameFieldViewport>
+      <GameFieldViewport sceneKind={sceneKind}>
         <GameLiveSituationWidget
           scoreboard={scoreboard}
           hidden={noticeSuppressed}
@@ -193,11 +205,7 @@ export default function LandscapeGameShell({
               currentBatter={currentBatter}
               scoreboard={scoreboard}
               isLoading={scoreLoading || matchesInitialLoading}
-              battingHalf={
-                scoreboard?.inningHalf === "top" || scoreboard?.inningHalf === "bottom"
-                  ? scoreboard.inningHalf
-                  : inningHalf ?? null
-              }
+              battingHalf={battingHalf}
               onMatchTitleClick={onMatchTitleClick}
               matchSelectEnabled={matchSelectEnabled}
               stadiumSelectEnabled={stadiumSelectEnabled}
@@ -232,12 +240,9 @@ export default function LandscapeGameShell({
               phase={screenPhase}
               gameDayPhase={gameDayPhase}
               gameDayOverlayKind={gameDayOverlayKind}
+              sceneKind={sceneKind}
               selectedPrediction={selectedPrediction}
-              battingHalf={
-                scoreboard?.inningHalf === "top" || scoreboard?.inningHalf === "bottom"
-                  ? scoreboard.inningHalf
-                  : inningHalf ?? null
-              }
+              battingHalf={battingHalf}
               batsSide={
                 scoreboard?.situation?.batsSide === "left" ||
                 scoreboard?.situation?.batsSide === "right"
