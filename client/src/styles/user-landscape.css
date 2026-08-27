@@ -88,7 +88,7 @@
   }
 }
 
-/* 인트로 스플래시 — 흰 바탕 · 중앙 타격 */
+/* 인트로 스플래시 — 구장 풀블리드 · 홈플레이트 타격 */
 .user-intro-splash {
   position: relative;
   height: 100dvh;
@@ -98,13 +98,10 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #ffffff;
+  background: #07140c;
   opacity: 1;
   transition: opacity 0.4s ease;
-  padding-top: var(--safe-area-inset-top, 0px);
-  padding-left: max(var(--safe-area-inset-left, 0px), clamp(12px, 3vw, 24px));
-  padding-right: max(var(--safe-area-inset-right, 0px), clamp(12px, 3vw, 24px));
-  padding-bottom: max(var(--safe-area-inset-bottom, 0px), clamp(8px, 2vw, 16px));
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -199,16 +196,14 @@
 }
 
 .user-intro-splash-inner {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: block;
   width: 100%;
   height: 100%;
-  max-width: min(1280px, 100%);
-  overflow: visible;
+  max-width: none;
+  overflow: hidden;
 }
 
 .intro-brand-ball {
@@ -308,20 +303,65 @@
 }
 
 .intro-batting-stage--flipbook {
-  position: relative;
-  width: min(100%, 1100px);
-  height: min(78dvh, 720px);
-  max-width: 100%;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+
+.intro-scene-fit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, calc(100dvh * 2720 / 1536));
+  height: max(100%, calc(100dvw * 1536 / 2720));
+  transform: translate(-50%, -50%);
+}
+
+.intro-scene-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+}
+
+.intro-scene-bg--empty {
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 280ms ease;
+}
+
+.intro-scene-bg--empty.is-active {
+  opacity: 1;
+}
+
+.intro-sprite-slot {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 280ms ease;
+}
+
+.intro-sprite-slot.is-active {
+  opacity: 1;
 }
 
 .intro-batting-flip {
   display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  object-position: center;
+  object-fit: fill;
   pointer-events: none;
   user-select: none;
+  filter: drop-shadow(0 10px 16px rgba(20, 12, 6, 0.38));
 }
 
 .intro-batting-flip--under,

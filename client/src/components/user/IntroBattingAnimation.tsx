@@ -3,38 +3,42 @@ import {
   INTRO_BATTING_MS,
   INTRO_CROSSFADE_MS,
   INTRO_FRAME_COUNT,
+  INTRO_SPRITE_BOX,
+  INTRO_STADIUM_ASPECT,
+  INTRO_STADIUM_HOLD_MS,
   introFrameIndexAt,
 } from "@shared/introBatting";
-import frame01 from "@assets/user/intro-batting-frames/01.webp";
-import frame02 from "@assets/user/intro-batting-frames/02.webp";
-import frame03 from "@assets/user/intro-batting-frames/03.webp";
-import frame04 from "@assets/user/intro-batting-frames/04.webp";
-import frame05 from "@assets/user/intro-batting-frames/05.webp";
-import frame06 from "@assets/user/intro-batting-frames/06.webp";
-import frame07 from "@assets/user/intro-batting-frames/07.webp";
-import frame08 from "@assets/user/intro-batting-frames/08.webp";
-import frame09 from "@assets/user/intro-batting-frames/09.webp";
-import frame10 from "@assets/user/intro-batting-frames/10.webp";
-import frame11 from "@assets/user/intro-batting-frames/11.webp";
-import frame12 from "@assets/user/intro-batting-frames/12.webp";
-import frame13 from "@assets/user/intro-batting-frames/13.webp";
-import frame14 from "@assets/user/intro-batting-frames/14.webp";
+import introStadium from "@assets/user/intro-stadium-home.jpg";
+import introStadiumEmpty from "@assets/user/intro-stadium-empty.jpg";
+import frame01 from "@assets/user/intro-batting-24/01.webp";
+import frame02 from "@assets/user/intro-batting-24/02.webp";
+import frame03 from "@assets/user/intro-batting-24/03.webp";
+import frame04 from "@assets/user/intro-batting-24/04.webp";
+import frame05 from "@assets/user/intro-batting-24/05.webp";
+import frame06 from "@assets/user/intro-batting-24/06.webp";
+import frame07 from "@assets/user/intro-batting-24/07.webp";
+import frame08 from "@assets/user/intro-batting-24/08.webp";
+import frame09 from "@assets/user/intro-batting-24/09.webp";
+import frame10 from "@assets/user/intro-batting-24/10.webp";
+import frame11 from "@assets/user/intro-batting-24/11.webp";
+import frame12 from "@assets/user/intro-batting-24/12.webp";
+import frame13 from "@assets/user/intro-batting-24/13.webp";
+import frame14 from "@assets/user/intro-batting-24/14.webp";
+import frame15 from "@assets/user/intro-batting-24/15.webp";
+import frame16 from "@assets/user/intro-batting-24/16.webp";
+import frame17 from "@assets/user/intro-batting-24/17.webp";
+import frame18 from "@assets/user/intro-batting-24/18.webp";
+import frame19 from "@assets/user/intro-batting-24/19.webp";
+import frame20 from "@assets/user/intro-batting-24/20.webp";
+import frame21 from "@assets/user/intro-batting-24/21.webp";
+import frame22 from "@assets/user/intro-batting-24/22.webp";
+import frame23 from "@assets/user/intro-batting-24/23.webp";
+import frame24 from "@assets/user/intro-batting-24/24.webp";
 
 export const INTRO_BATTING_FRAMES = [
-  frame01,
-  frame02,
-  frame03,
-  frame04,
-  frame05,
-  frame06,
-  frame07,
-  frame11,
-  frame10,
-  frame08,
-  frame09,
-  frame12,
-  frame13,
-  frame14,
+  frame01, frame02, frame03, frame04, frame05, frame06, frame07, frame08,
+  frame09, frame10, frame11, frame12, frame13, frame14, frame15, frame16,
+  frame17, frame18, frame19, frame20, frame21, frame22, frame23, frame24,
 ] as const;
 
 if (INTRO_BATTING_FRAMES.length !== INTRO_FRAME_COUNT) {
@@ -42,20 +46,25 @@ if (INTRO_BATTING_FRAMES.length !== INTRO_FRAME_COUNT) {
 }
 
 type IntroBattingAnimationProps = {
-  /** 테스트용 고정 프레임(0-based). 없으면 멘트 시간에 맞춰 재생 */
+  /** 테스트용 고정. -1=구장 타석만, 0–23=24장 컷. 없으면 멘트 시간에 맞춰 재생 */
   frameIndex?: number;
 };
 
-/** 가로 중앙 빠몽이 — 14장 플립북, 프레임 전환은 짧게 크로스페이드 */
+/** 구장 타석(나무 배트)에서 시작해 24장 플립북으로 이어진다 */
 export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimationProps) {
   const [index, setIndex] = useState(0);
   const [prevIndex, setPrevIndex] = useState(0);
+  const [overlayOn, setOverlayOn] = useState(false);
 
   useEffect(() => {
     if (typeof frameIndex === "number") {
-      const next = Math.max(0, Math.min(INTRO_FRAME_COUNT - 1, frameIndex));
+      const frozenStadium = frameIndex < 0;
+      const next = frozenStadium
+        ? 0
+        : Math.max(0, Math.min(INTRO_FRAME_COUNT - 1, frameIndex));
       setPrevIndex(next);
       setIndex(next);
+      setOverlayOn(!frozenStadium);
       return;
     }
 
@@ -63,19 +72,26 @@ export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimat
     if (reduceMotion) {
       setIndex(INTRO_FRAME_COUNT - 1);
       setPrevIndex(INTRO_FRAME_COUNT - 1);
+      setOverlayOn(true);
       return;
     }
 
     const startedAt = performance.now();
     let raf = 0;
-    let last = 0;
+    let last = -1;
+    setOverlayOn(false);
     const tick = (now: number) => {
       const elapsed = now - startedAt;
-      const next = introFrameIndexAt(elapsed);
-      if (next !== last) {
-        setPrevIndex(last);
-        setIndex(next);
-        last = next;
+      if (elapsed < INTRO_STADIUM_HOLD_MS) {
+        setOverlayOn(false);
+      } else {
+        const next = introFrameIndexAt(elapsed);
+        setOverlayOn(true);
+        if (next !== last) {
+          setPrevIndex(last < 0 ? next : last);
+          setIndex(next);
+          last = next;
+        }
       }
       if (elapsed < INTRO_BATTING_MS) {
         raf = requestAnimationFrame(tick);
@@ -85,32 +101,74 @@ export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimat
     return () => cancelAnimationFrame(raf);
   }, [frameIndex]);
 
-  const showCrossfade = index !== prevIndex;
+  const showCrossfade = overlayOn && index !== prevIndex;
+  const spriteBoxStyle = {
+    left: INTRO_SPRITE_BOX.left,
+    top: INTRO_SPRITE_BOX.top,
+    width: INTRO_SPRITE_BOX.width,
+    height: INTRO_SPRITE_BOX.height,
+  } as CSSProperties;
 
   return (
     <div className="intro-batting-stage intro-batting-stage--flipbook" aria-hidden>
-      {showCrossfade ? (
-        <img
-          src={INTRO_BATTING_FRAMES[prevIndex]}
-          alt=""
-          className="intro-batting-flip intro-batting-flip--under"
-          draggable={false}
-        />
-      ) : null}
-      <img
-        key={index}
-        src={INTRO_BATTING_FRAMES[index]}
-        alt=""
-        className={`intro-batting-flip${showCrossfade ? " intro-batting-flip--over" : ""}`}
+      <div
+        className="intro-scene-fit"
         style={
-          showCrossfade
-            ? ({ ["--intro-crossfade-ms"]: `${INTRO_CROSSFADE_MS}ms` } as CSSProperties)
-            : undefined
+          {
+            width: `max(100%, calc(100dvh * ${INTRO_STADIUM_ASPECT}))`,
+            height: `max(100%, calc(100dvw / ${INTRO_STADIUM_ASPECT}))`,
+          } as CSSProperties
         }
-        data-testid="intro-batting-animation"
-        data-intro-frame={index + 1}
-        draggable={false}
-      />
+      >
+        <img
+          src={introStadium}
+          alt=""
+          className="intro-scene-bg"
+          draggable={false}
+          decoding="async"
+          fetchPriority="high"
+          data-testid="intro-stadium-bg"
+        />
+        <img
+          src={introStadiumEmpty}
+          alt=""
+          className={`intro-scene-bg intro-scene-bg--empty${overlayOn ? " is-active" : ""}`}
+          draggable={false}
+          decoding="async"
+          data-testid="intro-stadium-empty"
+        />
+        <div
+          className={`intro-sprite-slot${overlayOn ? " is-active" : ""}`}
+          style={spriteBoxStyle}
+        >
+          {overlayOn && showCrossfade ? (
+            <img
+              src={INTRO_BATTING_FRAMES[prevIndex]}
+              alt=""
+              className="intro-batting-flip intro-batting-flip--under"
+              draggable={false}
+            />
+          ) : null}
+          {overlayOn ? (
+            <img
+              key={index}
+              src={INTRO_BATTING_FRAMES[index]}
+              alt=""
+              className={`intro-batting-flip${showCrossfade ? " intro-batting-flip--over" : ""}`}
+              style={
+                showCrossfade
+                  ? ({ ["--intro-crossfade-ms"]: `${INTRO_CROSSFADE_MS}ms` } as CSSProperties)
+                  : undefined
+              }
+              data-testid="intro-batting-animation"
+              data-intro-frame={index + 1}
+              draggable={false}
+            />
+          ) : (
+            <span data-testid="intro-stadium-hold" hidden />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
