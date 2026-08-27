@@ -1,15 +1,15 @@
 import type { PredictionOption } from "./gameTypes";
 
-/** game-stadium-bg.png 원본 크기 (중앙 필드 — 3:2) */
-export const STADIUM_IMAGE = { width: 1536, height: 1024 } as const;
+/** game-stadium-field.jpg 원본 크기 (1560×720 ≈ 19.5:9) */
+export const STADIUM_IMAGE = { width: 1560, height: 720 } as const;
 
-/** 원본 경기장 PNG 비율 (1536×1024 = 3:2) */
+/** 필드 구장 JPG 비율 — object-cover 로 뷰포트를 채움 */
 export const STADIUM_ASPECT_RATIO = STADIUM_IMAGE.width / STADIUM_IMAGE.height;
 
 /** @deprecated 미러 확장 레이아웃에서는 미사용 */
 export const STADIUM_OBJECT_POSITION = { x: 0.5, y: 1 } as const;
 
-/** 0~1 정규화 좌표 (원본 1536×1024 픽셀 기준) */
+/** 0~1 정규화 좌표 (game-stadium-field.jpg 픽셀 기준) */
 export interface ImagePoint {
   x: number;
   y: number;
@@ -25,28 +25,25 @@ const PREV_IMAGE_POINTS = {
 } as const;
 
 /**
- * 야구장 PNG(game-stadium-bg.png 1536×1024) 위 베이스·버튼 위치
- * - 홈·2루: PNG 밝기 피크 (0.499/0.892, 0.501/0.631)
- * - 1·3루: 파울라인 더트 위 베이스백 — y≈0.71 (기존 y≈0.60대는 마운드 쪽이라 항상 어긋남)
+ * 3D 구장 JPG(game-stadium-field.jpg 1560×720) 위 베이스·버튼 위치
+ * 홈플레이트·베이스백 실측. 홈런은 중견 펜스 앞.
  */
 export const BASE_IMAGE_POINTS: Record<PredictionOption, ImagePoint> = {
-  아웃: { x: 0.5, y: 0.89 },
-  "1루": { x: 0.835, y: 0.708 },
-  "2루": { x: 0.5, y: 0.631 },
-  "3루": { x: 0.158, y: 0.718 },
-  홈런: { x: 0.5, y: 0.435 },
+  아웃: { x: 0.49, y: 0.835 },
+  "1루": { x: 0.796, y: 0.563 },
+  "2루": { x: 0.491, y: 0.418 },
+  "3루": { x: 0.18, y: 0.553 },
+  홈런: { x: 0.491, y: 0.22 },
 };
 
 /** 경기 시작 전 대기 — 3루 위치 */
 export const STANDS_SEAT_IMAGE: ImagePoint = { ...BASE_IMAGE_POINTS["3루"] };
 
 export const HOME_PLATE_IMAGE = BASE_IMAGE_POINTS.아웃;
-export const PITCHER_MOUND_IMAGE: ImagePoint = { x: 0.5, y: 0.535 };
+export const PITCHER_MOUND_IMAGE: ImagePoint = { x: 0.491, y: 0.59 };
 
-/** 타석 박스 — 홈·스트라이크존에서 좌우로 벌림 (이미지 폭 비율).
- * 0.225는 과했고, 0.12면 존 박스와 안 겹치며 타석에 붙어 보임.
- */
-export const BATTER_BOX_OFFSET_X = 0.12;
+/** 타석 박스 — 홈플레이트 좌우 타석 라인 (이미지 폭 비율) */
+export const BATTER_BOX_OFFSET_X = 0.045;
 
 /** 우타 박스 — 홈·스트라이크존 왼쪽(화면 좌측) */
 export const BATTER_BOX_RIGHT_IMAGE: ImagePoint = {
@@ -63,7 +60,7 @@ export const BATTER_BOX_LEFT_IMAGE: ImagePoint = {
 const IMAGE_ASPECT = STADIUM_IMAGE.width / STADIUM_IMAGE.height;
 
 /**
- * 중앙 3:2 이미지(높이 100%) + 좌우 미러 여백 레이아웃 좌표 변환
+ * object-cover 레이아웃 좌표 변환 — CSS object-cover / object-position center 와 동일
  */
 export function stadiumImagePointToPx(
   point: ImagePoint,
@@ -83,16 +80,16 @@ export function stadiumImagePointToPx(
   let offsetX: number;
   let offsetY: number;
 
-  if (containerAspect >= imageAspect) {
-    contentH = containerH;
-    contentW = containerH * imageAspect;
-    offsetX = (containerW - contentW) / 2;
-    offsetY = 0;
-  } else {
+  if (containerAspect > imageAspect) {
     contentW = containerW;
     contentH = containerW / imageAspect;
     offsetX = 0;
     offsetY = (containerH - contentH) / 2;
+  } else {
+    contentH = containerH;
+    contentW = containerH * imageAspect;
+    offsetX = (containerW - contentW) / 2;
+    offsetY = 0;
   }
 
   return {
