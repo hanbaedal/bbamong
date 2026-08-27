@@ -27,6 +27,7 @@ import {
   formatGameMatchSelectDetail,
   isMatchSelectableForGame,
   canRemainInGameMatch,
+  shouldDropSelectedMatch,
   sortMatchesByOrder,
   type GameMatchItem,
 } from "@/components/game/gameMatchUtils";
@@ -437,11 +438,7 @@ export default function PredictionPage() {
     if (!selectedMatchId) return;
     if (matchesLoading || !hasMatchesSnapshot) return;
     const found = orderedMatches.find((m) => m.id === selectedMatchId);
-    if (found && canRemainInGameMatch(found, nowMs)) return;
-    if (found) {
-      // 종료·취소만 선택 해제. 실황 OFF는 유지.
-      return;
-    }
+    if (found && !shouldDropSelectedMatch(found)) return;
     setSelectedMatchId(null);
     matchPickPromptedRef.current = false;
     if (!gameDayOverlayKind) setMatchModalOpen(true);
@@ -511,6 +508,7 @@ export default function PredictionPage() {
     onGamePhaseUpdate: (phase) => setGamePhase(phase as GamePhasePayload),
     onMatchEnded: () => {
       matchEndedHandledRef.current = true;
+      setSelectedMatchId(null);
       goAfterMatchEnd();
     },
   });
@@ -521,7 +519,6 @@ export default function PredictionPage() {
       startTime: selectedMatch?.startTime,
       matchStatus: selectedMatch?.matchStatus,
       pollMs: 2_000,
-      alwaysPoll: Boolean(selectedMatchId) && !selectedMatch,
     },
   );
 
@@ -622,12 +619,16 @@ export default function PredictionPage() {
   const matchHeaderLines = displayMatch
     ? resolveGameMatchHeaderLines(displayMatch, liveScoreboard)
     : { teamNamesLine: null, headToHead: null };
-  /** 경기가 선택된 뒤에만 제목 클릭으로 재선택. 미선택 시에는 「경기 선택」 모달만 사용 */
-  const canSelectMatch = Boolean(displayMatch);
+  const canSelectMatch = orderedMatches.some((m) => isMatchSelectableForGame(m, nowMs));
   const canSelectStadium = Boolean(displayMatch) && stadiumOptions.length > 0;
+  const isLivePlay = gameDayPhase === "live" && Boolean(displayMatch);
+  /** 경기 고르기 전·종료 잔상 뒤는 대기 스프라이트/3D 그라운드를 그리지 않는다 */
   const shellDayPhase =
-    gameDayPhase === "loading" || gameDayPhase === "no_match" ? "pregame" : gameDayPhase;
-  const isLivePlay = gameDayPhase === "live";
+    !displayMatch && gameDayPhase !== "all_ended"
+      ? "pregame"
+      : gameDayPhase === "loading" || gameDayPhase === "no_match"
+        ? "pregame"
+        : gameDayPhase;
   const isMatchEndSequence = flow.screenPhase === "match_ended";
   const shellScreenPhase = isMatchEndSequence
     ? "match_ended"

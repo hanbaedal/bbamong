@@ -288,6 +288,12 @@ export function canRemainInGameMatch(match: GameMatchItem, _nowMs = Date.now()):
   return phase === "경기전" || phase === "경기중";
 }
 
+/** 저장된 경기 id를 지울지. 목록에 없거나 종료·취소면 true. 실황 OFF 진행 중은 false. */
+export function shouldDropSelectedMatch(match: GameMatchItem | undefined | null): boolean {
+  if (!match) return true;
+  return !canRemainInGameMatch(match);
+}
+
 export interface StadiumOption {
   id: number;
   name: string;

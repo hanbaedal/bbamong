@@ -49,21 +49,19 @@ export function resolveGameSceneKind(input: {
     return "before";
   }
 
-  if (gameDayPhase === "live") {
-    if (screenPhase === "wait_start") {
-      // 손 방향은 사진 미러로 맞춘다 (우타=포수 왼쪽, 좌타=포수 오른쪽). 화면 전체를 줄이지 않는다.
-      return away ? "wait_away" : "wait_home";
-    }
-    if (screenPhase === "wait_result" || screenPhase === "result_flash") {
-      return away ? "pitch_away" : "pitch_home";
-    }
-    if (
-      screenPhase === "success_running" ||
-      screenPhase === "success_announce" ||
-      screenPhase === "success_celebrate"
-    ) {
-      return "running";
-    }
+  // 대기는 시네마틱만. 3D 그라운드+필드 스프라이트로 떨어지면 안 된다.
+  if (screenPhase === "wait_start") {
+    return away ? "wait_away" : "wait_home";
+  }
+  if (screenPhase === "wait_result" || screenPhase === "result_flash") {
+    return away ? "pitch_away" : "pitch_home";
+  }
+  if (
+    screenPhase === "success_running" ||
+    screenPhase === "success_announce" ||
+    screenPhase === "success_celebrate"
+  ) {
+    return "running";
   }
 
   return "field";

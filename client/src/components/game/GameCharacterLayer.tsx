@@ -36,7 +36,7 @@ import {
 } from "./stadiumFieldCoords";
 import { StadiumFieldMarker, useStadiumFieldSize } from "./StadiumFieldContext";
 import GameThoughtBubble from "./GameThoughtBubble";
-import { PYAMONG_ARMS_WAIT_WIDTH, PYAMONG_BATTER_BACK_WIDTH } from "./gameLayoutSizes";
+import { PYAMONG_BATTER_BACK_WIDTH } from "./gameLayoutSizes";
 import type { BatterHandSide } from "@shared/batterHandedness";
 import "./gameAnimations.css";
 
@@ -266,40 +266,7 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {/* 1. 예측 시작 전: 필드 위 팔짱 빠몽 — 시네마틱은 사진 속 큰 빠몽만 */}
-      {gameDayPhase === "live" && phase === "wait_start" && !cinematic ? (
-        <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
-          <div
-            className={`flex items-end gap-1 sm:gap-2 pointer-events-none ${
-              handSide === "left" ? "flex-row" : "flex-row-reverse"
-            }`}
-            style={{ transform: "translate(-50%, -92%)" }}
-            data-testid="char-batter-box-wait-start"
-            data-bats-side={handSide}
-          >
-            <img
-              src={pyamongWaitingSrc(battingHalf)}
-              alt=""
-              className={`${pyamongSpriteClass(battingHalf)} h-auto shrink-0 drop-shadow-[0_4px_10px_rgba(0,0,0,0.45)]`}
-              style={{ width: PYAMONG_ARMS_WAIT_WIDTH, transformOrigin: "bottom center" }}
-              data-testid="char-pyamong-arms-waiting"
-            />
-            {!hideWaitBubble ? (
-              <GameThoughtBubble
-                lines={
-                  isPinchHitter
-                    ? (["대타가", "나옵니다"] as const)
-                    : [...LIVE_WAIT_BUBBLE_LINES]
-                }
-                className="mb-[min(5vw,40px)] shrink-0"
-                bubbleWidth="min(10vw, 78px)"
-                textClassName="text-[min(2.1vw,11px)] sm:text-[min(2.5vw,13px)] leading-[1.12]"
-              />
-            ) : null}
-          </div>
-        </StadiumFieldMarker>
-      ) : null}
-
+      {/* 1. 예측 시작 전: 시네마틱 사진 속 빠몽 + 말풍선. 3D 그라운드 위 대형 스프라이트는 쓰지 않는다. */}
       {gameDayPhase === "live" && phase === "wait_start" && cinematic && !hideWaitBubble ? (
         <div
           className="absolute z-[22] pointer-events-none"

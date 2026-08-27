@@ -19,7 +19,6 @@ import { navigateToMall } from "@/lib/appNavigation";
 import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 import { USER_LOGIN_PATH } from "@/lib/loginSession";
 import { clearGuestSessionArtifacts } from "@/lib/shopRoutes";
-import { readPersistedSelectedMatchId } from "@/lib/selectedMatchPersistence";
 import sceneBefore from "@assets/game/scene-before.jpg";
 import "@/styles/user-landscape.css";
 
@@ -87,16 +86,7 @@ export default function HomePage() {
     img.decoding = "async";
     img.src = sceneBefore;
     void queryClient.prefetchQuery({ queryKey: ["/api/matches"] });
-    const matchId = readPersistedSelectedMatchId();
-    if (!matchId) return;
-    void queryClient.prefetchQuery({
-      queryKey: ["/api/matches", matchId, "scoreboard"],
-      queryFn: async () => {
-        const res = await fetch(getFullUrl(`/api/matches/${matchId}/scoreboard`));
-        if (!res.ok) throw new Error("스코어보드 조회 실패");
-        return res.json();
-      },
-    });
+    // 종료된 경기 스코어보드는 미리 받지 않는다. 재진입 잔상 방지.
   };
 
   useEffect(() => {

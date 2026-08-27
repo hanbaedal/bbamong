@@ -96,6 +96,52 @@ assert(
   }) === "pitch_home",
   "wait_result uses pitch photo",
 );
+assert(
+  resolveGameSceneKind({
+    gameDayPhase: "live",
+    screenPhase: "picking",
+    inningHalf: "bottom",
+  }) === "field",
+  "picking uses 3D field only",
+);
+assert(
+  resolveGameSceneKind({
+    gameDayPhase: "live",
+    screenPhase: "success_running",
+    inningHalf: "bottom",
+  }) === "running",
+  "hit uses running photo not 3D field",
+);
+assert(
+  resolveGameSceneKind({
+    gameDayPhase: "live",
+    screenPhase: "fail",
+    inningHalf: "bottom",
+  }) === "field",
+  "miss keeps 3D field",
+);
+assert(
+  resolveGameSceneKind({
+    gameDayPhase: "pregame",
+    screenPhase: "wait_start",
+  }) === "before",
+  "pregame is Coors before not wait/field",
+);
+assert(
+  resolveGameSceneKind({
+    gameDayPhase: "live",
+    screenPhase: "wait_start",
+    inningHalf: "bottom",
+  }) !== "field",
+  "wait never falls through to 3D field",
+);
+assert(
+  resolveGameSceneKind({
+    gameDayPhase: "live",
+    screenPhase: "pitcher_change_event",
+  }) === "field",
+  "pitcher change keeps 3D field",
+);
 
 assert(shouldMirrorCinematic("pitch_home", "left") === true, "lefty mirrors pitch_home");
 assert(shouldMirrorCinematic("pitch_away", "left") === true, "lefty mirrors pitch_away");

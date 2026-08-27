@@ -5,6 +5,7 @@
 import {
   canRemainInGameMatch,
   isMatchSelectableForGame,
+  shouldDropSelectedMatch,
   type GameMatchItem,
 } from "../client/src/components/game/gameMatchUtils";
 import { shouldSuppressEmptyMatchOverlay } from "../client/src/lib/gameDayPhase";
@@ -36,6 +37,11 @@ assert(canRemainInGameMatch(liveOff) === true, "live OFF ongoing still remains i
 
 assert(canRemainInGameMatch(finished) === false, "completed cannot remain");
 assert(isMatchSelectableForGame(finished) === false, "completed not selectable");
+
+assert(shouldDropSelectedMatch(finished) === true, "completed selection is dropped");
+assert(shouldDropSelectedMatch(cancelled) === true, "cancelled selection is dropped");
+assert(shouldDropSelectedMatch(liveOff) === false, "live OFF ongoing is kept");
+assert(shouldDropSelectedMatch(undefined) === true, "missing match is dropped");
 
 assert(canRemainInGameMatch(cancelled) === false, "cancelled cannot remain");
 assert(isMatchSelectableForGame(scheduledOn) === true, "scheduled + live ON selectable");
