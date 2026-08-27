@@ -31,8 +31,8 @@ function GameFieldViewportInner({
 }
 
 /**
- * 풀스크린 경기장 — field·시네마틱 모두 object-cover.
- * 베이스 버튼·주루 좌표는 field 장면의 game-stadium-field.jpg 기준.
+ * 풀스크린 경기장 — field·running·시네마틱 모두 object-cover.
+ * 예측 선택 좌표는 field(game-stadium-field.jpg), 주루 좌표는 running(scene-running.jpg).
  */
 export default function GameFieldViewport({
   children,

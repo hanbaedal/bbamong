@@ -42,6 +42,28 @@ export const STANDS_SEAT_IMAGE: ImagePoint = { ...BASE_IMAGE_POINTS["3루"] };
 export const HOME_PLATE_IMAGE = BASE_IMAGE_POINTS.아웃;
 export const PITCHER_MOUND_IMAGE: ImagePoint = { x: 0.491, y: 0.59 };
 
+/**
+ * scene-running.jpg (1560×720) 위 베이스·홈플레이트 실측.
+ * 선택 화면(3D 구장)과 섞지 않는다. 고각 3루측이라 홈이 화면 왼쪽 아래에 있다.
+ */
+export const RUNNING_BASE_IMAGE_POINTS: Record<PredictionOption, ImagePoint> = {
+  아웃: { x: 0.34, y: 0.83 },
+  "1루": { x: 0.748, y: 0.548 },
+  "2루": { x: 0.505, y: 0.335 },
+  "3루": { x: 0.164, y: 0.484 },
+  홈런: { x: 0.53, y: 0.18 },
+};
+
+export const RUNNING_HOME_PLATE_IMAGE = RUNNING_BASE_IMAGE_POINTS.아웃;
+
+export function baseImagePointsForRunning(running: boolean): Record<PredictionOption, ImagePoint> {
+  return running ? RUNNING_BASE_IMAGE_POINTS : BASE_IMAGE_POINTS;
+}
+
+export function homePlateImageForRunning(running: boolean): ImagePoint {
+  return running ? RUNNING_HOME_PLATE_IMAGE : HOME_PLATE_IMAGE;
+}
+
 /** 타석 박스 — 홈플레이트 좌우 타석 라인 (이미지 폭 비율) */
 export const BATTER_BOX_OFFSET_X = 0.045;
 
@@ -113,11 +135,14 @@ export function stadiumImagePointToPercent(
   };
 }
 
-export function getRunPathImagePoints(target: PredictionOption): ImagePoint[] {
-  const home = HOME_PLATE_IMAGE;
-  const first = BASE_IMAGE_POINTS["1루"];
-  const second = BASE_IMAGE_POINTS["2루"];
-  const third = BASE_IMAGE_POINTS["3루"];
+export function getRunPathImagePoints(
+  target: PredictionOption,
+  bases: Record<PredictionOption, ImagePoint> = BASE_IMAGE_POINTS,
+): ImagePoint[] {
+  const home = bases.아웃;
+  const first = bases["1루"];
+  const second = bases["2루"];
+  const third = bases["3루"];
 
   switch (target) {
     case "아웃":
