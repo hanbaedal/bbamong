@@ -1,5 +1,6 @@
 import type { GameDayPhase } from "@/lib/gameDayPhase";
 import type { InningHalf } from "@shared/gamePhaseTypes";
+import type { BatterHandSide } from "@shared/batterHandedness";
 import type { GameScreenPhase } from "./gameTypes";
 
 /**
@@ -17,7 +18,7 @@ export type GameSceneKind =
   | "pitch_away"
   | "pitch_home";
 
-/** 시네마틱은 필드 스프라이트·스트라이크존을 숨긴다. field·running 은 좌표가 있다. */
+/** 시네마틱은 필드 스프라이트를 숨긴다. 투구 장면 스트라이크존은 전경 플레이트 좌표를 쓴다. */
 export function isCinematicGameScene(kind: GameSceneKind): boolean {
   return kind !== "field" && kind !== "running";
 }
@@ -34,8 +35,9 @@ export function resolveGameSceneKind(input: {
   gameDayPhase: GameDayPhase;
   screenPhase: GameScreenPhase;
   inningHalf?: InningHalf | null;
+  batsSide?: BatterHandSide | null;
 }): GameSceneKind {
-  const { gameDayPhase, screenPhase, inningHalf } = input;
+  const { gameDayPhase, screenPhase, inningHalf, batsSide } = input;
   const away = inningHalf === "top";
 
   if (
@@ -48,7 +50,11 @@ export function resolveGameSceneKind(input: {
   }
 
   if (gameDayPhase === "live") {
-    if (screenPhase === "wait_start") return away ? "wait_away" : "wait_home";
+    if (screenPhase === "wait_start") {
+      // 홈 대기 사진은 우타 클로즈업. 좌타는 빈 구장에 홈 왼쪽 스프라이트.
+      if (batsSide === "left" && !away) return "field";
+      return away ? "wait_away" : "wait_home";
+    }
     if (screenPhase === "wait_result" || screenPhase === "result_flash") {
       return away ? "pitch_away" : "pitch_home";
     }

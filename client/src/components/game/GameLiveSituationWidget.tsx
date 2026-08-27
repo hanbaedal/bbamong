@@ -1,8 +1,8 @@
 /** 예측 참고용 TV 위젯. 이닝·점수는 다음, 다이아몬드·카운트·타자·투수는 네이버. */
 import type { LiveBatterTodayStats, LivePitcherSummary, LiveScoreboard } from "@shared/apiSportsTypes";
 import { formatStatCount } from "@shared/batterDisplay";
-import { kboTeamPrimaryColor } from "@shared/kboTeamColors";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
+import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR } from "./gameHudColors";
 
 interface GameLiveSituationWidgetProps {
   scoreboard: LiveScoreboard | null;
@@ -88,14 +88,15 @@ export default function GameLiveSituationWidget({
           <TeamScoreRow
             name={awayLabel}
             score={scoreboard?.awayScore}
-            color={kboTeamPrimaryColor(awayLabel, "#E11936")}
+            color={GAME_AWAY_TEAM_COLOR}
             onNameClick={onAwayTeamClick}
             nameTestId="game-team-away"
           />
           <TeamScoreRow
             name={homeLabel}
             score={scoreboard?.homeScore}
-            color={kboTeamPrimaryColor(homeLabel, "#1A6DFF")}
+            color={GAME_HOME_TEAM_COLOR}
+            light
             onNameClick={onHomeTeamClick}
             nameTestId="game-team-home"
           />
@@ -235,17 +236,21 @@ function TeamScoreRow({
   name,
   score,
   color,
+  light = false,
   onNameClick,
   nameTestId,
 }: {
   name: string;
   score?: number;
   color: string;
+  /** 홈(백색) 뱃지 — 어두운 글씨 + 테두리 */
+  light?: boolean;
   onNameClick?: () => void;
   nameTestId: string;
 }) {
-  const nameClass =
-    "relative z-[1] flex min-w-[42px] items-center justify-center pl-1.5 pr-1 text-white sm:min-w-[48px]";
+  const nameClass = light
+    ? "relative z-[1] flex min-w-[42px] items-center justify-center border border-black/20 pl-1.5 pr-1 text-[#1A1A1A] sm:min-w-[48px]"
+    : "relative z-[1] flex min-w-[42px] items-center justify-center pl-1.5 pr-1 text-white sm:min-w-[48px]";
   const nameStyle = { backgroundColor: color } as const;
 
   return (

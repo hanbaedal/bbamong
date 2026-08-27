@@ -21,6 +21,7 @@ import {
   buildUserPlatformMatchForAgg,
 } from "../utils/memberPlatform";
 import { isMatchLiveWindowOpen } from "@shared/matchLiveWindow";
+import { isMongoTransientError } from "../../shared/mongoTransientError";
 
 /**
  * 운영자 컨트롤용 — ongoing, 또는 시작 5분 전~의 scheduled.
@@ -504,6 +505,20 @@ export async function startRound(matchId: string): Promise<Match> {
 }
 
 export async function stopRound(matchId: string): Promise<Match> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await stopRoundOnce(matchId);
+    } catch (error) {
+      lastError = error;
+      if (!isMongoTransientError(error) || attempt === 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 40 * attempt));
+    }
+  }
+  throw lastError;
+}
+
+async function stopRoundOnce(matchId: string): Promise<Match> {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();

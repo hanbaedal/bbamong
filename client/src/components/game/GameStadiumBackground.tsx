@@ -20,6 +20,8 @@ const SCENE_SRC: Record<GameSceneKind, string> = {
 
 interface GameStadiumBackgroundProps {
   sceneKind?: GameSceneKind;
+  /** 원정 대기 좌타 — 사진 속 캐릭터를 홈 왼쪽으로 */
+  mirrorX?: boolean;
 }
 
 /** 현재 장면만 먼저 받고, 나머지는 유휴 때 받아 진입 대역폭을 뺏지 않는다. */
@@ -52,6 +54,7 @@ function SceneIdlePreload({ current }: { current: GameSceneKind }) {
 /** 필드·주루·시네마틱 모두 object-cover. 베이스 좌표는 field / running 각각. */
 export default function GameStadiumBackground({
   sceneKind = "field",
+  mirrorX = false,
 }: GameStadiumBackgroundProps) {
   const src = SCENE_SRC[sceneKind];
   const cinematic = isCinematicGameScene(sceneKind);
@@ -69,8 +72,11 @@ export default function GameStadiumBackground({
         draggable={false}
         decoding="async"
         fetchPriority="high"
-        className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
+        className={`absolute inset-0 h-full w-full object-cover pointer-events-none select-none ${
+          mirrorX ? "-scale-x-100" : ""
+        }`}
         data-testid={cinematic ? "game-cinematic-bg" : "game-stadium-bg-center"}
+        data-mirror={mirrorX ? "x" : undefined}
       />
     </div>
   );

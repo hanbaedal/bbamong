@@ -17,7 +17,7 @@ interface LineScoreTableProps {
   fixedInningColumns?: boolean;
   /** 가로 게임 화면 — 투명 배경 + 흰 글씨 */
   variant?: "default" | "transparent";
-  /** transparent — 공격 팀 행 강조 (top=원정 빨강, bottom=홈 소라) */
+  /** transparent — 공격 팀 행 강조 (top=원정 청, bottom=홈 백) */
   battingHalf?: InningHalf | null;
 }
 
@@ -70,18 +70,18 @@ export default function LineScoreTable({
   const cellText = transparent ? "text-white" : "text-black";
   const awayBorder = awayBatting
     ? transparent
-      ? "border border-red-400/75"
-      : "border border-red-300"
+      ? "border border-blue-400/80"
+      : "border border-blue-300"
     : cellBorder;
   const homeBorder = homeBatting
     ? transparent
-      ? "border border-sky-300/80"
-      : "border border-sky-300"
+      ? "border border-white/90"
+      : "border border-slate-200"
     : cellBorder;
-  const awayText = awayBatting ? (transparent ? "text-[#FF5555]" : "text-[#B91C1C]") : cellText;
-  const homeText = homeBatting ? (transparent ? "text-[#87CEEB]" : "text-[#0369A1]") : cellText;
-  const awayBg = awayBatting && !transparent ? "bg-red-50" : cellBg;
-  const homeBg = homeBatting && !transparent ? "bg-sky-50" : cellBg;
+  const awayText = awayBatting ? (transparent ? "text-[#7EB6FF]" : "text-[#1D4ED8]") : cellText;
+  const homeText = homeBatting ? (transparent ? "text-white" : "text-[#111111]") : cellText;
+  const awayBg = awayBatting && !transparent ? "bg-blue-50" : cellBg;
+  const homeBg = homeBatting && !transparent ? "bg-slate-50" : cellBg;
   const thBase = `${cellBorder} ${cellBg} ${cellText}`;
   const awayTdBase = `${awayBorder} ${awayBg} ${awayText}`;
   const homeTdBase = `${homeBorder} ${homeBg} ${homeText}`;

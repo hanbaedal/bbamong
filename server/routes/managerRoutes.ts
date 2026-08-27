@@ -771,7 +771,11 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
       }
       notifyManualAtBatAction(id, "stop");
-      await syncAtBatPhaseAfterManual(id, "manual_stop");
+      try {
+        await syncAtBatPhaseAfterManual(id, "manual_stop");
+      } catch (syncError) {
+        console.error("Stop prediction phase sync error:", syncError);
+      }
 
       broadcastManager.sendToMatch(id, "prediction_stopped", {
         matchId: id,

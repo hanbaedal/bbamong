@@ -2,11 +2,9 @@ import LineScoreTableLandscape from "./LineScoreTableLandscape";
 import type { CurrentBatterPreview, LiveScoreboard } from "@shared/apiSportsTypes";
 import type { InningHalf } from "@shared/gamePhaseTypes";
 import { formatStatCount, formatStatDisplay } from "@shared/batterDisplay";
+import type { PredictionOption } from "./gameTypes";
 
-/** 원정(공격 초) */
-export const GAME_AWAY_TEAM_COLOR = "#E11936";
-/** 홈(공격 말) */
-export const GAME_HOME_TEAM_COLOR = "#1A6DFF";
+export { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR } from "./gameHudColors";
 
 interface GameTopScorePanelProps {
   matchTitle: string;
@@ -20,6 +18,8 @@ interface GameTopScorePanelProps {
   stadiumSelectEnabled?: boolean;
   onStadiumNameClick?: () => void;
   hideBatterCard?: boolean;
+  /** 예측 중지(wait_result) — 시즌기록 아래 한 줄 */
+  selectedPrediction?: PredictionOption | null;
 }
 
 const titleShadow = "drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]";
@@ -79,6 +79,20 @@ function BatterStatsBlock({ batter }: { batter: CurrentBatterPreview }) {
   );
 }
 
+function MyPredictionLine({ prediction }: { prediction: PredictionOption }) {
+  return (
+    <p
+      className="mt-[1.15em] flex max-w-[11.5rem] items-baseline gap-2 whitespace-nowrap text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.85)]"
+      data-testid="wait-result-prediction-badge"
+    >
+      <span className="shrink-0 text-[10px] sm:text-xs text-white/80">내 예측</span>
+      <span className="text-2xl sm:text-3xl font-black leading-none text-[#CDFF00] tabular-nums">
+        {prediction}
+      </span>
+    </p>
+  );
+}
+
 export default function GameTopScorePanel({
   matchTitle,
   stadiumName = null,
@@ -91,6 +105,7 @@ export default function GameTopScorePanel({
   stadiumSelectEnabled = false,
   onStadiumNameClick,
   hideBatterCard = false,
+  selectedPrediction = null,
 }: GameTopScorePanelProps) {
   const titleClass = `text-sm sm:text-base font-bold leading-none whitespace-nowrap text-white ${titleShadow}`;
   const displayStadium = stadiumName?.trim() || null;
@@ -155,7 +170,10 @@ export default function GameTopScorePanel({
       {!isLoading && currentBatter && !hideBatterCard ? (
         <div className="origin-top-right mt-0.5">
           <BatterStatsBlock batter={currentBatter} />
+          {selectedPrediction ? <MyPredictionLine prediction={selectedPrediction} /> : null}
         </div>
+      ) : selectedPrediction && !isLoading ? (
+        <MyPredictionLine prediction={selectedPrediction} />
       ) : null}
     </div>
   );

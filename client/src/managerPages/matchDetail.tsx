@@ -24,9 +24,10 @@ import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import { resolveLiveInningPhaseLabel } from "@shared/matchPhaseDisplay";
 import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
 import { useQueryClient } from "@tanstack/react-query";
+import { subscribeForegroundResume } from "@/lib/foregroundResume";
 import { isLiveAutoOperatorWsType } from "@shared/liveAutoWsEvents";
 import {
-  WS_CLIENT_HEARTBEAT_INTERVAL_MS,
+  WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS,
   WS_CLIENT_PONG_TIMEOUT_MS,
   inboundWsTrafficProvesAlive,
   isCurrentWsSocket,
@@ -39,6 +40,24 @@ import "./managerMatchDetail.css";
 const WS_BASE_URL = 'wss://ppamong.com';
 const PREDICTION_TOGGLE_MS = 1000;
 const RESULT_BUTTONS = ["1루", "2루", "3루", "홈런", "아웃", "병살", "삼살"] as const;
+
+let sharedManagerMatchWs: WebSocket | null = null;
+
+function replaceSharedManagerMatchWs(next: WebSocket | null): void {
+  if (sharedManagerMatchWs && sharedManagerMatchWs !== next) {
+    const prev = sharedManagerMatchWs;
+    sharedManagerMatchWs = next;
+    try {
+      if (prev.readyState === WebSocket.OPEN || prev.readyState === WebSocket.CONNECTING) {
+        prev.close(1000, "Superseded");
+      }
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  sharedManagerMatchWs = next;
+}
 
 interface Match {
   id: string;
@@ -146,7 +165,7 @@ export default function MatchDetailPage() {
   const operatorConfirmSpokenRef = useRef(false);
   const [showMatchEndedOverlay, setShowMatchEndedOverlay] = useState(false);
   const matchEndedLogoutRef = useRef(false);
-  const HEARTBEAT_INTERVAL = WS_CLIENT_HEARTBEAT_INTERVAL_MS;
+  const HEARTBEAT_INTERVAL = WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS;
   const PONG_TIMEOUT = WS_CLIENT_PONG_TIMEOUT_MS;
 
   /** Android — 경기 운영 중 시스템 내비·뒤로가기 숨김 + 화면 꺼짐 방지 */
@@ -263,11 +282,10 @@ export default function MatchDetailPage() {
         wsUrl = `${protocol}//${window.location.host}/ws/match?matchId=${id}&role=manager&subjectId=${managerId}`;
       }
 
-      console.log("[Manager WS] 연결 시도:", wsUrl);
-
       const prev = wsRef.current;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
+      replaceSharedManagerMatchWs(ws);
       if (prev && prev !== ws) {
         try {
           prev.close(1000, "replaced");
@@ -287,19 +305,16 @@ export default function MatchDetailPage() {
         if (ws.readyState !== WebSocket.OPEN) return;
         if (!isCurrentWsSocket(wsRef.current, ws)) return;
         ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
-        console.log("[Manager WS] Ping 전송");
         clearPongTimeout();
         pongTimeoutRef.current = setTimeout(() => {
           if (!shouldCloseForPongTimeout({ pingSocket: ws, currentSocket: wsRef.current })) {
             return;
           }
-          console.log("[Manager WS] Pong 타임아웃, 재연결...");
           ws.close(4000, "heartbeat timeout");
         }, PONG_TIMEOUT);
       };
 
       ws.onopen = () => {
-        console.log("[Manager WS] 연결됨");
         setWsConnected(true);
         reconnectAttemptsRef.current = 0;
         sessionExpiredRef.current = false;
@@ -307,7 +322,6 @@ export default function MatchDetailPage() {
         isUnmountingRef.current = false;
 
         // 즉시 ping 하지 않음 — 서버 connected 스냅샷(DB) 전에 보내면 유실될 수 있음.
-        // 아무 inbound 메시지든 keepalive로 치고, 이후 25초마다 ping.
         if (heartbeatIntervalRef.current) {
           clearInterval(heartbeatIntervalRef.current);
         }
@@ -326,7 +340,6 @@ export default function MatchDetailPage() {
 
           switch (type) {
             case "connected":
-              console.log("[Manager WS] 서버 연결 확인:", data);
               {
                 const resolved = resolveAdPlayingFromServer(data?.isAdPlaying, data?.adStartedAt);
                 setIsAdPlaying(resolved.playing);
@@ -345,7 +358,6 @@ export default function MatchDetailPage() {
             case "heartbeat_ack":
               break;
             case "ad_started":
-              console.log("[Manager WS] 광고 시작");
               {
                 const resolved = resolveAdPlayingFromServer(true, data?.adStartedAt ?? Date.now());
                 setIsAdPlaying(resolved.playing);
@@ -355,14 +367,12 @@ export default function MatchDetailPage() {
               }
               break;
             case "ad_stopped":
-              console.log("[Manager WS] 광고 중지", data?.reason ?? "");
               setIsAdPlaying(false);
               setAdElapsedTime(0);
               adStartTimeRef.current = null;
               adExpiredStopSentRef.current = false;
               break;
             case "ad_status":
-              console.log("[Manager WS] 광고 상태:", data);
               {
                 const resolved = resolveAdPlayingFromServer(data?.isAdPlaying, data?.adStartedAt);
                 setIsAdPlaying(resolved.playing);
@@ -373,7 +383,6 @@ export default function MatchDetailPage() {
               break;
             case "round_start":
             case "prediction_started":
-              console.log("[Manager WS] 예측 시작");
               setIsAdPlaying(false);
               setAdElapsedTime(0);
               fetchMatchDetail();
@@ -482,7 +491,7 @@ export default function MatchDetailPage() {
               if (typeof type === "string" && isLiveAutoOperatorWsType(type)) {
                 break;
               }
-              console.log("[Manager WS] 알 수 없는 메시지:", type);
+              break;
           }
         } catch (error) {
           console.error("[Manager WS] 메시지 파싱 오류:", error);
@@ -498,9 +507,7 @@ export default function MatchDetailPage() {
       };
 
       ws.onclose = (event) => {
-        console.log("[Manager WS] 연결 종료:", event.code, event.reason);
         if (!isCurrentWsSocket(wsRef.current, ws)) {
-          console.log("[Manager WS] 교체된 소켓 종료 무시");
           return;
         }
         setWsConnected(false);
@@ -520,7 +527,6 @@ export default function MatchDetailPage() {
           if (shouldStopManagerWs()) {
             return;
           }
-          console.log("[Manager WS] 4005 — 토큰 갱신 후 재연결 시도");
           reconnectTimeoutRef.current = setTimeout(async () => {
             if (shouldStopManagerWs()) {
               return;
@@ -529,7 +535,7 @@ export default function MatchDetailPage() {
             if (!ok) {
               if (sessionExpiredRef.current || isManagerMatchEndLogoutStarted()) return;
               sessionExpiredRef.current = true;
-              console.log("[Manager WS] 4005 갱신 실패, 로그인 페이지로 이동");
+              console.warn("[Manager WS] 4005 갱신 실패, 로그인 페이지로 이동");
               window.dispatchEvent(new CustomEvent("manager-session-expired"));
               return;
             }
@@ -542,7 +548,7 @@ export default function MatchDetailPage() {
         if (event.code === 4006) {
           if (sessionExpiredRef.current || isManagerMatchEndLogoutStarted()) return;
           sessionExpiredRef.current = true;
-          console.log("[Manager WS] 세션 없음, 로그인 페이지로 이동:", event.code);
+          console.warn("[Manager WS] 세션 없음, 로그인 페이지로 이동:", event.code);
           window.dispatchEvent(new CustomEvent("manager-session-expired"));
           return;
         }
@@ -552,14 +558,13 @@ export default function MatchDetailPage() {
         if (event.code === 4004) {
           if (duplicateLoginRef.current || isUnmountingRef.current) return;
           duplicateLoginRef.current = true;
-          console.log("[Manager WS] 다른 기기에서 로그인, 현재 세션 종료");
+          console.warn("[Manager WS] 다른 기기에서 로그인, 현재 세션 종료");
           window.dispatchEvent(new CustomEvent("manager-duplicate-login"));
           return;
         }
 
         // 같은 운영자 재접속으로 서버가 기존 소켓을 교체 (4010) — 새 연결이 이미 있음
         if (isWsConnectionReplacedCode(event.code)) {
-          console.log("[Manager WS] 연결이 새 소켓으로 교체됨, 재연결 생략");
           return;
         }
 
@@ -571,7 +576,6 @@ export default function MatchDetailPage() {
           reconnectAttemptsRef.current += 1;
           const attempt = reconnectAttemptsRef.current;
           const delay = Math.min(RECONNECT_DELAY * Math.min(attempt, 10), 15_000);
-          console.log(`[Manager WS] 재연결 시도 ${attempt} (${delay}ms)...`);
 
           reconnectTimeoutRef.current = setTimeout(async () => {
             if (shouldStopManagerWs()) {
@@ -612,10 +616,25 @@ export default function MatchDetailPage() {
         clearTimeout(reconnectTimeoutRef.current);
       }
       if (wsRef.current) {
+        if (sharedManagerMatchWs === wsRef.current) {
+          sharedManagerMatchWs = null;
+        }
         wsRef.current.close(1000, "Component unmounted");
       }
     };
   }, [id, managerId, toast, logoutOnMatchEnded]);
+
+  useEffect(() => {
+    return subscribeForegroundResume(() => {
+      if (isManagerMatchEndLogoutStarted()) return;
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
+        return;
+      }
+      void connectFnRef.current?.();
+    });
+  }, []);
 
   const fetchMatchDetail = useCallback(async (isPolling = false) => {
     if (isManagerMatchEndLogoutStarted()) return;
@@ -702,7 +721,6 @@ export default function MatchDetailPage() {
     const startPolling = () => {
       if (isManagerMatchEndLogoutStarted()) return;
       if (!shouldClientPollMatch(match.startTime, match.matchStatus)) return;
-      console.log("[Manager] 폴링 시작: 경기 정보 10초");
       fetchMatchDetail(true);
       intervalId = setInterval(() => {
         if (isManagerMatchEndLogoutStarted()) return;
