@@ -19,7 +19,8 @@ export const SYSTEM_MANUALS: SystemManualEntry[] = [
     category: "usage",
     audience: "관리자",
     title: "관리자 페이지 설명서",
-    description: "관리자·슈퍼바이저 웹(/admin) 메뉴·회원·경기·수익·운영 안내",
+    description:
+      "관리자 웹 메뉴·일일 체크·실황 ON·수동 스코어·예측 화면·광고 50초·타석 배당",
     fileName: "빠몽이_사용설명서_관리자.docx",
   },
   {
@@ -27,7 +28,7 @@ export const SYSTEM_MANUALS: SystemManualEntry[] = [
     category: "usage",
     audience: "쇼핑몰",
     title: "쇼핑몰 설명서",
-    description: "빠몽이 쇼핑센터·몰 관리·주문·재고·정책 안내",
+    description: "쇼핑센터 URL·정회원 주문·현금 접수·관리자 몰 메뉴·포인트 직접결제 없음",
     fileName: "빠몽이_사용설명서_쇼핑몰.docx",
   },
   {
@@ -35,7 +36,8 @@ export const SYSTEM_MANUALS: SystemManualEntry[] = [
     category: "usage",
     audience: "운영자",
     title: "운영자 설명서",
-    description: "운영자 앱·실황 자동(타석 상태머신)·예외 수동·대타·광고 흐름",
+    description:
+      "하이브리드 실황(토글 없음)·타석 머신·예외 수동·대타 유지·광고 50초·회원 화면 7단계",
     fileName: "빠몽이_사용설명서_운영자.docx",
   },
   {
@@ -43,7 +45,8 @@ export const SYSTEM_MANUALS: SystemManualEntry[] = [
     category: "usage",
     audience: "사용자",
     title: "사용자 설명서",
-    description: "회원 앱 로그인·홈·예측·사이드벳·광고·메뉴 안내",
+    description:
+      "로그인·홈·경기전→주루 화면 변화·사이드벳·리워드 광고(배너 없음)·배당",
     fileName: "빠몽이_사용설명서.docx",
   },
   {
@@ -51,7 +54,7 @@ export const SYSTEM_MANUALS: SystemManualEntry[] = [
     category: "db",
     audience: "DB",
     title: "빠몽이 DB 구조 설명서",
-    description: "MongoDB 전용 주요 컬렉션·관계 요약",
+    description: "MongoDB 전용 컬렉션·Match 운영 필드·백업(Postgres는 레거시)",
     fileName: "빠몽이_DB구조_설명서.docx",
   },
 ];
