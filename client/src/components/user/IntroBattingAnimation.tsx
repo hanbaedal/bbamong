@@ -139,10 +139,6 @@ export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimat
           data-testid="intro-stadium-empty"
         />
         <div
-          className={`intro-scene-blocker${overlayOn ? " is-active" : ""}`}
-          data-testid="intro-scene-blocker"
-        />
-        <div
           className={`intro-sprite-slot${overlayOn ? " is-active" : ""}`}
           style={spriteBoxStyle}
         >
