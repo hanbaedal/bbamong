@@ -67,23 +67,27 @@ export function homePlateImageForRunning(running: boolean): ImagePoint {
 /** 타석 박스 — 홈플레이트 좌우 타석 라인 (이미지 폭 비율) */
 export const BATTER_BOX_OFFSET_X = 0.045;
 
-/** 우타 박스 — 홈·스트라이크존 왼쪽(화면 좌측) */
+/** 우타 박스 — 포수 왼쪽(화면 좌측, 3루쪽) */
 export const BATTER_BOX_RIGHT_IMAGE: ImagePoint = {
   x: HOME_PLATE_IMAGE.x - BATTER_BOX_OFFSET_X,
   y: HOME_PLATE_IMAGE.y - 0.008,
 };
 
-/** 좌타 박스 — 홈·스트라이크존 오른쪽(화면 우측) */
+/** 좌타 박스 — 포수 오른쪽(화면 우측, 1루쪽) */
 export const BATTER_BOX_LEFT_IMAGE: ImagePoint = {
   x: HOME_PLATE_IMAGE.x + BATTER_BOX_OFFSET_X,
   y: HOME_PLATE_IMAGE.y - 0.008,
 };
 
-/**
- * 예측 대기(wait_start) 좌타 — 요청: 홈플레이트 **왼쪽**.
- * 필드 구장 좌표의 좌타 박스(화면 오른쪽)와 반대로 둔다.
- */
-export const WAIT_LEFT_HANDED_BOX_IMAGE: ImagePoint = BATTER_BOX_RIGHT_IMAGE;
+/** 포수 시점: 우타=왼쪽 박스, 좌타=오른쪽 박스. 값 없으면 우타. */
+export function batterBoxImageForHand(side: "left" | "right" | null | undefined): ImagePoint {
+  return side === "left" ? BATTER_BOX_LEFT_IMAGE : BATTER_BOX_RIGHT_IMAGE;
+}
+
+/** object-cover + scale-x 미러와 같은 정규화 X */
+export function maybeMirrorImagePointX(point: ImagePoint, mirrorX: boolean): ImagePoint {
+  return mirrorX ? { x: 1 - point.x, y: point.y } : point;
+}
 
 /** scene-pitch-*.jpg · scene-wait-*.jpg (16:9). 필드 JPG(1560×720)와 섞지 않는다. */
 export const CINEMATIC_SCENE_IMAGE = { width: 1280, height: 720 } as const;
