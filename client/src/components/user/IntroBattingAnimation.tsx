@@ -9,6 +9,7 @@ import {
   introFrameIndexAt,
 } from "@shared/introBatting";
 import introStadium from "@assets/user/intro-stadium-home.jpg";
+import introStadiumEmpty from "@assets/user/intro-stadium-empty.jpg";
 import frame01 from "@assets/user/intro-batting-frames/01.webp";
 import frame02 from "@assets/user/intro-batting-frames/02.webp";
 import frame03 from "@assets/user/intro-batting-frames/03.webp";
@@ -128,6 +129,14 @@ export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimat
           decoding="async"
           fetchPriority="high"
           data-testid="intro-stadium-bg"
+        />
+        <img
+          src={introStadiumEmpty}
+          alt=""
+          className={`intro-scene-bg intro-scene-bg--empty${overlayOn ? " is-active" : ""}`}
+          draggable={false}
+          decoding="async"
+          data-testid="intro-stadium-empty"
         />
         <div
           className={`intro-scene-blocker${overlayOn ? " is-active" : ""}`}
