@@ -3,8 +3,11 @@ import {
   INTRO_BATTING_MS,
   INTRO_CROSSFADE_MS,
   INTRO_FRAME_COUNT,
+  INTRO_SPRITE_BOX,
+  INTRO_STADIUM_ASPECT,
   introFrameIndexAt,
 } from "@shared/introBatting";
+import introStadium from "@assets/user/intro-stadium-home.jpg";
 import frame01 from "@assets/user/intro-batting-frames/01.webp";
 import frame02 from "@assets/user/intro-batting-frames/02.webp";
 import frame03 from "@assets/user/intro-batting-frames/03.webp";
@@ -46,7 +49,7 @@ type IntroBattingAnimationProps = {
   frameIndex?: number;
 };
 
-/** 가로 중앙 빠몽이 — 14장 플립북, 프레임 전환은 짧게 크로스페이드 */
+/** 구장 배경 + 홈플레이트에서 시작하는 14장 플립북 */
 export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimationProps) {
   const [index, setIndex] = useState(0);
   const [prevIndex, setPrevIndex] = useState(0);
@@ -86,31 +89,59 @@ export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimat
   }, [frameIndex]);
 
   const showCrossfade = index !== prevIndex;
+  const spriteBoxStyle = {
+    left: INTRO_SPRITE_BOX.left,
+    top: INTRO_SPRITE_BOX.top,
+    width: INTRO_SPRITE_BOX.width,
+    height: INTRO_SPRITE_BOX.height,
+  } as CSSProperties;
 
   return (
     <div className="intro-batting-stage intro-batting-stage--flipbook" aria-hidden>
-      {showCrossfade ? (
-        <img
-          src={INTRO_BATTING_FRAMES[prevIndex]}
-          alt=""
-          className="intro-batting-flip intro-batting-flip--under"
-          draggable={false}
-        />
-      ) : null}
-      <img
-        key={index}
-        src={INTRO_BATTING_FRAMES[index]}
-        alt=""
-        className={`intro-batting-flip${showCrossfade ? " intro-batting-flip--over" : ""}`}
+      <div
+        className="intro-scene-fit"
         style={
-          showCrossfade
-            ? ({ ["--intro-crossfade-ms"]: `${INTRO_CROSSFADE_MS}ms` } as CSSProperties)
-            : undefined
+          {
+            width: `max(100%, calc(100dvh * ${INTRO_STADIUM_ASPECT}))`,
+            height: `max(100%, calc(100dvw / ${INTRO_STADIUM_ASPECT}))`,
+          } as CSSProperties
         }
-        data-testid="intro-batting-animation"
-        data-intro-frame={index + 1}
-        draggable={false}
-      />
+      >
+        <img
+          src={introStadium}
+          alt=""
+          className="intro-scene-bg"
+          draggable={false}
+          decoding="async"
+          fetchPriority="high"
+          data-testid="intro-stadium-bg"
+        />
+        <div className="intro-scene-blocker" />
+        <div className="intro-sprite-slot" style={spriteBoxStyle}>
+          {showCrossfade ? (
+            <img
+              src={INTRO_BATTING_FRAMES[prevIndex]}
+              alt=""
+              className="intro-batting-flip intro-batting-flip--under"
+              draggable={false}
+            />
+          ) : null}
+          <img
+            key={index}
+            src={INTRO_BATTING_FRAMES[index]}
+            alt=""
+            className={`intro-batting-flip${showCrossfade ? " intro-batting-flip--over" : ""}`}
+            style={
+              showCrossfade
+                ? ({ ["--intro-crossfade-ms"]: `${INTRO_CROSSFADE_MS}ms` } as CSSProperties)
+                : undefined
+            }
+            data-testid="intro-batting-animation"
+            data-intro-frame={index + 1}
+            draggable={false}
+          />
+        </div>
+      </div>
     </div>
   );
 }

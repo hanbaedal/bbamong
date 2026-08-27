@@ -22,6 +22,16 @@ export const INTRO_FRAME_END_MS = [
 
 export const INTRO_FRAME_COUNT = INTRO_FRAME_END_MS.length;
 
+/** 첨부 구장(2720×1536) 기준 — 홈플레이트 발에 14장 캔버스를 맞춘다 */
+export const INTRO_STADIUM_ASPECT = 2720 / 1536;
+
+export const INTRO_SPRITE_BOX = {
+  left: "19.12%",
+  top: "17.23%",
+  width: "64.05%",
+  height: "75.62%",
+} as const;
+
 export function introFrameIndexAt(ms: number): number {
   const t = Math.max(0, ms);
   for (let i = 0; i < INTRO_FRAME_END_MS.length; i++) {

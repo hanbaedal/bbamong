@@ -7,6 +7,7 @@ import userMascotGuideIcon from "@assets/user/user-mascot-guide-icon.png";
 import introBat01 from "@assets/user/intro-batting-frames/01.webp";
 import introBat05 from "@assets/user/intro-batting-frames/05.webp";
 import introBat14 from "@assets/user/intro-batting-frames/14.webp";
+import introStadium from "@assets/user/intro-stadium-home.jpg";
 import baseballLogo from "@assets/user/검은야구공.svg";
 import settingLogo from "@assets/user/설정.svg";
 import predictionActiveLogo from "@assets/user/예측하기.svg";
@@ -181,6 +182,7 @@ const USER_PRELOAD_IMAGES = [
   introBat01,
   introBat05,
   introBat14,
+  introStadium,
   mascotImg,
   coinImg,
 ];

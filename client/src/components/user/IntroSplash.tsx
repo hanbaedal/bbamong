@@ -9,7 +9,7 @@ type IntroSplashProps = {
   onDone?: () => void;
 };
 
-/** 흰 가로 화면 중앙 타격 + 멘트 음성(화면 글자 없음) */
+/** 접속 인트로 — 구장 배경에서 14장 타격 + 멘트 음성 */
 export default function IntroSplash({ onDone }: IntroSplashProps) {
   const [fading, setFading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
