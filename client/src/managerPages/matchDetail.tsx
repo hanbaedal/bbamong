@@ -17,6 +17,7 @@ import { resolveMatchTeamNames } from "@shared/matchTeamDisplay";
 import { refreshGameKeepAwake, setGameKeepAwake } from "@/lib/screenWakeLock";
 import { useManagerProactiveSessionRefresh } from "@/hooks/useManagerProactiveSessionRefresh";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
+import { liveOutsFromScoreboard, nullableInningHalf, resolveShowThreeOutsHint } from "@shared/threeOutsGuard";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
 import { isMatchLiveWindowOpen } from "@shared/matchLiveWindow";
 import { AD_PLAY_MS, resolveAdPlayingFromServer } from "@shared/adBreakTiming";
@@ -92,6 +93,8 @@ interface Match {
   liveScoreboard?: {
     awayTeamName?: string;
     homeTeamName?: string;
+    inningHalf?: string | null;
+    situation?: { outs?: number | null };
   } | null;
   matchLineup?: {
     home?: Array<{ battingOrder: number; name: string; playerId?: number; rosterPlayerId?: string }>;
@@ -149,6 +152,15 @@ export default function MatchDetailPage() {
     matchStatus: match?.matchStatus,
     pollMs: 2_000,
   });
+  const liveBoardForOuts = scoreboardPayload?.scoreboard ?? match?.liveScoreboard ?? null;
+  const showThreeOutsHint = resolveShowThreeOutsHint({
+    liveOuts: liveOutsFromScoreboard(liveBoardForOuts),
+    outsInHalf: match?.outsInHalf,
+    liveHalf: nullableInningHalf(liveBoardForOuts?.inningHalf),
+    operatorHalf: nullableInningHalf(match?.inningHalf),
+  });
+  const liveOutsRef = useRef<number | null>(null);
+  liveOutsRef.current = liveOutsFromScoreboard(liveBoardForOuts);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const connectFnRef = useRef<(() => void | Promise<void>) | null>(null);
@@ -418,6 +430,12 @@ export default function MatchDetailPage() {
               fetchMatchDetail();
               break;
             case "auto_action_suggested":
+              if (data?.action === "switch_half") {
+                const liveNow = liveOutsRef.current;
+                if (liveNow != null && liveNow < 3) {
+                  break;
+                }
+              }
               toast({
                 description: data?.message || "실황 감지 — 1탭으로 확정할 수 있습니다.",
               });
@@ -426,7 +444,7 @@ export default function MatchDetailPage() {
             case "auto_result_timeout":
               toast({
                 variant: "destructive",
-                description: data?.message || "결과가 감지되지 않습니다. 수동으로 결과를 입력해 주세요.",
+                description: data?.message || "실황 결과가 아직 없습니다. 필요하면 결과를 선택해 주세요.",
               });
               if (data?.suggestedResult) {
                 setSuggestedAutoResult(String(data.suggestedResult));
@@ -653,11 +671,14 @@ export default function MatchDetailPage() {
           return;
         }
         setMatch(data);
-        if (data.showThreeOutsHint && !threeOutsSpokenRef.current) {
+        const liveNow = liveOutsRef.current;
+        const threeOutsNow =
+          data.showThreeOutsHint && (liveNow == null || liveNow >= 3);
+        if (threeOutsNow && !threeOutsSpokenRef.current) {
           threeOutsSpokenRef.current = true;
           void speakGameVoice("operator.threeOuts");
         }
-        if (!data.showThreeOutsHint) {
+        if (!threeOutsNow) {
           threeOutsSpokenRef.current = false;
         }
       } else if (response.status === 429) {
@@ -980,7 +1001,7 @@ export default function MatchDetailPage() {
       toast({ description: "예측이 열려 있습니다. 중지(8초 자동)와 결과 전송 뒤에 「다음 타자」를 누르세요." });
       return;
     }
-    if (match?.showThreeOutsHint) {
+    if (showThreeOutsHint) {
       toast({ description: "3아웃입니다. 공수교대를 눌러주세요." });
       return;
     }
@@ -1000,7 +1021,7 @@ export default function MatchDetailPage() {
   };
 
   const handlePitcherChange = () => {
-    if (match?.showThreeOutsHint && !isAdPlaying) {
+    if (showThreeOutsHint && !isAdPlaying) {
       toast({ description: "공수교대 시에는 투수 교체 대신 공수 교대를 사용하세요." });
       return;
     }
@@ -1022,12 +1043,8 @@ export default function MatchDetailPage() {
       toast({ description: "먼저 예측 결과를 전송해 주세요." });
       return;
     }
-    if (
-      !showThreeOutsHint &&
-      (match?.outsInHalf ?? 0) < 3 &&
-      !awaitAdvanceAfterResult
-    ) {
-      toast({ description: "3아웃일 때만 공수교대합니다. 그 전에는 실황이 진행합니다." });
+    if (!showThreeOutsHint) {
+      toast({ description: "3아웃일 때만 공수교대합니다. 실황 아웃이 3일 때까지 기다립니다." });
       return;
     }
     void handleAdvanceRound(
@@ -1181,7 +1198,6 @@ export default function MatchDetailPage() {
   const awaitAdvanceAfterResult = Boolean(
     match.needsAdvanceAfterResult || match.isResultSent,
   );
-  const showThreeOutsHint = Boolean(match.showThreeOutsHint);
   /** 경기중(ongoing) 또는 시작 5분 전~(scheduled) */
   const isMatchLive =
     match.matchStatus === "ongoing" ||
@@ -1227,7 +1243,7 @@ export default function MatchDetailPage() {
     !anyAdvanceBusy &&
     !blockAdvanceActions &&
     !isAdPlaying &&
-    (showThreeOutsHint || (match.outsInHalf ?? 0) >= 3 || awaitAdvanceAfterResult);
+    (showThreeOutsHint);
   /** 대타 — 경기중·예측 중이 아닐 때 (현재 타석 교체) */
   const canSetPinchHitter =
     isMatchLive && !anyAdvanceBusy && !predictionRunning && !isAdPlaying;

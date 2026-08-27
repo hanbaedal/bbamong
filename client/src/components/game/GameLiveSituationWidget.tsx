@@ -2,7 +2,7 @@
 import type { LiveBatterTodayStats, LivePitcherSummary, LiveScoreboard } from "@shared/apiSportsTypes";
 import { formatStatCount } from "@shared/batterDisplay";
 import { getScoreboardDisplayTeamLabels } from "@shared/matchTeamDisplay";
-import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR } from "./gameHudColors";
+import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR, GAME_OUTS_COLOR } from "./gameHudColors";
 
 interface GameLiveSituationWidgetProps {
   scoreboard: LiveScoreboard | null;
@@ -146,7 +146,13 @@ export default function GameLiveSituationWidget({
             <span className="text-[10px] font-semibold leading-none tabular-nums">
               {balls} - {strikes}
             </span>
-            <span className="text-[9px] font-bold leading-none tracking-wide">{outs} OUT</span>
+            <span
+              className="text-[9px] font-bold leading-none tracking-wide"
+              style={{ color: GAME_OUTS_COLOR }}
+              data-testid="game-live-outs"
+            >
+              {outs} OUT
+            </span>
           </div>
         </div>
       ) : null}

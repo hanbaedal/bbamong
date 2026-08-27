@@ -36,10 +36,10 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - `wait_result` 중 `round_next`는 결과 생략(`skippedResult`)이 아니면 보류한다. 투수교체 환불 시 서버가 `skippedResult: true`를 보낸다. 복귀 `/check`는 **현재 라운드에 예측이 없고 라운드가 바뀌었으면** 결과대기를 해제한다(같은 라운드 제출 레이스는 유지). 자리비움 중 결과는 주루를 생략하고 짧은 배너만 쓰며, 다음 타석이 이미 열려 있으면 복귀 즉시 예측 창으로 간다.
 - `betSnapshotRef`로 `activeBet`이 비어도 `round_result` 연출이 가능하고, 없으면 `/check`로 복구한다.
 - 유저 WS는 `prediction_cancelled`를 처리한다. 결과/대기 중 리워드 광고는 덮지 않는다(보류 후 재생).
-- **게임 배너 광고 없음**: 예측 게임에서 배너를 쓰지 않는다. **공수교대·투수교체** 시 **리워드 동영상**(네이티브 AdMob) 또는 웹 오버레이 폴백. 광고 세션 **50초** 후 자동 종료·보상. 다음 타석 예측은 운영자 「예측 시작」만.
+- **게임 배너 광고 없음**: 예측 게임에서 배너를 쓰지 않는다. **공수교대·투수교체** 시 **리워드 동영상**(네이티브 AdMob) 또는 웹 오버레이 폴백. 광고 세션 **80초** 후 자동 종료·보상. 5초 후 왼쪽 위 ×로 끌 수 있음(보상 없음). 다음 타석 예측은 운영자 「예측 시작」만.
 - **모바일 음성**: 예측/운영자 안내는 MP3(`client/public/audio/voice-*.mp3`). 스마트폰은 **화면을 한 번 탭**해야 재생된다. 사용자: 타석 열림/닫힘·성공/실패·공수/투수/대타·당일 상태·종료. 운영자: 3아웃·결과 확정·예측 시작·경기 종료(짧은 조작 안내). 재생성: `python3 scripts/generate-game-voice-clips.py`.
 - **광고 시작/중지**: 운영자 **투수교체·공수교대** = 광고 시작, **예측 시작** = 광고 중지(`ad_stopped`). `ad_stopped.reason`: `prediction_start`(보상 없음), `operator_stop`(500P), `round_advance`(광고만 닫기).
-- **사용자 광고 UX**: 네이티브는 광고 화면에 **남은 초**가 보이고 **50초 후 예측 화면으로 자동 전환**한다. 리워드 동영상은 같은 50초 안에 재생하고, 끝나면 전체화면을 닫는다. 웹은 5초 후 X(보상 없음). 같은 `adStartedAt` 세션 X 후 재연결·`ad_status`로 오버레이 재표시 안 함. 광고가 끝나도 서버는 예측을 자동 재개하지 않는다(운영자 「예측 시작」).
+- **사용자 광고 UX**: 네이티브는 광고 화면에 **남은 초**가 보이고 **80초 후 예측 화면으로 자동 전환**한다. 리워드 동영상은 같은 80초 안에 재생하고, 끝나면 전체화면을 닫는다. 웹·앱 오버레이는 5초 후 왼쪽 위 X(보상 없음). 같은 `adStartedAt` 세션 X 후 재연결·`ad_status`로 오버레이 재표시 안 함. 광고가 끝나도 서버는 예측을 자동 재개하지 않는다(운영자 「예측 시작」).
 - **친구·동호회 방**: 방 전용 경기가 아니다. 오늘 공개 예측에 함께 참여하고 멤버 순위만 참고한다.
 
 ### Admin schedule team logos
@@ -51,7 +51,7 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - 예측 화면 좌상단 공지 배지 자리에는 **경기 진행 위젯**(이닝·점수는 다음, 구장명, 다이아몬드·B-S·OUT·타자·구종은 네이버)을 둔다. 배경은 투명. 가운데 헤더는 `제 N경기`만. 공지사항은 설정 메뉴에서만 본다. 네이버 타석이 없으면 위젯은 점수만 보여주고 `0-0 0 OUT`을 가짜로 채우지 않는다.
 - 왼쪽 위젯 팀명 클릭 → 화면 가운데 시즌 성적 모달 (순위·승무패·승률·타율·평균자책·승차, 닫기). 구장은 왼쪽 팀명 하단(클릭 시 경기장 선택). 상대전적은 우측 스코어보드 바로 아래. 운영자 타순 입력은 팀명 옆 「타순」 버튼.
 - 예측 개인기록은 스코어보드·상대전적 아래 4행 2열(타율·홈런 / 안타·타점 / 득점·도루 / 출루율·OPS).
-- **표시·자동 동기화**: “N회 초/말”·팀 옆 점수는 **실황 스코어보드를 우선**한다 (`shared/matchPhaseDisplay.ts`, `shared/liveScoreTotals.ts`). 실황 폴링 시 운영자 `gameInning`/`inningHalf`/`outsInHalf`/`batterIndexInHalf`도 실황에 맞춘다. **타석 진행은 운영자 버튼이 권위**다: 예측 시작·결과 확정·다음타자·공수교대·투수교체·대타는 수동. **자동**은 예측 시작 후 **8초 중지**, 공수교대·투수교체 **광고 50초**, 그리고 타석이 이미 끝났는데 예측 창이 열려 있으면 닫기. 실황은 제안만 (`auto_result_suggested` / `auto_action_suggested`). `liveAutoOperator.ts`는 실황 동기화·힌트·8초 중지. 예전 `liveAutoEnabled=false` 잔여값은 폴링 시 자동 복구. **예측 시작 시 광고 자동 중지**. 경기종료 10초 연출 후 로그아웃. 운영자 공수교대는 `liveScoreboard` 이닝을 덮어쓰지 않는다.
+- **표시·자동 동기화**: “N회 초/말”·팀 옆 점수는 **실황 스코어보드를 우선**한다 (`shared/matchPhaseDisplay.ts`, `shared/liveScoreTotals.ts`). 실황 폴링 시 운영자 `gameInning`/`inningHalf`/`outsInHalf`/`batterIndexInHalf`도 실황에 맞춘다. **타석 진행은 운영자 버튼이 권위**다: 예측 시작·결과 확정·다음타자·공수교대·투수교체·대타는 수동. **자동 예측 중지**는 `schedulePredictionAutoStop` 한 루틴만(시작 후 8초). 공수교대·투수교체 **광고 80초**. 3아웃·공수교대 멘트는 **네이버 실황 outs≥3**일 때만(초/말 깜빡임·결과 +1만으로 금지). 실황은 제안만 (`auto_result_suggested` / `auto_action_suggested`). `liveAutoOperator.ts`는 실황 동기화·힌트·8초 중지. 예전 `liveAutoEnabled=false` 잔여값은 폴링 시 자동 복구. **예측 시작 시 광고 자동 중지**. 경기종료 10초 연출 후 로그아웃. 운영자 공수교대는 `liveScoreboard` 이닝을 덮어쓰지 않는다.
 - During `matchStatus === "ongoing"` and `controlMode === "auto"`, live polls **do overwrite** `liveScoreboard` scores/inning tables (Daum). `controlMode === "manual"` (운영자/관리자 점수 보정) keeps operator scores until they turn auto back on. 주자·볼카운트는 manual이어도 네이버 실황을 갱신한다. 네이버 폴링이 비면 직전 `situation`을 유지한다.
 - Operators/admins can PATCH scores (`/api/manager/matches/:id/scoreboard`, `/api/admin/matches/:id/scoreboard`) which sets `controlMode: "manual"`. `lockManual: false` (또는 관리자 「수동」 끄기) returns to auto.
 - **`matchStatus` vs 예측 오픈**: 「예측 시작」은 `predictionEnabled`/`sideBetsLocked`만 켠다. `matchStatus: ongoing`은 실황(다음 스포츠) 근거로만 올린다. 시작 전(`NS`·다음 `BEFORE`/`READY`)이면 `scheduled`로 되돌린다(ongoing 고착 방지). UI「경기중」도 시작 전을 우선한다. 다음 `BEFORE`는 진행이 아니다.

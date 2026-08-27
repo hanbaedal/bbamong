@@ -2,7 +2,7 @@
  * 예측 HUD: 원정 청 / 홈 백, 시네마틱 플레이트, 대기 좌타 홈 왼쪽
  * 실행: npx tsx scripts/test-prediction-hud-fix.ts
  */
-import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR } from "../client/src/components/game/gameHudColors";
+import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR, GAME_OUTS_COLOR } from "../client/src/components/game/gameHudColors";
 import { resolveGameSceneKind } from "../client/src/components/game/gameSceneBackground";
 import {
   BATTER_BOX_RIGHT_IMAGE,
@@ -23,6 +23,7 @@ function assert(cond: unknown, msg: string): asserts cond {
 
 assert(GAME_AWAY_TEAM_COLOR === "#1A6DFF", "away score blue");
 assert(GAME_HOME_TEAM_COLOR === "#FFFFFF", "home score white");
+assert(GAME_OUTS_COLOR === "#E11936", "outs crimson");
 assert(!/#E11936/i.test(GAME_AWAY_TEAM_COLOR), "away is not red");
 
 assert(CINEMATIC_SCENE_IMAGE.width === 1280, "pitch photos 1280");

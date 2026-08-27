@@ -70,20 +70,15 @@ export default function GameAdOverlay({
       className="fixed inset-0 z-[50] flex items-center justify-center bg-black/85"
       data-testid="overlay-ad-playing"
     >
-      {onDismiss && (
+      {onDismiss && canDismiss && (
         <button
           type="button"
-          disabled={!canDismiss}
           onClick={handleDismiss}
           aria-label="광고 끄기"
           data-testid="button-ad-dismiss"
-          className={`absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full text-xl font-bold transition-opacity ${
-            canDismiss
-              ? "bg-white/20 text-white hover:bg-white/30"
-              : "bg-white/10 text-white/40 cursor-not-allowed"
-          }`}
+          className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-xl font-bold text-white hover:bg-white/30"
         >
-          {canDismiss ? "×" : secondsUntilDismiss}
+          ×
         </button>
       )}
       <div className="flex flex-col items-center gap-3 px-8 text-center">

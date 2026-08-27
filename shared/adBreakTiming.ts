@@ -3,11 +3,11 @@
 /** 안내 연출(공수교대·투수교체) 후 광고 시작까지 — 클라 이벤트 표시와 동일 */
 export const AD_INTRO_DELAY_MS = 5_000;
 
-/** 광고 재생 고정 시간 (50초) — 종료 시 보상 가능. 예측 재개는 운영자 「예측 시작」 */
-export const AD_PLAY_MS = 50_000;
+/** 광고 재생 고정 시간 (80초) — 종료 시 보상 가능. 예측 재개는 운영자 「예측 시작」 */
+export const AD_PLAY_MS = 80_000;
 export const AD_PLAY_SECONDS = Math.round(AD_PLAY_MS / 1000);
 
-/** 공수교대·투수교체 전체 브레이크 (안내 5초 + 광고 50초) */
+/** 공수교대·투수교체 전체 브레이크 (안내 5초 + 광고 80초) */
 export const AD_BREAK_TOTAL_MS = AD_INTRO_DELAY_MS + AD_PLAY_MS;
 
 /** 광고 재스케줄 최소 간격 (수동·자동 공통) */

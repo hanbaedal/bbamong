@@ -59,6 +59,8 @@ export default function GameStadiumBackground({
   const src = SCENE_SRC[sceneKind];
   const cinematic = isCinematicGameScene(sceneKind);
 
+  const waitScene = sceneKind === "wait_away" || sceneKind === "wait_home";
+
   return (
     <div
       className="absolute inset-0 overflow-hidden bg-[#0c1520]"
@@ -66,17 +68,31 @@ export default function GameStadiumBackground({
       data-scene={sceneKind}
     >
       <SceneIdlePreload current={sceneKind} />
+      {waitScene ? (
+        <img
+          src={src}
+          alt=""
+          draggable={false}
+          decoding="async"
+          fetchPriority="high"
+          className="absolute inset-0 h-full w-full object-cover blur-md scale-110 opacity-70 pointer-events-none select-none"
+          aria-hidden
+        />
+      ) : null}
       <img
         src={src}
         alt=""
         draggable={false}
         decoding="async"
         fetchPriority="high"
-        className={`absolute inset-0 h-full w-full object-cover pointer-events-none select-none ${
-          mirrorX ? "-scale-x-100" : ""
+        className={`absolute pointer-events-none select-none ${
+          waitScene
+            ? `left-0 right-0 bottom-0 mx-auto h-[70%] w-full object-contain object-bottom ${mirrorX ? "-scale-x-100" : ""}`
+            : `inset-0 h-full w-full object-cover ${mirrorX ? "-scale-x-100" : ""}`
         }`}
         data-testid={cinematic ? "game-cinematic-bg" : "game-stadium-bg-center"}
         data-mirror={mirrorX ? "x" : undefined}
+        data-wait-scale={waitScene ? "70" : undefined}
       />
     </div>
   );

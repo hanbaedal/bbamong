@@ -3,6 +3,8 @@ import { PREDICTION_AUTO_STOP_MS } from "@shared/adBreakTiming";
 import { blocksAdvanceUntilResult, type AtBatPhase } from "@shared/atBatPhase";
 import { findLineupBatterByName, normalizeBatterName } from "@shared/batterDisplay";
 import { parseInningHalf, wrapBatterOrder, type InningHalf } from "@shared/gamePhaseTypes";
+import { shouldExecutePredictionAutoStop } from "@shared/predictionAutoStop";
+import { shouldSuggestSwitchHalf, nullableInningHalf } from "@shared/threeOutsGuard";
 import { MatchModel, RoundStatisticsModel } from "../UserStorage/db";
 import { broadcastManager } from "./broadcastManager";
 import { broadcastAtBatPhase, resolveAtBatPhase } from "./atBatStateMachine";
@@ -26,10 +28,10 @@ export const LIVE_AUTO_PITCHER_STABLE_MS = Math.max(
   parseInt(process.env.LIVE_AUTO_PITCHER_STABLE_MS || "6000", 10) || 6_000,
 );
 
-/** 결과 대기 타임아웃 (결과가 안 오면 운영자에게 긴급 알림) */
+/** 결과 대기 타임아웃 — 타석이 길어질 수 있어 기본 2분, 같은 닫힘 구간은 1회만 */
 const RESULT_WATCHDOG_MS = Math.max(
-  30_000,
-  parseInt(process.env.LIVE_AUTO_RESULT_WATCHDOG_MS || "50000", 10) || 50_000,
+  60_000,
+  parseInt(process.env.LIVE_AUTO_RESULT_WATCHDOG_MS || "120000", 10) || 120_000,
 );
 
 type AutoState = {
@@ -44,6 +46,8 @@ type AutoState = {
   pendingPitcherName: string | null;
   pendingPitcherSince: number | null;
   stopTimer: NodeJS.Timeout | null;
+  /** 예측 시작 시각 + 8초. 타이머 유실 시 폴링이 같은 마감을 집행 */
+  autoStopDueAt: number | null;
   busy: boolean;
   seeded: boolean;
   lastSuggestedResultKey: string | null;
@@ -84,6 +88,7 @@ function getState(matchId: string): AutoState {
       pendingPitcherName: null,
       pendingPitcherSince: null,
       stopTimer: null,
+      autoStopDueAt: null,
       busy: false,
       seeded: false,
       lastSuggestedResultKey: null,
@@ -110,6 +115,58 @@ function clearStopTimer(matchId: string): void {
   if (!state?.stopTimer) return;
   clearTimeout(state.stopTimer);
   state.stopTimer = null;
+}
+
+function clearScheduledAutoStop(matchId: string): void {
+  const state = stateByMatch.get(matchId);
+  if (!state) return;
+  clearStopTimer(matchId);
+  state.autoStopDueAt = null;
+}
+
+async function executeScheduledPredictionStop(
+  matchId: string,
+  source: string,
+): Promise<void> {
+  const state = getState(matchId);
+  try {
+    const match = await MatchModel.findOne({ id: matchId })
+      .select("predictionEnabled matchStatus liveAutoEnabled")
+      .lean();
+    if (!match) {
+      clearScheduledAutoStop(matchId);
+      return;
+    }
+    if (match.liveAutoEnabled === false) {
+      await MatchModel.updateOne({ id: matchId }, { $set: { liveAutoEnabled: true } });
+    }
+    const phase = await resolveAtBatPhase(matchId);
+    if (!shouldExecutePredictionAutoStop({
+      predictionEnabled: match.predictionEnabled,
+      phase,
+    })) {
+      clearScheduledAutoStop(matchId);
+      return;
+    }
+    const updated = await stopRound(matchId);
+    broadcastManager.sendToMatch(matchId, "prediction_stopped", {
+      matchId,
+      currentRound: updated.currentRound,
+      message: "실황 자동: 예측이 중지되었습니다.",
+      source: "live_auto",
+    });
+    await emitPhaseIfChanged(matchId, "prediction_closed");
+    clearScheduledAutoStop(matchId);
+    console.log(`[LiveAuto] prediction stop ${matchId} (${source})`);
+  } catch (error) {
+    console.warn(`[LiveAuto] auto stop failed ${matchId}:`, error);
+    if (!state.stopTimer) {
+      state.stopTimer = setTimeout(() => {
+        state.stopTimer = null;
+        void executeScheduledPredictionStop(matchId, `${source}_retry`);
+      }, 1_000);
+    }
+  }
 }
 
 async function emitPhaseIfChanged(matchId: string, phase: AtBatPhase): Promise<void> {
@@ -143,37 +200,19 @@ export function schedulePredictionAutoStop(matchId: string): void {
 }
 
 function scheduleAutoStop(matchId: string): void {
-  clearStopTimer(matchId);
   const state = getState(matchId);
+  clearStopTimer(matchId);
+  state.autoStopDueAt = Date.now() + LIVE_AUTO_PRED_STOP_MS;
   state.stopTimer = setTimeout(() => {
     state.stopTimer = null;
-    void (async () => {
-      try {
-        const match = await MatchModel.findOne({ id: matchId })
-          .select("predictionEnabled matchStatus liveAutoEnabled")
-          .lean();
-        if (!match) return;
-        // 토글 UI 없음 — 예전 OFF 잔여값은 복구한 뒤 계속 진행
-        if (match.liveAutoEnabled === false) {
-          await MatchModel.updateOne({ id: matchId }, { $set: { liveAutoEnabled: true } });
-        }
-        if (!match.predictionEnabled || match.matchStatus !== "ongoing") return;
-        const phase = await resolveAtBatPhase(matchId);
-        if (phase !== "prediction_open") return;
-        const updated = await stopRound(matchId);
-        broadcastManager.sendToMatch(matchId, "prediction_stopped", {
-          matchId,
-          currentRound: updated.currentRound,
-          message: "실황 자동: 예측이 중지되었습니다.",
-          source: "live_auto",
-        });
-        await emitPhaseIfChanged(matchId, "prediction_closed");
-        console.log(`[LiveAuto] prediction stop ${matchId}`);
-      } catch (error) {
-        console.warn(`[LiveAuto] auto stop failed ${matchId}:`, error);
-      }
-    })();
+    void executeScheduledPredictionStop(matchId, "timer");
   }, LIVE_AUTO_PRED_STOP_MS);
+}
+
+async function runDuePredictionAutoStop(matchId: string, now = Date.now()): Promise<void> {
+  const state = stateByMatch.get(matchId);
+  if (!state?.autoStopDueAt || now < state.autoStopDueAt) return;
+  await executeScheduledPredictionStop(matchId, "due");
 }
 
 async function syncPhaseFromLive(
@@ -185,13 +224,16 @@ async function syncPhaseFromLive(
   const outs = Math.min(3, Math.max(0, scoreboard.situation?.outs ?? 0));
   const batterName = scoreboard.situation?.batterName?.trim() || "";
 
-  const update: Record<string, unknown> = { outsInHalf: outs };
+  const update: Record<string, unknown> = {};
   if (inning != null && inning > 0) update.gameInning = inning;
-  if (half) update.inningHalf = half;
 
   const match = await MatchModel.findOne({ id: matchId })
-    .select("matchLineup")
+    .select("matchLineup inningHalf")
     .lean();
+  const operatorHalf = nullableInningHalf((match as { inningHalf?: string } | null)?.inningHalf);
+  const staleThreeOuts = Boolean(half && operatorHalf && half !== operatorHalf && outs >= 3);
+  if (half && !staleThreeOuts) update.inningHalf = half;
+  if (!staleThreeOuts) update.outsInHalf = outs;
   const lineup = (match?.matchLineup as MatchLineupSnapshot | null) ?? null;
   if (batterName && lineup && half) {
     const side = half === "top" ? lineup.away : lineup.home;
@@ -199,6 +241,7 @@ async function syncPhaseFromLive(
     if (found) update.batterIndexInHalf = wrapBatterOrder(found.battingOrder);
   }
 
+  if (Object.keys(update).length === 0) return;
   await MatchModel.updateOne({ id: matchId }, { $set: update });
 }
 
@@ -208,20 +251,6 @@ async function roundNeedsResult(matchId: string, currentRound: number): Promise<
     .lean();
   if (!stats?.isPredictionStarted || stats.isResultSent) return false;
   return Boolean(stats.isPredictionStopped);
-}
-
-async function stopPredictionIfOpen(matchId: string, reason: string): Promise<void> {
-  const match = await MatchModel.findOne({ id: matchId }).select("predictionEnabled").lean();
-  if (!match?.predictionEnabled) return;
-  const updated = await stopRound(matchId);
-  // 단계 방송을 이벤트보다 먼저 — 클라가 uiStage 권위로 wait_result 고정
-  await emitPhaseIfChanged(matchId, "prediction_closed");
-  broadcastManager.sendToMatch(matchId, "prediction_stopped", {
-    matchId,
-    currentRound: updated.currentRound,
-    message: reason,
-    source: "live_auto",
-  });
 }
 
 function namesEqual(a: string | null | undefined, b: string | null | undefined): boolean {
@@ -244,7 +273,8 @@ export async function processLiveAutoOperator(
     const match = await MatchModel.findOne({ id: matchId }).lean();
     if (!match) return;
     if (match.matchStatus !== "ongoing") {
-      clearStopTimer(matchId);
+      // 공수교대 직후 scheduled 깜빡임에 8초 타이머를 지우지 않는다
+      await runDuePredictionAutoStop(matchId);
       return;
     }
 
@@ -280,31 +310,29 @@ export async function processLiveAutoOperator(
     const phase = await resolveAtBatPhase(matchId);
     await emitPhaseIfChanged(matchId, phase);
 
-    // — 결과 대기 watchdog: prediction_closed 상태가 오래 지속되면 운영자에게 긴급 알림 —
+    // — 결과 대기 watchdog: 같은 닫힘 구간 1회, 추정 결과가 있으면 긴급 토스트 생략 —
     if (phase === "prediction_closed") {
       if (!state.predictionClosedAt) state.predictionClosedAt = now;
       if (
         !state.resultWatchdogFired &&
+        !suggested &&
         now - state.predictionClosedAt >= RESULT_WATCHDOG_MS
       ) {
         state.resultWatchdogFired = true;
         broadcastManager.sendToMatchStaff(matchId, "auto_result_timeout", {
           matchId,
           currentRound: match.currentRound ?? 1,
-          message: "결과가 감지되지 않습니다. 수동으로 결과를 입력해 주세요.",
+          message: "실황 결과가 아직 없습니다. 필요하면 결과를 선택해 주세요.",
           suggestedResult: situation?.suggestedResult ?? null,
         });
         console.log(`[LiveAuto] result watchdog fired ${matchId}`);
       }
-    } else {
+    } else if (phase === "prediction_open" || phase === "result_confirmed") {
       state.predictionClosedAt = null;
       state.resultWatchdogFired = false;
     }
 
     const prevBatter = state.lastBatterName;
-    const prevOuts = state.lastOuts;
-    const prevHalf = state.lastHalf;
-    const prevInning = state.lastInning;
     const prevPitcher = state.lastPitcherName;
 
     // —— 타자명 안정화 가드 ——
@@ -337,12 +365,6 @@ export async function processLiveAutoOperator(
       }
     }
 
-    const outsHitThree = prevOuts != null && prevOuts < 3 && outs >= 3;
-    const outsIncreased = prevOuts != null && outs > prevOuts;
-    const halfChanged =
-      half != null &&
-      prevHalf != null &&
-      (half !== prevHalf || (inning != null && prevInning != null && inning !== prevInning));
     const cachedRelays = getCachedRelayTexts(
       (match as { daumGameId?: number | null }).daumGameId != null
         ? String((match as { daumGameId?: number | null }).daumGameId)
@@ -357,15 +379,11 @@ export async function processLiveAutoOperator(
       state.lastAtBatResultDisplay = displayLabel;
     }
 
-    const playEnded = outsIncreased || halfChanged || batterStableChanged;
     const pitcherChangingNow = pitcherStableChanged && Boolean(pitcherName) && outs < 3;
     const HINT_MS = 8_000;
 
-    // 타석이 이미 끝났는데 예측 창이 열려 있으면 8초 타이머를 기다리지 않고 닫는다.
-    if (playEnded && phase === "prediction_open") {
-      clearStopTimer(matchId);
-      await stopPredictionIfOpen(matchId, "실황: 타석 종료로 예측 중지");
-    }
+    // 예측 중지는 schedulePredictionAutoStop 한 루틴만 (시작 후 8초). 타석 종료로 타이머를 지우지 않는다.
+    await runDuePredictionAutoStop(matchId, now);
 
     // —— 결과 제안만. 확정·다음타자·공수·투수·대타·예측 시작은 운영자 버튼 ——
     if (suggested && (await resolveAtBatPhase(matchId)) === "prediction_closed") {
@@ -388,7 +406,12 @@ export async function processLiveAutoOperator(
 
     const phaseNow = await resolveAtBatPhase(matchId);
 
-    if ((halfChanged || outsHitThree) && now - state.lastSwitchEmitAt >= HINT_MS) {
+    const wantSwitchHint = shouldSuggestSwitchHalf({
+      liveOuts: outs,
+      liveHalf: half,
+      operatorHalf: nullableInningHalf(match.inningHalf) ?? half,
+    });
+    if (wantSwitchHint && now - state.lastSwitchEmitAt >= HINT_MS) {
       state.lastSwitchEmitAt = now;
       if (blocksAdvanceUntilResult(phaseNow) || (await roundNeedsResult(matchId, match.currentRound ?? 1))) {
         broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {
@@ -401,7 +424,7 @@ export async function processLiveAutoOperator(
         broadcastManager.sendToMatchStaff(matchId, "auto_action_suggested", {
           matchId,
           action: "switch_half",
-          message: "공수교대 — 운영자가 버튼을 눌러 주세요.",
+          message: "3아웃입니다. 공수교대를 눌러 주세요.",
           oneTapConfirm: true,
           suggestedResult: suggested,
         });
@@ -509,12 +532,17 @@ export function notifyManualAtBatAction(
   action: "start" | "stop" | "result" | "next" | "switch" | "pitcher" | "cancel",
 ): void {
   const state = getState(matchId);
-  if (action === "start" || action === "stop" || action === "cancel") {
+  if (action === "start") {
     clearStopTimer(matchId);
   }
+  if (action === "stop" || action === "cancel") {
+    clearScheduledAutoStop(matchId);
+  }
   if (action === "result" || action === "next" || action === "switch" || action === "pitcher") {
-    clearStopTimer(matchId);
+    clearScheduledAutoStop(matchId);
     state.lastSuggestedResultKey = null;
+    state.predictionClosedAt = null;
+    state.resultWatchdogFired = false;
   }
   // 수동 공수교대 직후 실황 3아웃/초말 변경이 같은 교대를 재방송하지 않게
   if (action === "switch") {
