@@ -4,7 +4,13 @@ import { blocksAdvanceUntilResult, type AtBatPhase } from "@shared/atBatPhase";
 import { findLineupBatterByName, normalizeBatterName } from "@shared/batterDisplay";
 import { parseInningHalf, wrapBatterOrder, type InningHalf } from "@shared/gamePhaseTypes";
 import { shouldExecutePredictionAutoStop } from "@shared/predictionAutoStop";
-import { shouldSuggestSwitchHalf, nullableInningHalf } from "@shared/threeOutsGuard";
+import {
+  shouldSuggestSwitchHalf,
+  shouldHoldSwitchHalfForLive,
+  switchHalfHoldMessage,
+  liveOutsFromScoreboard,
+  nullableInningHalf,
+} from "@shared/threeOutsGuard";
 import { MatchModel, RoundStatisticsModel } from "../UserStorage/db";
 import { broadcastManager } from "./broadcastManager";
 import { broadcastAtBatPhase, resolveAtBatPhase } from "./atBatStateMachine";
@@ -233,7 +239,8 @@ async function syncPhaseFromLive(
   const operatorHalf = nullableInningHalf((match as { inningHalf?: string } | null)?.inningHalf);
   const currentOuts = (match as { outsInHalf?: number } | null)?.outsInHalf ?? 0;
   const staleThreeOuts = Boolean(half && operatorHalf && half !== operatorHalf && outs >= 3);
-  if (half && !staleThreeOuts) update.inningHalf = half;
+  // 운영자 3아웃 동안 초/말을 실황이 덮으면, 같은 초/말로 오인되어 공수교대가 막힌다.
+  if (half && !staleThreeOuts && currentOuts < 3) update.inningHalf = half;
   // 운영자 병살·삼살로 올린 아웃을 실황(늦은 2아웃)이 깎지 않는다.
   if (!staleThreeOuts && outs >= currentOuts) update.outsInHalf = outs;
   const lineup = (match?.matchLineup as MatchLineupSnapshot | null) ?? null;
@@ -383,6 +390,7 @@ export async function processLiveAutoOperator(
 
     const pitcherChangingNow = pitcherStableChanged && Boolean(pitcherName) && outs < 3;
     const HINT_MS = 8_000;
+    const HOLD_HINT_MS = 16_000;
 
     // 예측 중지는 schedulePredictionAutoStop 한 루틴만 (시작 후 8초). 타석 종료로 타이머를 지우지 않는다.
     await runDuePredictionAutoStop(matchId, now);
@@ -408,13 +416,23 @@ export async function processLiveAutoOperator(
 
     const phaseNow = await resolveAtBatPhase(matchId);
 
-    const wantSwitchHint = shouldSuggestSwitchHalf({
-      liveOuts: outs,
+    const switchInput = {
+      liveOuts: liveOutsFromScoreboard(scoreboard),
       outsInHalf: (match as { outsInHalf?: number }).outsInHalf,
       liveHalf: half,
       operatorHalf: nullableInningHalf(match.inningHalf) ?? half,
-    });
-    if (wantSwitchHint && now - state.lastSwitchEmitAt >= HINT_MS) {
+    };
+    const holdSwitch = shouldHoldSwitchHalfForLive(switchInput);
+    const wantSwitchHint = shouldSuggestSwitchHalf(switchInput);
+    if (holdSwitch && now - state.lastSwitchEmitAt >= HOLD_HINT_MS) {
+      state.lastSwitchEmitAt = now;
+      broadcastManager.sendToMatchStaff(matchId, "auto_action_suggested", {
+        matchId,
+        action: "wait_live_three_outs",
+        message: switchHalfHoldMessage(switchInput.liveOuts),
+        oneTapConfirm: false,
+      });
+    } else if (wantSwitchHint && now - state.lastSwitchEmitAt >= HINT_MS) {
       state.lastSwitchEmitAt = now;
       if (blocksAdvanceUntilResult(phaseNow) || (await roundNeedsResult(matchId, match.currentRound ?? 1))) {
         broadcastManager.sendToMatchStaff(matchId, "auto_action_blocked", {

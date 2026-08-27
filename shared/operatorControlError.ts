@@ -8,6 +8,7 @@ export function isOperatorControlFlowError(message: string): boolean {
     message.includes("3아웃") ||
     message.includes("다음 타자") ||
     message.includes("공수") ||
+    message.includes("실황") ||
     message.includes("찾을 수 없")
   );
 }

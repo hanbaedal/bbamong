@@ -177,7 +177,7 @@
 | batterIndexInHalf | number | 현재 공격 팀 타순 1~9 |  |
 | awayBatterOrder | number | 원정(초) 타순 커서 1~9 |  |
 | homeBatterOrder | number | 홈(말) 타순 커서 1~9 |  |
-| outsInHalf | number | 운영자 누적 아웃. 3아웃·공수교대 권위. 네이버 outs는 힌트 |  |
+| outsInHalf | number | 운영자 누적 아웃. 3아웃 카운트·예측 종료 권위. 공수교대는 네이버 3아웃 대기(강제 가능) |  |
 | pinchHitter | Mixed\|null | 현재 타석 대타. 다음타자·공수 시 해제, 투수교체 유지 |  |
 | matchLineup | Mixed\|null | 선발 타순 스냅샷 (네이버) |  |
 | matchPlayerStats | Mixed\|null | 타자 시즌 스탯 캐시 |  |
@@ -810,7 +810,7 @@ KBO 선수 마스터(타율 등). 선발명단·대타 검색
 | syncedAt | string | 스냅샷 시각 ISO |
 | situation.balls | number | 볼. 네이버. 타석 없으면 가짜 0으로 채우지 않음 |
 | situation.strikes | number | 스트라이크. 네이버 |
-| situation.outs | number | 실황 아웃. 힌트. 공수교대 권위는 Match.outsInHalf |
+| situation.outs | number | 실황 아웃. 공수교대 타이밍 가드. 카운트 권위는 Match.outsInHalf |
 | situation.onFirst | boolean | 1루 주자. 네이버 |
 | situation.onSecond | boolean | 2루 주자. 네이버 |
 | situation.onThird | boolean | 3루 주자. 네이버 |
