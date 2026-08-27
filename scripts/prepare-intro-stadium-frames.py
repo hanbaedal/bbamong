@@ -21,22 +21,27 @@ NEAR_WHITE = 242
 
 
 def cover_kling_watermark(rgb: np.ndarray) -> np.ndarray:
-    """우측 하단 KlingAI 워터마크를 옆 흙으로 덮는다."""
-    h, w, _ = rgb.shape
-    y0, y1 = int(h * 0.90), h
-    x0, x1 = int(w * 0.78), w
-    src_x0 = max(0, x0 - (x1 - x0) - 8)
-    src = rgb[y0:y1, src_x0 : src_x0 + (x1 - x0)]
-    if src.shape[1] != (x1 - x0):
-        src = np.repeat(rgb[y0:y1, x0 - 12 : x0], 40, axis=1)[:, : x1 - x0]
-    patch = src.copy()
-    # 살짝 블러
+    """우측 하단 KlingAI 워터마크를 옆 흙으로 덮고 가장자리를 페더한다."""
     from PIL import ImageFilter
 
-    blur = Image.fromarray(patch).filter(ImageFilter.GaussianBlur(radius=2.2))
-    rgb = rgb.copy()
-    rgb[y0:y1, x0:x1] = np.array(blur)
-    return rgb
+    h, w, _ = rgb.shape
+    y0, y1 = int(h * 0.88), h
+    x0, x1 = int(w * 0.76), w
+    pw, ph = x1 - x0, y1 - y0
+    src_x0 = max(0, int(w * 0.52))
+    src = rgb[y0:y1, src_x0 : src_x0 + pw]
+    if src.shape[1] != pw:
+        src = np.repeat(rgb[y0:y1, max(0, x0 - 24) : x0], 48, axis=1)[:, :pw]
+    patch = np.array(Image.fromarray(src).filter(ImageFilter.GaussianBlur(radius=3.2)))
+    yy, xx = np.mgrid[0:ph, 0:pw]
+    feather_x = np.clip(xx / max(1, int(pw * 0.22)), 0, 1)
+    feather_y = np.clip(yy / max(1, int(ph * 0.35)), 0, 1)
+    alpha = np.minimum(feather_x, feather_y)[:, :, None]
+    out = rgb.copy()
+    region = out[y0:y1, x0:x1].astype(np.float32)
+    blended = region * (1 - alpha) + patch.astype(np.float32) * alpha
+    out[y0:y1, x0:x1] = np.clip(blended, 0, 255).astype(np.uint8)
+    return out
 
 
 def flood_alpha(rgb: np.ndarray) -> np.ndarray:

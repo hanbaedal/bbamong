@@ -5,6 +5,7 @@ import {
   INTRO_FRAME_COUNT,
   INTRO_SPRITE_BOX,
   INTRO_STADIUM_ASPECT,
+  INTRO_STADIUM_HOLD_MS,
   introFrameIndexAt,
 } from "@shared/introBatting";
 import introStadium from "@assets/user/intro-stadium-home.jpg";
@@ -45,20 +46,25 @@ if (INTRO_BATTING_FRAMES.length !== INTRO_FRAME_COUNT) {
 }
 
 type IntroBattingAnimationProps = {
-  /** 테스트용 고정 프레임(0-based). 없으면 멘트 시간에 맞춰 재생 */
+  /** 테스트용 고정. -1=구장 타석만, 0–13=14장 컷. 없으면 멘트 시간에 맞춰 재생 */
   frameIndex?: number;
 };
 
-/** 구장 배경 + 홈플레이트에서 시작하는 14장 플립북 */
+/** 구장 타석에서 시작해 14장 플립북으로 이어진다 */
 export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimationProps) {
   const [index, setIndex] = useState(0);
   const [prevIndex, setPrevIndex] = useState(0);
+  const [overlayOn, setOverlayOn] = useState(false);
 
   useEffect(() => {
     if (typeof frameIndex === "number") {
-      const next = Math.max(0, Math.min(INTRO_FRAME_COUNT - 1, frameIndex));
+      const frozenStadium = frameIndex < 0;
+      const next = frozenStadium
+        ? 0
+        : Math.max(0, Math.min(INTRO_FRAME_COUNT - 1, frameIndex));
       setPrevIndex(next);
       setIndex(next);
+      setOverlayOn(!frozenStadium);
       return;
     }
 
@@ -66,19 +72,26 @@ export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimat
     if (reduceMotion) {
       setIndex(INTRO_FRAME_COUNT - 1);
       setPrevIndex(INTRO_FRAME_COUNT - 1);
+      setOverlayOn(true);
       return;
     }
 
     const startedAt = performance.now();
     let raf = 0;
-    let last = 0;
+    let last = -1;
+    setOverlayOn(false);
     const tick = (now: number) => {
       const elapsed = now - startedAt;
-      const next = introFrameIndexAt(elapsed);
-      if (next !== last) {
-        setPrevIndex(last);
-        setIndex(next);
-        last = next;
+      if (elapsed < INTRO_STADIUM_HOLD_MS) {
+        setOverlayOn(false);
+      } else {
+        const next = introFrameIndexAt(elapsed);
+        setOverlayOn(true);
+        if (next !== last) {
+          setPrevIndex(last < 0 ? next : last);
+          setIndex(next);
+          last = next;
+        }
       }
       if (elapsed < INTRO_BATTING_MS) {
         raf = requestAnimationFrame(tick);
@@ -88,7 +101,7 @@ export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimat
     return () => cancelAnimationFrame(raf);
   }, [frameIndex]);
 
-  const showCrossfade = index !== prevIndex;
+  const showCrossfade = overlayOn && index !== prevIndex;
   const spriteBoxStyle = {
     left: INTRO_SPRITE_BOX.left,
     top: INTRO_SPRITE_BOX.top,
@@ -116,9 +129,15 @@ export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimat
           fetchPriority="high"
           data-testid="intro-stadium-bg"
         />
-        <div className="intro-scene-blocker" />
-        <div className="intro-sprite-slot" style={spriteBoxStyle}>
-          {showCrossfade ? (
+        <div
+          className={`intro-scene-blocker${overlayOn ? " is-active" : ""}`}
+          data-testid="intro-scene-blocker"
+        />
+        <div
+          className={`intro-sprite-slot${overlayOn ? " is-active" : ""}`}
+          style={spriteBoxStyle}
+        >
+          {overlayOn && showCrossfade ? (
             <img
               src={INTRO_BATTING_FRAMES[prevIndex]}
               alt=""
@@ -126,20 +145,24 @@ export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimat
               draggable={false}
             />
           ) : null}
-          <img
-            key={index}
-            src={INTRO_BATTING_FRAMES[index]}
-            alt=""
-            className={`intro-batting-flip${showCrossfade ? " intro-batting-flip--over" : ""}`}
-            style={
-              showCrossfade
-                ? ({ ["--intro-crossfade-ms"]: `${INTRO_CROSSFADE_MS}ms` } as CSSProperties)
-                : undefined
-            }
-            data-testid="intro-batting-animation"
-            data-intro-frame={index + 1}
-            draggable={false}
-          />
+          {overlayOn ? (
+            <img
+              key={index}
+              src={INTRO_BATTING_FRAMES[index]}
+              alt=""
+              className={`intro-batting-flip${showCrossfade ? " intro-batting-flip--over" : ""}`}
+              style={
+                showCrossfade
+                  ? ({ ["--intro-crossfade-ms"]: `${INTRO_CROSSFADE_MS}ms` } as CSSProperties)
+                  : undefined
+              }
+              data-testid="intro-batting-animation"
+              data-intro-frame={index + 1}
+              draggable={false}
+            />
+          ) : (
+            <span data-testid="intro-stadium-hold" hidden />
+          )}
         </div>
       </div>
     </div>

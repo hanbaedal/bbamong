@@ -14,6 +14,7 @@ import { getFullUrl } from "@/lib/queryClient";
 import { isGuestLoginAllowed } from "@/lib/shopRoutes";
 import { finalizeUserSessionLogin, tryRestoreUserSession } from "@/lib/userLoginAuth";
 import IntroSplash from "@/components/user/IntroSplash";
+import { parseIntroReplayQuery } from "@shared/introBatting";
 import {
   peekSkipLoginBootstrap,
   shouldSkipLoginBootstrap,
@@ -56,7 +57,10 @@ export default function LoginPage() {
   const { assets } = useUserAssets();
   useAndroidImmersiveMode();
   const guestLoginAllowed = isGuestLoginAllowed(window.location.search);
-  const skipInitialBootstrap = peekSkipLoginBootstrap();
+  const introReplay = parseIntroReplayQuery(
+    typeof window !== "undefined" ? window.location.search : "",
+  );
+  const skipInitialBootstrap = peekSkipLoginBootstrap() && !introReplay.forceIntro;
   const [bootstrapPhase, setBootstrapPhase] = useState<LoginBootstrapPhase>(
     skipInitialBootstrap ? "ready" : "checking",
   );
@@ -92,7 +96,11 @@ export default function LoginPage() {
     bootstrapStartedRef.current = true;
 
     const search = window.location.search;
-    if (hasSocialLoginCallback(search) || shouldSkipLoginBootstrap()) {
+    if (hasSocialLoginCallback(search)) {
+      setBootstrapPhase("ready");
+      return;
+    }
+    if (shouldSkipLoginBootstrap() && !introReplay.forceIntro) {
       setBootstrapPhase("ready");
       return;
     }
@@ -112,7 +120,7 @@ export default function LoginPage() {
         setBootstrapPhase("ready");
         return;
       }
-      if (hasSeenIntro()) {
+      if (hasSeenIntro() && !introReplay.forceIntro) {
         setBootstrapPhase("ready");
         return;
       }
@@ -549,7 +557,12 @@ export default function LoginPage() {
   }
 
   if (bootstrapPhase === "welcome") {
-    return <IntroSplash onDone={() => setBootstrapPhase("ready")} />;
+    return (
+      <IntroSplash
+        onDone={() => setBootstrapPhase("ready")}
+        frameIndex={introReplay.freezeFrame}
+      />
+    );
   }
 
   return (

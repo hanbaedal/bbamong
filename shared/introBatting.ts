@@ -10,6 +10,9 @@ export const INTRO_FADE_MS = 500;
 
 export const INTRO_CROSSFADE_MS = 220;
 
+/** 첨부 구장 타석을 먼저 보여 준 뒤 14장 플립북으로 이어진다 */
+export const INTRO_STADIUM_HOLD_MS = 780;
+
 export const INTRO_SPLASH_MS = INTRO_BATTING_MS + INTRO_FADE_MS;
 
 /**
@@ -38,4 +41,28 @@ export function introFrameIndexAt(ms: number): number {
     if (t < INTRO_FRAME_END_MS[i]) return i;
   }
   return INTRO_FRAME_END_MS.length - 1;
+}
+
+/**
+ * `?intro=1` 인트로 다시 보기.
+ * `introFrame=0` 구장 타석만, `1`–`14` 해당 타격 컷 고정.
+ * 고정 컷이면 재생도 연다.
+ */
+export function parseIntroReplayQuery(search: string): {
+  forceIntro: boolean;
+  freezeFrame: number | undefined;
+} {
+  const raw = search.startsWith("?") ? search.slice(1) : search;
+  const params = new URLSearchParams(raw);
+  const freezeRaw = params.get("introFrame");
+  let freezeFrame: number | undefined;
+  if (freezeRaw != null && freezeRaw !== "") {
+    const n = Number(freezeRaw);
+    if (n === 0) freezeFrame = -1;
+    else if (Number.isInteger(n) && n >= 1 && n <= INTRO_FRAME_COUNT) {
+      freezeFrame = n - 1;
+    }
+  }
+  const forceIntro = params.get("intro") === "1" || freezeFrame !== undefined;
+  return { forceIntro, freezeFrame };
 }

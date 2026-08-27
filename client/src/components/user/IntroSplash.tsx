@@ -7,16 +7,21 @@ export { INTRO_SPLASH_MS, INTRO_BATTING_MS, INTRO_FADE_MS };
 
 type IntroSplashProps = {
   onDone?: () => void;
+  /** -1=구장 타석만, 0–13=14장 컷 고정. 있으면 자동 종료하지 않는다 */
+  frameIndex?: number;
 };
 
-/** 접속 인트로 — 구장 배경에서 14장 타격 + 멘트 음성 */
-export default function IntroSplash({ onDone }: IntroSplashProps) {
+/** 접속 인트로 — 구장 타석에서 14장 타격 + 멘트 음성 */
+export default function IntroSplash({ onDone, frameIndex }: IntroSplashProps) {
   const [fading, setFading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
+  const frozen = typeof frameIndex === "number";
 
   useEffect(() => {
+    if (frozen) return;
+
     const audio = new Audio(INTRO_TAGLINE_AUDIO_SRC);
     audio.volume = 1;
     audio.preload = "auto";
@@ -64,7 +69,7 @@ export default function IntroSplash({ onDone }: IntroSplashProps) {
       audio.load();
       audioRef.current = null;
     };
-  }, []);
+  }, [frozen]);
 
   return (
     <div
@@ -73,7 +78,7 @@ export default function IntroSplash({ onDone }: IntroSplashProps) {
       data-intro-phase={fading ? "fade" : "batting"}
     >
       <div className="user-intro-splash-inner">
-        <IntroBattingAnimation />
+        <IntroBattingAnimation frameIndex={frameIndex} />
       </div>
     </div>
   );

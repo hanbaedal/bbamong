@@ -322,6 +322,7 @@
 .intro-scene-bg {
   position: absolute;
   inset: 0;
+  z-index: 0;
   width: 100%;
   height: 100%;
   object-fit: fill;
@@ -331,25 +332,39 @@
 
 .intro-scene-blocker {
   position: absolute;
-  left: 35%;
-  top: 22%;
-  width: 32%;
-  height: 64%;
-  border-radius: 48% 48% 42% 42%;
+  left: 31%;
+  top: 15%;
+  z-index: 1;
+  width: 40%;
+  height: 74%;
+  border-radius: 46% 46% 40% 40%;
   background: radial-gradient(
     ellipse at 50% 72%,
     rgba(176, 122, 74, 0.98) 0%,
-    rgba(110, 140, 70, 0.7) 46%,
-    rgba(70, 110, 160, 0.2) 68%,
+    rgba(118, 148, 72, 0.78) 42%,
+    rgba(70, 110, 160, 0.28) 64%,
     transparent 78%
   );
-  filter: blur(16px);
+  filter: blur(18px);
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 280ms ease;
+}
+
+.intro-scene-blocker.is-active {
+  opacity: 1;
 }
 
 .intro-sprite-slot {
   position: absolute;
+  z-index: 2;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 280ms ease;
+}
+
+.intro-sprite-slot.is-active {
+  opacity: 1;
 }
 
 .intro-batting-flip {
