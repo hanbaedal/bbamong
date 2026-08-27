@@ -1,15 +1,20 @@
 /**
- * 예측 HUD: 원정 청 / 홈 백, 시네마틱 플레이트, 대기 좌타 홈 왼쪽
+ * 예측 HUD: 원정 청 / 홈 백, 시네마틱 플레이트, 포수 시점 타석
  * 실행: npx tsx scripts/test-prediction-hud-fix.ts
  */
 import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR, GAME_OUTS_COLOR } from "../client/src/components/game/gameHudColors";
-import { resolveGameSceneKind } from "../client/src/components/game/gameSceneBackground";
 import {
+  resolveGameSceneKind,
+  shouldMirrorCinematic,
+} from "../client/src/components/game/gameSceneBackground";
+import {
+  BATTER_BOX_LEFT_IMAGE,
   BATTER_BOX_RIGHT_IMAGE,
   CINEMATIC_SCENE_IMAGE,
   HOME_PLATE_IMAGE,
   PITCH_AWAY_PLATE_IMAGE,
   PITCH_HOME_PLATE_IMAGE,
+  RUNNING_BASE_IMAGE_POINTS,
   STADIUM_IMAGE,
   WAIT_LEFT_HANDED_BOX_IMAGE,
   stadiumImagePointToPx,
@@ -32,8 +37,13 @@ assert(PITCH_HOME_PLATE_IMAGE.y > 0.8, "pitch home plate in foreground");
 assert(PITCH_AWAY_PLATE_IMAGE.y > 0.8, "pitch away plate in foreground");
 assert(PITCH_HOME_PLATE_IMAGE.x > 0.4 && PITCH_HOME_PLATE_IMAGE.x < 0.6, "pitch home plate near center");
 
-assert(WAIT_LEFT_HANDED_BOX_IMAGE.x < HOME_PLATE_IMAGE.x, "wait lefty is left of plate");
-assert(WAIT_LEFT_HANDED_BOX_IMAGE.x === BATTER_BOX_RIGHT_IMAGE.x, "wait lefty uses left box");
+assert(WAIT_LEFT_HANDED_BOX_IMAGE.x > HOME_PLATE_IMAGE.x, "wait lefty is catcher-right");
+assert(WAIT_LEFT_HANDED_BOX_IMAGE.x === BATTER_BOX_LEFT_IMAGE.x, "wait lefty uses 1st-base box");
+assert(BATTER_BOX_RIGHT_IMAGE.x < HOME_PLATE_IMAGE.x, "righty box catcher-left");
+
+assert(RUNNING_BASE_IMAGE_POINTS.아웃.x > 0.45 && RUNNING_BASE_IMAGE_POINTS.아웃.x < 0.55, "running home centered");
+assert(RUNNING_BASE_IMAGE_POINTS["1루"].x > RUNNING_BASE_IMAGE_POINTS.아웃.x, "1st right of home");
+assert(RUNNING_BASE_IMAGE_POINTS["3루"].x < RUNNING_BASE_IMAGE_POINTS.아웃.x, "3rd left of home");
 
 const field16x9 = stadiumImagePointToPx(HOME_PLATE_IMAGE, 1600, 900);
 const pitch16x9 = stadiumImagePointToPx(
@@ -51,8 +61,8 @@ assert(
     screenPhase: "wait_start",
     inningHalf: "bottom",
     batsSide: "left",
-  }) === "field",
-  "home lefty wait uses field",
+  }) === "wait_home",
+  "home lefty wait keeps wait_home photo",
 );
 assert(
   resolveGameSceneKind({
@@ -61,7 +71,7 @@ assert(
     inningHalf: "top",
     batsSide: "left",
   }) === "wait_away",
-  "away lefty wait keeps away photo (mirrored)",
+  "away lefty wait keeps away photo",
 );
 assert(
   resolveGameSceneKind({
@@ -81,10 +91,15 @@ assert(
   "wait_result uses pitch photo",
 );
 
+assert(shouldMirrorCinematic("pitch_home", "left") === true, "lefty mirrors pitch");
+assert(shouldMirrorCinematic("pitch_away", "right") === false, "righty does not mirror pitch");
+assert(shouldMirrorCinematic("wait_away", "left") === false, "away wait photo is not mirrored");
+assert(shouldMirrorCinematic("wait_home", "left") === false, "home wait photo is not mirrored");
+
 assert(isMongoTransientError({ code: 112 }), "WriteConflict 112");
 assert(isMongoTransientError({ errorLabels: ["TransientTransactionError"] }), "transient label");
 assert(isMongoTransientError({ message: "WriteConflict" }), "WriteConflict message");
 assert(!isMongoTransientError({ message: "예측이 아직 시작되지 않았습니다." }), "expected 400 is not transient");
 assert(WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS === 15_000, "manager ping 15s");
 
-console.log("OK: prediction HUD colors, cinematic plate, wait lefty, mongo retry");
+console.log("OK: prediction HUD colors, cinematic plate, catcher-view wait, mongo retry");

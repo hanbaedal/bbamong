@@ -20,7 +20,7 @@ const SCENE_SRC: Record<GameSceneKind, string> = {
 
 interface GameStadiumBackgroundProps {
   sceneKind?: GameSceneKind;
-  /** 원정 대기 좌타 — 사진 속 캐릭터를 홈 왼쪽으로 */
+  /** 좌타 결과대기(투구 사진)만 반전 — 대기 원정/홈 사진은 원본 구도 유지 */
   mirrorX?: boolean;
 }
 
@@ -75,7 +75,7 @@ export default function GameStadiumBackground({
           draggable={false}
           decoding="async"
           fetchPriority="high"
-          className="absolute inset-0 h-full w-full object-cover blur-md scale-110 opacity-70 pointer-events-none select-none"
+          className={`absolute inset-0 h-full w-full object-cover blur-md scale-110 opacity-70 pointer-events-none select-none ${mirrorX ? "-scale-x-100" : ""}`}
           aria-hidden
         />
       ) : null}
@@ -85,14 +85,9 @@ export default function GameStadiumBackground({
         draggable={false}
         decoding="async"
         fetchPriority="high"
-        className={`absolute pointer-events-none select-none ${
-          waitScene
-            ? `left-0 right-0 bottom-0 mx-auto h-[70%] w-full object-contain object-bottom ${mirrorX ? "-scale-x-100" : ""}`
-            : `inset-0 h-full w-full object-cover ${mirrorX ? "-scale-x-100" : ""}`
-        }`}
+        className={`absolute inset-0 h-full w-full object-cover pointer-events-none select-none ${mirrorX ? "-scale-x-100" : ""}`}
         data-testid={cinematic ? "game-cinematic-bg" : "game-stadium-bg-center"}
         data-mirror={mirrorX ? "x" : undefined}
-        data-wait-scale={waitScene ? "70" : undefined}
       />
     </div>
   );

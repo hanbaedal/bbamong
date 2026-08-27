@@ -24,7 +24,6 @@ import {
 import {
   BATTER_BOX_LEFT_IMAGE,
   BATTER_BOX_RIGHT_IMAGE,
-  WAIT_LEFT_HANDED_BOX_IMAGE,
   baseImagePointsForRunning,
   getRunFacingRight,
   getRunPathImagePoints,
@@ -61,11 +60,7 @@ function pyamongSpriteClass(_battingHalf: InningHalf | null | undefined, extra =
   return extra ? `game-sprite ${extra}` : "game-sprite";
 }
 
-function batterBoxPoint(
-  side: BatterHandSide | null | undefined,
-  waitStart = false,
-) {
-  if (waitStart && side === "left") return WAIT_LEFT_HANDED_BOX_IMAGE;
+function batterBoxPoint(side: BatterHandSide | null | undefined) {
   return side === "left" ? BATTER_BOX_LEFT_IMAGE : BATTER_BOX_RIGHT_IMAGE;
 }
 
@@ -130,10 +125,7 @@ export default function GameCharacterLayer({
   const handSide: BatterHandSide = batsSide === "left" ? "left" : "right";
   const cinematic = isCinematicGameScene(sceneKind);
   const running = isRunningGameScene(sceneKind);
-  const hudAnchor =
-    sceneKind === "wait_away" && handSide === "left"
-      ? { ...cinematicHudAnchor(sceneKind), left: "28%" }
-      : cinematicHudAnchor(sceneKind);
+  const hudAnchor = cinematicHudAnchor(sceneKind);
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
   const [runFrameIdx, setRunFrameIdx] = useState(0);
   const [runFaceRight, setRunFaceRight] = useState(true);
@@ -276,7 +268,7 @@ export default function GameCharacterLayer({
 
       {/* 1. 예측 시작 전: 필드 위 팔짱 빠몽 — 시네마틱은 사진 속 큰 빠몽만 */}
       {gameDayPhase === "live" && phase === "wait_start" && !cinematic ? (
-        <StadiumFieldMarker point={batterBoxPoint(handSide, true)} center={false}>
+        <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
           <div
             className={`flex items-end gap-1 sm:gap-2 pointer-events-none ${
               handSide === "left" ? "flex-row" : "flex-row-reverse"

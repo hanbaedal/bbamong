@@ -37,7 +37,7 @@ export function resolveGameSceneKind(input: {
   inningHalf?: InningHalf | null;
   batsSide?: BatterHandSide | null;
 }): GameSceneKind {
-  const { gameDayPhase, screenPhase, inningHalf, batsSide } = input;
+  const { gameDayPhase, screenPhase, inningHalf } = input;
   const away = inningHalf === "top";
 
   if (
@@ -51,8 +51,7 @@ export function resolveGameSceneKind(input: {
 
   if (gameDayPhase === "live") {
     if (screenPhase === "wait_start") {
-      // 홈 대기 사진은 우타 클로즈업. 좌타는 빈 구장에 홈 왼쪽 스프라이트.
-      if (batsSide === "left" && !away) return "field";
+      // 원정=파란 유니폼 사진, 홈=흰 유니폼 사진. 화면 전체를 줄이지 않는다.
       return away ? "wait_away" : "wait_home";
     }
     if (screenPhase === "wait_result" || screenPhase === "result_flash") {
@@ -70,7 +69,18 @@ export function resolveGameSceneKind(input: {
   return "field";
 }
 
-/** 시네마틱 위 말풍선·예측 배지 위치 (뷰포트 %) */
+/**
+ * 투구 사진에는 우타가 포수 왼쪽에 구워져 있다. 좌타 결과대기만 배경을 뒤집는다.
+ * 원정/홈 대기 사진은 유니폼이 다르므로 뒤집지 않는다.
+ */
+export function shouldMirrorCinematic(
+  kind: GameSceneKind,
+  batsSide?: BatterHandSide | null,
+): boolean {
+  return batsSide === "left" && (kind === "pitch_home" || kind === "pitch_away");
+}
+
+/** 시네마틱 위 말풍선 위치 (뷰포트 %). 사진 속 빠몽 쪽에 둔다. */
 export function cinematicHudAnchor(kind: GameSceneKind): {
   left: string;
   bottom: string;
@@ -78,7 +88,8 @@ export function cinematicHudAnchor(kind: GameSceneKind): {
 } {
   switch (kind) {
     case "wait_away":
-      return { left: "38%", bottom: "22%", transform: "translate(-50%, 0)" };
+      // 원정 대기 사진은 빠몽이 프레임 오른쪽
+      return { left: "66%", bottom: "22%", transform: "translate(-50%, 0)" };
     case "wait_home":
       return { left: "46%", bottom: "20%", transform: "translate(-50%, 0)" };
     case "pitch_home":

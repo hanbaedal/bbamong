@@ -23,8 +23,8 @@ const gapR = BATTER_BOX_LEFT_IMAGE.x - HOME_PLATE_IMAGE.x;
 assert(Math.abs(gapL - BATTER_BOX_OFFSET_X) < 1e-9, `우타 오프셋 ${gapL}`);
 assert(Math.abs(gapR - BATTER_BOX_OFFSET_X) < 1e-9, `좌타 오프셋 ${gapR}`);
 // 존과 안 겹치되 과하게 멀지 않게 (0.225는 과함)
-assert(gapL >= 0.11 && gapL <= 0.16, `우타 간격 ${gapL} (기대 0.11~0.16)`);
-assert(gapR >= 0.11 && gapR <= 0.16, `좌타 간격 ${gapR} (기대 0.11~0.16)`);
+assert(gapL >= 0.03 && gapL <= 0.08, `우타 간격 ${gapL} (기대 0.03~0.08)`);
+assert(gapR >= 0.03 && gapR <= 0.08, `좌타 간격 ${gapR} (기대 0.03~0.08)`);
 
 console.log("OK: batter box closer to zone without overlap", {
   offset: BATTER_BOX_OFFSET_X,

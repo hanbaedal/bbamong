@@ -27,10 +27,11 @@ import { AD_PLAY_MS } from "@shared/adBreakTiming";
 import type { BetAmountOption } from "@shared/predictionOdds";
 import { isTransientAdOrEventPhase, type GameScreenPhase, type PredictionOption } from "./gameTypes";
 import { useAtBatPitchDisplay } from "@/hooks/useAtBatPitchDisplay";
-import { resolveGameSceneKind } from "./gameSceneBackground";
+import { resolveGameSceneKind, shouldMirrorCinematic } from "./gameSceneBackground";
 import {
   CINEMATIC_SCENE_IMAGE,
   HOME_PLATE_IMAGE,
+  maybeMirrorImagePointX,
   PITCH_AWAY_PLATE_IMAGE,
   PITCH_HOME_PLATE_IMAGE,
 } from "./stadiumFieldCoords";
@@ -174,7 +175,7 @@ export default function LandscapeGameShell({
     inningHalf: battingHalf,
     batsSide,
   });
-  const mirrorWaitLefty = sceneKind === "wait_away" && batsSide === "left";
+  const mirrorCinematic = shouldMirrorCinematic(sceneKind, batsSide);
   /** 대기·결과 큰 글씨·교체/광고 중에는 직전 타자 이름·시즌 카드를 남기지 않음 */
   const hideStaleBatter =
     screenPhase === "wait_start" ||
@@ -194,7 +195,7 @@ export default function LandscapeGameShell({
       className="fixed inset-0 w-[100dvw] h-[100dvh] overflow-hidden bg-black"
       data-testid="landscape-game-shell"
     >
-      <GameFieldViewport sceneKind={sceneKind} mirrorX={mirrorWaitLefty}>
+      <GameFieldViewport sceneKind={sceneKind} mirrorX={mirrorCinematic}>
         <GameLiveSituationWidget
           scoreboard={scoreboard}
           hidden={noticeSuppressed}
@@ -267,13 +268,14 @@ export default function LandscapeGameShell({
             <GameStrikeZoneOverlay
               pitches={displayPitches}
               batsSide={batsSide}
-              platePoint={
+              platePoint={maybeMirrorImagePointX(
                 sceneKind === "pitch_away"
                   ? PITCH_AWAY_PLATE_IMAGE
                   : sceneKind === "pitch_home"
                     ? PITCH_HOME_PLATE_IMAGE
-                    : HOME_PLATE_IMAGE
-              }
+                    : HOME_PLATE_IMAGE,
+                mirrorCinematic,
+              )}
               imageSize={pitchCinematic ? CINEMATIC_SCENE_IMAGE : undefined}
               cinematic={pitchCinematic}
               hidden={!strikeZoneVisible}
