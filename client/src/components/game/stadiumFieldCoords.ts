@@ -57,8 +57,6 @@ export const BATTER_BOX_LEFT_IMAGE: ImagePoint = {
   y: HOME_PLATE_IMAGE.y - 0.008,
 };
 
-const IMAGE_ASPECT = STADIUM_IMAGE.width / STADIUM_IMAGE.height;
-
 /**
  * object-cover 레이아웃 좌표 변환 — CSS object-cover / object-position center 와 동일
  */
