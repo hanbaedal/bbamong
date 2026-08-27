@@ -616,13 +616,9 @@ export function useLandscapePredictionFlow(
       rewardedVideoCompletedRef.current = false;
       const remainMs = Math.max(250, AD_PLAY_MS - (Date.now() - started));
       const remainSec = Math.max(1, Math.ceil(remainMs / 1000));
-      const phoneLike =
-        isNativePlatform ||
-        (typeof window !== "undefined" &&
-          Boolean(window.matchMedia?.("(pointer: coarse)")?.matches));
       setAdOverlayCompleteSec(remainSec);
       setAdOverlayMessage("광고가 끝나면 예측이 자동으로 시작됩니다");
-      setAdOverlayDismissible(!phoneLike);
+      setAdOverlayDismissible(true);
       setShowBetModal(false);
       setScreenPhase("ad_playing");
       setShowAdOverlay(true);

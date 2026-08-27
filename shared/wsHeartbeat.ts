@@ -6,6 +6,9 @@
 /** 클라 JSON ping 주기 */
 export const WS_CLIENT_HEARTBEAT_INTERVAL_MS = 25_000;
 
+/** 운영자 콘솔 — 프록시 idle 전에 데이터 프레임을 더 자주 보냄 */
+export const WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS = 15_000;
+
 /**
  * JSON ping 이후 이 시간 안에 inbound 프레임이 없으면 재연결.
  * 10초는 서버가 connected 스냅샷(DB)을 보내는 동안 첫 ping이 유실되면 항상 타임아웃됐다.

@@ -6,6 +6,8 @@ import {
   WS_CLIENT_PONG_TIMEOUT_MS,
   WS_CONNECTION_REPLACED_CODE,
   WS_KEEPALIVE_TIMEOUT_CODE,
+  WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS,
+  WS_CLIENT_HEARTBEAT_INTERVAL_MS,
   WS_SERVER_KEEPALIVE_STALE_MS,
   inboundWsTrafficProvesAlive,
   isCurrentWsSocket,
@@ -21,6 +23,11 @@ function assert(cond: unknown, msg: string) {
 }
 
 assert(WS_CLIENT_PONG_TIMEOUT_MS >= 15_000, "pong timeout must outlast connected snapshot");
+assert(
+  WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS < WS_CLIENT_HEARTBEAT_INTERVAL_MS,
+  "manager ping faster than user ping",
+);
+assert(WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS <= 15_000, "manager ping <= 15s");
 assert(WS_SERVER_KEEPALIVE_STALE_MS >= 80_000, "server stale must survive one missed ping");
 assert(WS_KEEPALIVE_TIMEOUT_CODE === 4001, "keepalive close 4001");
 assert(WS_CONNECTION_REPLACED_CODE === 4010, "replaced code 4010");

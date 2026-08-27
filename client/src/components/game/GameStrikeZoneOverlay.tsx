@@ -1,6 +1,6 @@
 /** 네이버 ptsOptions 기반 스트라이크존 투구 위치 오버레이 */
 import type { LivePitchLocation } from "@shared/apiSportsTypes";
-import { HOME_PLATE_IMAGE, stadiumImagePointToPx } from "./stadiumFieldCoords";
+import { HOME_PLATE_IMAGE, stadiumImagePointToPx, type ImagePoint } from "./stadiumFieldCoords";
 import { useStadiumFieldSize } from "./StadiumFieldContext";
 
 interface GameStrikeZoneOverlayProps {
@@ -8,6 +8,11 @@ interface GameStrikeZoneOverlayProps {
   /** 우타면 존이 화면 왼쪽 박스 쪽, 좌타면 오른쪽 */
   batsSide?: "left" | "right" | null;
   hidden?: boolean;
+  /** 시네마틱 투구 장면은 필드 JPG가 아닌 사진 기준 플레이트 */
+  platePoint?: ImagePoint;
+  imageSize?: { width: number; height: number };
+  /** 전경 플레이트가 큰 시네마틱에서 존을 키움 */
+  cinematic?: boolean;
 }
 
 /** 플레이트 반폭(ft) — 홈플레이트 17인치 ≈ 0.708ft */
@@ -31,13 +36,21 @@ export default function GameStrikeZoneOverlay({
   pitches,
   batsSide = "right",
   hidden = false,
+  platePoint = HOME_PLATE_IMAGE,
+  imageSize,
+  cinematic = false,
 }: GameStrikeZoneOverlayProps) {
   const fieldSize = useStadiumFieldSize();
   if (hidden || !pitches?.length) return null;
 
-  const homePx = stadiumImagePointToPx(HOME_PLATE_IMAGE, fieldSize.width, fieldSize.height);
-  // 폭 16% 축소 후 높이를 폭과 동일 → 정사각형 존
-  const zoneW = Math.min(fieldSize.width * 0.11, 92) * 0.9 * 0.84;
+  const homePx = stadiumImagePointToPx(
+    platePoint,
+    fieldSize.width,
+    fieldSize.height,
+    imageSize,
+  );
+  const zoneScale = cinematic ? 1.35 : 1;
+  const zoneW = Math.min(fieldSize.width * 0.11, 92) * 0.9 * 0.84 * zoneScale;
   const zoneH = zoneW;
   const offsetX = batsSide === "left" ? -zoneW * 0.06 : zoneW * 0.06;
   const left = homePx.left + offsetX - zoneW / 2;

@@ -9,11 +9,13 @@ export { STADIUM_ASPECT_RATIO };
 interface GameFieldViewportProps {
   children: ReactNode;
   sceneKind?: GameSceneKind;
+  mirrorX?: boolean;
 }
 
 function GameFieldViewportInner({
   children,
   sceneKind = "field",
+  mirrorX = false,
 }: GameFieldViewportProps) {
   const { containerRef } = useStadiumFieldContainer();
 
@@ -24,7 +26,7 @@ function GameFieldViewportInner({
       data-testid="game-field-viewport"
       data-scene={sceneKind}
     >
-      <GameStadiumBackground sceneKind={sceneKind} />
+      <GameStadiumBackground sceneKind={sceneKind} mirrorX={mirrorX} />
       <div className="absolute inset-0">{children}</div>
     </div>
   );
@@ -37,10 +39,13 @@ function GameFieldViewportInner({
 export default function GameFieldViewport({
   children,
   sceneKind = "field",
+  mirrorX = false,
 }: GameFieldViewportProps) {
   return (
     <StadiumFieldProvider>
-      <GameFieldViewportInner sceneKind={sceneKind}>{children}</GameFieldViewportInner>
+      <GameFieldViewportInner sceneKind={sceneKind} mirrorX={mirrorX}>
+        {children}
+      </GameFieldViewportInner>
     </StadiumFieldProvider>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import pyamongWaiting from "@assets/game/pyamong-waiting.png";
 import pyamongSuccess from "@assets/game/pyamong-success.png";
 import pyamongBatToss from "@assets/game/pyamong-bat-toss.png";
@@ -24,6 +24,7 @@ import {
 import {
   BATTER_BOX_LEFT_IMAGE,
   BATTER_BOX_RIGHT_IMAGE,
+  WAIT_LEFT_HANDED_BOX_IMAGE,
   baseImagePointsForRunning,
   getRunFacingRight,
   getRunPathImagePoints,
@@ -60,7 +61,11 @@ function pyamongSpriteClass(_battingHalf: InningHalf | null | undefined, extra =
   return extra ? `game-sprite ${extra}` : "game-sprite";
 }
 
-function batterBoxPoint(side: BatterHandSide | null | undefined) {
+function batterBoxPoint(
+  side: BatterHandSide | null | undefined,
+  waitStart = false,
+) {
+  if (waitStart && side === "left") return WAIT_LEFT_HANDED_BOX_IMAGE;
   return side === "left" ? BATTER_BOX_LEFT_IMAGE : BATTER_BOX_RIGHT_IMAGE;
 }
 
@@ -68,12 +73,10 @@ function BackBatterReady({
   battingHalf,
   handSide,
   testId,
-  badge,
 }: {
   battingHalf: InningHalf | null;
   handSide: BatterHandSide;
   testId: string;
-  badge?: ReactNode;
 }) {
   const isLeftHanded = handSide === "left";
   // 존 쪽 가장자리를 앵커에 두되, 몸통이 과도하게 바깥으로 밀리지 않게
@@ -107,7 +110,6 @@ function BackBatterReady({
             data-team-side={battingHalf === "bottom" ? "home" : "away"}
           />
         </div>
-        {badge}
       </div>
     </StadiumFieldMarker>
   );
@@ -128,7 +130,10 @@ export default function GameCharacterLayer({
   const handSide: BatterHandSide = batsSide === "left" ? "left" : "right";
   const cinematic = isCinematicGameScene(sceneKind);
   const running = isRunningGameScene(sceneKind);
-  const hudAnchor = cinematicHudAnchor(sceneKind);
+  const hudAnchor =
+    sceneKind === "wait_away" && handSide === "left"
+      ? { ...cinematicHudAnchor(sceneKind), left: "28%" }
+      : cinematicHudAnchor(sceneKind);
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
   const [runFrameIdx, setRunFrameIdx] = useState(0);
   const [runFaceRight, setRunFaceRight] = useState(true);
@@ -194,19 +199,6 @@ export default function GameCharacterLayer({
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
   }, [phase, runDurationSec, runPath, batTossing, battingHalf]);
-
-  const predictionBadge =
-    selectedPrediction && phase === "wait_result" ? (
-      <div
-        className="mb-[min(12%,20px)] shrink-0 rounded-xl border-2 border-[#CDFF00] bg-black/75 px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-lg"
-        data-testid="wait-result-prediction-badge"
-      >
-        <p className="text-[10px] sm:text-xs text-white/70 leading-none mb-1">내 예측</p>
-        <p className="text-sm sm:text-base font-bold text-[#CDFF00] leading-none whitespace-nowrap">
-          {selectedPrediction}
-        </p>
-      </div>
-    ) : null;
 
   return (
     <>
@@ -284,7 +276,7 @@ export default function GameCharacterLayer({
 
       {/* 1. 예측 시작 전: 필드 위 팔짱 빠몽 — 시네마틱은 사진 속 큰 빠몽만 */}
       {gameDayPhase === "live" && phase === "wait_start" && !cinematic ? (
-        <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
+        <StadiumFieldMarker point={batterBoxPoint(handSide, true)} center={false}>
           <div
             className={`flex items-end gap-1 sm:gap-2 pointer-events-none ${
               handSide === "left" ? "flex-row" : "flex-row-reverse"
@@ -336,7 +328,7 @@ export default function GameCharacterLayer({
 
       {/* 2. 예측 시작(picking): 빠몽 숨김 — 베이스 버튼만 */}
 
-      {/* 3. 예측 중지·결과 큰 글씨: 방망이 든 뒷모습 — 시네마틱은 사진만 */}
+      {/* 3. 예측 중지·결과 큰 글씨: 방망이 든 뒷모습 — 시네마틱은 사진만. 내 예측은 시즌기록 아래 */}
       {gameDayPhase === "live" &&
       (phase === "wait_result" || phase === "result_flash") &&
       !cinematic ? (
@@ -344,26 +336,7 @@ export default function GameCharacterLayer({
           battingHalf={battingHalf}
           handSide={handSide}
           testId={phase === "result_flash" ? "char-batter-box-result-flash" : "char-batter-box-wait-result"}
-          badge={phase === "wait_result" ? predictionBadge : undefined}
         />
-      ) : null}
-
-      {gameDayPhase === "live" &&
-      phase === "wait_result" &&
-      cinematic &&
-      selectedPrediction ? (
-        <div
-          className="absolute z-[22] pointer-events-none"
-          style={hudAnchor}
-          data-testid="wait-result-prediction-badge"
-        >
-          <div className="rounded-xl border-2 border-[#CDFF00] bg-black/75 px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-lg">
-            <p className="text-[10px] sm:text-xs text-white/70 leading-none mb-1">내 예측</p>
-            <p className="text-sm sm:text-base font-bold text-[#CDFF00] leading-none whitespace-nowrap">
-              {selectedPrediction}
-            </p>
-          </div>
-        </div>
       ) : null}
 
       {phase === "success_running" && batTossing && (

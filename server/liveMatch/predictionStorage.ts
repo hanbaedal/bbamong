@@ -21,6 +21,8 @@ import {
   buildUserPlatformMatchForAgg,
 } from "../utils/memberPlatform";
 import { isMatchLiveWindowOpen } from "@shared/matchLiveWindow";
+import { isMongoTransientError } from "../../shared/mongoTransientError";
+import { liveOutsFromScoreboard, nullableInningHalf, resolveShowThreeOutsHint } from "@shared/threeOutsGuard";
 
 /**
  * 운영자 컨트롤용 — ongoing, 또는 시작 5분 전~의 scheduled.
@@ -360,7 +362,18 @@ export async function startRound(matchId: string): Promise<Match> {
     if (!match) throw new Error("경기를 찾을 수 없습니다.");
 
     const outsInHalf = (match as { outsInHalf?: number }).outsInHalf ?? 0;
-    if (outsInHalf >= 3) {
+    const liveScoreboard = (
+      match as {
+        liveScoreboard?: { situation?: { outs?: number | null }; inningHalf?: string | null };
+      }
+    ).liveScoreboard;
+    const threeOuts = resolveShowThreeOutsHint({
+      liveOuts: liveOutsFromScoreboard(liveScoreboard),
+      outsInHalf,
+      liveHalf: nullableInningHalf(liveScoreboard?.inningHalf),
+      operatorHalf: nullableInningHalf((match as { inningHalf?: string }).inningHalf),
+    });
+    if (threeOuts) {
       throw new Error("3아웃입니다. 공수교대를 눌러주세요.");
     }
 
@@ -381,7 +394,7 @@ export async function startRound(matchId: string): Promise<Match> {
      */
     if (existing?.isResultSent) {
       throw new Error(
-        outsInHalf >= 3
+        threeOuts
           ? "결과가 전송되었습니다. 공수교대를 눌러주세요."
           : "결과가 전송되었습니다. 다음 타자를 눌러주세요.",
       );
@@ -504,6 +517,20 @@ export async function startRound(matchId: string): Promise<Match> {
 }
 
 export async function stopRound(matchId: string): Promise<Match> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await stopRoundOnce(matchId);
+    } catch (error) {
+      lastError = error;
+      if (!isMongoTransientError(error) || attempt === 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 40 * attempt));
+    }
+  }
+  throw lastError;
+}
+
+async function stopRoundOnce(matchId: string): Promise<Match> {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
