@@ -1,8 +1,8 @@
 /** 기존 정사각 존 대비 16% 확대 */
 export const STRIKE_ZONE_SIZE_BOOST = 1.16;
 
-/** 홈플레이트 오각형이 화면 하단 ~10–15%를 차지하므로, 존 하단을 그 위로 띄운다 */
-export const STRIKE_ZONE_PLATE_CLEARANCE_RATIO = 0.055;
+/** 시네마틱 전경 플레이트의 앞전(투수 쪽)이 포인트보다 위에 있으므로 화면 높이의 10%를 띄운다 */
+export const STRIKE_ZONE_PLATE_CLEARANCE_RATIO = 0.1;
 
 const STRIKE_ZONE_BASE = 0.9 * 0.84;
 const CINEMATIC_ZONE_SCALE = 1.35;

@@ -31,6 +31,7 @@ const cine = computeStrikeZoneLayout(fieldW, fieldH, homeTop, true);
 assert(Math.abs(cine.zoneW / zoneW - 1.35) < 1e-9, `시네마틱 확대 ${cine.zoneW}/${zoneW}`);
 assert(cine.top + cine.zoneH < homeTop, "시네마틱 존도 홈과 안 겹침");
 assert(cine.top < top, "시네마틱 존이 더 큼 → 상단이 더 위");
+assert(plateGap / fieldH >= 0.1 - 1e-9, `간격 비율 ${plateGap / fieldH}`);
 
 console.log("OK: strike zone +16% and above home plate", {
   prevW,
