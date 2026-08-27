@@ -27,6 +27,7 @@ import {
   formatGameMatchSelectDetail,
   isMatchSelectableForGame,
   canRemainInGameMatch,
+  shouldDropSelectedMatch,
   sortMatchesByOrder,
   type GameMatchItem,
 } from "@/components/game/gameMatchUtils";
@@ -437,11 +438,7 @@ export default function PredictionPage() {
     if (!selectedMatchId) return;
     if (matchesLoading || !hasMatchesSnapshot) return;
     const found = orderedMatches.find((m) => m.id === selectedMatchId);
-    if (found && canRemainInGameMatch(found, nowMs)) return;
-    if (found) {
-      // 종료·취소만 선택 해제. 실황 OFF는 유지.
-      return;
-    }
+    if (found && !shouldDropSelectedMatch(found)) return;
     setSelectedMatchId(null);
     matchPickPromptedRef.current = false;
     if (!gameDayOverlayKind) setMatchModalOpen(true);
@@ -511,6 +508,7 @@ export default function PredictionPage() {
     onGamePhaseUpdate: (phase) => setGamePhase(phase as GamePhasePayload),
     onMatchEnded: () => {
       matchEndedHandledRef.current = true;
+      setSelectedMatchId(null);
       goAfterMatchEnd();
     },
   });
@@ -521,7 +519,6 @@ export default function PredictionPage() {
       startTime: selectedMatch?.startTime,
       matchStatus: selectedMatch?.matchStatus,
       pollMs: 2_000,
-      alwaysPoll: Boolean(selectedMatchId) && !selectedMatch,
     },
   );
 
@@ -623,7 +620,8 @@ export default function PredictionPage() {
     ? resolveGameMatchHeaderLines(displayMatch, liveScoreboard)
     : { teamNamesLine: null, headToHead: null };
   /** 경기가 선택된 뒤에만 제목 클릭으로 재선택. 미선택 시에는 「경기 선택」 모달만 사용 */
-  const canSelectMatch = Boolean(displayMatch);
+  /** 참여 가능한 경기가 있으면 제목으로 다시 고를 수 있다 */
+  const canSelectMatch = orderedMatches.some((m) => isMatchSelectableForGame(m, nowMs));
   const canSelectStadium = Boolean(displayMatch) && stadiumOptions.length > 0;
   const shellDayPhase =
     gameDayPhase === "loading" || gameDayPhase === "no_match" ? "pregame" : gameDayPhase;
