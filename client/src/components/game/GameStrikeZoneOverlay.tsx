@@ -2,7 +2,7 @@
 import type { LivePitchLocation } from "@shared/apiSportsTypes";
 import { HOME_PLATE_IMAGE, stadiumImagePointToPx, type ImagePoint } from "./stadiumFieldCoords";
 import { useStadiumFieldSize } from "./StadiumFieldContext";
-import { computeStrikeZoneLayout } from "./strikeZoneLayout";
+import { computeStrikeZoneSize, computeStrikeZoneTop, CINEMATIC_ZONE_BOTTOM_Y } from "./strikeZoneLayout";
 
 interface GameStrikeZoneOverlayProps {
   pitches: LivePitchLocation[] | null | undefined;
@@ -50,12 +50,20 @@ export default function GameStrikeZoneOverlay({
     fieldSize.height,
     imageSize,
   );
-  const { zoneW, zoneH, top, plateGap } = computeStrikeZoneLayout(
+  const { zoneW, zoneH } = computeStrikeZoneSize(fieldSize.width, cinematic);
+  const zoneBottomPx = stadiumImagePointToPx(
+    cinematic ? { x: platePoint.x, y: CINEMATIC_ZONE_BOTTOM_Y } : platePoint,
     fieldSize.width,
     fieldSize.height,
-    homePx.top,
-    cinematic,
+    imageSize,
   );
+  const top = computeStrikeZoneTop({
+    homeTop: homePx.top,
+    zoneBottomTop: zoneBottomPx.top,
+    zoneH,
+    fieldHeight: fieldSize.height,
+    cinematic,
+  });
   const offsetX = batsSide === "left" ? -zoneW * 0.06 : zoneW * 0.06;
   const left = homePx.left + offsetX - zoneW / 2;
 
@@ -69,7 +77,7 @@ export default function GameStrikeZoneOverlay({
       style={{ left, top, width: zoneW, height: zoneH }}
       data-testid="game-strike-zone"
       data-bats-side={batsSide ?? "right"}
-      data-plate-gap={String(Math.round(plateGap))}
+      data-zone-bottom-y={cinematic ? String(CINEMATIC_ZONE_BOTTOM_Y) : undefined}
     >
       <div className="relative h-full w-full overflow-visible rounded-[2px] border border-white/70 bg-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.25)]">
         {/* 3×3 그리드 */}
