@@ -331,18 +331,19 @@
 
 .intro-scene-blocker {
   position: absolute;
-  left: 38%;
-  top: 30%;
-  width: 26%;
-  height: 56%;
+  left: 35%;
+  top: 22%;
+  width: 32%;
+  height: 64%;
   border-radius: 48% 48% 42% 42%;
   background: radial-gradient(
-    ellipse at 50% 78%,
-    rgba(176, 122, 74, 0.92) 0%,
-    rgba(92, 122, 58, 0.55) 52%,
-    transparent 74%
+    ellipse at 50% 72%,
+    rgba(176, 122, 74, 0.98) 0%,
+    rgba(110, 140, 70, 0.7) 46%,
+    rgba(70, 110, 160, 0.2) 68%,
+    transparent 78%
   );
-  filter: blur(14px);
+  filter: blur(16px);
   pointer-events: none;
 }
 
