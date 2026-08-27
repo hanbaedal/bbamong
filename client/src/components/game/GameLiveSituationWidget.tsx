@@ -148,7 +148,7 @@ export default function GameLiveSituationWidget({
             </span>
             <span
               className="text-[9px] font-bold leading-none tracking-wide"
-              style={{ color: GAME_OUTS_COLOR }}
+              style={{ color: GAME_OUTS_COLOR, textShadow: "0 1px 2px rgba(0,0,0,0.85)" }}
               data-testid="game-live-outs"
             >
               {outs} OUT

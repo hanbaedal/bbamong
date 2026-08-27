@@ -3379,7 +3379,7 @@
 .user-sim-demo-game-ui__ad-x {
   position: absolute;
   top: 10px;
-  right: 12px;
+  left: 12px;
   width: 28px;
   height: 28px;
   border-radius: 999px;
