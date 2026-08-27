@@ -12,6 +12,7 @@ import type { InningHalf } from "@shared/gamePhaseTypes";
 import {
   cinematicHudAnchor,
   isCinematicGameScene,
+  isRunningGameScene,
   type GameSceneKind,
 } from "./gameSceneBackground";
 import { getRunDurationSec, SUCCESS_BAT_TOSS_MS } from "./fieldPositions";
@@ -21,12 +22,13 @@ import {
   pyamongWaitingSrc,
 } from "./pyamongUniforms";
 import {
-  BASE_IMAGE_POINTS,
   BATTER_BOX_LEFT_IMAGE,
   BATTER_BOX_RIGHT_IMAGE,
+  baseImagePointsForRunning,
   getRunFacingRight,
   getRunPathImagePoints,
   HOME_PLATE_IMAGE,
+  homePlateImageForRunning,
   pathToCssKeyframesPx,
   PITCHER_MOUND_IMAGE,
   STANDS_SEAT_IMAGE,
@@ -125,6 +127,7 @@ export default function GameCharacterLayer({
 }: GameCharacterLayerProps) {
   const handSide: BatterHandSide = batsSide === "left" ? "left" : "right";
   const cinematic = isCinematicGameScene(sceneKind);
+  const running = isRunningGameScene(sceneKind);
   const hudAnchor = cinematicHudAnchor(sceneKind);
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
   const [runFrameIdx, setRunFrameIdx] = useState(0);
@@ -132,7 +135,12 @@ export default function GameCharacterLayer({
   const [batTossing, setBatTossing] = useState(false);
   const fieldSize = useStadiumFieldSize();
   const runTarget = selectedPrediction ?? "1루";
-  const runPath = useMemo(() => getRunPathImagePoints(runTarget), [runTarget]);
+  const basePoints = baseImagePointsForRunning(running);
+  const homePoint = homePlateImageForRunning(running);
+  const runPath = useMemo(
+    () => getRunPathImagePoints(runTarget, basePoints),
+    [runTarget, basePoints],
+  );
   const runDurationSec = useMemo(() => getRunDurationSec(runTarget), [runTarget]);
   const batTossMs = SUCCESS_BAT_TOSS_MS;
 
@@ -143,8 +151,8 @@ export default function GameCharacterLayer({
   );
 
   const homePx = useMemo(
-    () => stadiumImagePointToPx(HOME_PLATE_IMAGE, fieldSize.width, fieldSize.height),
-    [fieldSize.width, fieldSize.height],
+    () => stadiumImagePointToPx(homePoint, fieldSize.width, fieldSize.height),
+    [homePoint, fieldSize.width, fieldSize.height],
   );
 
   useEffect(() => {
@@ -439,7 +447,7 @@ export default function GameCharacterLayer({
       )}
 
       {phase === "success_announce" && (
-        <StadiumFieldMarker point={HOME_PLATE_IMAGE} center={false}>
+        <StadiumFieldMarker point={homePoint} center={false}>
           <div style={{ transform: "translate(-50%, -100%)" }}>
             <img
               src={pyamongSuccess}
@@ -456,7 +464,7 @@ export default function GameCharacterLayer({
 
       {phase === "success_celebrate" && (
         <StadiumFieldMarker
-          point={runTarget === "홈런" ? HOME_PLATE_IMAGE : BASE_IMAGE_POINTS[runTarget]}
+          point={runTarget === "홈런" ? homePoint : basePoints[runTarget]}
           center={runTarget !== "홈런"}
         >
           <div

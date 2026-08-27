@@ -4,24 +4,31 @@ import type { GameScreenPhase } from "./gameTypes";
 
 /**
  * 예측 화면 배경 장면.
- * - field: game-stadium-field.jpg + 필드 좌표 (예측 선택·주루·이벤트)
+ * - field: game-stadium-field.jpg + 필드 좌표 (예측 선택·실패·투수교체·공수교대)
+ * - running: scene-running.jpg + 주루 전용 베이스 좌표
  * - before / wait_* / pitch_*: object-cover 시네마틱 (좌표 없음)
  */
 export type GameSceneKind =
   | "field"
+  | "running"
   | "before"
   | "wait_away"
   | "wait_home"
   | "pitch_away"
   | "pitch_home";
 
+/** 시네마틱은 필드 스프라이트·스트라이크존을 숨긴다. field·running 은 좌표가 있다. */
 export function isCinematicGameScene(kind: GameSceneKind): boolean {
-  return kind !== "field";
+  return kind !== "field" && kind !== "running";
+}
+
+export function isRunningGameScene(kind: GameSceneKind): boolean {
+  return kind === "running";
 }
 
 /**
  * 시네마틱은 좌표가 없는 사진이다.
- * picking·주루·실패·투수교체·공수교대는 반드시 field 를 쓴다.
+ * picking·실패·투수교체·공수교대는 field, 주루 연출만 running.
  */
 export function resolveGameSceneKind(input: {
   gameDayPhase: GameDayPhase;
@@ -44,6 +51,13 @@ export function resolveGameSceneKind(input: {
     if (screenPhase === "wait_start") return away ? "wait_away" : "wait_home";
     if (screenPhase === "wait_result" || screenPhase === "result_flash") {
       return away ? "pitch_away" : "pitch_home";
+    }
+    if (
+      screenPhase === "success_running" ||
+      screenPhase === "success_announce" ||
+      screenPhase === "success_celebrate"
+    ) {
+      return "running";
     }
   }
 

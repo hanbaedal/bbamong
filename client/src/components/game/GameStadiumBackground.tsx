@@ -1,5 +1,6 @@
 import fieldStadiumBg from "@assets/game/game-stadium-field.jpg";
 import sceneBefore from "@assets/game/scene-before.jpg";
+import sceneRunning from "@assets/game/scene-running.jpg";
 import sceneWaitAway from "@assets/game/scene-wait-away.jpg";
 import sceneWaitHome from "@assets/game/scene-wait-home.jpg";
 import scenePitchAway from "@assets/game/scene-pitch-away.jpg";
@@ -8,6 +9,7 @@ import { isCinematicGameScene, type GameSceneKind } from "./gameSceneBackground"
 
 const SCENE_SRC: Record<GameSceneKind, string> = {
   field: fieldStadiumBg,
+  running: sceneRunning,
   before: sceneBefore,
   wait_away: sceneWaitAway,
   wait_home: sceneWaitHome,
@@ -29,7 +31,7 @@ function ScenePreload() {
   );
 }
 
-/** 필드·시네마틱 모두 object-cover. 필드만 베이스 좌표를 이 이미지에 맞춘다. */
+/** 필드·주루·시네마틱 모두 object-cover. 베이스 좌표는 field / running 각각. */
 export default function GameStadiumBackground({
   sceneKind = "field",
 }: GameStadiumBackgroundProps) {
