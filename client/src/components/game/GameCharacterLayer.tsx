@@ -9,6 +9,11 @@ import type { GameScreenPhase, PredictionOption } from "./gameTypes";
 import type { GameDayOverlayKind, GameDayPhase } from "@/lib/gameDayPhase";
 import { LIVE_WAIT_BUBBLE_LINES } from "@/lib/gameDayPhase";
 import type { InningHalf } from "@shared/gamePhaseTypes";
+import {
+  cinematicHudAnchor,
+  isCinematicGameScene,
+  type GameSceneKind,
+} from "./gameSceneBackground";
 import { getRunDurationSec, SUCCESS_BAT_TOSS_MS } from "./fieldPositions";
 import {
   pyamongBatterReadySrc,
@@ -39,6 +44,7 @@ interface GameCharacterLayerProps {
   phase: GameScreenPhase;
   gameDayPhase: GameDayPhase;
   gameDayOverlayKind?: GameDayOverlayKind | null;
+  sceneKind?: GameSceneKind;
   selectedPrediction: PredictionOption | null;
   battingHalf?: InningHalf | null;
   batsSide?: BatterHandSide | null;
@@ -109,6 +115,7 @@ export default function GameCharacterLayer({
   phase,
   gameDayPhase,
   gameDayOverlayKind = null,
+  sceneKind = "field",
   selectedPrediction,
   battingHalf = null,
   batsSide = null,
@@ -117,6 +124,8 @@ export default function GameCharacterLayer({
   onRunComplete,
 }: GameCharacterLayerProps) {
   const handSide: BatterHandSide = batsSide === "left" ? "left" : "right";
+  const cinematic = isCinematicGameScene(sceneKind);
+  const hudAnchor = cinematicHudAnchor(sceneKind);
   const [runStyleId] = useState(() => `run-${Math.random().toString(36).slice(2, 9)}`);
   const [runFrameIdx, setRunFrameIdx] = useState(0);
   const [runFaceRight, setRunFaceRight] = useState(true);
@@ -195,7 +204,7 @@ export default function GameCharacterLayer({
     <>
       <style>{keyframesCss}</style>
 
-      {gameDayPhase === "pregame" && !gameDayOverlayKind && (
+      {gameDayPhase === "pregame" && !gameDayOverlayKind && !cinematic && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
           <div className="pointer-events-none" style={{ transform: "translate(-50%, -92%)" }}>
             <img
@@ -209,7 +218,7 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {gameDayOverlayKind === "no_match" && (
+      {gameDayOverlayKind === "no_match" && !cinematic && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
           <div className="pointer-events-none" style={{ transform: "translate(-50%, -92%)" }}>
             <img
@@ -223,7 +232,7 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {gameDayOverlayKind === "ended" && (
+      {gameDayOverlayKind === "ended" && !cinematic && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
           <div className="pointer-events-none" style={{ transform: "translate(-50%, -92%)" }}>
             <img
@@ -237,7 +246,7 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {gameDayOverlayKind === "cancelled" && (
+      {gameDayOverlayKind === "cancelled" && !cinematic && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
           <div className="pointer-events-none" style={{ transform: "translate(-50%, -92%)" }}>
             <img
@@ -251,7 +260,7 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {gameDayOverlayKind === "postponed" && (
+      {gameDayOverlayKind === "postponed" && !cinematic && (
         <StadiumFieldMarker point={STANDS_SEAT_IMAGE} center={false}>
           <div className="pointer-events-none" style={{ transform: "translate(-50%, -92%)" }}>
             <img
@@ -265,8 +274,8 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       )}
 
-      {/* 1. 예측 시작 전: 팔짱 빠몽 (존 투구와 무관) */}
-      {gameDayPhase === "live" && phase === "wait_start" ? (
+      {/* 1. 예측 시작 전: 필드 위 팔짱 빠몽 — 시네마틱은 사진 속 큰 빠몽만 */}
+      {gameDayPhase === "live" && phase === "wait_start" && !cinematic ? (
         <StadiumFieldMarker point={batterBoxPoint(handSide)} center={false}>
           <div
             className={`flex items-end gap-1 sm:gap-2 pointer-events-none ${
@@ -299,16 +308,54 @@ export default function GameCharacterLayer({
         </StadiumFieldMarker>
       ) : null}
 
+      {gameDayPhase === "live" && phase === "wait_start" && cinematic && !hideWaitBubble ? (
+        <div
+          className="absolute z-[22] pointer-events-none"
+          style={hudAnchor}
+          data-testid="cinematic-wait-hud"
+        >
+          <GameThoughtBubble
+            lines={
+              isPinchHitter
+                ? (["대타가", "나옵니다"] as const)
+                : [...LIVE_WAIT_BUBBLE_LINES]
+            }
+            bubbleWidth="min(12vw, 96px)"
+            textClassName="text-[min(2.1vw,11px)] sm:text-[min(2.5vw,13px)] leading-[1.12]"
+          />
+        </div>
+      ) : null}
+
       {/* 2. 예측 시작(picking): 빠몽 숨김 — 베이스 버튼만 */}
 
-      {/* 3. 예측 중지·결과 큰 글씨: 방망이 든 뒷모습 */}
-      {gameDayPhase === "live" && (phase === "wait_result" || phase === "result_flash") ? (
+      {/* 3. 예측 중지·결과 큰 글씨: 방망이 든 뒷모습 — 시네마틱은 사진만 */}
+      {gameDayPhase === "live" &&
+      (phase === "wait_result" || phase === "result_flash") &&
+      !cinematic ? (
         <BackBatterReady
           battingHalf={battingHalf}
           handSide={handSide}
           testId={phase === "result_flash" ? "char-batter-box-result-flash" : "char-batter-box-wait-result"}
           badge={phase === "wait_result" ? predictionBadge : undefined}
         />
+      ) : null}
+
+      {gameDayPhase === "live" &&
+      phase === "wait_result" &&
+      cinematic &&
+      selectedPrediction ? (
+        <div
+          className="absolute z-[22] pointer-events-none"
+          style={hudAnchor}
+          data-testid="wait-result-prediction-badge"
+        >
+          <div className="rounded-xl border-2 border-[#CDFF00] bg-black/75 px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-lg">
+            <p className="text-[10px] sm:text-xs text-white/70 leading-none mb-1">내 예측</p>
+            <p className="text-sm sm:text-base font-bold text-[#CDFF00] leading-none whitespace-nowrap">
+              {selectedPrediction}
+            </p>
+          </div>
+        </div>
       ) : null}
 
       {phase === "success_running" && batTossing && (
