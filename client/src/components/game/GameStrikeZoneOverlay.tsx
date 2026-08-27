@@ -2,6 +2,7 @@
 import type { LivePitchLocation } from "@shared/apiSportsTypes";
 import { HOME_PLATE_IMAGE, stadiumImagePointToPx, type ImagePoint } from "./stadiumFieldCoords";
 import { useStadiumFieldSize } from "./StadiumFieldContext";
+import { computeStrikeZoneSize, computeStrikeZoneTop, CINEMATIC_ZONE_BOTTOM_Y } from "./strikeZoneLayout";
 
 interface GameStrikeZoneOverlayProps {
   pitches: LivePitchLocation[] | null | undefined;
@@ -49,13 +50,22 @@ export default function GameStrikeZoneOverlay({
     fieldSize.height,
     imageSize,
   );
-  const zoneScale = cinematic ? 1.35 : 1;
-  const zoneW = Math.min(fieldSize.width * 0.11, 92) * 0.9 * 0.84 * zoneScale;
-  const zoneH = zoneW;
+  const { zoneW, zoneH } = computeStrikeZoneSize(fieldSize.width, cinematic);
+  const zoneBottomPx = stadiumImagePointToPx(
+    cinematic ? { x: platePoint.x, y: CINEMATIC_ZONE_BOTTOM_Y } : platePoint,
+    fieldSize.width,
+    fieldSize.height,
+    imageSize,
+  );
+  const top = computeStrikeZoneTop({
+    homeTop: homePx.top,
+    zoneBottomTop: zoneBottomPx.top,
+    zoneH,
+    fieldHeight: fieldSize.height,
+    cinematic,
+  });
   const offsetX = batsSide === "left" ? zoneW * 0.06 : -zoneW * 0.06;
   const left = homePx.left + offsetX - zoneW / 2;
-  // 정사각형이므로 이전(1.35H)보다 위로 덜 올라감 — 홈 바로 위에 맞춤
-  const top = homePx.top - zoneH * 1.05;
 
   const topSz = pitches[pitches.length - 1]?.topSz || 3.5;
   const bottomSz = pitches[pitches.length - 1]?.bottomSz || 1.5;
@@ -67,6 +77,7 @@ export default function GameStrikeZoneOverlay({
       style={{ left, top, width: zoneW, height: zoneH }}
       data-testid="game-strike-zone"
       data-bats-side={batsSide ?? "right"}
+      data-zone-bottom-y={cinematic ? String(CINEMATIC_ZONE_BOTTOM_Y) : undefined}
     >
       <div className="relative h-full w-full overflow-visible rounded-[2px] border border-white/70 bg-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.25)]">
         {/* 3×3 그리드 */}
