@@ -298,7 +298,7 @@ def write_db() -> Path:
         "2. Match 운영 필드 (요약)",
         [
             "matchStatus: scheduled | ongoing | completed | cancelled",
-            "gameInning / inningHalf / batterIndexInHalf / outsInHalf — 운영자 진행 기준",
+            "gameInning / inningHalf / batterIndexInHalf / outsInHalf — 운영자 진행. 3아웃 카운트는 outsInHalf, 공수교대 타이밍은 네이버",
             "matchLineup / matchPlayerStats — 주전 타순·시즌 스탯",
             "pinchHitter — 현재 타석 대타 (다음 타자·공수교대 시 해제, 투수교체 시 유지)",
             "sideBetsLocked / predictionEnabled — 사이드벳 마감·타석 예측 오픈",

@@ -8,6 +8,8 @@ import { shouldExecutePredictionAutoStop } from "../shared/predictionAutoStop";
 import {
   resolveShowThreeOutsHint,
   shouldSuggestSwitchHalf,
+  shouldHoldSwitchHalfForLive,
+  switchHalfHoldMessage,
   liveOutsFromScoreboard,
   nullableInningHalf,
 } from "../shared/threeOutsGuard";
@@ -33,11 +35,28 @@ assert(resolveShowThreeOutsHint({ liveOuts: 2, outsInHalf: 3 }) === true, "opera
 assert(resolveShowThreeOutsHint({ liveOuts: 3, outsInHalf: 2 }) === false, "live 3 does not override operator 2");
 assert(resolveShowThreeOutsHint({ outsInHalf: 3 }) === true, "no live → DB 3 is hint");
 assert(resolveShowThreeOutsHint({ outsInHalf: 2 }) === false, "operator 2 is not three outs");
-assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: 2 }) === true, "operator 3 suggests switch");
+assert(shouldHoldSwitchHalfForLive({ outsInHalf: 3, liveOuts: 2 }) === true, "op 3 live 2 holds switch");
+assert(shouldHoldSwitchHalfForLive({ outsInHalf: 3, liveOuts: 0 }) === true, "op 3 live 0 holds switch");
+assert(shouldHoldSwitchHalfForLive({ outsInHalf: 3, liveOuts: 3 }) === false, "live 3 allows switch");
+assert(shouldHoldSwitchHalfForLive({ outsInHalf: 3, liveOuts: null }) === false, "missing live does not hold");
+assert(
+  shouldHoldSwitchHalfForLive({
+    outsInHalf: 3,
+    liveOuts: 0,
+    liveHalf: "bottom",
+    operatorHalf: "top",
+  }) === false,
+  "half already changed allows switch",
+);
+assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: 2 }) === false, "op 3 live 2 does not pulse switch");
+assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: null }) === true, "no live outs → switch ok");
+assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: 3 }) === true, "live 3 suggests switch");
 assert(shouldSuggestSwitchHalf({ liveOuts: 2 }) === false, "2 outs never switch");
 assert(shouldSuggestSwitchHalf({ liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === true, "live 3 same half");
 assert(shouldSuggestSwitchHalf({ liveOuts: 3, liveHalf: "top", operatorHalf: "bottom" }) === false, "stale live 3 other half");
 assert(nullableInningHalf(undefined) == null, "missing half is null not top");
+assert(switchHalfHoldMessage(2).includes("실황 2아웃"), "hold message names live outs");
+assert(switchHalfHoldMessage(2).includes("한 번 더"), "hold message tells operator to press again");
 
 assert(
   deriveOperatorNextAction({
@@ -54,6 +73,15 @@ assert(
   }).kind === "switch_half",
   "3-out hint → switch",
 );
+assert(
+  deriveOperatorNextAction({
+    atBatPhase: "result_confirmed",
+    showThreeOutsHint: true,
+    holdSwitchForLive: true,
+    liveOuts: 2,
+  }).kind === "wait_live_three_outs",
+  "live 2 holds next-action on switch",
+);
 
 assert(shouldExecutePredictionAutoStop({ predictionEnabled: true, phase: "prediction_open" }), "open stops");
 assert(shouldExecutePredictionAutoStop({ predictionEnabled: true, phase: "idle" }), "enabled+idle desync still stops");
@@ -67,4 +95,4 @@ assert(AD_EARLY_DISMISS_SECONDS === 5, "X after 5s");
 assert(PYAMONG_BATTER_BACK_WIDTH === "min(12.6vw, 101px)", "back 70% of 18vw/144");
 assert(PYAMONG_ARMS_WAIT_WIDTH === "min(18vw, 144px)", "arms wait unchanged");
 
-console.log("OK: operator 3-out count, single 8s stop, uniforms, ad 80s, back size");
+console.log("OK: operator 3-out count, live hold for switch-half, single 8s stop, uniforms, ad 80s, back size");

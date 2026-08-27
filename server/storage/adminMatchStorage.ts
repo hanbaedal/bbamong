@@ -16,6 +16,10 @@ import {
   resolveOperatorSlot,
 } from "../managerOperatorService";
 import { atBatPhaseLabel, deriveAtBatPhase } from "@shared/atBatPhase";
+import {
+  liveOutsFromScoreboard,
+  shouldHoldSwitchHalfForLive,
+} from "@shared/threeOutsGuard";
 
 export class MatchConflictError extends Error {
   constructor(message: string) {
@@ -187,6 +191,20 @@ export class AdminMatchStorage implements IAdminMatchStorage {
       isResultSent: roundStats?.isResultSent,
     });
 
+    const liveOuts = liveOutsFromScoreboard(
+      (doc.liveScoreboard as { situation?: { outs?: number | null } } | null) ?? null,
+    );
+    const liveHalf =
+      ((doc.liveScoreboard as { inningHalf?: string | null } | null)?.inningHalf as string | null) ??
+      null;
+    const operatorHalf = (doc.inningHalf as string | undefined) ?? null;
+    const holdSwitchForLive = shouldHoldSwitchHalfForLive({
+      outsInHalf,
+      liveOuts,
+      liveHalf,
+      operatorHalf,
+    });
+
     return {
       ...(match as Match),
       predictionStartTime: roundStats?.predictionStartTime ?? null,
@@ -196,6 +214,8 @@ export class AdminMatchStorage implements IAdminMatchStorage {
       needsResultBeforeAdvance,
       needsAdvanceAfterResult,
       outsInHalf,
+      liveOuts,
+      holdSwitchForLive,
       showThreeOutsHint: outsInHalf >= 3,
       liveAutoEnabled: (doc.liveAutoEnabled as boolean | undefined) !== false,
       atBatPhase,

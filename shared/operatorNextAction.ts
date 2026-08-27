@@ -6,6 +6,7 @@ export type OperatorNextActionKind =
   | "confirm_result"
   | "next_batter"
   | "switch_half"
+  | "wait_live_three_outs"
   | "start_prediction"
   | "stop_ad";
 
@@ -27,6 +28,8 @@ export function deriveOperatorNextAction(input: {
   atBatPhase?: AtBatPhase | null;
   suggestedResult?: string | null;
   showThreeOutsHint?: boolean | null;
+  holdSwitchForLive?: boolean | null;
+  liveOuts?: number | null;
   needsAdvanceAfterResult?: boolean | null;
   needsResultBeforeAdvance?: boolean | null;
   isAdPlaying?: boolean | null;
@@ -64,12 +67,21 @@ export function deriveOperatorNextAction(input: {
     };
   }
 
-  if (input.showThreeOutsHint || (phase === "result_confirmed" && (input.showThreeOutsHint ?? false))) {
+  const threeOuts = Boolean(input.showThreeOutsHint);
+  if (threeOuts && input.holdSwitchForLive) {
+    const n = typeof input.liveOuts === "number" ? input.liveOuts : null;
+    return {
+      kind: "wait_live_three_outs",
+      label: n == null ? "실황 3아웃 대기" : `실황 ${n}아웃 · 3아웃되면 공수교대`,
+    };
+  }
+
+  if (threeOuts || (phase === "result_confirmed" && threeOuts)) {
     return { kind: "switch_half", label: "공수교대" };
   }
 
   if (phase === "result_confirmed" || input.needsAdvanceAfterResult) {
-    if (input.showThreeOutsHint) {
+    if (threeOuts) {
       return { kind: "switch_half", label: "공수교대" };
     }
     return { kind: "next_batter", label: "다음 타자" };

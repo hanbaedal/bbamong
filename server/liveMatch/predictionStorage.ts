@@ -22,6 +22,11 @@ import {
 } from "../utils/memberPlatform";
 import { isMatchLiveWindowOpen } from "@shared/matchLiveWindow";
 import { isMongoTransientError } from "../../shared/mongoTransientError";
+import {
+  liveOutsFromScoreboard,
+  shouldHoldSwitchHalfForLive,
+  switchHalfHoldMessage,
+} from "@shared/threeOutsGuard";
 
 /**
  * 운영자 컨트롤용 — ongoing, 또는 시작 5분 전~의 scheduled.
@@ -886,12 +891,31 @@ export async function advancePitcherChange(
 /** 공수교대 — 예측 타순 초/말만 전환. TV liveScoreboard 이닝은 다음 실황이 주인. */
 export async function advanceInningHalf(
   matchId: string,
+  options?: { force?: boolean },
 ): Promise<{ match: Match; predictionAutoStopped: boolean; pinchCleared: boolean }> {
   const before = await MatchModel.findOne({ id: matchId }).lean();
   if (!before) throw new Error("경기를 찾을 수 없습니다.");
-  const pinchCleared = hadPinchHitter(before as Record<string, unknown>);
+  const rec = before as Record<string, unknown>;
+  const pinchCleared = hadPinchHitter(rec);
+  const liveBoard =
+    (rec.liveScoreboard as {
+      situation?: { outs?: number | null };
+      inningHalf?: string | null;
+    } | null) ?? null;
+  const liveOuts = liveOutsFromScoreboard(liveBoard);
+  if (
+    !options?.force &&
+    shouldHoldSwitchHalfForLive({
+      outsInHalf: (rec.outsInHalf as number | undefined) ?? 0,
+      liveOuts,
+      liveHalf: liveBoard?.inningHalf,
+      operatorHalf: rec.inningHalf as string | undefined,
+    })
+  ) {
+    throw new Error(switchHalfHoldMessage(liveOuts));
+  }
 
-  const phase = readGamePhase(before as Record<string, unknown>);
+  const phase = readGamePhase(rec);
   const nextPhase = computeInningHalfSwitch(phase);
 
   const { predictionAutoStopped } = await nextRound(matchId);

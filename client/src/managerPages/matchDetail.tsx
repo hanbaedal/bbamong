@@ -27,6 +27,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { subscribeForegroundResume } from "@/lib/foregroundResume";
 import { isLiveAutoOperatorWsType } from "@shared/liveAutoWsEvents";
 import {
+  liveOutsFromScoreboard,
+  shouldHoldSwitchHalfForLive,
+  switchHalfHoldMessage,
+} from "@shared/threeOutsGuard";
+import {
   WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS,
   WS_CLIENT_PONG_TIMEOUT_MS,
   inboundWsTrafficProvesAlive,
@@ -39,6 +44,7 @@ import "./managerMatchDetail.css";
 
 const WS_BASE_URL = 'wss://ppamong.com';
 const PREDICTION_TOGGLE_MS = 1000;
+const SWITCH_HALF_FORCE_MS = 8000;
 const RESULT_BUTTONS = ["1루", "2루", "3루", "홈런", "아웃", "병살", "삼살"] as const;
 
 let sharedManagerMatchWs: WebSocket | null = null;
@@ -74,6 +80,8 @@ interface Match {
   inningHalf?: string;
   batterIndexInHalf?: number;
   outsInHalf?: number;
+  liveOuts?: number | null;
+  holdSwitchForLive?: boolean;
   needsResultBeforeAdvance?: boolean;
   /** 결과 전송 후 다음 타자/공수교대 대기 */
   needsAdvanceAfterResult?: boolean;
@@ -153,6 +161,15 @@ export default function MatchDetailPage() {
   });
   const showThreeOutsHint =
     Boolean(match?.showThreeOutsHint) || (match?.outsInHalf ?? 0) >= 3;
+  const liveBoardForOuts =
+    scoreboardPayload?.scoreboard ?? match?.liveScoreboard ?? null;
+  const liveOutsNow = liveOutsFromScoreboard(liveBoardForOuts) ?? match?.liveOuts ?? null;
+  const holdSwitchForLive = shouldHoldSwitchHalfForLive({
+    outsInHalf: match?.outsInHalf,
+    liveOuts: liveOutsNow,
+    liveHalf: liveBoardForOuts?.inningHalf,
+    operatorHalf: match?.inningHalf,
+  });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const connectFnRef = useRef<(() => void | Promise<void>) | null>(null);
@@ -166,6 +183,7 @@ export default function MatchDetailPage() {
   /** 버튼 직후 로컬 반영분과 겹치는 WS GET 중복 방지 */
   const skipRemoteDetailUntilRef = useRef(0);
   const threeOutsSpokenRef = useRef(false);
+  const switchHalfForceUntilRef = useRef(0);
   const operatorConfirmSpokenRef = useRef(false);
   const [showMatchEndedOverlay, setShowMatchEndedOverlay] = useState(false);
   const matchEndedLogoutRef = useRef(false);
@@ -924,7 +942,7 @@ export default function MatchDetailPage() {
     path: string,
     failMessage: string,
     action: "next" | "switch" | "pitcher",
-    options?: { onSuccess?: (data: Record<string, unknown>) => void },
+    options?: { onSuccess?: (data: Record<string, unknown>) => void; body?: Record<string, unknown> },
   ) => {
     if (advanceBusy) return;
     if (isAdPlaying) {
@@ -933,10 +951,25 @@ export default function MatchDetailPage() {
     }
     setAdvanceBusy(action);
     try {
-      const res = await managerFetch(path, { method: "POST" });
+      const res = await managerFetch(path, {
+        method: "POST",
+        ...(options?.body
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(options.body),
+            }
+          : {}),
+      });
       const data = await res.json();
       if (!res.ok) {
-        toast({ variant: "destructive", description: data.error || failMessage });
+        const msg = (typeof data.error === "string" && data.error) || failMessage;
+        const isHold = action === "switch" && msg.includes("한 번 더");
+        if (isHold) {
+          switchHalfForceUntilRef.current = Date.now() + SWITCH_HALF_FORCE_MS;
+          toast({ description: msg });
+        } else {
+          toast({ variant: "destructive", description: msg });
+        }
         return;
       }
       if (data.adStarted) {
@@ -985,7 +1018,11 @@ export default function MatchDetailPage() {
       return;
     }
     if (showThreeOutsHint) {
-      toast({ description: "3아웃입니다. 공수교대를 눌러주세요." });
+      toast({
+        description: holdSwitchForLive
+          ? switchHalfHoldMessage(liveOutsNow)
+          : "3아웃입니다. 공수교대를 눌러주세요.",
+      });
       return;
     }
     if (match?.needsResultBeforeAdvance) {
@@ -1030,13 +1067,22 @@ export default function MatchDetailPage() {
       toast({ description: "3아웃일 때만 공수교대합니다." });
       return;
     }
+    const now = Date.now();
+    const armed = now <= switchHalfForceUntilRef.current;
+    if (holdSwitchForLive && !armed) {
+      switchHalfForceUntilRef.current = now + SWITCH_HALF_FORCE_MS;
+      toast({ description: switchHalfHoldMessage(liveOutsNow) });
+      return;
+    }
     void handleAdvanceRound(
       `/api/manager/control/${id}/round/switch-half`,
       "공수교대 처리에 실패했습니다.",
       "switch",
       {
+        body: armed ? { force: true } : undefined,
         onSuccess: () => {
           threeOutsSpokenRef.current = false;
+          switchHalfForceUntilRef.current = 0;
         },
       },
     );
@@ -1486,7 +1532,16 @@ export default function MatchDetailPage() {
             </div>
           )}
 
-          {showThreeOutsHint && (
+          {showThreeOutsHint && holdSwitchForLive && (
+            <div
+              className="manager-match-notice manager-match-notice--three-outs"
+              data-testid="text-three-outs-hint"
+            >
+              {`운영자 3아웃 · ${liveOutsNow == null ? "실황 아웃 없음" : `실황 ${liveOutsNow}아웃`} — 중계 3아웃 후 공수교대`}
+            </div>
+          )}
+
+          {showThreeOutsHint && !holdSwitchForLive && (
             <div
               className="manager-match-notice manager-match-notice--three-outs"
               data-testid="text-three-outs-hint"
@@ -1532,7 +1587,7 @@ export default function MatchDetailPage() {
                   disabled={!canSwitchHalf}
                   data-testid="button-switch-half"
                   className={`manager-match-bottom-btn bg-[#E11936] ${
-                    showThreeOutsHint ? "manager-match-bottom-btn--pulse" : ""
+                    showThreeOutsHint && !holdSwitchForLive ? "manager-match-bottom-btn--pulse" : ""
                   }`}
                 >
                   {advanceBusy === "switch" ? "처리중" : "공수\n교대"}

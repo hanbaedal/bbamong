@@ -1364,7 +1364,10 @@ export async function managerRoutes(app: Express): Promise<void> {
 
       await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
 
-      const { match: updatedMatch, pinchCleared } = await advanceInningHalf(id);
+      const body = z.object({ force: z.boolean().optional() }).parse(req.body ?? {});
+      const { match: updatedMatch, pinchCleared } = await advanceInningHalf(id, {
+        force: body.force === true,
+      });
       const gamePhase = buildGamePhasePayload(updatedMatch as typeof match);
 
       emitPinchCleared(id, pinchCleared);
@@ -1401,11 +1404,14 @@ export async function managerRoutes(app: Express): Promise<void> {
         predictionAutoStopped: false,
       });
     } catch (error: unknown) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "공수교대 요청이 올바르지 않습니다." });
+      }
       if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
         return res.status(401).json({ error: "인증이 만료되었습니다." });
       }
-      console.error("Switch half error:", error);
       const { status, message } = operatorControlErrorStatus(error);
+      if (status === 500) console.error("Switch half error:", error);
       return res.status(status).json({
         error: status === 500 ? message || "공수교대 처리에 실패했습니다." : message,
       });

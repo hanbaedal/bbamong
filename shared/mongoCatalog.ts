@@ -173,7 +173,7 @@ export const MONGO_COLLECTIONS: MongoCollectionDoc[] = [
       {
         name: "outsInHalf",
         type: "number",
-        role: "운영자 누적 아웃. 3아웃·공수교대 권위. 네이버 outs는 힌트",
+        role: "운영자 누적 아웃. 3아웃 카운트·예측 종료 권위. 공수교대는 네이버 3아웃 대기(강제 가능)",
       },
       { name: "pinchHitter", type: "Mixed|null", role: "현재 타석 대타. 다음타자·공수 시 해제, 투수교체 유지" },
       { name: "matchLineup", type: "Mixed|null", role: "선발 타순 스냅샷 (네이버)" },
@@ -841,7 +841,7 @@ export const LIVE_SCOREBOARD_FIELDS: MongoFieldDoc[] = [
   { name: "syncedAt", type: "string", role: "스냅샷 시각 ISO" },
   { name: "situation.balls", type: "number", role: "볼. 네이버. 타석 없으면 가짜 0으로 채우지 않음" },
   { name: "situation.strikes", type: "number", role: "스트라이크. 네이버" },
-  { name: "situation.outs", type: "number", role: "실황 아웃. 힌트. 공수교대 권위는 Match.outsInHalf" },
+  { name: "situation.outs", type: "number", role: "실황 아웃. 공수교대 타이밍 가드. 카운트 권위는 Match.outsInHalf" },
   { name: "situation.onFirst", type: "boolean", role: "1루 주자. 네이버" },
   { name: "situation.onSecond", type: "boolean", role: "2루 주자. 네이버" },
   { name: "situation.onThird", type: "boolean", role: "3루 주자. 네이버" },
