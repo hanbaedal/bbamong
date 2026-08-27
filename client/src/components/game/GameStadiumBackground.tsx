@@ -20,7 +20,7 @@ const SCENE_SRC: Record<GameSceneKind, string> = {
 
 interface GameStadiumBackgroundProps {
   sceneKind?: GameSceneKind;
-  /** 원정 대기 좌타 — 사진 속 캐릭터를 홈 왼쪽으로 */
+  /** 포수 시점 손 방향에 맞게 시네마틱 사진을 좌우 반전 */
   mirrorX?: boolean;
 }
 
@@ -75,7 +75,7 @@ export default function GameStadiumBackground({
           draggable={false}
           decoding="async"
           fetchPriority="high"
-          className="absolute inset-0 h-full w-full object-cover blur-md scale-110 opacity-70 pointer-events-none select-none"
+          className={`absolute inset-0 h-full w-full object-cover blur-md scale-110 opacity-70 pointer-events-none select-none ${mirrorX ? "-scale-x-100" : ""}`}
           aria-hidden
         />
       ) : null}

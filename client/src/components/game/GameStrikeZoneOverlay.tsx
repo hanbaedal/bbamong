@@ -5,7 +5,7 @@ import { useStadiumFieldSize } from "./StadiumFieldContext";
 
 interface GameStrikeZoneOverlayProps {
   pitches: LivePitchLocation[] | null | undefined;
-  /** 우타면 존이 화면 왼쪽 박스 쪽, 좌타면 오른쪽 */
+  /** 포수 시점: 우타=존이 화면 왼쪽, 좌타=오른쪽 */
   batsSide?: "left" | "right" | null;
   hidden?: boolean;
   /** 시네마틱 투구 장면은 필드 JPG가 아닌 사진 기준 플레이트 */
@@ -52,7 +52,7 @@ export default function GameStrikeZoneOverlay({
   const zoneScale = cinematic ? 1.35 : 1;
   const zoneW = Math.min(fieldSize.width * 0.11, 92) * 0.9 * 0.84 * zoneScale;
   const zoneH = zoneW;
-  const offsetX = batsSide === "left" ? -zoneW * 0.06 : zoneW * 0.06;
+  const offsetX = batsSide === "left" ? zoneW * 0.06 : -zoneW * 0.06;
   const left = homePx.left + offsetX - zoneW / 2;
   // 정사각형이므로 이전(1.35H)보다 위로 덜 올라감 — 홈 바로 위에 맞춤
   const top = homePx.top - zoneH * 1.05;
