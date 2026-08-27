@@ -20,6 +20,7 @@
     "app-releases:import-github": "tsx scripts/import-app-releases-from-github.ts",
     "mall:migrate-images-r2": "tsx scripts/migrate-mall-images-to-r2.ts",
     "setup:legacy-pg": "bash scripts/setup-legacy-pg-sync.sh",
+    "docs:system-manuals": "tsx scripts/write-system-manuals-md.ts",
     "android:branding": "node scripts/update-ppamong-android-branding.mjs"
   },
   "dependencies": {

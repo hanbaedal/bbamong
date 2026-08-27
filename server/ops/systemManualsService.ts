@@ -30,6 +30,7 @@ export type SystemManualListItem = SystemManualEntry & {
   pdfAvailableLocally: boolean;
   pdfSizeBytes: number | null;
   pdfGithubUrl: string;
+  isMarkdown: boolean;
 };
 
 async function statFile(
@@ -43,22 +44,42 @@ async function statFile(
   }
 }
 
+export function isInlineReadable(fileName: string): boolean {
+  const ext = path.extname(fileName).toLowerCase();
+  return ext === ".md" || ext === ".html" || ext === ".txt";
+}
+
+export function contentTypeFor(fileName: string): string {
+  const ext = path.extname(fileName).toLowerCase();
+  if (ext === ".md") return "text/markdown; charset=utf-8";
+  if (ext === ".html") return "text/html; charset=utf-8";
+  if (ext === ".txt") return "text/plain; charset=utf-8";
+  if (ext === ".pdf") return "application/pdf";
+  if (ext === ".docx") {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  return "application/octet-stream";
+}
+
 export async function listSystemManuals(): Promise<SystemManualListItem[]> {
   const dir = docsDir();
   const items: SystemManualListItem[] = [];
   for (const entry of SYSTEM_MANUALS) {
     const pdfFileName = systemManualPdfFileName(entry.fileName);
-    const docx = await statFile(path.join(dir, entry.fileName));
-    const pdf = await statFile(path.join(dir, pdfFileName));
+    const source = await statFile(path.join(dir, entry.fileName));
+    const pdf = isInlineReadable(entry.fileName)
+      ? { available: false, sizeBytes: null }
+      : await statFile(path.join(dir, pdfFileName));
     items.push({
       ...entry,
-      availableLocally: docx.available,
+      availableLocally: source.available,
       githubUrl: githubBlobUrl(entry.fileName),
-      sizeBytes: docx.sizeBytes,
+      sizeBytes: source.sizeBytes,
       pdfFileName,
       pdfAvailableLocally: pdf.available,
       pdfSizeBytes: pdf.sizeBytes,
       pdfGithubUrl: githubBlobUrl(pdfFileName),
+      isMarkdown: entry.fileName.toLowerCase().endsWith(".md"),
     });
   }
   return items;
@@ -83,7 +104,7 @@ async function fetchFromGitHub(fileName: string): Promise<Buffer> {
   return Buffer.from(ab);
 }
 
-export type SystemManualFormat = "docx" | "pdf";
+export type SystemManualFormat = "docx" | "pdf" | "source";
 
 /**
  * 로컬 docs/ 우선, 없거나 forceGithub면 GitHub raw에서 가져와 로컬에 저장 후 반환
@@ -97,8 +118,11 @@ export async function resolveSystemManualFile(
     throw new Error("매뉴얼을 찾을 수 없습니다.");
   }
 
-  const format = options?.format ?? "docx";
-  const fileName = format === "pdf" ? systemManualPdfFileName(entry.fileName) : entry.fileName;
+  const format = options?.format ?? "source";
+  const fileName =
+    format === "pdf" && !isInlineReadable(entry.fileName)
+      ? systemManualPdfFileName(entry.fileName)
+      : entry.fileName;
   const localPath = path.join(docsDir(), fileName);
   const forceGithub = Boolean(options?.forceGithub);
 
