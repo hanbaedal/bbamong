@@ -8,6 +8,19 @@ import {
   EXACT_SCORE_ODDS,
 } from "@shared/predictionOdds";
 import { AD_PLAY_SECONDS } from "@shared/adBreakTiming";
+import {
+  PREDICTION_SCREEN_FLOW,
+  PREDICTION_SCREEN_FLOW_NOTES,
+} from "@shared/predictionScreenFlow";
+import sceneBefore from "@assets/game/scene-before.jpg";
+import fieldStadiumBg from "@assets/game/game-stadium-field.jpg";
+import sceneRunning from "@assets/game/scene-running.jpg";
+
+const FLOW_THUMBS: { src: string; caption: string }[] = [
+  { src: sceneBefore, caption: "1. 경기전 — 쿠어스 전경" },
+  { src: fieldStadiumBg, caption: "3. 예측 선택 — 3D 구장" },
+  { src: sceneRunning, caption: "6. 주루 — 필리스 실사" },
+];
 
 const SECTIONS: { title: string; items: string[] }[] = [
   {
@@ -40,6 +53,7 @@ const SECTIONS: { title: string; items: string[] }[] = [
       "모달에는 DB에 등록된 오늘 경기(최대 5경기)가 표시됩니다.",
       "경기가 시작되어 타석 예측이 가능한 시간대에는 모달이 자동으로 뜨지 않을 수 있습니다.",
       "상단 경기명(제 N경기)·경기장을 눌러 참여 가능한 경기·경기장을 바꿀 수 있습니다.",
+      "좌상단은 경기 진행 위젯입니다(이닝·점수는 다음 스포츠, 주자·볼카운트는 네이버). 공지사항은 설정에서만 봅니다.",
     ],
   },
   {
@@ -99,7 +113,7 @@ const SECTIONS: { title: string; items: string[] }[] = [
   {
     title: "헤더·기타",
     items: [
-      "가운데 로고: 홈으로 이동",
+      "가운데 헤더는 「제 N경기」입니다. 로고를 누르면 홈으로 이동합니다.",
       "홈 우측 상단: 로그아웃",
       "화면 하단에는 사이드 배팅(우승팀·점수) 요약이 표시될 수 있습니다.",
       "예측 화면 좌상단은 경기 진행 위젯입니다(이닝·점수는 다음 스포츠, 주자·볼카운트는 네이버). 공지사항은 설정에서만 봅니다.",
@@ -109,7 +123,7 @@ const SECTIONS: { title: string; items: string[] }[] = [
     title: "연습 팁",
     items: [
       "게임 소개는 홈의 「야구 예측 게임이란?」에서 확인하세요.",
-      "「게임 시뮬레이션」에서 예측 화면·내이야기·내정보 안내와 사이드·타석·정산 흐름을 연습하세요. 왼쪽 단계 탭으로 건너뛸 수 있습니다.",
+      "「게임 시뮬레이션」에서 실제와 같은 배경(경기전·대기·3D 선택·주루)으로 사이드·타석·정산을 연습하세요. 왼쪽 단계 탭으로 건너뛸 수 있습니다.",
       "시뮬레이션은 연습용이며 보유 포인트에 영향이 없습니다.",
       `타석 선택 금액: ${BET_AMOUNT_OPTIONS.join(", ")}P · 사이드: ${SIDE_BET_AMOUNT_OPTIONS.join(", ")}P`,
     ],
@@ -130,8 +144,60 @@ export default function UserGuideContent({
   return (
     <div className="user-guide-content">
       <p className="user-guide-content-intro">
-        빠몽이 앱 사용법·메뉴·게임 흐름을 안내합니다. 게임 소개는 「야구 예측 게임이란?」을 참고하세요.
+        빠몽이 앱 사용법·메뉴·게임 흐름을 안내합니다. 한 타석 화면 변화는 아래와 같습니다. 게임
+        소개는 「야구 예측 게임이란?」을 참고하세요.
       </p>
+
+      <section className="user-guide-content-section" data-testid="user-guide-screen-flow">
+        <h3 className="user-guide-content-section-title">예측 화면 변화 (경기전 → 예측 성공)</h3>
+        <p className="user-guide-content-flow-lead">
+          선택 화면(3D 구장)과 주루(실사)는 베이스 위치가 다릅니다. 실패·투수교체·공수교대는 3D 구장을
+          유지합니다.
+        </p>
+        <div className="user-guide-content-thumbs">
+          {FLOW_THUMBS.map((thumb) => (
+            <figure key={thumb.caption} className="user-guide-content-thumb">
+              <img src={thumb.src} alt={thumb.caption} />
+              <figcaption>{thumb.caption}</figcaption>
+            </figure>
+          ))}
+        </div>
+        <div className="user-guide-content-table-wrap">
+          <table className="user-guide-content-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>단계</th>
+                <th>배경</th>
+                <th>화면</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PREDICTION_SCREEN_FLOW.map((step) => (
+                <tr key={step.order}>
+                  <td>{step.order}</td>
+                  <td>
+                    <strong>{step.phase}</strong>
+                    <span className="user-guide-content-table-sub">{step.title}</span>
+                  </td>
+                  <td>{step.background}</td>
+                  <td>{step.whatHappens}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <ul className="user-guide-content-list user-guide-content-list--notes">
+          {PREDICTION_SCREEN_FLOW_NOTES.map((note) => (
+            <li key={note} className="user-guide-content-item">
+              <span className="user-guide-content-bullet" aria-hidden>
+                •
+              </span>
+              <span>{note}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       {SECTIONS.map((section) => (
         <section key={section.title} className="user-guide-content-section">

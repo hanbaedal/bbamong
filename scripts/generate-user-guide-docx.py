@@ -122,7 +122,7 @@ SECTIONS: list[tuple[str, list[str]]] = [
         "연습 팁",
         [
             "게임 소개는 홈의 「야구 예측 게임이란?」에서 확인하세요.",
-            "「게임 시뮬레이션」에서 예측 화면·내이야기·내정보 안내와 사이드·타석·정산 흐름을 연습하세요. 왼쪽 단계 탭으로 건너뛸 수 있습니다.",
+            "「게임 시뮬레이션」에서 실제와 같은 배경(경기전·대기·3D 선택·주루)으로 사이드·타석·정산을 연습하세요. 왼쪽 단계 탭으로 건너뛸 수 있습니다.",
             "시뮬레이션은 연습용이며 보유 포인트에 영향이 없습니다.",
             f"타석 선택 금액: {', '.join(str(x) for x in BET_AMOUNT_OPTIONS)}P · 사이드: {', '.join(str(x) for x in SIDE_BET_AMOUNT_OPTIONS)}P",
         ],
@@ -216,7 +216,6 @@ def main() -> None:
                 for run in p.runs:
                     set_run_font(run, size=11)
     doc.add_paragraph()
-
     for caption, fname in (
         ("1. 경기전 — 쿠어스 전경", "scene-before.jpg"),
         ("3. 예측 선택 — 3D 빈 구장", "game-stadium-field.jpg"),

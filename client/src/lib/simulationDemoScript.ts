@@ -3,6 +3,7 @@ import {
   calculateFixedOddsPayout,
   calculateSideBetPayout,
 } from "@shared/predictionOdds";
+import type { GameSceneKind } from "@/components/game/gameSceneBackground";
 
 export type DemoStepId =
   | "screen"
@@ -41,8 +42,10 @@ export interface DemoVisualState {
   betAmount: number | null;
   prediction: string | null;
   actualResult: string | null;
-  atBatPhase: "idle" | "pick" | "wait" | "result";
+  atBatPhase: "idle" | "wait_batter" | "pick" | "wait" | "flash" | "running" | "result";
   atBatHit: boolean | null;
+  /** 타석·경기전 장면 배경. 메뉴·사이드 화면은 null */
+  sceneKind: GameSceneKind | null;
   highlightId: string | null;
   pulseId: string | null;
   /** 예측 화면 투어 포커스 */
@@ -115,6 +118,7 @@ const base: DemoVisualState = {
   actualResult: null,
   atBatPhase: "idle",
   atBatHit: null,
+  sceneKind: null,
   highlightId: null,
   pulseId: null,
   uiFocus: null,
@@ -132,6 +136,14 @@ const atBatPayout = calculateFixedOddsPayout(AT_BAT_AMOUNT, AT_BAT_PICK);
 
 const playPointsAfterAtBat = 2700 + atBatPayout;
 const playPointsFinal = playPointsAfterAtBat + winnerPayout + scorePayout;
+
+const liveSide = {
+  practicePoints: 2800,
+  winnerBet: { side: "home" as const, amount: SIDE_AMOUNT },
+  scoreBet: { home: 3, away: 2, amount: SIDE_AMOUNT },
+  sideLocked: true,
+  matchStatus: "live" as const,
+};
 
 function storyScene(
   item: (typeof DEMO_STORY_ITEMS)[number],
@@ -178,7 +190,7 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "intro",
     stepId: "screen",
-    caption: "화면 구성과 메뉴를 먼저 보고, 이어서 예측 흐름을 연습합니다.",
+    caption: "화면 구성과 메뉴를 본 뒤, 실제와 같은 배경으로 타석 흐름(경기전→주루)을 연습합니다.",
     durationMs: 6200,
     state: s({ view: "intro" }),
   },
@@ -197,7 +209,7 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "ui-scoreboard",
     stepId: "screen",
-    caption: "상단: 경기·경기장·스코어입니다. 경기명·경기장을 눌러 바꿀 수 있습니다.",
+    caption: "상단: 「제 N경기」와 경기장입니다. 좌상단 위젯은 이닝·점수(다음)와 주자·B-S(네이버)입니다.",
     durationMs: 6500,
     state: s({
       view: "game-ui",
@@ -210,7 +222,7 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "ui-field",
     stepId: "screen",
-    caption: "가운데 필드: 아웃·1루·2루·3루·홈런 중 하나를 고릅니다. 예측이 열린 구간에만 선택합니다. (실황 자동 또는 운영자)",
+    caption: "예측이 열리면 3D 구장에서 아웃·1루·2루·3루·홈런을 고릅니다. 선택 좌표는 이 구장만 씁니다.",
     durationMs: 7000,
     state: s({
       view: "game-ui",
@@ -373,31 +385,38 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "match-start",
     stepId: "atbat",
-    caption: "경기 시작. 사이드 배팅이 마감됩니다.",
-    durationMs: 6500,
+    caption: "경기전 화면은 쿠어스 필드 전경입니다. 1회가 시작되면 사이드 배팅이 마감됩니다.",
+    durationMs: 5500,
     state: s({
       view: "match-start",
-      practicePoints: 2800,
-      winnerBet: { side: "home", amount: SIDE_AMOUNT },
-      scoreBet: { home: 3, away: 2, amount: SIDE_AMOUNT },
-      sideLocked: true,
-      matchStatus: "live",
+      ...liveSide,
+      sceneKind: "before",
       highlightId: "demo-start-btn",
       pulseId: "demo-start-btn",
     }),
   },
   {
-    id: "atbat-amount",
+    id: "atbat-wait-batter",
     stepId: "atbat",
-    caption: "타석마다 결과를 예측합니다. 먼저 배팅 금액을 고릅니다. (예측이 열린 뒤)",
-    durationMs: 6000,
+    caption: "다음 타자 대기. 시네마틱 빠몽이(초=청 / 말=흰)가 나옵니다. 베이스 버튼은 아직 없습니다.",
+    durationMs: 5500,
     state: s({
       view: "atbat",
-      practicePoints: 2800,
-      winnerBet: { side: "home", amount: SIDE_AMOUNT },
-      scoreBet: { home: 3, away: 2, amount: SIDE_AMOUNT },
-      sideLocked: true,
-      matchStatus: "live",
+      ...liveSide,
+      sceneKind: "wait_home",
+      atBatPhase: "wait_batter",
+      highlightId: "demo-atbat-wait-batter",
+    }),
+  },
+  {
+    id: "atbat-amount",
+    stepId: "atbat",
+    caption: "예측이 열리면 3D 구장이 됩니다. 먼저 배팅 금액을 고릅니다. (약 8초 후 자동 중지될 수 있음)",
+    durationMs: 5200,
+    state: s({
+      view: "atbat",
+      ...liveSide,
+      sceneKind: "field",
       atBatPhase: "pick",
       betAmount: AT_BAT_AMOUNT,
       highlightId: "demo-bet-amount",
@@ -407,15 +426,12 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "atbat-pick",
     stepId: "atbat",
-    caption: "아웃·1루·2루·3루·홈런 중 하나를 선택합니다. 「1루」는 1루타·포볼·데드볼도 포함합니다. 적중 시 금액×고정배당입니다.",
-    durationMs: 7500,
+    caption: "3D 구장에서 아웃·1루·2루·3루·홈런을 고릅니다. 「1루」는 1루타·포볼·데드볼도 포함합니다.",
+    durationMs: 7000,
     state: s({
       view: "atbat",
-      practicePoints: 2800,
-      winnerBet: { side: "home", amount: SIDE_AMOUNT },
-      scoreBet: { home: 3, away: 2, amount: SIDE_AMOUNT },
-      sideLocked: true,
-      matchStatus: "live",
+      ...liveSide,
+      sceneKind: "field",
       atBatPhase: "pick",
       betAmount: AT_BAT_AMOUNT,
       prediction: AT_BAT_PICK,
@@ -426,15 +442,13 @@ export const DEMO_SCENES: DemoScene[] = [
   {
     id: "atbat-wait",
     stepId: "atbat",
-    caption: "실황(또는 운영자) 결과 확정을 기다립니다.",
-    durationMs: 5200,
+    caption: "결과 대기. 시네마틱 투수와 「내 예측」 배지가 나옵니다. 베이스 버튼은 없습니다.",
+    durationMs: 5000,
     state: s({
       view: "atbat",
+      ...liveSide,
       practicePoints: 2800 - AT_BAT_AMOUNT,
-      winnerBet: { side: "home", amount: SIDE_AMOUNT },
-      scoreBet: { home: 3, away: 2, amount: SIDE_AMOUNT },
-      sideLocked: true,
-      matchStatus: "live",
+      sceneKind: "pitch_home",
       atBatPhase: "wait",
       betAmount: AT_BAT_AMOUNT,
       prediction: AT_BAT_PICK,
@@ -442,17 +456,51 @@ export const DEMO_SCENES: DemoScene[] = [
     }),
   },
   {
-    id: "atbat-result",
+    id: "atbat-flash",
     stepId: "atbat",
-    caption: "1루 적중! 선택금액 × 배당이 지급됩니다. 이어서 다음 타석이 열릴 수 있습니다.",
-    durationMs: 7500,
+    caption: "결과 큰 글씨(약 2.2초). 적중이면 주루, 빗나가면 대기로 돌아갑니다.",
+    durationMs: 2800,
     state: s({
       view: "atbat",
+      ...liveSide,
+      practicePoints: 2800 - AT_BAT_AMOUNT,
+      sceneKind: "pitch_home",
+      atBatPhase: "flash",
+      betAmount: AT_BAT_AMOUNT,
+      prediction: AT_BAT_PICK,
+      actualResult: AT_BAT_PICK,
+      atBatHit: true,
+      highlightId: "demo-atbat-flash",
+    }),
+  },
+  {
+    id: "atbat-running",
+    stepId: "atbat",
+    caption: "적중 주루는 필리스 실사입니다. 1루=홈→1루. 홈런은 1·2·3루를 돌아 홈(중견으로 가지 않음).",
+    durationMs: 6500,
+    state: s({
+      view: "atbat",
+      ...liveSide,
       practicePoints: playPointsAfterAtBat,
-      winnerBet: { side: "home", amount: SIDE_AMOUNT },
-      scoreBet: { home: 3, away: 2, amount: SIDE_AMOUNT },
-      sideLocked: true,
-      matchStatus: "live",
+      sceneKind: "running",
+      atBatPhase: "running",
+      betAmount: AT_BAT_AMOUNT,
+      prediction: AT_BAT_PICK,
+      actualResult: AT_BAT_PICK,
+      atBatHit: true,
+      highlightId: "demo-atbat-running",
+    }),
+  },
+  {
+    id: "atbat-result",
+    stepId: "atbat",
+    caption: "1루 적중! 선택금액 × 배당이 지급됩니다. 축하 점프는 생략하고 바로 다음 타석입니다.",
+    durationMs: 5000,
+    state: s({
+      view: "atbat",
+      ...liveSide,
+      practicePoints: playPointsAfterAtBat,
+      sceneKind: "wait_home",
       atBatPhase: "result",
       betAmount: AT_BAT_AMOUNT,
       prediction: AT_BAT_PICK,
