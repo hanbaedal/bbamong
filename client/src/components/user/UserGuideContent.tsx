@@ -8,6 +8,19 @@ import {
   EXACT_SCORE_ODDS,
 } from "@shared/predictionOdds";
 import { AD_PLAY_SECONDS } from "@shared/adBreakTiming";
+import {
+  PREDICTION_SCREEN_FLOW,
+  PREDICTION_SCREEN_FLOW_NOTES,
+} from "@shared/predictionScreenFlow";
+import sceneBefore from "@assets/game/scene-before.jpg";
+import fieldStadiumBg from "@assets/game/game-stadium-field.jpg";
+import sceneRunning from "@assets/game/scene-running.jpg";
+
+const FLOW_THUMBS: { src: string; caption: string }[] = [
+  { src: sceneBefore, caption: "1. 경기전 — 쿠어스 전경" },
+  { src: fieldStadiumBg, caption: "3. 예측 선택 — 3D 구장" },
+  { src: sceneRunning, caption: "6. 주루 — 필리스 실사" },
+];
 
 const SECTIONS: { title: string; items: string[] }[] = [
   {
@@ -40,6 +53,7 @@ const SECTIONS: { title: string; items: string[] }[] = [
       "모달에는 DB에 등록된 오늘 경기(최대 5경기)가 표시됩니다.",
       "경기가 시작되어 타석 예측이 가능한 시간대에는 모달이 자동으로 뜨지 않을 수 있습니다.",
       "상단 경기명(제 N경기)·경기장을 눌러 참여 가능한 경기·경기장을 바꿀 수 있습니다.",
+      "좌상단은 경기 진행 위젯입니다(이닝·점수는 다음 스포츠, 주자·볼카운트는 네이버). 공지사항은 설정에서만 봅니다.",
     ],
   },
   {
@@ -50,7 +64,10 @@ const SECTIONS: { title: string; items: string[] }[] = [
       "「1루」는 1루타·포볼·데드볼 등 1루 진루 결과를 포함합니다.",
       `배팅 포인트(${BET_AMOUNT_OPTIONS.join(", ")}P)를 선택한 뒤 확인하면 즉시 차감됩니다.`,
       "적중 시 선택금액 × 고정배당이 지급되고, 미적중 시 배팅분은 소멸합니다.",
-      "타석 결과가 확정되면 적중/미적중 연출 후 다음 타석을 기다립니다. (실황 자동 확정 또는 운영자 입력)",
+      "화면은 경기전(쿠어스) → 대기(시네마틱 빠몽이) → 선택(3D 구장) → 결과 대기(시네마틱 투수) → 큰 글씨 → 적중 시 주루(필리스 실사) 순입니다.",
+      "주루: 1루는 홈→1루, 2루는 홈→1→2, 3루는 홈→1→2→3, 홈런은 1·2·3루를 돌아 홈입니다. 중견으로는 가지 않습니다.",
+      "선택 화면과 주루의 베이스 위치는 다릅니다. 실패·투수교체·공수교대는 3D 구장을 유지합니다.",
+      "축하 점프는 생략하고, 바로 다음 타석 대기 또는 예측 창으로 갑니다.",
       "투수 교체 등으로 진행 중이던 예측이 취소되면, 해당 배팅은 환불될 수 있습니다.",
       "경기 종료 시 약 10초 「경기종료」 안내가 표시된 뒤 홈으로 이동합니다.",
     ],
@@ -79,9 +96,9 @@ const SECTIONS: { title: string; items: string[] }[] = [
     title: "광고·보상",
     items: [
       "공수교대·투수교체 때 리워드 동영상 광고가 나올 수 있습니다. 예측 게임 중 하단 배너 광고는 없습니다.",
-      "앱: 광고 화면에 남은 초가 보이고, 50초가 끝나면 예측 화면으로 돌아갑니다. 웹: 약 5초 후 「×」로 끌 수 있으나 보상은 없습니다.",
-      `운영자가 광고를 중지하거나 약 ${AD_PLAY_SECONDS}초가 지나면 ${AD_REWARD_POINTS}P가 지급됩니다. 다음 타석 예측은 운영자가 「예측 시작」을 눌러야 열립니다.`,
-      "「예측 시작」으로 광고가 중지되거나, 5초 만에 「×」로 끄면 보상은 없습니다.",
+      `앱: 남은 초가 보이고 약 ${AD_PLAY_SECONDS}초 후 예측 화면으로 돌아갑니다. 웹: 약 ${AD_EARLY_DISMISS_SECONDS}초 후 「×」로 끌 수 있으나 보상은 없습니다.`,
+      `운영자가 광고를 중지하면 ${AD_REWARD_POINTS}P가 지급됩니다. 「예측 시작」으로 끄거나 웹 ×는 보상 없습니다.`,
+      "다음 타석 예측은 광고가 끝난 뒤 자동으로 다시 열릴 수 있습니다.",
     ],
   },
   {
@@ -96,7 +113,7 @@ const SECTIONS: { title: string; items: string[] }[] = [
   {
     title: "헤더·기타",
     items: [
-      "가운데 로고: 홈으로 이동",
+      "가운데 헤더는 「제 N경기」입니다. 로고를 누르면 홈으로 이동합니다.",
       "홈 우측 상단: 로그아웃",
       "화면 하단에는 사이드 배팅(우승팀·점수) 요약이 표시될 수 있습니다.",
     ],
@@ -105,7 +122,7 @@ const SECTIONS: { title: string; items: string[] }[] = [
     title: "연습 팁",
     items: [
       "게임 소개는 홈의 「야구 예측 게임이란?」에서 확인하세요.",
-      "「게임 시뮬레이션」에서 예측 화면·내이야기·내정보 안내와 사이드·타석·정산 흐름을 연습하세요. 왼쪽 단계 탭으로 건너뛸 수 있습니다.",
+      "「게임 시뮬레이션」에서 실제와 같은 배경(경기전·대기·3D 선택·주루)으로 사이드·타석·정산을 연습하세요. 왼쪽 단계 탭으로 건너뛸 수 있습니다.",
       "시뮬레이션은 연습용이며 보유 포인트에 영향이 없습니다.",
       `타석 선택 금액: ${BET_AMOUNT_OPTIONS.join(", ")}P · 사이드: ${SIDE_BET_AMOUNT_OPTIONS.join(", ")}P`,
     ],
@@ -126,8 +143,60 @@ export default function UserGuideContent({
   return (
     <div className="user-guide-content">
       <p className="user-guide-content-intro">
-        빠몽이 앱 사용법·메뉴·게임 흐름을 안내합니다. 게임 소개는 「야구 예측 게임이란?」을 참고하세요.
+        빠몽이 앱 사용법·메뉴·게임 흐름을 안내합니다. 한 타석 화면 변화는 아래와 같습니다. 게임
+        소개는 「야구 예측 게임이란?」을 참고하세요.
       </p>
+
+      <section className="user-guide-content-section" data-testid="user-guide-screen-flow">
+        <h3 className="user-guide-content-section-title">예측 화면 변화 (경기전 → 예측 성공)</h3>
+        <p className="user-guide-content-flow-lead">
+          선택 화면(3D 구장)과 주루(실사)는 베이스 위치가 다릅니다. 실패·투수교체·공수교대는 3D 구장을
+          유지합니다.
+        </p>
+        <div className="user-guide-content-thumbs">
+          {FLOW_THUMBS.map((thumb) => (
+            <figure key={thumb.caption} className="user-guide-content-thumb">
+              <img src={thumb.src} alt={thumb.caption} />
+              <figcaption>{thumb.caption}</figcaption>
+            </figure>
+          ))}
+        </div>
+        <div className="user-guide-content-table-wrap">
+          <table className="user-guide-content-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>단계</th>
+                <th>배경</th>
+                <th>화면</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PREDICTION_SCREEN_FLOW.map((step) => (
+                <tr key={step.order}>
+                  <td>{step.order}</td>
+                  <td>
+                    <strong>{step.phase}</strong>
+                    <span className="user-guide-content-table-sub">{step.title}</span>
+                  </td>
+                  <td>{step.background}</td>
+                  <td>{step.whatHappens}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <ul className="user-guide-content-list user-guide-content-list--notes">
+          {PREDICTION_SCREEN_FLOW_NOTES.map((note) => (
+            <li key={note} className="user-guide-content-item">
+              <span className="user-guide-content-bullet" aria-hidden>
+                •
+              </span>
+              <span>{note}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       {SECTIONS.map((section) => (
         <section key={section.title} className="user-guide-content-section">

@@ -827,6 +827,87 @@
   border: 1px solid #373539;
 }
 
+.user-guide-content-flow-lead {
+  margin: 0 0 clamp(8px, 1.8vh, 10px);
+  color: #bfbfbf;
+  font-size: clamp(10px, 2.3vw, 12px);
+  line-height: 1.45;
+}
+
+.user-guide-content-thumbs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(6px, 1.4vw, 8px);
+  margin-bottom: clamp(8px, 1.8vh, 12px);
+}
+
+.user-guide-content-thumb {
+  margin: 0;
+}
+
+.user-guide-content-thumb img {
+  width: 100%;
+  height: clamp(52px, 12vh, 72px);
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #333;
+  display: block;
+}
+
+.user-guide-content-thumb figcaption {
+  margin-top: 4px;
+  color: #cdff00;
+  font-size: clamp(9px, 2vw, 11px);
+  line-height: 1.3;
+}
+
+.user-guide-content-table-wrap {
+  overflow-x: auto;
+  margin-bottom: clamp(8px, 1.6vh, 10px);
+  border-radius: 6px;
+  border: 1px solid #333;
+}
+
+.user-guide-content-table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  font-size: clamp(10px, 2.2vw, 12px);
+  color: #d5d5d5;
+}
+
+.user-guide-content-table th {
+  text-align: left;
+  background: #242424;
+  color: #cdff00;
+  font-weight: 700;
+  padding: 6px 8px;
+}
+
+.user-guide-content-table td {
+  padding: 6px 8px;
+  border-top: 1px solid #2e2e2e;
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+.user-guide-content-table td:first-child {
+  color: #cdff00;
+  font-weight: 700;
+  width: 1.6em;
+}
+
+.user-guide-content-table-sub {
+  display: block;
+  color: #888;
+  font-size: 0.9em;
+  font-weight: 400;
+}
+
+.user-guide-content-list--notes {
+  margin-top: 2px;
+}
+
 /* 홈 · 로그인 — 오른쪽 메뉴/폼 */
 .user-landscape-menu {
   display: flex;
@@ -3303,16 +3384,20 @@
 }
 
 .user-sim-demo-game-ui__field {
+  position: relative;
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100px;
   border-radius: 8px;
-  background: radial-gradient(ellipse at center, #1a3a1a 0%, #0d1f0d 70%);
+  overflow: hidden;
+  background: #0c1520;
 }
 
 .user-sim-demo-game-ui__diamond {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
@@ -3427,4 +3512,66 @@
   line-height: 1.45;
   color: #cdff00;
 }
+
+.user-sim-demo-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 210px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0c1520;
+}
+
+.user-sim-demo-scene__hud {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  min-height: 210px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 10px 14px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.12) 48%, transparent 100%);
+}
+
+.user-sim-demo-center-block--on-photo,
+.user-sim-demo-panel-on-photo {
+  width: 100%;
+  text-align: center;
+}
+
+.user-sim-demo-bubble,
+.user-sim-demo-badge-pred {
+  display: inline-block;
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: clamp(12px, 2.6vw, 14px);
+  font-weight: 700;
+  text-align: center;
+}
+
+.user-sim-demo-badge-pred {
+  border: 1px solid #cdff00;
+  color: #cdff00;
+}
+
+.user-sim-demo-scene .user-sim-demo-panel-title,
+.user-sim-demo-scene .user-sim-demo-panel-sub,
+.user-sim-demo-scene .user-sim-demo-wait-msg {
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.85);
+}
+
+.user-sim-demo-scene .user-sim-demo-result-main {
+  font-size: clamp(36px, 8vw, 52px);
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
+  margin: 0 0 6px;
+}
+
 

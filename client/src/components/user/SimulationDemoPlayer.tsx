@@ -18,6 +18,8 @@ import {
 } from "@/lib/simulationDemoScript";
 import { PREDICTION_ODDS as ODDS_MAP } from "@shared/predictionOdds";
 import { USER_GUIDE_OPEN_KEY } from "@/pages/home/user-guide";
+import GameStadiumBackground from "@/components/game/GameStadiumBackground";
+import type { GameSceneKind } from "@/components/game/gameSceneBackground";
 
 const AT_BAT_OPTIONS = Object.keys(ODDS_MAP);
 const LEFT_MENU = [
@@ -31,6 +33,23 @@ const FIELD_OPTS = ["아웃", "1루", "2루", "3루", "홈런"] as const;
 function highlightClass(id: string | null, target: string, pulse?: string | null): string {
   if (id !== target) return "user-sim-demo-block";
   return pulse === target ? "user-sim-demo-block user-sim-demo-block--pulse" : "user-sim-demo-block user-sim-demo-block--hot";
+}
+
+function DemoSceneFrame({
+  sceneKind,
+  children,
+  testId,
+}: {
+  sceneKind: GameSceneKind;
+  children: ReactNode;
+  testId?: string;
+}) {
+  return (
+    <div className="user-sim-demo-scene" data-testid={testId} data-scene={sceneKind}>
+      <GameStadiumBackground sceneKind={sceneKind} />
+      <div className="user-sim-demo-scene__hud">{children}</div>
+    </div>
+  );
 }
 
 function DemoChrome({ state }: { state: DemoVisualState }) {
@@ -140,7 +159,7 @@ function DemoGuidePanel({
           <p className="user-sim-demo-stage-lead">
             화면·메뉴 안내 후
             <br />
-            사이드·타석·정산을 연습합니다.
+            사이드·타석(경기전→주루)·정산을 연습합니다.
             <br />
             <span className="user-sim-demo-stage-hint">왼쪽 단계 탭으로 건너뛸 수 있습니다.</span>
           </p>
@@ -196,6 +215,7 @@ function DemoGameUi({ state }: { state: DemoVisualState }) {
           <span className="user-sim-demo-game-ui__score">홈 0 : 0 원정</span>
         </div>
         <div id="demo-ui-field" className={`user-sim-demo-game-ui__field ${hot("field")}`}>
+          <GameStadiumBackground sceneKind="field" />
           <div className="user-sim-demo-game-ui__diamond">
             {FIELD_OPTS.map((opt) => (
               <span key={opt} className="user-sim-demo-game-ui__base">
@@ -213,7 +233,7 @@ function DemoGameUi({ state }: { state: DemoVisualState }) {
         <div id="demo-ui-ad" className={`user-sim-demo-game-ui__ad ${hot("ad")}`}>
           <span className="user-sim-demo-game-ui__ad-x">×</span>
           <p>광고 재생 중…</p>
-          <p className="user-sim-demo-panel-sub">5초 후 끄기 · 끝까지 보면 보상</p>
+          <p className="user-sim-demo-panel-sub">웹 5초 후 × · 운영자 중지 시 500P · 배너 없음</p>
         </div>
       )}
     </div>
@@ -260,7 +280,7 @@ function DemoScreen({ state, sceneId }: { state: DemoVisualState; sceneId: strin
         <p className="user-sim-demo-stage-lead">
           화면 안내 → 내이야기 → 내정보
           <br />
-          → 오늘의 경기 → 타석 → 정산
+          → 오늘의 경기 → 타석(경기전→주루) → 정산
         </p>
       </div>
     );
@@ -400,77 +420,111 @@ function DemoScreen({ state, sceneId }: { state: DemoVisualState; sceneId: strin
 
   if (view === "match-start") {
     screen = (
-      <div className="user-sim-demo-center-block">
-        <p className="user-sim-demo-panel-title">
-          {activeMatch.title} · {activeMatch.stadium}
-        </p>
-        <p className="user-sim-demo-panel-sub">사이드 배팅 접수 완료</p>
-        <span id="demo-start-btn" className={`user-sim-demo-cta ${highlightClass(highlightId, "demo-start-btn", pulseId)}`}>
-          경기 시작
-        </span>
-        <p className="user-sim-demo-panel-sub">1회 시작 · 사이드 마감</p>
-      </div>
+      <DemoSceneFrame sceneKind={state.sceneKind ?? "before"} testId="demo-match-start-scene">
+        <div className="user-sim-demo-center-block user-sim-demo-center-block--on-photo">
+          <p className="user-sim-demo-panel-title">
+            {activeMatch.title} · {activeMatch.stadium}
+          </p>
+          <p className="user-sim-demo-panel-sub">사이드 배팅 접수 완료 · 쿠어스 전경</p>
+          <span id="demo-start-btn" className={`user-sim-demo-cta ${highlightClass(highlightId, "demo-start-btn", pulseId)}`}>
+            경기 시작
+          </span>
+          <p className="user-sim-demo-panel-sub">1회 시작 · 사이드 마감</p>
+        </div>
+      </DemoSceneFrame>
     );
   }
 
   if (view === "atbat") {
-    if (state.atBatPhase === "pick" && highlightId === "demo-bet-amount") {
+    const sceneKind = state.sceneKind ?? "field";
+    if (state.atBatPhase === "wait_batter") {
       screen = (
-        <div id="demo-bet-amount" className={highlightClass(highlightId, "demo-bet-amount", pulseId)}>
-          <p className="user-sim-demo-panel-title">타석 예측</p>
-          <p className="user-sim-demo-panel-sub">배팅 금액 선택</p>
-          <div className="user-sim-demo-chips">
-            {[50, 100, 200, 500, 1000].map((n) => (
-              <span
-                key={n}
-                className={`user-sim-demo-chip ${state.betAmount === n ? "user-sim-demo-chip--on" : ""}`}
-              >
-                {n}P
-              </span>
-            ))}
+        <DemoSceneFrame sceneKind={sceneKind} testId="demo-atbat-wait-batter">
+          <div id="demo-atbat-wait-batter" className={highlightClass(highlightId, "demo-atbat-wait-batter", pulseId)}>
+            <p className="user-sim-demo-bubble">다음 타자 예측을 기다리고 있습니다</p>
           </div>
-        </div>
+        </DemoSceneFrame>
+      );
+    } else if (state.atBatPhase === "pick" && highlightId === "demo-bet-amount") {
+      screen = (
+        <DemoSceneFrame sceneKind={sceneKind} testId="demo-atbat-amount">
+          <div id="demo-bet-amount" className={`user-sim-demo-panel-on-photo ${highlightClass(highlightId, "demo-bet-amount", pulseId)}`}>
+            <p className="user-sim-demo-panel-title">타석 예측</p>
+            <p className="user-sim-demo-panel-sub">3D 구장 · 배팅 금액</p>
+            <div className="user-sim-demo-chips">
+              {[50, 100, 200, 500, 1000].map((n) => (
+                <span
+                  key={n}
+                  className={`user-sim-demo-chip ${state.betAmount === n ? "user-sim-demo-chip--on" : ""}`}
+                >
+                  {n}P
+                </span>
+              ))}
+            </div>
+          </div>
+        </DemoSceneFrame>
       );
     } else if (state.atBatPhase === "pick") {
       screen = (
-        <div className={highlightClass(highlightId, "demo-pick-1루", pulseId)}>
-          <p className="user-sim-demo-panel-title">타석 예측</p>
-          <p className="user-sim-demo-panel-sub">{state.betAmount}P · 결과 선택</p>
-          <div className="user-sim-demo-pick-grid">
-            {AT_BAT_OPTIONS.map((opt) => (
-              <span
-                key={opt}
-                id={opt === "1루" ? "demo-pick-1루" : undefined}
-                className={`user-sim-demo-pick user-sim-demo-pick--odds ${
-                  state.prediction === opt ? "user-sim-demo-pick--on" : ""
-                }`}
-              >
-                <span>{opt}</span>
-                <span className="user-sim-demo-odds">{ODDS_MAP[opt as keyof typeof ODDS_MAP]}배</span>
-              </span>
-            ))}
+        <DemoSceneFrame sceneKind={sceneKind} testId="demo-atbat-pick">
+          <div className={`user-sim-demo-panel-on-photo ${highlightClass(highlightId, "demo-pick-1루", pulseId)}`}>
+            <p className="user-sim-demo-panel-title">타석 예측</p>
+            <p className="user-sim-demo-panel-sub">{state.betAmount}P · 3D 구장</p>
+            <div className="user-sim-demo-pick-grid">
+              {AT_BAT_OPTIONS.map((opt) => (
+                <span
+                  key={opt}
+                  id={opt === "1루" ? "demo-pick-1루" : undefined}
+                  className={`user-sim-demo-pick user-sim-demo-pick--odds ${
+                    state.prediction === opt ? "user-sim-demo-pick--on" : ""
+                  }`}
+                >
+                  <span>{opt}</span>
+                  <span className="user-sim-demo-odds">{ODDS_MAP[opt as keyof typeof ODDS_MAP]}배</span>
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        </DemoSceneFrame>
       );
     } else if (state.atBatPhase === "wait") {
       screen = (
-        <div id="demo-atbat-wait" className={`user-sim-demo-wait ${highlightClass(highlightId, "demo-atbat-wait", pulseId)}`}>
-          <p className="user-sim-demo-panel-title">타석 예측</p>
-          <p className="user-sim-demo-wait-msg">결과 대기…</p>
-          <p className="user-sim-demo-panel-sub">
-            {state.prediction} · {state.betAmount}P
-          </p>
-        </div>
+        <DemoSceneFrame sceneKind={sceneKind} testId="demo-atbat-wait">
+          <div id="demo-atbat-wait" className={highlightClass(highlightId, "demo-atbat-wait", pulseId)}>
+            <p className="user-sim-demo-badge-pred">내 예측 {state.prediction}</p>
+            <p className="user-sim-demo-wait-msg">결과 대기…</p>
+            <p className="user-sim-demo-panel-sub">{state.betAmount}P</p>
+          </div>
+        </DemoSceneFrame>
+      );
+    } else if (state.atBatPhase === "flash") {
+      screen = (
+        <DemoSceneFrame sceneKind={sceneKind} testId="demo-atbat-flash">
+          <div id="demo-atbat-flash" className={highlightClass(highlightId, "demo-atbat-flash", pulseId)}>
+            <p className="user-sim-demo-result-main">{state.actualResult}</p>
+            <p className={state.atBatHit ? "user-sim-demo-hit" : "user-sim-demo-miss"}>
+              {state.atBatHit ? "적중!" : "미적중"}
+            </p>
+          </div>
+        </DemoSceneFrame>
+      );
+    } else if (state.atBatPhase === "running") {
+      screen = (
+        <DemoSceneFrame sceneKind={sceneKind} testId="demo-atbat-running">
+          <div id="demo-atbat-running" className={highlightClass(highlightId, "demo-atbat-running", pulseId)}>
+            <p className="user-sim-demo-badge-pred">주루 · 홈 → 1루</p>
+            <p className="user-sim-demo-hit">+{state.betAmount && state.actualResult ? Math.floor(state.betAmount * (ODDS_MAP[state.actualResult as keyof typeof ODDS_MAP] ?? 1)) : 0}P</p>
+          </div>
+        </DemoSceneFrame>
       );
     } else if (state.atBatPhase === "result") {
       screen = (
-        <div id="demo-atbat-result" className={highlightClass(highlightId, "demo-atbat-result", pulseId)}>
-          <p className="user-sim-demo-panel-title">타석 결과</p>
-          <p className="user-sim-demo-result-main">{state.actualResult}</p>
-          <p className={state.atBatHit ? "user-sim-demo-hit" : "user-sim-demo-miss"}>
-            {state.atBatHit ? "적중!" : "미적중"}
-          </p>
-        </div>
+        <DemoSceneFrame sceneKind={sceneKind} testId="demo-atbat-result">
+          <div id="demo-atbat-result" className={highlightClass(highlightId, "demo-atbat-result", pulseId)}>
+            <p className="user-sim-demo-bubble">다음 타석으로</p>
+            <p className="user-sim-demo-hit">1루 적중 · 축하 점프 생략</p>
+          </div>
+        </DemoSceneFrame>
       );
     }
   }
@@ -495,8 +549,9 @@ function DemoScreen({ state, sceneId }: { state: DemoVisualState; sceneId: strin
     );
   }
 
+  const fillScene = view === "match-start" || view === "atbat";
   return (
-    <div key={sceneId} className="user-sim-demo-screen">
+    <div key={sceneId} className={`user-sim-demo-screen ${fillScene ? "user-sim-demo-screen--fill" : ""}`}>
       {screen}
     </div>
   );
@@ -511,7 +566,9 @@ function DemoPreStartVisual() {
         <br />
         ↓
         <br />
-        오늘의 경기 → 타석 예측
+        오늘의 경기 → 타석
+        <br />
+        경기전 → 대기 → 3D 선택 → 주루
         <br />
         ↓
         <br />
