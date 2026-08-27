@@ -7,6 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import { adminFetch } from "@/lib/adminQueryClient";
 import { Button } from "@/components/ui/button";
 import { Download, ExternalLink, BookOpen, Database, Eye, X, Loader2 } from "lucide-react";
+import { SYSTEM_OPS_HANDBOOK_UPDATED } from "@shared/systemOpsHandbook";
+import SystemManualsHandbook from "./SystemManualsHandbook";
 
 interface SystemManualItem {
   id: string;
@@ -321,14 +323,17 @@ export default function SystemManualsPage() {
         <div className="mb-6">
           <h1 className="text-xl sm:text-2xl font-bold text-[#1A1A1A]">시스템 매뉴얼</h1>
           <p className="mt-1 text-sm text-[#666]">
-            「읽기」는 PDF를 모달에서 바로 봅니다. DOCX 다운로드·GitHub 가져오기도 지원합니다.{" "}
-            GitHub{" "}
+            운영 기준({SYSTEM_OPS_HANDBOOK_UPDATED})을 이 화면에서 바로 보고, 사용 설명서 PDF를 읽거나
+            DOCX로 받을 수 있습니다. GitHub{" "}
             <span className="font-mono">{data?.githubRepo ?? "hanbaedal/bbamong"}</span>
             {" / "}
             <span className="font-mono">{data?.docsPath ?? "docs"}</span>
           </p>
         </div>
 
+        <SystemManualsHandbook />
+
+        <div id="ops-files" className="mt-10 scroll-mt-4">
         {isLoading ? (
           <p className="text-sm text-[#888]">불러오는 중…</p>
         ) : (
@@ -372,6 +377,7 @@ export default function SystemManualsPage() {
             </section>
           </div>
         )}
+        </div>
       </div>
 
       {readingItem ? (

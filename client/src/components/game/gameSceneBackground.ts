@@ -37,7 +37,7 @@ export function resolveGameSceneKind(input: {
   inningHalf?: InningHalf | null;
   batsSide?: BatterHandSide | null;
 }): GameSceneKind {
-  const { gameDayPhase, screenPhase, inningHalf, batsSide } = input;
+  const { gameDayPhase, screenPhase, inningHalf } = input;
   const away = inningHalf === "top";
 
   if (
@@ -51,8 +51,7 @@ export function resolveGameSceneKind(input: {
 
   if (gameDayPhase === "live") {
     if (screenPhase === "wait_start") {
-      // 홈 대기 사진은 우타 클로즈업. 좌타는 빈 구장에 홈 왼쪽 스프라이트.
-      if (batsSide === "left" && !away) return "field";
+      // 손 방향은 사진 미러로 맞춘다 (우타=포수 왼쪽, 좌타=포수 오른쪽).
       return away ? "wait_away" : "wait_home";
     }
     if (screenPhase === "wait_result" || screenPhase === "result_flash") {
@@ -70,22 +69,59 @@ export function resolveGameSceneKind(input: {
   return "field";
 }
 
-/** 시네마틱 위 말풍선·예측 배지 위치 (뷰포트 %) */
-export function cinematicHudAnchor(kind: GameSceneKind): {
+/**
+ * 시네마틱 사진에 구워진 빠몽 vs 포수 시점(우타=왼쪽, 좌타=오른쪽).
+ * pitch_* · wait_home: 우타가 포수 왼쪽 → 좌타만 반전.
+ * wait_away: 빠몽이 사진 오른쪽 → 우타(기본)만 반전.
+ * 배경 이미지만 뒤집고, HUD·스트라이크존은 좌표로 맞춘다.
+ */
+export function shouldMirrorCinematic(
+  kind: GameSceneKind,
+  batsSide?: BatterHandSide | null,
+): boolean {
+  const lefty = batsSide === "left";
+  if (kind === "pitch_home" || kind === "pitch_away" || kind === "wait_home") {
+    return lefty;
+  }
+  if (kind === "wait_away") {
+    return !lefty;
+  }
+  return false;
+}
+
+function flipCssPercent(value: string): string {
+  if (!value.endsWith("%")) return value;
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? `${100 - n}%` : value;
+}
+
+/** 시네마틱 위 말풍선 위치 (뷰포트 %). 사진 속 빠몽 쪽에 둔다. */
+export function cinematicHudAnchor(
+  kind: GameSceneKind,
+  mirrorX = false,
+): {
   left: string;
   bottom: string;
   transform: string;
 } {
+  let anchor: { left: string; bottom: string; transform: string };
   switch (kind) {
     case "wait_away":
-      return { left: "38%", bottom: "22%", transform: "translate(-50%, 0)" };
+      // 원정 대기 사진은 빠몽이 프레임 오른쪽
+      anchor = { left: "66%", bottom: "22%", transform: "translate(-50%, 0)" };
+      break;
     case "wait_home":
-      return { left: "46%", bottom: "20%", transform: "translate(-50%, 0)" };
+      anchor = { left: "46%", bottom: "20%", transform: "translate(-50%, 0)" };
+      break;
     case "pitch_home":
-      return { left: "36%", bottom: "24%", transform: "translate(-50%, 0)" };
+      anchor = { left: "36%", bottom: "24%", transform: "translate(-50%, 0)" };
+      break;
     case "pitch_away":
-      return { left: "26%", bottom: "26%", transform: "translate(-50%, 0)" };
+      anchor = { left: "26%", bottom: "26%", transform: "translate(-50%, 0)" };
+      break;
     default:
-      return { left: "50%", bottom: "22%", transform: "translate(-50%, 0)" };
+      anchor = { left: "50%", bottom: "22%", transform: "translate(-50%, 0)" };
   }
+  if (!mirrorX) return anchor;
+  return { ...anchor, left: flipCssPercent(anchor.left) };
 }

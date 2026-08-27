@@ -6,7 +6,7 @@ import { computeStrikeZoneSize, computeStrikeZoneTop, CINEMATIC_ZONE_BOTTOM_Y } 
 
 interface GameStrikeZoneOverlayProps {
   pitches: LivePitchLocation[] | null | undefined;
-  /** 우타면 존이 화면 왼쪽 박스 쪽, 좌타면 오른쪽 */
+  /** 포수 시점: 우타=존이 화면 왼쪽, 좌타=오른쪽 */
   batsSide?: "left" | "right" | null;
   hidden?: boolean;
   /** 시네마틱 투구 장면은 필드 JPG가 아닌 사진 기준 플레이트 */
@@ -64,7 +64,7 @@ export default function GameStrikeZoneOverlay({
     fieldHeight: fieldSize.height,
     cinematic,
   });
-  const offsetX = batsSide === "left" ? -zoneW * 0.06 : zoneW * 0.06;
+  const offsetX = batsSide === "left" ? zoneW * 0.06 : -zoneW * 0.06;
   const left = homePx.left + offsetX - zoneW / 2;
 
   const topSz = pitches[pitches.length - 1]?.topSz || 3.5;
