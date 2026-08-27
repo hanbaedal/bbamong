@@ -48,7 +48,7 @@ export const PITCHER_MOUND_IMAGE: ImagePoint = { x: 0.491, y: 0.59 };
  */
 export const RUNNING_BASE_IMAGE_POINTS: Record<PredictionOption, ImagePoint> = {
   아웃: { x: 0.34, y: 0.83 },
-  "1루": { x: 0.805, y: 0.412 },
+  "1루": { x: 0.748, y: 0.548 },
   "2루": { x: 0.505, y: 0.335 },
   "3루": { x: 0.164, y: 0.484 },
   홈런: { x: 0.53, y: 0.18 },
