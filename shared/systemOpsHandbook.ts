@@ -173,7 +173,11 @@ export const AD_RULE_ROWS: HandbookTable = {
     ["운영자 광고 중지", "ad_stopped: operator_stop", `${AD_REWARD_POINTS}P`],
     ["라운드 진행만", "ad_stopped: round_advance — 광고만 닫기", "없음"],
     [`웹 × (${AD_EARLY_DISMISS_SECONDS}초 후)`, "같은 광고 세션은 재표시 안 함", "없음"],
-    [`${AD_PLAY_SECONDS}초 경과`, "세션 자동 종료·예측 재개", "운영자 중지가 아니면 보상 없음"],
+    [
+      `${AD_PLAY_SECONDS}초 경과`,
+      "워치독이 광고 세션을 종료(reason=operator_stop). 예측 창은 운영자 「예측 시작」",
+      `${AD_REWARD_POINTS}P`,
+    ],
     ["예측 게임 하단 배너", "사용하지 않음", "—"],
   ],
 };

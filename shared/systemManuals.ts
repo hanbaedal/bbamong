@@ -15,6 +15,30 @@ export interface SystemManualEntry {
 
 export const SYSTEM_MANUALS: SystemManualEntry[] = [
   {
+    id: "detail-flow",
+    category: "usage",
+    audience: "관리자",
+    title: "전체 흐름도 (관리자·운영자·사용자·쇼핑몰)",
+    description: "한눈에 보는 예측 게임·실황 ON·타석·정산·쇼핑몰 현금 주문 흐름",
+    fileName: "빠몽이_시스템_흐름.md",
+  },
+  {
+    id: "detail-operator",
+    category: "usage",
+    audience: "운영자",
+    title: "운영자 설명서 (사용+기술)",
+    description: "하이브리드 타석 규칙, 3아웃, 광고 80초, WS·API 기술 메모",
+    fileName: "빠몽이_운영자_설명서.md",
+  },
+  {
+    id: "detail-user",
+    category: "usage",
+    audience: "사용자",
+    title: "사용자 설명서 (사용+기술)",
+    description: "인트로·7단계 화면·배당·광고·종료 후 경기 재선택",
+    fileName: "빠몽이_사용자_설명서.md",
+  },
+  {
     id: "usage-admin",
     category: "usage",
     audience: "관리자",
@@ -50,11 +74,20 @@ export const SYSTEM_MANUALS: SystemManualEntry[] = [
     fileName: "빠몽이_사용설명서.docx",
   },
   {
+    id: "db-structure-detail",
+    category: "db",
+    audience: "DB",
+    title: "빠몽이 DB 구조 설명서 (상세)",
+    description:
+      "Atlas ppamong 클러스터, 데이터베이스 ppamong, 컬렉션·필드 역할 (Stadium=stadia)",
+    fileName: "빠몽이_DB구조_설명서.md",
+  },
+  {
     id: "db-structure",
     category: "db",
     audience: "DB",
-    title: "빠몽이 DB 구조 설명서",
-    description: "MongoDB 전용 컬렉션·Match 운영 필드·백업(Postgres는 레거시)",
+    title: "빠몽이 DB 구조 설명서 (DOCX 약식)",
+    description: "구버전 DOCX. 상세는 Markdown·이 화면 4장을 보세요",
     fileName: "빠몽이_DB구조_설명서.docx",
   },
 ];

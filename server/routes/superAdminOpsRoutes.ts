@@ -11,7 +11,13 @@ import {
   syncPostgresToMongo,
 } from "../storage/postgresToMongoSync";
 import { isPostgresConfigured } from "../storage/postgresClient";
-import { listSystemManuals, resolveSystemManualFile } from "../ops/systemManualsService";
+import {
+  contentTypeFor,
+  isInlineReadable,
+  listSystemManuals,
+  resolveSystemManualFile,
+} from "../ops/systemManualsService";
+import { getSystemManualById } from "../../shared/systemManuals";
 
 export async function superAdminOpsRoutes(app: Express): Promise<void> {
   app.get("/api/admin/ops/db-tables", superAdminAuthMiddleware, async (_req, res) => {
@@ -173,13 +179,10 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
       const forceGithub = req.query.source === "github";
       const { fileName, buffer, source } = await resolveSystemManualFile(req.params.id, {
         forceGithub,
-        format: "docx",
+        format: "source",
       });
       const encoded = encodeURIComponent(fileName);
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      );
+      res.setHeader("Content-Type", contentTypeFor(fileName));
       res.setHeader(
         "Content-Disposition",
         `attachment; filename*=UTF-8''${encoded}`,
@@ -194,27 +197,32 @@ export async function superAdminOpsRoutes(app: Express): Promise<void> {
   });
 
   /**
-   * 매뉴얼 PDF 인라인 보기 (다운로드 없이 모달 읽기)
-   * - ?source=github : GitHub raw PDF를 가져와 캐시 후 반환
+   * 매뉴얼 인라인 보기 (Markdown 원문 또는 PDF)
+   * - ?source=github : GitHub raw를 가져와 캐시 후 반환
    */
   app.get("/api/admin/ops/system-manuals/:id/view", superAdminAuthMiddleware, async (req, res) => {
     try {
+      const item = getSystemManualById(req.params.id);
+      if (!item) {
+        return res.status(404).json({ error: "문서를 찾을 수 없습니다." });
+      }
       const forceGithub = req.query.source === "github";
+      const format = isInlineReadable(item.fileName) ? "source" : "pdf";
       const { fileName, buffer, source } = await resolveSystemManualFile(req.params.id, {
         forceGithub,
-        format: "pdf",
+        format,
       });
       const encoded = encodeURIComponent(fileName);
-      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Type", contentTypeFor(fileName));
       res.setHeader(
         "Content-Disposition",
         `inline; filename*=UTF-8''${encoded}`,
       );
       res.setHeader("X-Manual-Source", source);
-      res.setHeader("Cache-Control", "private, max-age=60");
+      res.setHeader("Cache-Control", "private, no-store");
       res.send(buffer);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "PDF를 불러오지 못했습니다.";
+      const message = error instanceof Error ? error.message : "문서를 불러오지 못했습니다.";
       console.error("[Ops] system-manuals view error:", error);
       res.status(400).json({ error: message });
     }
