@@ -4,7 +4,7 @@ import type { GameScreenPhase } from "./gameTypes";
 
 /**
  * 예측 화면 배경 장면.
- * - field: 기존 game-stadium-bg.png + 필드 좌표 (예측 선택·주루·이벤트)
+ * - field: game-stadium-field.jpg + 필드 좌표 (예측 선택·주루·이벤트)
  * - before / wait_* / pitch_*: object-cover 시네마틱 (좌표 없음)
  */
 export type GameSceneKind =

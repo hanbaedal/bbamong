@@ -48,8 +48,8 @@ function GameFieldViewportInner({
 }
 
 /**
- * 풀스크린 경기장 — field 장면은 중앙 3:2 원본 + 좌·우 관중석 미러.
- * 시네마틱 장면은 object-cover 풀블리드 (필드 좌표 미사용).
+ * 풀스크린 경기장 — field·시네마틱 모두 object-cover.
+ * 베이스 버튼·주루 좌표는 field 장면의 game-stadium-field.jpg 기준.
  */
 export default function GameFieldViewport({
   children,
