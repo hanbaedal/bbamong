@@ -619,13 +619,16 @@ export default function PredictionPage() {
   const matchHeaderLines = displayMatch
     ? resolveGameMatchHeaderLines(displayMatch, liveScoreboard)
     : { teamNamesLine: null, headToHead: null };
-  /** 경기가 선택된 뒤에만 제목 클릭으로 재선택. 미선택 시에는 「경기 선택」 모달만 사용 */
-  /** 참여 가능한 경기가 있으면 제목으로 다시 고를 수 있다 */
   const canSelectMatch = orderedMatches.some((m) => isMatchSelectableForGame(m, nowMs));
   const canSelectStadium = Boolean(displayMatch) && stadiumOptions.length > 0;
+  const isLivePlay = gameDayPhase === "live" && Boolean(displayMatch);
+  /** 경기 고르기 전·종료 잔상 뒤는 대기 스프라이트/3D 그라운드를 그리지 않는다 */
   const shellDayPhase =
-    gameDayPhase === "loading" || gameDayPhase === "no_match" ? "pregame" : gameDayPhase;
-  const isLivePlay = gameDayPhase === "live";
+    !displayMatch && gameDayPhase !== "all_ended"
+      ? "pregame"
+      : gameDayPhase === "loading" || gameDayPhase === "no_match"
+        ? "pregame"
+        : gameDayPhase;
   const isMatchEndSequence = flow.screenPhase === "match_ended";
   const shellScreenPhase = isMatchEndSequence
     ? "match_ended"

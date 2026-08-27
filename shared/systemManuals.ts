@@ -20,7 +20,7 @@ export const SYSTEM_MANUALS: SystemManualEntry[] = [
     audience: "관리자",
     title: "관리자 페이지 설명서",
     description:
-      "관리자 웹 메뉴·일일 체크·실황 ON·수동 스코어·예측 화면·광고 50초·타석 배당",
+      "관리자 웹 메뉴·일일 체크·실황 ON·수동 스코어·예측 화면·광고 80초·타석 배당",
     fileName: "빠몽이_사용설명서_관리자.docx",
   },
   {
@@ -37,7 +37,7 @@ export const SYSTEM_MANUALS: SystemManualEntry[] = [
     audience: "운영자",
     title: "운영자 설명서",
     description:
-      "하이브리드 실황(토글 없음)·타석 머신·예외 수동·대타 유지·광고 50초·회원 화면 7단계",
+      "하이브리드 실황(토글 없음)·타석 머신·예외 수동·대타 유지·광고 80초·회원 화면 7단계",
     fileName: "빠몽이_사용설명서_운영자.docx",
   },
   {
