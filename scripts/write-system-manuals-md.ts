@@ -69,35 +69,20 @@ function flowMd(): string {
 
 ## 한눈에
 
-\`\`\`mermaid
-flowchart LR
-  subgraph Admin["관리자 /admin"]
-    A1[오늘 경기 등록] --> A2[선발명단]
-    A2 --> A3[실황 ON]
-    A3 --> A4[모니터링 / 수동 점수]
-  end
-  subgraph Op["운영자 /manager"]
-    O1[당일 비밀번호 입장] --> O2[하이브리드 타석]
-    O2 --> O3[예측 시작 8초 중지]
-    O3 --> O4[결과 확정]
-    O4 --> O5[다음타자 / 3아웃 공수]
-    O5 --> O6[공수·투수 광고 80초]
-  end
-  subgraph User["사용자 /prediction"]
-    U1[인트로·홈] --> U2[실황 ON 경기 선택]
-    U2 --> U3[사이드벳]
-    U3 --> U4[대기 시네마틱]
-    U4 --> U5[3D 구장 선택]
-    U5 --> U6[결과·주루]
-  end
-  subgraph Mall["쇼핑몰 /shop"]
-    M1[정회원 둘러보기] --> M2[현금 주문]
-    M2 --> M3[관리자 재고·발송]
-  end
-  A3 --> O1
-  O2 --> U4
-  O4 --> U6
-  A4 --> M3
+\`\`\`
+관리자  경기 등록 · 선발명단  →  실황 ON (기본 1경기)  →  모니터링 / 수동 점수
+              │
+              ▼
+운영자  당일 비밀번호 입장  →  하이브리드 타석  →  예측 8초 → 결과 확정
+              │                         └→ 공수·투수 시 광고 80초
+              ▼
+사용자  인트로·홈  →  실황 ON 경기 선택  →  대기 시네마틱 → 3D 선택 → 주루 → 정산
+              │
+              ▼
+쇼핑몰  정회원 현금 주문  →  관리자 재고 · 발송   (게임 포인트로 결제하지 않음)
+
+Express :5000  ·  MongoDB ppamong  ·  Redis 세션  ·  /ws/match
+점수·이닝·로고 = 다음 스포츠    주자·B-S·OUT·타자 = 네이버
 \`\`\`
 
 ## 역할별 단계
@@ -334,18 +319,15 @@ ${live}
 
 ## 관계 요약
 
-\`\`\`mermaid
-erDiagram
-  users ||--o{ predictions : "userId"
-  users ||--o{ matchsidebets : "userId"
-  users ||--o{ pointtransactions : "userId"
-  users ||--o{ mallorders : "userId"
-  matches ||--o{ predictions : "matchId"
-  matches ||--o{ roundstatistics : "matchId"
-  matches ||--o{ matchsidebets : "matchId"
-  stadia ||--o{ matches : "stadiumId"
-  adminusers ||--o| matches : "apiSyncEnabled 실황ON"
-  friendrooms ||--o{ friendroommembers : "roomId"
+\`\`\`
+users ──┬── predictions ── matches ── stadia
+        ├── matchsidebets ──┘
+        ├── pointtransactions
+        └── mallorders
+
+adminusers.apiSyncEnabled  =  실황 ON (회원 경기 선택 게이트)
+roundstatistics + matches.predictionEnabled  =  atBatPhase (Match에 단계 필드 없음)
+friendrooms ── friendroommembers
 \`\`\`
 
 실황 ON은 Match 필드가 아니라 \`adminusers.apiSyncEnabled\` 입니다. 회원 선택 모달의 \`sideBetEnabled\`는 API가 붙입니다.

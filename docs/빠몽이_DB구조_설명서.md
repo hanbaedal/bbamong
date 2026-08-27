@@ -822,18 +822,15 @@ KBO 선수 마스터(타율 등). 선발명단·대타 검색
 
 ## 관계 요약
 
-```mermaid
-erDiagram
-  users ||--o{ predictions : "userId"
-  users ||--o{ matchsidebets : "userId"
-  users ||--o{ pointtransactions : "userId"
-  users ||--o{ mallorders : "userId"
-  matches ||--o{ predictions : "matchId"
-  matches ||--o{ roundstatistics : "matchId"
-  matches ||--o{ matchsidebets : "matchId"
-  stadia ||--o{ matches : "stadiumId"
-  adminusers ||--o| matches : "apiSyncEnabled 실황ON"
-  friendrooms ||--o{ friendroommembers : "roomId"
+```
+users ──┬── predictions ── matches ── stadia
+        ├── matchsidebets ──┘
+        ├── pointtransactions
+        └── mallorders
+
+adminusers.apiSyncEnabled  =  실황 ON (회원 경기 선택 게이트)
+roundstatistics + matches.predictionEnabled  =  atBatPhase (Match에 단계 필드 없음)
+friendrooms ── friendroommembers
 ```
 
 실황 ON은 Match 필드가 아니라 `adminusers.apiSyncEnabled` 입니다. 회원 선택 모달의 `sideBetEnabled`는 API가 붙입니다.

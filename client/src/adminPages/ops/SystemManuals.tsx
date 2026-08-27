@@ -317,7 +317,7 @@ function ManualViewerModal({
         .md-manual ul { list-style: disc; padding-left: 1.2rem; }
         .md-manual ol { list-style: decimal; padding-left: 1.2rem; }
         .md-manual code { background: #f1f5f9; padding: 0 4px; border-radius: 4px; font-size: 12px; }
-        .md-manual pre.md-code { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 8px; overflow: auto; font-size: 12px; }
+        .md-manual pre.md-code { background: #f8fafc; color: #0f172a; padding: 12px; border-radius: 8px; overflow: auto; font-size: 12px; border: 1px solid #e2e8f0; white-space: pre-wrap; }
         .md-manual img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; border: 1px solid #e5e7eb; }
         .md-manual blockquote { border-left: 3px solid #f59e0b; padding: 4px 10px; color: #92400e; background: #fffbeb; }
         .md-table-wrap { overflow-x: auto; margin: 10px 0; }
