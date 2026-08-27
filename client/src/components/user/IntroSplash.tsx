@@ -7,11 +7,11 @@ export { INTRO_SPLASH_MS, INTRO_BATTING_MS, INTRO_FADE_MS };
 
 type IntroSplashProps = {
   onDone?: () => void;
-  /** -1=구장 타석만, 0–13=14장 컷 고정. 있으면 자동 종료하지 않는다 */
+  /** -1=구장 타석만, 0–23=24장 컷 고정. 있으면 자동 종료하지 않는다 */
   frameIndex?: number;
 };
 
-/** 접속 인트로 — 구장 타석에서 14장 타격 + 멘트 음성 */
+/** 접속 인트로 — 구장 타석 나무 배트에서 24장 타격 + 멘트 음성 */
 export default function IntroSplash({ onDone, frameIndex }: IntroSplashProps) {
   const [fading, setFading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);

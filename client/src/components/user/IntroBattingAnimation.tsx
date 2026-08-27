@@ -10,36 +10,35 @@ import {
 } from "@shared/introBatting";
 import introStadium from "@assets/user/intro-stadium-home.jpg";
 import introStadiumEmpty from "@assets/user/intro-stadium-empty.jpg";
-import frame01 from "@assets/user/intro-batting-frames/01.webp";
-import frame02 from "@assets/user/intro-batting-frames/02.webp";
-import frame03 from "@assets/user/intro-batting-frames/03.webp";
-import frame04 from "@assets/user/intro-batting-frames/04.webp";
-import frame05 from "@assets/user/intro-batting-frames/05.webp";
-import frame06 from "@assets/user/intro-batting-frames/06.webp";
-import frame07 from "@assets/user/intro-batting-frames/07.webp";
-import frame08 from "@assets/user/intro-batting-frames/08.webp";
-import frame09 from "@assets/user/intro-batting-frames/09.webp";
-import frame10 from "@assets/user/intro-batting-frames/10.webp";
-import frame11 from "@assets/user/intro-batting-frames/11.webp";
-import frame12 from "@assets/user/intro-batting-frames/12.webp";
-import frame13 from "@assets/user/intro-batting-frames/13.webp";
-import frame14 from "@assets/user/intro-batting-frames/14.webp";
+import frame01 from "@assets/user/intro-batting-24/01.webp";
+import frame02 from "@assets/user/intro-batting-24/02.webp";
+import frame03 from "@assets/user/intro-batting-24/03.webp";
+import frame04 from "@assets/user/intro-batting-24/04.webp";
+import frame05 from "@assets/user/intro-batting-24/05.webp";
+import frame06 from "@assets/user/intro-batting-24/06.webp";
+import frame07 from "@assets/user/intro-batting-24/07.webp";
+import frame08 from "@assets/user/intro-batting-24/08.webp";
+import frame09 from "@assets/user/intro-batting-24/09.webp";
+import frame10 from "@assets/user/intro-batting-24/10.webp";
+import frame11 from "@assets/user/intro-batting-24/11.webp";
+import frame12 from "@assets/user/intro-batting-24/12.webp";
+import frame13 from "@assets/user/intro-batting-24/13.webp";
+import frame14 from "@assets/user/intro-batting-24/14.webp";
+import frame15 from "@assets/user/intro-batting-24/15.webp";
+import frame16 from "@assets/user/intro-batting-24/16.webp";
+import frame17 from "@assets/user/intro-batting-24/17.webp";
+import frame18 from "@assets/user/intro-batting-24/18.webp";
+import frame19 from "@assets/user/intro-batting-24/19.webp";
+import frame20 from "@assets/user/intro-batting-24/20.webp";
+import frame21 from "@assets/user/intro-batting-24/21.webp";
+import frame22 from "@assets/user/intro-batting-24/22.webp";
+import frame23 from "@assets/user/intro-batting-24/23.webp";
+import frame24 from "@assets/user/intro-batting-24/24.webp";
 
 export const INTRO_BATTING_FRAMES = [
-  frame01,
-  frame02,
-  frame03,
-  frame04,
-  frame05,
-  frame06,
-  frame07,
-  frame11,
-  frame10,
-  frame08,
-  frame09,
-  frame12,
-  frame13,
-  frame14,
+  frame01, frame02, frame03, frame04, frame05, frame06, frame07, frame08,
+  frame09, frame10, frame11, frame12, frame13, frame14, frame15, frame16,
+  frame17, frame18, frame19, frame20, frame21, frame22, frame23, frame24,
 ] as const;
 
 if (INTRO_BATTING_FRAMES.length !== INTRO_FRAME_COUNT) {
@@ -47,11 +46,11 @@ if (INTRO_BATTING_FRAMES.length !== INTRO_FRAME_COUNT) {
 }
 
 type IntroBattingAnimationProps = {
-  /** 테스트용 고정. -1=구장 타석만, 0–13=14장 컷. 없으면 멘트 시간에 맞춰 재생 */
+  /** 테스트용 고정. -1=구장 타석만, 0–23=24장 컷. 없으면 멘트 시간에 맞춰 재생 */
   frameIndex?: number;
 };
 
-/** 구장 타석에서 시작해 14장 플립북으로 이어진다 */
+/** 구장 타석(나무 배트)에서 시작해 24장 플립북으로 이어진다 */
 export default function IntroBattingAnimation({ frameIndex }: IntroBattingAnimationProps) {
   const [index, setIndex] = useState(0);
   const [prevIndex, setPrevIndex] = useState(0);
