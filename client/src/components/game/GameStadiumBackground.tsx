@@ -20,7 +20,7 @@ const SCENE_SRC: Record<GameSceneKind, string> = {
 
 interface GameStadiumBackgroundProps {
   sceneKind?: GameSceneKind;
-  /** 포수 시점 손 방향에 맞게 시네마틱 사진을 좌우 반전 */
+  /** 포수 시점 손 방향에 맞게 시네마틱 사진을 좌우 반전. 대기 원정/홈은 유니폼 사진 유지 + 손 방향만 뒤집기 */
   mirrorX?: boolean;
 }
 
@@ -85,14 +85,9 @@ export default function GameStadiumBackground({
         draggable={false}
         decoding="async"
         fetchPriority="high"
-        className={`absolute pointer-events-none select-none ${
-          waitScene
-            ? `left-0 right-0 bottom-0 mx-auto h-[70%] w-full object-contain object-bottom ${mirrorX ? "-scale-x-100" : ""}`
-            : `inset-0 h-full w-full object-cover ${mirrorX ? "-scale-x-100" : ""}`
-        }`}
+        className={`absolute inset-0 h-full w-full object-cover pointer-events-none select-none ${mirrorX ? "-scale-x-100" : ""}`}
         data-testid={cinematic ? "game-cinematic-bg" : "game-stadium-bg-center"}
         data-mirror={mirrorX ? "x" : undefined}
-        data-wait-scale={waitScene ? "70" : undefined}
       />
     </div>
   );

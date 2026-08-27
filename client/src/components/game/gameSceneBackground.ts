@@ -51,7 +51,7 @@ export function resolveGameSceneKind(input: {
 
   if (gameDayPhase === "live") {
     if (screenPhase === "wait_start") {
-      // 손 방향은 사진 미러로 맞춘다 (우타=포수 왼쪽, 좌타=포수 오른쪽).
+      // 손 방향은 사진 미러로 맞춘다 (우타=포수 왼쪽, 좌타=포수 오른쪽). 화면 전체를 줄이지 않는다.
       return away ? "wait_away" : "wait_home";
     }
     if (screenPhase === "wait_result" || screenPhase === "result_flash") {

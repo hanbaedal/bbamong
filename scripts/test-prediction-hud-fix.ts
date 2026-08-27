@@ -17,8 +17,10 @@ import {
   maybeMirrorImagePointX,
   PITCH_AWAY_PLATE_IMAGE,
   PITCH_HOME_PLATE_IMAGE,
+  RUNNING_BASE_IMAGE_POINTS,
   STADIUM_IMAGE,
   stadiumImagePointToPx,
+  WAIT_LEFT_HANDED_BOX_IMAGE,
 } from "../client/src/components/game/stadiumFieldCoords";
 import { isMongoTransientError } from "../shared/mongoTransientError";
 import { WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS } from "../shared/wsHeartbeat";
@@ -42,6 +44,12 @@ assert(batterBoxImageForHand("right").x < HOME_PLATE_IMAGE.x, "righty box is cat
 assert(batterBoxImageForHand("left").x > HOME_PLATE_IMAGE.x, "lefty box is catcher-right");
 assert(batterBoxImageForHand(null).x === BATTER_BOX_RIGHT_IMAGE.x, "unknown hand defaults righty");
 assert(batterBoxImageForHand("left").x === BATTER_BOX_LEFT_IMAGE.x, "lefty uses left-hand box");
+assert(WAIT_LEFT_HANDED_BOX_IMAGE.x > HOME_PLATE_IMAGE.x, "wait lefty is catcher-right");
+assert(WAIT_LEFT_HANDED_BOX_IMAGE.x === BATTER_BOX_LEFT_IMAGE.x, "wait lefty uses 1st-base box");
+
+assert(RUNNING_BASE_IMAGE_POINTS.아웃.x > 0.45 && RUNNING_BASE_IMAGE_POINTS.아웃.x < 0.55, "running home centered");
+assert(RUNNING_BASE_IMAGE_POINTS["1루"].x > RUNNING_BASE_IMAGE_POINTS.아웃.x, "1st right of home");
+assert(RUNNING_BASE_IMAGE_POINTS["3루"].x < RUNNING_BASE_IMAGE_POINTS.아웃.x, "3rd left of home");
 
 const field16x9 = stadiumImagePointToPx(HOME_PLATE_IMAGE, 1600, 900);
 const pitch16x9 = stadiumImagePointToPx(

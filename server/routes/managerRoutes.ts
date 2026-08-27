@@ -9,7 +9,6 @@ import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { syncAtBatPhaseAfterManual } from "../liveMatch/atBatStateMachine";
 import { notifyManualAtBatAction, schedulePredictionAutoStop } from "../liveMatch/liveAutoOperator";
 import { MatchModel } from "../UserStorage/db";
-import { liveOutsFromScoreboard, nullableInningHalf, resolveShowThreeOutsHint } from "@shared/threeOutsGuard";
 import { patchMatchLiveScoreboard } from "../apiSports/syncService";
 import { saveManualMatchLineup } from "../apiSports/manualLineupService";
 import { clearMatchPinchHitter, setMatchPinchHitter } from "../apiSports/pinchHitterService";
@@ -918,7 +917,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       // 예측 결과 업데이트 (포인트 지급 포함) - 유저별 wonAmount 맵 반환
       // 병살·삼살 UI도 정산 결과는 반드시 "아웃"
       const userWonAmounts = await updateRoundPredictionResult(id, match.currentRound, settleResult);
-      const { outsInHalf } = await incrementOutsInHalfOnResult(id, settleResult, {
+      const { outsInHalf, threeOutsReached } = await incrementOutsInHalfOnResult(id, settleResult, {
         outsDelta,
       });
 
@@ -929,12 +928,6 @@ export async function managerRoutes(app: Express): Promise<void> {
           inningHalf?: string;
         } | null
       );
-      const threeOutsReached = resolveShowThreeOutsHint({
-        liveOuts: liveOutsFromScoreboard(liveBoard?.liveScoreboard),
-        outsInHalf,
-        liveHalf: nullableInningHalf(liveBoard?.liveScoreboard?.inningHalf),
-        operatorHalf: nullableInningHalf(liveBoard?.inningHalf),
-      });
       const liveDisplay =
         liveBoard?.liveScoreboard?.situation?.atBatResultDisplay ?? null;
       const displayResult = (liveDisplay ?? "").trim() || (result === "병살" || result === "삼살" ? result : settleResult);

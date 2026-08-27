@@ -43,15 +43,15 @@ export const HOME_PLATE_IMAGE = BASE_IMAGE_POINTS.아웃;
 export const PITCHER_MOUND_IMAGE: ImagePoint = { x: 0.491, y: 0.59 };
 
 /**
- * scene-running.jpg (1560×720) 위 베이스·홈플레이트 실측.
- * 선택 화면(3D 구장)과 섞지 않는다. 고각 3루측이라 홈이 화면 왼쪽 아래에 있다.
+ * scene-running.jpg (1560×720) — 포수 뒤 실사 구장. 홈은 화면 가운데 아래.
+ * (예전 고각 3루측 좌표는 주루가 왼쪽으로 빠지는 오류를 냈다.)
  */
 export const RUNNING_BASE_IMAGE_POINTS: Record<PredictionOption, ImagePoint> = {
-  아웃: { x: 0.34, y: 0.83 },
-  "1루": { x: 0.748, y: 0.548 },
-  "2루": { x: 0.505, y: 0.335 },
-  "3루": { x: 0.164, y: 0.484 },
-  홈런: { x: 0.53, y: 0.18 },
+  아웃: { x: 0.5, y: 0.86 },
+  "1루": { x: 0.8, y: 0.6 },
+  "2루": { x: 0.5, y: 0.38 },
+  "3루": { x: 0.2, y: 0.6 },
+  홈런: { x: 0.5, y: 0.18 },
 };
 
 export const RUNNING_HOME_PLATE_IMAGE = RUNNING_BASE_IMAGE_POINTS.아웃;
@@ -83,6 +83,11 @@ export const BATTER_BOX_LEFT_IMAGE: ImagePoint = {
 export function batterBoxImageForHand(side: "left" | "right" | null | undefined): ImagePoint {
   return side === "left" ? BATTER_BOX_LEFT_IMAGE : BATTER_BOX_RIGHT_IMAGE;
 }
+
+/**
+ * 예측 대기(wait_start) 좌타 — 포수 오른쪽(1루쪽). 필드 폴백용.
+ */
+export const WAIT_LEFT_HANDED_BOX_IMAGE: ImagePoint = BATTER_BOX_LEFT_IMAGE;
 
 /** object-cover + scale-x 미러와 같은 정규화 X */
 export function maybeMirrorImagePointX(point: ImagePoint, mirrorX: boolean): ImagePoint {

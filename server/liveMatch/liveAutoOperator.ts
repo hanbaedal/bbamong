@@ -228,12 +228,14 @@ async function syncPhaseFromLive(
   if (inning != null && inning > 0) update.gameInning = inning;
 
   const match = await MatchModel.findOne({ id: matchId })
-    .select("matchLineup inningHalf")
+    .select("matchLineup inningHalf outsInHalf")
     .lean();
   const operatorHalf = nullableInningHalf((match as { inningHalf?: string } | null)?.inningHalf);
+  const currentOuts = (match as { outsInHalf?: number } | null)?.outsInHalf ?? 0;
   const staleThreeOuts = Boolean(half && operatorHalf && half !== operatorHalf && outs >= 3);
   if (half && !staleThreeOuts) update.inningHalf = half;
-  if (!staleThreeOuts) update.outsInHalf = outs;
+  // 운영자 병살·삼살로 올린 아웃을 실황(늦은 2아웃)이 깎지 않는다.
+  if (!staleThreeOuts && outs >= currentOuts) update.outsInHalf = outs;
   const lineup = (match?.matchLineup as MatchLineupSnapshot | null) ?? null;
   if (batterName && lineup && half) {
     const side = half === "top" ? lineup.away : lineup.home;
@@ -408,6 +410,7 @@ export async function processLiveAutoOperator(
 
     const wantSwitchHint = shouldSuggestSwitchHalf({
       liveOuts: outs,
+      outsInHalf: (match as { outsInHalf?: number }).outsInHalf,
       liveHalf: half,
       operatorHalf: nullableInningHalf(match.inningHalf) ?? half,
     });
