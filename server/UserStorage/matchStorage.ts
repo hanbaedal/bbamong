@@ -116,15 +116,17 @@ export class MatchStorage {
     const syncBySlot = await getApiSyncEnabledBySlot();
     const enriched = await Promise.all(matches.map((m) => enrichWithStadiumName(m)));
 
-    const withHeadToHead = await Promise.all(
-      enriched.map(async (m) => {
-        const row = m as Match & {
-          matchHeadToHead?: MatchHeadToHeadSnapshot | null;
-        };
-        const snapshot = await refreshMatchHeadToHeadIfDue(row.id);
-        return snapshot ? { ...row, matchHeadToHead: snapshot } : row;
-      }),
-    );
+    // 상대전적(다음 일정 + 네이버 preview)은 1~3초가 걸린다.
+    // 목록 응답을 막으면 예측 화면이 배경만 먼저 나오고 HUD가 늦게 붙는다.
+    const withHeadToHead = enriched.map((m) => {
+      const row = m as Match & {
+        matchHeadToHead?: MatchHeadToHeadSnapshot | null;
+      };
+      void refreshMatchHeadToHeadIfDue(row.id, row).catch((error) => {
+        console.warn(`[MatchStorage] h2h refresh ${row.id}:`, error);
+      });
+      return row;
+    });
 
     return Promise.all(withHeadToHead.map((m) => enrichForClient(m, syncBySlot)));
   }

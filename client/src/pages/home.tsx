@@ -20,6 +20,7 @@ import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 import { USER_LOGIN_PATH } from "@/lib/loginSession";
 import { clearGuestSessionArtifacts } from "@/lib/shopRoutes";
 import { readPersistedSelectedMatchId } from "@/lib/selectedMatchPersistence";
+import sceneBefore from "@assets/game/scene-before.jpg";
 import "@/styles/user-landscape.css";
 
 interface HomePageSettings {
@@ -82,6 +83,9 @@ export default function HomePage() {
   const gameGuideTitle = settings?.gameGuideTitle ?? "야구 예측 게임이란?";
 
   const prefetchPredictionData = () => {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = sceneBefore;
     void queryClient.prefetchQuery({ queryKey: ["/api/matches"] });
     const matchId = readPersistedSelectedMatchId();
     if (!matchId) return;

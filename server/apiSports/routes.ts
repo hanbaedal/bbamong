@@ -170,22 +170,12 @@ export async function apiSportsRoutes(app: Express): Promise<void> {
 
       let teamSeasonStats = (match.matchTeamSeasonStats as MatchTeamSeasonStats | null) ?? null;
       if (!teamSeasonStats?.home && !teamSeasonStats?.away) {
-        try {
-          const { refreshMatchSeasonContext } = await import("../daumLive/daumSeasonStatsService");
-          teamSeasonStats = await refreshMatchSeasonContext(matchId);
-          if (teamSeasonStats) {
-            const refreshed = await MatchModel.findOne({ id: matchId })
-              .select("matchPlayerStats matchTeamSeasonStats")
-              .lean();
-            if (refreshed?.matchPlayerStats) {
-              match.matchPlayerStats = refreshed.matchPlayerStats as Record<string, MatchPlayerStatsEntry>;
-            }
-            teamSeasonStats =
-              (refreshed?.matchTeamSeasonStats as MatchTeamSeasonStats | null) ?? teamSeasonStats;
-          }
-        } catch (error) {
-          console.warn(`[Scoreboard] season stats ${matchId}:`, error);
-        }
+        // 다음 팀/타자 랭킹 동기화는 수 초가 걸릴 수 있어 스코어보드 첫 응답을 막지 않는다.
+        void import("../daumLive/daumSeasonStatsService")
+          .then(({ refreshMatchSeasonContext }) => refreshMatchSeasonContext(matchId))
+          .catch((error) => {
+            console.warn(`[Scoreboard] season stats ${matchId}:`, error);
+          });
       }
 
       let currentBatter: CurrentBatterPreview | null = null;
