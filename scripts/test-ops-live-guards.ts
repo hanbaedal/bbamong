@@ -17,6 +17,8 @@ import {
   isLivePhaseBehindOperator,
   isStaleLiveThreeOutsAfterSwitch,
   switchHalfAdBreakMessage,
+  liveThreeOutsSameHalf,
+  canAdvanceInningHalf,
 } from "../shared/threeOutsGuard";
 import { AD_PLAY_MS, AD_PLAY_SECONDS, PREDICTION_AUTO_STOP_MS } from "../shared/adBreakTiming";
 import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR, GAME_OUTS_COLOR } from "../client/src/components/game/gameHudColors";
@@ -42,7 +44,7 @@ assert(uniformSrc.includes("pyamongWaitingHome") || uniformSrc.includes("pyamong
 
 assert(liveOutsFromScoreboard({ situation: { outs: 2 } }) === 2, "live outs 2");
 assert(resolveShowThreeOutsHint({ liveOuts: 2, outsInHalf: 3 }) === true, "operator 3 outs wins over live 2");
-assert(resolveShowThreeOutsHint({ liveOuts: 3, outsInHalf: 2 }) === false, "live 3 does not override operator 2");
+assert(resolveShowThreeOutsHint({ liveOuts: 3, outsInHalf: 2 }) === true, "same-half live 3 opens switch even if operator has 2");
 assert(resolveShowThreeOutsHint({ outsInHalf: 3 }) === true, "no live → DB 3 is hint");
 assert(resolveShowThreeOutsHint({ outsInHalf: 2 }) === false, "operator 2 is not three outs");
 assert(shouldHoldSwitchHalfForLive({ outsInHalf: 3, liveOuts: 2 }) === true, "op 3 live 2 holds switch");
@@ -94,12 +96,40 @@ assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: null }) === true, "no 
 assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: 3 }) === true, "live 3 suggests switch");
 assert(shouldSuggestSwitchHalf({ liveOuts: 2 }) === false, "2 outs never switch");
 assert(
-  shouldSuggestSwitchHalf({ liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === false,
-  "live 3 without operator 3 does not suggest",
+  liveThreeOutsSameHalf({ liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === true,
+  "live 3 same half is mid-join switch signal",
 );
 assert(
-  shouldSuggestSwitchHalf({ outsInHalf: 0, liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === false,
-  "after switch 0 outs + live 3 does not suggest",
+  shouldSuggestSwitchHalf({ liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === true,
+  "mid-join live 3 same half suggests switch",
+);
+assert(
+  resolveShowThreeOutsHint({ outsInHalf: 0, liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === true,
+  "mid-join live 3 shows 3-out hint",
+);
+assert(
+  shouldSuggestSwitchHalf({
+    outsInHalf: 0,
+    liveOuts: 3,
+    liveHalf: "top",
+    operatorHalf: "top",
+    recentlySwitched: true,
+  }) === false,
+  "just-switched 0 outs + live 3 does not suggest",
+);
+assert(
+  canAdvanceInningHalf({ outsInHalf: 0, liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === true,
+  "mid-join live 3 allows switch-half",
+);
+assert(
+  canAdvanceInningHalf({
+    outsInHalf: 0,
+    liveOuts: 3,
+    liveHalf: "top",
+    operatorHalf: "top",
+    recentlySwitched: true,
+  }) === false,
+  "just-switched live 3 does not allow another switch",
 );
 assert(
   shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === true,

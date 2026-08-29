@@ -28,7 +28,9 @@ import {
   shouldHoldSwitchHalfForLive,
   switchHalfHoldMessage,
   switchHalfLiveMovedOnMessage,
+  canAdvanceInningHalf,
 } from "@shared/threeOutsGuard";
+import { wasSwitchHalfRecent } from "./switchHalfAdGuard";
 
 /**
  * 운영자 컨트롤용 — ongoing, 또는 시작 5분 전~의 scheduled.
@@ -914,7 +916,12 @@ export async function advanceInningHalf(
   if (liveHalfAlreadyStarted(switchInput)) {
     throw new Error(switchHalfLiveMovedOnMessage(liveOuts));
   }
-  if ((switchInput.outsInHalf ?? 0) < 3) {
+  if (
+    !canAdvanceInningHalf({
+      ...switchInput,
+      recentlySwitched: wasSwitchHalfRecent(matchId),
+    })
+  ) {
     throw new Error("3아웃일 때만 공수교대합니다.");
   }
   if (!options?.force && shouldHoldSwitchHalfForLive(switchInput)) {

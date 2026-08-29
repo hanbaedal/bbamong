@@ -21,6 +21,7 @@ import {
   resolveShowThreeOutsHint,
   shouldHoldSwitchHalfForLive,
 } from "@shared/threeOutsGuard";
+import { wasSwitchHalfRecent } from "../liveMatch/switchHalfAdGuard";
 
 export class MatchConflictError extends Error {
   constructor(message: string) {
@@ -222,6 +223,7 @@ export class AdminMatchStorage implements IAdminMatchStorage {
         liveOuts,
         liveHalf,
         operatorHalf,
+        recentlySwitched: wasSwitchHalfRecent(doc.id as string),
       }),
       liveAutoEnabled: (doc.liveAutoEnabled as boolean | undefined) !== false,
       atBatPhase,

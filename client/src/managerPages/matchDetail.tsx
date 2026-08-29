@@ -173,6 +173,7 @@ export default function MatchDetailPage() {
     liveOuts: liveOutsNow,
     liveHalf: liveBoardForOuts?.inningHalf,
     operatorHalf: match?.inningHalf,
+    recentlySwitched: adBreakLocked,
   };
   const liveMovedOn = liveHalfAlreadyStarted(switchLiveInput);
   const showThreeOutsHint = resolveShowThreeOutsHint(switchLiveInput);
