@@ -17,7 +17,7 @@ import { resolveMatchTeamNames } from "@shared/matchTeamDisplay";
 import { refreshGameKeepAwake, setGameKeepAwake } from "@/lib/screenWakeLock";
 import { useManagerProactiveSessionRefresh } from "@/hooks/useManagerProactiveSessionRefresh";
 import { useLiveScoreboard } from "@/hooks/useLiveScoreboard";
-import { AD_PLAY_MS, resolveAdPlayingFromServer } from "@shared/adBreakTiming";
+import { AD_BREAK_TOTAL_MS, AD_PLAY_MS, resolveAdPlayingFromServer } from "@shared/adBreakTiming";
 import { shouldClientPollMatch, msUntilMatchPollWindow } from "@/lib/matchPollWindow";
 import { isMatchLiveWindowOpen } from "@shared/matchLiveWindow";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
@@ -33,6 +33,7 @@ import {
   shouldHoldSwitchHalfForLive,
   switchHalfHoldMessage,
   switchHalfLiveMovedOnMessage,
+  switchHalfAdBreakMessage,
 } from "@shared/threeOutsGuard";
 import {
   WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS,
@@ -142,8 +143,10 @@ export default function MatchDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAdPlaying, setIsAdPlaying] = useState(false);
   const [adElapsedTime, setAdElapsedTime] = useState(0);
+  const [adBreakLocked, setAdBreakLocked] = useState(false);
   const adStartTimeRef = useRef<number | null>(null);
   const adExpiredStopSentRef = useRef(false);
+  const adBreakLockUntilRef = useRef(0);
   const [isStartingPrediction, setIsStartingPrediction] = useState(false);
   const [isStoppingPrediction, setIsStoppingPrediction] = useState(false);
   const [advanceBusy, setAdvanceBusy] = useState<"next" | "switch" | "pitcher" | null>(null);
@@ -372,6 +375,11 @@ export default function MatchDetailPage() {
                 adStartTimeRef.current = resolved.startedAt;
                 setAdElapsedTime(resolved.elapsedSec);
                 adExpiredStopSentRef.current = false;
+                // 안내 5초 구간은 isAdPlaying=false. 방금 공수교대 잠금을 풀지 않는다.
+                if (resolved.playing) {
+                  adBreakLockUntilRef.current = Date.now() + AD_BREAK_TOTAL_MS;
+                  setAdBreakLocked(true);
+                }
                 if (typeof data?.predictionEnabled === "boolean") {
                   setMatch((prev) =>
                     prev ? { ...prev, predictionEnabled: data.predictionEnabled } : prev,
@@ -390,6 +398,8 @@ export default function MatchDetailPage() {
                 adStartTimeRef.current = resolved.startedAt;
                 setAdElapsedTime(resolved.elapsedSec);
                 adExpiredStopSentRef.current = false;
+                adBreakLockUntilRef.current = Date.now() + AD_BREAK_TOTAL_MS;
+                setAdBreakLocked(true);
               }
               break;
             case "ad_stopped":
@@ -397,13 +407,23 @@ export default function MatchDetailPage() {
               setAdElapsedTime(0);
               adStartTimeRef.current = null;
               adExpiredStopSentRef.current = false;
+              adBreakLockUntilRef.current = 0;
+              setAdBreakLocked(false);
               break;
             case "ad_status":
               {
                 const resolved = resolveAdPlayingFromServer(data?.isAdPlaying, data?.adStartedAt);
                 setIsAdPlaying(resolved.playing);
-                adStartTimeRef.current = resolved.startedAt;
-                setAdElapsedTime(resolved.elapsedSec);
+                if (resolved.playing) {
+                  adStartTimeRef.current = resolved.startedAt;
+                  setAdElapsedTime(resolved.elapsedSec);
+                  adBreakLockUntilRef.current = Date.now() + AD_BREAK_TOTAL_MS;
+                  setAdBreakLocked(true);
+                } else if (Date.now() >= adBreakLockUntilRef.current) {
+                  adStartTimeRef.current = resolved.startedAt;
+                  setAdElapsedTime(resolved.elapsedSec);
+                  adExpiredStopSentRef.current = false;
+                }
                 if (!resolved.playing) adExpiredStopSentRef.current = false;
               }
               break;
@@ -411,6 +431,8 @@ export default function MatchDetailPage() {
             case "prediction_started":
               setIsAdPlaying(false);
               setAdElapsedTime(0);
+              adBreakLockUntilRef.current = 0;
+              setAdBreakLocked(false);
               fetchMatchDetail();
               break;
             case "prediction_cancelled":
@@ -679,7 +701,11 @@ export default function MatchDetailPage() {
           return;
         }
         setMatch(data);
-        if (data.showThreeOutsHint && !threeOutsSpokenRef.current) {
+        if (
+          data.showThreeOutsHint &&
+          !threeOutsSpokenRef.current &&
+          Date.now() >= adBreakLockUntilRef.current
+        ) {
           threeOutsSpokenRef.current = true;
           void speakGameVoice("operator.threeOuts");
         }
@@ -1002,6 +1028,8 @@ export default function MatchDetailPage() {
         setIsAdPlaying(true);
         adStartTimeRef.current = Date.now();
         setAdElapsedTime(0);
+        adBreakLockUntilRef.current = Date.now() + AD_BREAK_TOTAL_MS;
+        setAdBreakLocked(true);
       }
       options?.onSuccess?.(data);
       const phase = data.gamePhase as {
@@ -1085,6 +1113,10 @@ export default function MatchDetailPage() {
   };
 
   const handleSwitchHalf = () => {
+    if (adBreakLocked || Date.now() < adBreakLockUntilRef.current) {
+      toast({ description: switchHalfAdBreakMessage() });
+      return;
+    }
     if (match?.needsResultBeforeAdvance) {
       toast({ description: "먼저 예측 결과를 전송해 주세요." });
       return;
@@ -1302,6 +1334,7 @@ export default function MatchDetailPage() {
     !anyAdvanceBusy &&
     !blockAdvanceActions &&
     !isAdPlaying &&
+    !adBreakLocked &&
     (showThreeOutsHint || (match.outsInHalf ?? 0) >= 3) &&
     !liveMovedOn;
   /** 대타 — 경기중·예측 중이 아닐 때 (현재 타석 교체) */
@@ -1563,7 +1596,7 @@ export default function MatchDetailPage() {
             </div>
           )}
 
-          {showThreeOutsHint && holdSwitchForLive && (
+          {showThreeOutsHint && holdSwitchForLive && !adBreakLocked && (
             <div
               className="manager-match-notice manager-match-notice--three-outs"
               data-testid="text-three-outs-hint"
@@ -1572,7 +1605,7 @@ export default function MatchDetailPage() {
             </div>
           )}
 
-          {showThreeOutsHint && !holdSwitchForLive && (
+          {showThreeOutsHint && !holdSwitchForLive && !adBreakLocked && (
             <div
               className="manager-match-notice manager-match-notice--three-outs"
               data-testid="text-three-outs-hint"
@@ -1618,7 +1651,7 @@ export default function MatchDetailPage() {
                   disabled={!canSwitchHalf}
                   data-testid="button-switch-half"
                   className={`manager-match-bottom-btn bg-[#E11936] ${
-                    showThreeOutsHint && !holdSwitchForLive ? "manager-match-bottom-btn--pulse" : ""
+                    showThreeOutsHint && !holdSwitchForLive && !adBreakLocked ? "manager-match-bottom-btn--pulse" : ""
                   }`}
                 >
                   {advanceBusy === "switch" ? "처리중" : "공수\n교대"}

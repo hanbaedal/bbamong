@@ -3,6 +3,7 @@
  * 2아웃+아웃 / 1아웃+병살 / 노아웃+삼살 → 예측은 3아웃으로 끝낸다.
  * 공수교대(이닝 넘김·광고)는 네이버가 **같은 초/말에서 3아웃**일 때만 연다.
  * 실황이 이미 다음 초/말(0~2아웃)이면 3아웃 잔상을 지우고 공수교대를 말하지 않는다.
+ * 공수교대 직후(아웃 0)·광고 중에는 실황 3아웃 잔상으로 다시 부르지 않는다.
  * 실황 아웃이 없으면(위젯 공란) 가짜 0아웃으로 막지 않는다.
  */
 
@@ -30,7 +31,43 @@ export type SwitchHalfLiveInput = {
   outsInHalf?: number | null;
   liveHalf?: string | null;
   operatorHalf?: string | null;
+  liveInning?: number | null;
+  operatorInning?: number | null;
 };
+
+/** 실황 이닝이 운영자보다 한 박자 뒤 (공수교대 직후 중계 지연). */
+export function isLivePhaseBehindOperator(input: {
+  liveHalf?: string | null;
+  operatorHalf?: string | null;
+  liveInning?: number | null;
+  operatorInning?: number | null;
+}): boolean {
+  const live = nullableInningHalf(input.liveHalf);
+  const op = nullableInningHalf(input.operatorHalf);
+  if (!live || !op) return false;
+  const liveInn =
+    typeof input.liveInning === "number" && Number.isFinite(input.liveInning)
+      ? Math.floor(input.liveInning)
+      : null;
+  const opInn =
+    typeof input.operatorInning === "number" && Number.isFinite(input.operatorInning)
+      ? Math.floor(input.operatorInning)
+      : null;
+  if (liveInn == null || opInn == null) return false;
+  if (liveInn < opInn) return true;
+  if (liveInn > opInn) return false;
+  return live === "top" && op === "bottom";
+}
+
+/**
+ * 공수교대 직후 운영자 아웃은 0. 실황만 3이면 직전 초/말 잔상이다.
+ * 같은 초/말로 보여도 다시 3아웃으로 올리지 않는다.
+ */
+export function isStaleLiveThreeOutsAfterSwitch(input: SwitchHalfLiveInput): boolean {
+  if ((input.outsInHalf ?? 0) !== 0) return false;
+  const live = liveOutsCount(input.liveOuts);
+  return live != null && live >= 3;
+}
 
 /**
  * 실황이 이미 다음 초/말이고 0~2아웃.
@@ -76,16 +113,13 @@ export function switchHalfLiveMovedOnMessage(liveOuts?: number | null): string {
   return `${liveLabel}. 공수교대하지 말고 다음 타자로 이어가세요.`;
 }
 
-/** 공수교대 제안 — 같은 초/말 실황 3아웃(또는 실황 아웃 없음). 원아웃 다음 초/말은 제안 없음. */
+export function switchHalfAdBreakMessage(): string {
+  return "공수교대가 이미 반영되었습니다. 광고가 끝난 뒤 다음 타석을 진행하세요.";
+}
+
+/** 공수교대 제안 — 운영자 3아웃 + 같은 초/말. 교대 직후 0아웃·실황 3 잔상은 제안 없음. */
 export function shouldSuggestSwitchHalf(input: SwitchHalfLiveInput): boolean {
+  if ((input.outsInHalf ?? 0) < 3) return false;
   if (liveHalfAlreadyStarted(input)) return false;
-  if ((input.outsInHalf ?? 0) >= 3) {
-    return !shouldHoldSwitchHalfForLive(input);
-  }
-  const live = liveOutsCount(input.liveOuts);
-  if (live == null || live < 3) return false;
-  const liveHalf = input.liveHalf?.trim() || "";
-  const operatorHalf = input.operatorHalf?.trim() || "";
-  if (liveHalf && operatorHalf && liveHalf !== operatorHalf) return false;
-  return true;
+  return !shouldHoldSwitchHalfForLive(input);
 }

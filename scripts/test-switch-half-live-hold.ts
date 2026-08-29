@@ -11,11 +11,20 @@ import {
   clearLiveAutoOperator,
   processLiveAutoOperator,
 } from "../server/liveMatch/liveAutoOperator";
+import { broadcastManager } from "../server/liveMatch/broadcastManager";
+import { assertSwitchHalfNotDuringAd } from "../server/liveMatch/switchHalfAdGuard";
 
 const MATCH_ID = "test-switch-half-live-hold-e07b";
 let statsIdSeq = Date.now();
 
-function board(partial: { outs?: number | null; half?: "top" | "bottom"; omitSituation?: boolean }): LiveScoreboard {
+function board(partial: {
+  outs?: number | null;
+  half?: "top" | "bottom";
+  omitSituation?: boolean;
+  inning?: number;
+}): LiveScoreboard {
+  const inning = partial.inning ?? 3;
+  const half = partial.half ?? "top";
   return {
     homeTeamName: "홈",
     awayTeamName: "원정",
@@ -25,9 +34,9 @@ function board(partial: { outs?: number | null; half?: "top" | "bottom"; omitSit
     awayHits: 0,
     homeErrors: 0,
     awayErrors: 0,
-    inning: 3,
-    inningHalf: partial.half ?? "top",
-    inningLabel: "3회초",
+    inning,
+    inningHalf: half,
+    inningLabel: `${inning}회${half === "top" ? "초" : "말"}`,
     statusShort: "IN",
     statusLong: "In Progress",
     situation: partial.omitSituation
@@ -57,6 +66,8 @@ async function seedMatch(opts: {
   liveOuts: number | null;
   liveHalf: "top" | "bottom";
   omitSituation?: boolean;
+  gameInning?: number;
+  liveInning?: number;
 }) {
   await MatchModel.deleteOne({ id: MATCH_ID });
   await RoundStatisticsModel.deleteMany({ matchId: MATCH_ID });
@@ -72,7 +83,7 @@ async function seedMatch(opts: {
     predictionEnabled: false,
     liveAutoEnabled: true,
     outsInHalf: opts.outsInHalf,
-    gameInning: 3,
+    gameInning: opts.gameInning ?? 3,
     inningHalf: opts.inningHalf,
     batterIndexInHalf: 1,
     awayBatterOrder: 1,
@@ -82,6 +93,7 @@ async function seedMatch(opts: {
       outs: opts.liveOuts ?? undefined,
       half: opts.liveHalf,
       omitSituation: opts.omitSituation || opts.liveOuts == null,
+      inning: opts.liveInning ?? opts.gameInning ?? 3,
     }),
   });
   await RoundStatisticsModel.create({
@@ -195,9 +207,70 @@ async function main() {
   assert((caught as { outsInHalf?: number })?.outsInHalf === 1, "catch-up outs to live 1");
   console.log("OK: live 1-out next half clears operator 3-out leftover");
 
+  await seedMatch({ outsInHalf: 0, inningHalf: "bottom", liveOuts: 3, liveHalf: "top" });
+  clearLiveAutoOperator(MATCH_ID);
+  await processLiveAutoOperator(MATCH_ID, board({ outs: 3, half: "top" }));
+  const noRewind = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
+  assert((noRewind as { inningHalf?: string })?.inningHalf === "bottom", "behind live 3 does not rewind half");
+  assert((noRewind as { outsInHalf?: number })?.outsInHalf === 0, "behind live 3 does not restore outs");
+  console.log("OK: after switch, live still previous half 3 does not rewind");
+
+  await seedMatch({ outsInHalf: 0, inningHalf: "bottom", liveOuts: 3, liveHalf: "bottom" });
+  clearLiveAutoOperator(MATCH_ID);
+  await processLiveAutoOperator(MATCH_ID, board({ outs: 3, half: "bottom" }));
+  const noRestore = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
+  assert((noRestore as { inningHalf?: string })?.inningHalf === "bottom", "same-half live 3 after switch keeps half");
+  assert((noRestore as { outsInHalf?: number })?.outsInHalf === 0, "same-half live 3 after switch does not restore outs");
+  console.log("OK: after switch, live 3 on new half does not restore 3 outs");
+
+  await seedMatch({
+    outsInHalf: 0,
+    inningHalf: "top",
+    liveOuts: 3,
+    liveHalf: "bottom",
+    gameInning: 4,
+    liveInning: 3,
+  });
+  clearLiveAutoOperator(MATCH_ID);
+  await processLiveAutoOperator(MATCH_ID, board({ outs: 3, half: "bottom", inning: 3 }));
+  const nextInning = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf gameInning").lean();
+  assert((nextInning as { inningHalf?: string })?.inningHalf === "top", "말→초 switch is not rewound to previous bottom");
+  assert((nextInning as { outsInHalf?: number })?.outsInHalf === 0, "말→초 switch keeps 0 outs");
+  console.log("OK: after 말→초 switch, previous-bottom live 3 does not rewind");
+
+  await seedMatch({ outsInHalf: 3, inningHalf: "top", liveOuts: 3, liveHalf: "top" });
+  broadcastManager.resetAdBreakForTest(MATCH_ID);
+  const scheduled = broadcastManager.tryScheduleAdBreak(MATCH_ID, { force: true, reason: "switch_half" });
+  assert(scheduled, "ad break scheduled");
+  assert(broadcastManager.isAdBreakActive(MATCH_ID), "intro counts as ad break");
+  try {
+    assertSwitchHalfNotDuringAd(MATCH_ID);
+    throw new Error("expected reject during ad break");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    assert(msg.includes("광고") || msg.includes("이미 반영"), `ad-break reject, got: ${msg}`);
+  }
+  const duringAd = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
+  assert((duringAd as { inningHalf?: string })?.inningHalf === "top", "ad-break reject does not change half");
+  assert((duringAd as { outsInHalf?: number })?.outsInHalf === 3, "ad-break reject does not change outs");
+  broadcastManager.resetAdBreakForTest(MATCH_ID);
+  console.log("OK: switch-half during ad intro is rejected");
+
+  await seedMatch({ outsInHalf: 0, inningHalf: "bottom", liveOuts: 3, liveHalf: "top" });
+  broadcastManager.resetAdBreakForTest(MATCH_ID);
+  broadcastManager.tryScheduleAdBreak(MATCH_ID, { force: true, reason: "switch_half" });
+  clearLiveAutoOperator(MATCH_ID);
+  await processLiveAutoOperator(MATCH_ID, board({ outs: 3, half: "top" }));
+  const adSync = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
+  assert((adSync as { inningHalf?: string })?.inningHalf === "bottom", "ad-break sync does not rewind half");
+  assert((adSync as { outsInHalf?: number })?.outsInHalf === 0, "ad-break sync does not restore outs");
+  broadcastManager.resetAdBreakForTest(MATCH_ID);
+  console.log("OK: live sync during ad break does not rewind switch");
+
   await MatchModel.deleteOne({ id: MATCH_ID });
   await RoundStatisticsModel.deleteMany({ matchId: MATCH_ID });
   clearLiveAutoOperator(MATCH_ID);
+  broadcastManager.resetAdBreakForTest(MATCH_ID);
   await mongoose.disconnect();
   console.log("OK: switch-half live hold");
 }
@@ -208,6 +281,7 @@ main().catch(async (e) => {
     await MatchModel.deleteOne({ id: MATCH_ID });
     await RoundStatisticsModel.deleteMany({ matchId: MATCH_ID });
     clearLiveAutoOperator(MATCH_ID);
+    broadcastManager.resetAdBreakForTest(MATCH_ID);
     await mongoose.disconnect();
   } catch {
     /* */

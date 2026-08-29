@@ -5,6 +5,7 @@ import { adminMatchStorage } from "../storage/adminMatchStorage";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken, verifyAccessToken, type TokenPayload } from "../utils/jwt";
 import { broadcastManager } from "../liveMatch/broadcastManager";
 import { startRound, stopRound, cancelStartRound, cancelStopRound, updateRoundPredictionResult, advanceToNextBatter, advancePitcherChange, advanceInningHalf, getMatchOverallStatistics, assertRoundResultSentOrAllowAdvance, incrementOutsInHalfOnResult, ensureMatchLiveForOperatorControls } from "../liveMatch/predictionStorage";
+import { assertSwitchHalfNotDuringAd } from "../liveMatch/switchHalfAdGuard";
 import { buildGamePhasePayload } from "../liveMatch/gamePhase";
 import { syncAtBatPhaseAfterManual } from "../liveMatch/atBatStateMachine";
 import { notifyManualAtBatAction, schedulePredictionAutoStop } from "../liveMatch/liveAutoOperator";
@@ -1363,6 +1364,7 @@ export async function managerRoutes(app: Express): Promise<void> {
       await assertMatchLiveForControls(id);
 
       await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
+      assertSwitchHalfNotDuringAd(id);
 
       const body = z.object({ force: z.boolean().optional() }).parse(req.body ?? {});
       const { match: updatedMatch, pinchCleared } = await advanceInningHalf(id, {

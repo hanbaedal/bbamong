@@ -14,6 +14,9 @@ import {
   liveHalfAlreadyStarted,
   liveOutsFromScoreboard,
   nullableInningHalf,
+  isLivePhaseBehindOperator,
+  isStaleLiveThreeOutsAfterSwitch,
+  switchHalfAdBreakMessage,
 } from "../shared/threeOutsGuard";
 import { AD_PLAY_MS, AD_PLAY_SECONDS, PREDICTION_AUTO_STOP_MS } from "../shared/adBreakTiming";
 import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR, GAME_OUTS_COLOR } from "../client/src/components/game/gameHudColors";
@@ -85,8 +88,55 @@ assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: 2 }) === false, "op 3 
 assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: null }) === true, "no live outs → switch ok");
 assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: 3 }) === true, "live 3 suggests switch");
 assert(shouldSuggestSwitchHalf({ liveOuts: 2 }) === false, "2 outs never switch");
-assert(shouldSuggestSwitchHalf({ liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === true, "live 3 same half");
+assert(
+  shouldSuggestSwitchHalf({ liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === false,
+  "live 3 without operator 3 does not suggest",
+);
+assert(
+  shouldSuggestSwitchHalf({ outsInHalf: 0, liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === false,
+  "after switch 0 outs + live 3 does not suggest",
+);
+assert(
+  shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === true,
+  "operator 3 + live 3 same half suggests",
+);
 assert(shouldSuggestSwitchHalf({ liveOuts: 3, liveHalf: "top", operatorHalf: "bottom" }) === false, "stale live 3 other half");
+assert(
+  isStaleLiveThreeOutsAfterSwitch({ outsInHalf: 0, liveOuts: 3, liveHalf: "bottom", operatorHalf: "bottom" }) === true,
+  "0 outs + live 3 is post-switch residue",
+);
+assert(
+  isStaleLiveThreeOutsAfterSwitch({ outsInHalf: 3, liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === false,
+  "operator 3 + live 3 is real three outs",
+);
+assert(
+  isLivePhaseBehindOperator({
+    liveHalf: "top",
+    operatorHalf: "bottom",
+    liveInning: 3,
+    operatorInning: 3,
+  }) === true,
+  "same inning live top is behind operator bottom",
+);
+assert(
+  isLivePhaseBehindOperator({
+    liveHalf: "bottom",
+    operatorHalf: "top",
+    liveInning: 3,
+    operatorInning: 4,
+  }) === true,
+  "previous bottom is behind next-inning top",
+);
+assert(
+  isLivePhaseBehindOperator({
+    liveHalf: "bottom",
+    operatorHalf: "top",
+    liveInning: 3,
+    operatorInning: 3,
+  }) === false,
+  "same inning live bottom is ahead of operator top",
+);
+assert(switchHalfAdBreakMessage().includes("광고"), "ad-break message names ad");
 assert(nullableInningHalf(undefined) == null, "missing half is null not top");
 assert(switchHalfHoldMessage(2).includes("실황 2아웃"), "hold message names live outs");
 assert(switchHalfHoldMessage(2).includes("한 번 더"), "hold message tells operator to press again");

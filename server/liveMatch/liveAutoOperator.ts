@@ -12,6 +12,8 @@ import {
   liveOutsCount,
   liveHalfAlreadyStarted,
   nullableInningHalf,
+  isLivePhaseBehindOperator,
+  isStaleLiveThreeOutsAfterSwitch,
 } from "@shared/threeOutsGuard";
 import { MatchModel, RoundStatisticsModel } from "../UserStorage/db";
 import { broadcastManager } from "./broadcastManager";
@@ -232,14 +234,14 @@ async function syncPhaseFromLive(
   const outs = liveOutsCount(scoreboard.situation?.outs);
   const batterName = scoreboard.situation?.batterName?.trim() || "";
 
-  const update: Record<string, unknown> = {};
-  if (inning != null && inning > 0) update.gameInning = inning;
+  const alwaysUpdate: Record<string, unknown> = {};
 
   const match = await MatchModel.findOne({ id: matchId })
-    .select("matchLineup inningHalf outsInHalf")
+    .select("matchLineup inningHalf outsInHalf gameInning")
     .lean();
   const operatorHalf = nullableInningHalf((match as { inningHalf?: string } | null)?.inningHalf);
   const currentOuts = (match as { outsInHalf?: number } | null)?.outsInHalf ?? 0;
+  const operatorInning = (match as { gameInning?: number } | null)?.gameInning ?? null;
   const liveMovedOn = liveHalfAlreadyStarted({
     outsInHalf: currentOuts,
     liveOuts: outs,
@@ -247,25 +249,48 @@ async function syncPhaseFromLive(
     operatorHalf,
   });
   const staleThreeOuts = Boolean(half && operatorHalf && half !== operatorHalf && (outs ?? 0) >= 3);
-  if (liveMovedOn && half != null && outs != null) {
-    // 실황이 이미 다음 초/말(원아웃 등) — 3아웃 잔상을 지워 공수교대를 부르지 않는다.
-    update.inningHalf = half;
-    update.outsInHalf = outs;
-  } else {
-    // 운영자 3아웃 동안 초/말을 실황이 덮으면, 같은 초/말로 오인되어 공수교대가 막힌다.
-    if (half && !staleThreeOuts && currentOuts < 3) update.inningHalf = half;
-    // 운영자 병살·삼살로 올린 아웃을 실황(늦은 2아웃)이 깎지 않는다.
-    if (!staleThreeOuts && outs != null && outs >= currentOuts) update.outsInHalf = outs;
+  const liveBehind = isLivePhaseBehindOperator({
+    liveHalf: half,
+    operatorHalf,
+    liveInning: inning,
+    operatorInning,
+  });
+  const staleAfterSwitch = isStaleLiveThreeOutsAfterSwitch({
+    outsInHalf: currentOuts,
+    liveOuts: outs,
+    liveHalf: half,
+    operatorHalf,
+  });
+  if (inning != null && inning > 0 && !liveBehind) alwaysUpdate.gameInning = inning;
+  const phaseUpdate: Record<string, unknown> = {};
+  // 광고(안내 5초 포함) 중·실황이 한 박자 뒤·교대 직후 3아웃 잔상은 초/말·아웃을 되돌리지 않는다.
+  if (!broadcastManager.isAdBreakActive(matchId) && !liveBehind) {
+    if (liveMovedOn && half != null && outs != null) {
+      // 실황이 이미 다음 초/말(원아웃 등) — 3아웃 잔상을 지워 공수교대를 부르지 않는다.
+      phaseUpdate.inningHalf = half;
+      phaseUpdate.outsInHalf = outs;
+    } else if (!staleThreeOuts && !staleAfterSwitch) {
+      // 운영자 3아웃 동안 초/말을 실황이 덮으면, 같은 초/말로 오인되어 공수교대가 막힌다.
+      if (half && currentOuts < 3) phaseUpdate.inningHalf = half;
+      // 운영자 병살·삼살로 올린 아웃을 실황(늦은 2아웃)이 깎지 않는다.
+      if (outs != null && outs >= currentOuts) phaseUpdate.outsInHalf = outs;
+    }
   }
   const lineup = (match?.matchLineup as MatchLineupSnapshot | null) ?? null;
   if (batterName && lineup && half) {
     const side = half === "top" ? lineup.away : lineup.home;
     const found = findLineupBatterByName(side ?? [], batterName);
-    if (found) update.batterIndexInHalf = wrapBatterOrder(found.battingOrder);
+    if (found) alwaysUpdate.batterIndexInHalf = wrapBatterOrder(found.battingOrder);
   }
 
-  if (Object.keys(update).length === 0) return;
-  await MatchModel.updateOne({ id: matchId }, { $set: update });
+  if (Object.keys(alwaysUpdate).length > 0) {
+    await MatchModel.updateOne({ id: matchId }, { $set: alwaysUpdate });
+  }
+  if (Object.keys(phaseUpdate).length > 0) {
+    const filter: Record<string, unknown> = { id: matchId };
+    if (operatorHalf) filter.inningHalf = operatorHalf;
+    await MatchModel.updateOne(filter, { $set: phaseUpdate });
+  }
 }
 
 async function roundNeedsResult(matchId: string, currentRound: number): Promise<boolean> {
@@ -430,14 +455,20 @@ export async function processLiveAutoOperator(
 
     const phaseNow = await resolveAtBatPhase(matchId);
 
+    const latestPhase = await MatchModel.findOne({ id: matchId })
+      .select("outsInHalf inningHalf")
+      .lean();
     const switchInput = {
       liveOuts: liveOutsFromScoreboard(scoreboard),
-      outsInHalf: (match as { outsInHalf?: number }).outsInHalf,
+      outsInHalf: (latestPhase as { outsInHalf?: number } | null)?.outsInHalf ?? 0,
       liveHalf: half,
-      operatorHalf: nullableInningHalf(match.inningHalf) ?? half,
+      operatorHalf:
+        nullableInningHalf((latestPhase as { inningHalf?: string } | null)?.inningHalf) ?? half,
     };
-    const holdSwitch = shouldHoldSwitchHalfForLive(switchInput);
-    const wantSwitchHint = shouldSuggestSwitchHalf(switchInput);
+    const holdSwitch =
+      !broadcastManager.isAdBreakActive(matchId) && shouldHoldSwitchHalfForLive(switchInput);
+    const wantSwitchHint =
+      !broadcastManager.isAdBreakActive(matchId) && shouldSuggestSwitchHalf(switchInput);
     if (holdSwitch && now - state.lastSwitchEmitAt >= HOLD_HINT_MS) {
       state.lastSwitchEmitAt = now;
       broadcastManager.sendToMatchStaff(matchId, "auto_action_suggested", {
