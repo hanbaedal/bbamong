@@ -14,7 +14,7 @@ import {
 import { AD_PLAY_SECONDS, PREDICTION_AUTO_STOP_MS } from "./adBreakTiming";
 import { PREDICTION_SCREEN_FLOW } from "./predictionScreenFlow";
 
-export const MANUAL_DETAIL_UPDATED = "2026-08-27";
+export const MANUAL_DETAIL_UPDATED = "2026-08-29";
 
 export const FLOW_SWIMLANES = [
   {
@@ -98,7 +98,7 @@ export const OPERATOR_USER_STEPS: {
   },
   {
     title: "5. 3아웃·공수교대",
-    body: "3아웃 카운트는 운영자 결과(outsInHalf)입니다. 병살·삼살은 실황이 2아웃이어도 예측을 끝냅니다. 공수교대(이닝 넘김·광고)는 네이버가 같은 초/말에서 3아웃일 때만 엽니다. 실황이 이미 다음 초/말(원아웃 등)이면 3아웃 잔상을 지우고 공수교대를 말하지 않습니다. 실황 아웃이 없으면 가짜 0으로 막지 않습니다. 같은 초/말에서 실황이 늦으면 공수교대를 두 번 눌러 강제합니다.",
+    body: "3아웃 카운트는 운영자 결과(outsInHalf)입니다. 병살·삼살은 실황이 2아웃이어도 예측을 끝냅니다. 「3아웃 — 공수교대」음성·펄스는 네이버가 같은 초/말에서 3아웃일 때만 냅니다. 운영자만 3이고 실황이 1·2면 보류 배너만 보여 주고, 중계가 3아웃이면 공수교대합니다. 실황 3아웃을 운영자 누적에 쓰지 않습니다. 실황이 이미 다음 초/말(원아웃 등)이면 3아웃 잔상을 지우고 공수교대를 말하지 않습니다. 실황 아웃이 없으면 가짜 0으로 막지 않습니다. 같은 초/말에서 실황이 늦으면 공수교대를 두 번 눌러 강제합니다.",
   },
   {
     title: "6. 투수교체",
@@ -132,7 +132,7 @@ export const OPERATOR_TECH_STACK: { label: string; value: string }[] = [
   { label: "예측 창", value: `열린 뒤 ${Math.round(PREDICTION_AUTO_STOP_MS / 1000)}초 자동 중지(schedulePredictionAutoStop 한 루틴)` },
   { label: "타석 단계", value: "idle → prediction_open → prediction_closed → result_confirmed" },
   { label: "WS", value: "/ws/match — at_bat_phase, prediction_started/stopped, round_result, round_next, ad_started/stopped, match_ended" },
-  { label: "권위", value: "회원 화면 uiStage는 서버 at_bat_phase. 3아웃 카운트는 outsInHalf. 공수교대 타이밍은 네이버 3아웃(강제 두 번 탭 가능)" },
+  { label: "권위", value: "회원 화면 uiStage는 서버 at_bat_phase. 3아웃 카운트는 outsInHalf. 공수교대 음성·펄스는 네이버 같은 초/말 3아웃만(실황 1·2면 보류, 강제 두 번 탭 가능)" },
   { label: "API 예", value: "예측 시작/중지, 결과 전송, 다음타자, 공수교대, 투수교체, PATCH scoreboard" },
 ];
 

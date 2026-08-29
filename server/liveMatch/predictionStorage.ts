@@ -26,6 +26,7 @@ import {
   liveOutsFromScoreboard,
   liveHalfAlreadyStarted,
   shouldHoldSwitchHalfForLive,
+  shouldBlockAdvanceForSwitchHalf,
   switchHalfHoldMessage,
   switchHalfLiveMovedOnMessage,
   canAdvanceInningHalf,
@@ -370,9 +371,22 @@ export async function startRound(matchId: string): Promise<Match> {
     if (!match) throw new Error("경기를 찾을 수 없습니다.");
 
     const outsInHalf = (match as { outsInHalf?: number }).outsInHalf ?? 0;
-    const threeOuts = outsInHalf >= 3;
-    if (threeOuts) {
-      throw new Error("3아웃입니다. 공수교대를 눌러주세요.");
+    const liveBoard =
+      ((match as { liveScoreboard?: { situation?: { outs?: number | null }; inningHalf?: string | null } | null })
+        .liveScoreboard) ?? null;
+    const switchInput = {
+      outsInHalf,
+      liveOuts: liveOutsFromScoreboard(liveBoard),
+      liveHalf: liveBoard?.inningHalf,
+      operatorHalf: (match as { inningHalf?: string }).inningHalf,
+      recentlySwitched: wasSwitchHalfRecent(matchId),
+    };
+    if (shouldBlockAdvanceForSwitchHalf(switchInput)) {
+      throw new Error(
+        shouldHoldSwitchHalfForLive(switchInput)
+          ? switchHalfHoldMessage(switchInput.liveOuts)
+          : "3아웃입니다. 공수교대를 눌러주세요.",
+      );
     }
 
     let currentRound =
@@ -392,7 +406,7 @@ export async function startRound(matchId: string): Promise<Match> {
      */
     if (existing?.isResultSent) {
       throw new Error(
-        threeOuts
+        shouldBlockAdvanceForSwitchHalf(switchInput)
           ? "결과가 전송되었습니다. 공수교대를 눌러주세요."
           : "결과가 전송되었습니다. 다음 타자를 눌러주세요.",
       );

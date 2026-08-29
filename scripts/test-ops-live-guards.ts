@@ -19,6 +19,7 @@ import {
   switchHalfAdBreakMessage,
   liveThreeOutsSameHalf,
   canAdvanceInningHalf,
+  shouldBlockAdvanceForSwitchHalf,
 } from "../shared/threeOutsGuard";
 import { AD_PLAY_MS, AD_PLAY_SECONDS, PREDICTION_AUTO_STOP_MS } from "../shared/adBreakTiming";
 import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR, GAME_OUTS_COLOR } from "../client/src/components/game/gameHudColors";
@@ -43,7 +44,8 @@ assert(uniformSrc.includes("pyamongWaitingAway"), "away wait sprite is blue jers
 assert(uniformSrc.includes("pyamongWaitingHome") || uniformSrc.includes("pyamong-waiting.png"), "home wait sprite is white jersey PNG");
 
 assert(liveOutsFromScoreboard({ situation: { outs: 2 } }) === 2, "live outs 2");
-assert(resolveShowThreeOutsHint({ liveOuts: 2, outsInHalf: 3 }) === true, "operator 3 outs wins over live 2");
+assert(resolveShowThreeOutsHint({ liveOuts: 2, outsInHalf: 3 }) === false, "live 2 does not pulse 3-out voice");
+assert(resolveShowThreeOutsHint({ liveOuts: 1, outsInHalf: 3 }) === false, "live 1 does not pulse 3-out voice");
 assert(resolveShowThreeOutsHint({ liveOuts: 3, outsInHalf: 2 }) === true, "same-half live 3 opens switch even if operator has 2");
 assert(resolveShowThreeOutsHint({ outsInHalf: 3 }) === true, "no live → DB 3 is hint");
 assert(resolveShowThreeOutsHint({ outsInHalf: 2 }) === false, "operator 2 is not three outs");
@@ -200,6 +202,36 @@ assert(
   }).kind === "wait_live_three_outs",
   "live 2 holds next-action on switch",
 );
+assert(
+  deriveOperatorNextAction({
+    atBatPhase: "result_confirmed",
+    showThreeOutsHint: false,
+    holdSwitchForLive: true,
+    liveOuts: 2,
+  }).kind === "wait_live_three_outs",
+  "hint off + hold still waits for live 3",
+);
+assert(shouldBlockAdvanceForSwitchHalf({ outsInHalf: 3, liveOuts: 2 }) === true, "op 3 live 2 blocks next batter");
+assert(shouldBlockAdvanceForSwitchHalf({ outsInHalf: 2, liveOuts: 2 }) === false, "2 outs does not block advance");
+assert(
+  shouldBlockAdvanceForSwitchHalf({
+    outsInHalf: 0,
+    liveOuts: 3,
+    liveHalf: "top",
+    operatorHalf: "top",
+  }) === true,
+  "mid-join live 3 blocks next batter",
+);
+assert(
+  shouldBlockAdvanceForSwitchHalf({
+    outsInHalf: 0,
+    liveOuts: 3,
+    liveHalf: "top",
+    operatorHalf: "top",
+    recentlySwitched: true,
+  }) === false,
+  "just-switched live 3 does not block advance",
+);
 
 assert(shouldExecutePredictionAutoStop({ predictionEnabled: true, phase: "prediction_open" }), "open stops");
 assert(shouldExecutePredictionAutoStop({ predictionEnabled: true, phase: "idle" }), "enabled+idle desync still stops");
@@ -255,4 +287,4 @@ assert(
   "round change releases wait_result",
 );
 
-console.log("OK: operator 3-out count, live hold for switch-half, spectator skip wait_result, uniforms, ad 80s, back size");
+console.log("OK: live-3-only 3-out voice, live hold for switch-half, spectator skip wait_result, uniforms, ad 80s, back size");

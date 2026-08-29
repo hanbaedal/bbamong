@@ -20,6 +20,7 @@ import {
   liveOutsFromScoreboard,
   resolveShowThreeOutsHint,
   shouldHoldSwitchHalfForLive,
+  shouldBlockAdvanceForSwitchHalf,
 } from "@shared/threeOutsGuard";
 import { wasSwitchHalfRecent } from "../liveMatch/switchHalfAdGuard";
 
@@ -43,6 +44,10 @@ export interface IAdminMatchStorage {
         stadium: { id: number; name: string };
         predictionStartTime?: Date | null;
         predictionStopTime?: Date | null;
+        liveOuts?: number | null;
+        holdSwitchForLive?: boolean;
+        showThreeOutsHint?: boolean;
+        blockAdvanceForSwitchHalf?: boolean;
       })
     | undefined
   >;
@@ -200,12 +205,15 @@ export class AdminMatchStorage implements IAdminMatchStorage {
       ((doc.liveScoreboard as { inningHalf?: string | null } | null)?.inningHalf as string | null) ??
       null;
     const operatorHalf = (doc.inningHalf as string | undefined) ?? null;
-    const holdSwitchForLive = shouldHoldSwitchHalfForLive({
+    const recentlySwitched = wasSwitchHalfRecent(doc.id as string);
+    const switchLiveInput = {
       outsInHalf,
       liveOuts,
       liveHalf,
       operatorHalf,
-    });
+      recentlySwitched,
+    };
+    const holdSwitchForLive = shouldHoldSwitchHalfForLive(switchLiveInput);
 
     return {
       ...(match as Match),
@@ -218,13 +226,8 @@ export class AdminMatchStorage implements IAdminMatchStorage {
       outsInHalf,
       liveOuts,
       holdSwitchForLive,
-      showThreeOutsHint: resolveShowThreeOutsHint({
-        outsInHalf,
-        liveOuts,
-        liveHalf,
-        operatorHalf,
-        recentlySwitched: wasSwitchHalfRecent(doc.id as string),
-      }),
+      showThreeOutsHint: resolveShowThreeOutsHint(switchLiveInput),
+      blockAdvanceForSwitchHalf: shouldBlockAdvanceForSwitchHalf(switchLiveInput),
       liveAutoEnabled: (doc.liveAutoEnabled as boolean | undefined) !== false,
       atBatPhase,
       atBatPhaseLabel: atBatPhaseLabel(atBatPhase),

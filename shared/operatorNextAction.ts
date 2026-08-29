@@ -67,8 +67,7 @@ export function deriveOperatorNextAction(input: {
     };
   }
 
-  const threeOuts = Boolean(input.showThreeOutsHint);
-  if (threeOuts && input.holdSwitchForLive) {
+  if (input.holdSwitchForLive) {
     const n = typeof input.liveOuts === "number" ? input.liveOuts : null;
     return {
       kind: "wait_live_three_outs",
@@ -76,14 +75,12 @@ export function deriveOperatorNextAction(input: {
     };
   }
 
-  if (threeOuts || (phase === "result_confirmed" && threeOuts)) {
+  const threeOuts = Boolean(input.showThreeOutsHint);
+  if (threeOuts) {
     return { kind: "switch_half", label: "공수교대" };
   }
 
   if (phase === "result_confirmed" || input.needsAdvanceAfterResult) {
-    if (threeOuts) {
-      return { kind: "switch_half", label: "공수교대" };
-    }
     return { kind: "next_batter", label: "다음 타자" };
   }
 
