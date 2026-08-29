@@ -9,6 +9,8 @@ import {
   shouldHoldSwitchHalfForLive,
   switchHalfHoldMessage,
   liveOutsFromScoreboard,
+  liveOutsCount,
+  liveHalfAlreadyStarted,
   nullableInningHalf,
 } from "@shared/threeOutsGuard";
 import { MatchModel, RoundStatisticsModel } from "../UserStorage/db";
@@ -227,7 +229,7 @@ async function syncPhaseFromLive(
 ): Promise<void> {
   const inning = scoreboard.inning;
   const half = scoreboard.inningHalf ? parseInningHalf(scoreboard.inningHalf) : null;
-  const outs = Math.min(3, Math.max(0, scoreboard.situation?.outs ?? 0));
+  const outs = liveOutsCount(scoreboard.situation?.outs);
   const batterName = scoreboard.situation?.batterName?.trim() || "";
 
   const update: Record<string, unknown> = {};
@@ -238,11 +240,23 @@ async function syncPhaseFromLive(
     .lean();
   const operatorHalf = nullableInningHalf((match as { inningHalf?: string } | null)?.inningHalf);
   const currentOuts = (match as { outsInHalf?: number } | null)?.outsInHalf ?? 0;
-  const staleThreeOuts = Boolean(half && operatorHalf && half !== operatorHalf && outs >= 3);
-  // 운영자 3아웃 동안 초/말을 실황이 덮으면, 같은 초/말로 오인되어 공수교대가 막힌다.
-  if (half && !staleThreeOuts && currentOuts < 3) update.inningHalf = half;
-  // 운영자 병살·삼살로 올린 아웃을 실황(늦은 2아웃)이 깎지 않는다.
-  if (!staleThreeOuts && outs >= currentOuts) update.outsInHalf = outs;
+  const liveMovedOn = liveHalfAlreadyStarted({
+    outsInHalf: currentOuts,
+    liveOuts: outs,
+    liveHalf: half,
+    operatorHalf,
+  });
+  const staleThreeOuts = Boolean(half && operatorHalf && half !== operatorHalf && (outs ?? 0) >= 3);
+  if (liveMovedOn && half != null && outs != null) {
+    // 실황이 이미 다음 초/말(원아웃 등) — 3아웃 잔상을 지워 공수교대를 부르지 않는다.
+    update.inningHalf = half;
+    update.outsInHalf = outs;
+  } else {
+    // 운영자 3아웃 동안 초/말을 실황이 덮으면, 같은 초/말로 오인되어 공수교대가 막힌다.
+    if (half && !staleThreeOuts && currentOuts < 3) update.inningHalf = half;
+    // 운영자 병살·삼살로 올린 아웃을 실황(늦은 2아웃)이 깎지 않는다.
+    if (!staleThreeOuts && outs != null && outs >= currentOuts) update.outsInHalf = outs;
+  }
   const lineup = (match?.matchLineup as MatchLineupSnapshot | null) ?? null;
   if (batterName && lineup && half) {
     const side = half === "top" ? lineup.away : lineup.home;

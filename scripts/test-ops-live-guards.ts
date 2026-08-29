@@ -10,6 +10,8 @@ import {
   shouldSuggestSwitchHalf,
   shouldHoldSwitchHalfForLive,
   switchHalfHoldMessage,
+  switchHalfLiveMovedOnMessage,
+  liveHalfAlreadyStarted,
   liveOutsFromScoreboard,
   nullableInningHalf,
 } from "../shared/threeOutsGuard";
@@ -40,13 +42,44 @@ assert(shouldHoldSwitchHalfForLive({ outsInHalf: 3, liveOuts: 0 }) === true, "op
 assert(shouldHoldSwitchHalfForLive({ outsInHalf: 3, liveOuts: 3 }) === false, "live 3 allows switch");
 assert(shouldHoldSwitchHalfForLive({ outsInHalf: 3, liveOuts: null }) === false, "missing live does not hold");
 assert(
+  liveHalfAlreadyStarted({
+    outsInHalf: 3,
+    liveOuts: 1,
+    liveHalf: "bottom",
+    operatorHalf: "top",
+  }) === true,
+  "live 1-out next half is moved-on",
+);
+assert(
+  resolveShowThreeOutsHint({
+    outsInHalf: 3,
+    liveOuts: 1,
+    liveHalf: "bottom",
+    operatorHalf: "top",
+  }) === false,
+  "1-out next half hides 3-out hint",
+);
+assert(
+  shouldSuggestSwitchHalf({
+    outsInHalf: 3,
+    liveOuts: 1,
+    liveHalf: "bottom",
+    operatorHalf: "top",
+  }) === false,
+  "1-out next half does not tell operator to switch",
+);
+assert(
   shouldHoldSwitchHalfForLive({
     outsInHalf: 3,
     liveOuts: 0,
     liveHalf: "bottom",
     operatorHalf: "top",
   }) === false,
-  "half already changed allows switch",
+  "next half 0-2 outs is catch-up, not live-hold",
+);
+assert(
+  switchHalfLiveMovedOnMessage(1).includes("1아웃"),
+  "moved-on message names live 1 out",
 );
 assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: 2 }) === false, "op 3 live 2 does not pulse switch");
 assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: null }) === true, "no live outs → switch ok");

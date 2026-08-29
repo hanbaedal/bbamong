@@ -151,8 +151,17 @@ async function main() {
   console.log("OK: live 3 allows switch");
 
   await seedMatch({ outsInHalf: 3, inningHalf: "top", liveOuts: 0, liveHalf: "bottom" });
-  await expectHoldSkipped("half changed");
-  console.log("OK: live half already changed allows switch");
+  try {
+    await advanceInningHalf(MATCH_ID);
+    throw new Error("expected reject when live already next half");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    assert(
+      msg.includes("다음 초/말") || msg.includes("공수교대하지"),
+      `next-half reject, got: ${msg}`,
+    );
+  }
+  console.log("OK: live already next half (0-2 outs) rejects switch");
 
   await seedMatch({
     outsInHalf: 3,
@@ -164,16 +173,27 @@ async function main() {
   await expectHoldSkipped("missing live");
   console.log("OK: missing live outs does not hold");
 
-  await seedMatch({ outsInHalf: 3, inningHalf: "top", liveOuts: 2, liveHalf: "top" });
+  await seedMatch({ outsInHalf: 3, inningHalf: "top", liveOuts: 3, liveHalf: "top" });
   clearLiveAutoOperator(MATCH_ID);
   await processLiveAutoOperator(
     MATCH_ID,
-    board({ outs: 0, half: "bottom" }),
+    board({ outs: 2, half: "top" }),
   );
   const frozen = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
-  assert((frozen as { inningHalf?: string })?.inningHalf === "top", "3-out freeze inningHalf");
-  assert(((frozen as { outsInHalf?: number })?.outsInHalf ?? 0) >= 3, "live 0 does not cut operator 3");
-  console.log("OK: live poll does not overwrite operator half/outs while 3 outs");
+  assert((frozen as { inningHalf?: string })?.inningHalf === "top", "same-half freeze inningHalf");
+  assert(((frozen as { outsInHalf?: number })?.outsInHalf ?? 0) >= 3, "live 2 does not cut operator 3");
+  console.log("OK: same-half live 2 does not cut operator 3");
+
+  await seedMatch({ outsInHalf: 3, inningHalf: "top", liveOuts: 3, liveHalf: "top" });
+  clearLiveAutoOperator(MATCH_ID);
+  await processLiveAutoOperator(
+    MATCH_ID,
+    board({ outs: 1, half: "bottom" }),
+  );
+  const caught = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
+  assert((caught as { inningHalf?: string })?.inningHalf === "bottom", "catch-up half to live");
+  assert((caught as { outsInHalf?: number })?.outsInHalf === 1, "catch-up outs to live 1");
+  console.log("OK: live 1-out next half clears operator 3-out leftover");
 
   await MatchModel.deleteOne({ id: MATCH_ID });
   await RoundStatisticsModel.deleteMany({ matchId: MATCH_ID });
