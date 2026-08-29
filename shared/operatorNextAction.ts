@@ -34,7 +34,15 @@ export function deriveOperatorNextAction(input: {
   needsResultBeforeAdvance?: boolean | null;
   isAdPlaying?: boolean | null;
   predictionEnabled?: boolean | null;
+  gameSuspended?: boolean | null;
 }): OperatorNextAction {
+  if (input.gameSuspended) {
+    return {
+      kind: "none",
+      label: "우천 중단 · 재개 후 예측 시작",
+    };
+  }
+
   if (input.isAdPlaying) {
     return {
       kind: "stop_ad",

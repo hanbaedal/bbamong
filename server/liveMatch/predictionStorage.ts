@@ -34,6 +34,10 @@ import {
   canAdvanceInningHalf,
 } from "@shared/threeOutsGuard";
 import { wasSwitchHalfRecent } from "./switchHalfAdGuard";
+import {
+  GAME_SUSPENDED_OPERATOR_MESSAGE,
+  isMatchPredictionSuspended,
+} from "@shared/gameSuspend";
 
 /**
  * 운영자 컨트롤용 — ongoing, 또는 시작 5분 전~의 scheduled.
@@ -326,6 +330,7 @@ async function refundPendingPredictionsForRound(
   session: ClientSession,
   matchId: string,
   roundNumber: number,
+  reason = `라운드 ${roundNumber} 취소·투수교체로 인한 환불`,
 ): Promise<number> {
   const pending = await PredictionModel.find({
     matchId,
@@ -349,7 +354,7 @@ async function refundPendingPredictionsForRound(
         transactionType: "refund",
         amount: refundAmount,
         balance: updatedUser.points,
-        description: `라운드 ${roundNumber} 취소·투수교체로 인한 환불 (${refundAmount}포인트)`,
+        description: `${reason} (${refundAmount}포인트)`,
       });
     }
   }
@@ -385,6 +390,18 @@ function switchInputFromMatchDoc(
 export async function startRound(matchId: string): Promise<Match> {
   const peek = await MatchModel.findOne({ id: matchId }).lean();
   if (!peek) throw new Error("경기를 찾을 수 없습니다.");
+  if (
+    isMatchPredictionSuspended({
+      matchStatus: peek.matchStatus,
+      liveScoreboard: peek.liveScoreboard as {
+        statusShort?: string | null;
+        statusLong?: string | null;
+        inningLabel?: string | null;
+      } | null,
+    })
+  ) {
+    throw new Error(GAME_SUSPENDED_OPERATOR_MESSAGE);
+  }
   const switchInput = switchInputFromMatchDoc(
     peek as { outsInHalf?: number; inningHalf?: string; liveScoreboard?: unknown },
     matchId,
@@ -668,6 +685,71 @@ async function stopRoundOnce(matchId: string): Promise<Match> {
   }
 }
 
+/** 우천 중단·취소 — 예측 창을 닫고 미확정 베팅을 환불한다. 경기 종료 여부는 호출 측이 결정한다. */
+export async function pausePredictionForWeatherDelay(
+  matchId: string,
+  refundReason = "우천 중단으로 인한 환불",
+): Promise<{
+  refunded: number;
+  predictionWasOpen: boolean;
+  currentRound: number;
+}> {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    const match = await MatchModel.findOne({ id: matchId }).session(session).lean();
+    if (!match) throw new Error("경기를 찾을 수 없습니다.");
+
+    const currentRound =
+      typeof match.currentRound === "number" && Number.isFinite(match.currentRound)
+        ? match.currentRound
+        : 1;
+    const existing = await RoundStatisticsModel.findOne(roundStatsQuery(matchId, currentRound))
+      .session(session)
+      .lean();
+
+    const predictionWasOpen = Boolean(
+      match.predictionEnabled ||
+        (existing?.isPredictionStarted && !existing.isPredictionStopped),
+    );
+
+    let refunded = 0;
+    if (existing && !existing.isResultSent) {
+      refunded = await refundPendingPredictionsForRound(
+        session,
+        matchId,
+        currentRound,
+        refundReason,
+      );
+    }
+
+    if (existing?.isPredictionStarted && !existing.isPredictionStopped) {
+      await RoundStatisticsModel.updateOne(
+        roundStatsQuery(matchId, currentRound),
+        { predictionStopTime: new Date(), isPredictionStopped: true },
+        { session },
+      );
+    }
+
+    if (match.predictionEnabled) {
+      await MatchModel.updateOne({ id: matchId }, { $set: { predictionEnabled: false } }, { session });
+    }
+
+    await session.commitTransaction();
+    return { refunded, predictionWasOpen, currentRound };
+  } catch (error) {
+    try {
+      await session.abortTransaction();
+    } catch {
+      /* ignore abort errors */
+    }
+    throw error;
+  } finally {
+    session.endSession();
+  }
+}
+
 /** 예측 시작 직후(1초 이내) 토글 취소 */
 export async function cancelStartRound(matchId: string): Promise<Match> {
   const session = await mongoose.startSession();
@@ -724,6 +806,18 @@ export async function cancelStopRound(matchId: string): Promise<Match> {
 
     const match = await MatchModel.findOne({ id: matchId }).session(session).lean();
     if (!match) throw new Error("경기를 찾을 수 없습니다.");
+    if (
+      isMatchPredictionSuspended({
+        matchStatus: match.matchStatus,
+        liveScoreboard: match.liveScoreboard as {
+          statusShort?: string | null;
+          statusLong?: string | null;
+          inningLabel?: string | null;
+        } | null,
+      })
+    ) {
+      throw new Error(GAME_SUSPENDED_OPERATOR_MESSAGE);
+    }
 
     const currentRound = match.currentRound;
     const existing = await RoundStatisticsModel.findOne({

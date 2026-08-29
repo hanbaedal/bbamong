@@ -8,14 +8,13 @@ export function normalizeApiStatusShort(statusShort: string | null | undefined):
   return (statusShort || "").trim().toUpperCase();
 }
 
-/** 연기·취소·중단·몰수 등 — 정상 종료(FT)가 아님 */
+/** 연기·취소·몰수 등 — 정상 종료(FT)가 아님. 우천 지연(SUSP)은 재개 가능하므로 제외 */
 export function isGamePostponedOrCancelled(statusShort: string | null | undefined): boolean {
   const short = normalizeApiStatusShort(statusShort);
   if (!short) return false;
   if (short === "PST" || short === "POST" || short === "POSTPONED") return true;
   if (short === "CAN" || short === "CANCELLED" || short === "CANCELED") return true;
   if (short === "ABD" || short === "ABANDONED") return true;
-  if (short === "SUSP" || short === "SUSPENDED") return true;
   if (short.startsWith("POST") && short !== "POSTGAME") return true;
   return false;
 }
@@ -41,13 +40,14 @@ export function isGameNotStarted(statusShort: string | null | undefined): boolea
   );
 }
 
-/** NS/TBD·종료·연기가 아니면 live(진행)로 간주 */
+/** NS/TBD·종료·연기·중단이 아니면 live(진행)로 간주 */
 export function isGameLiveStatus(statusShort: string | null | undefined): boolean {
   const short = normalizeApiStatusShort(statusShort);
   if (!short) return false;
   if (isGameNotStarted(short)) return false;
   if (isGameFinished(short)) return false;
   if (isGamePostponedOrCancelled(short)) return false;
+  if (isGameSuspendedStatus(short)) return false;
   return true;
 }
 
@@ -58,7 +58,15 @@ export function isGameCancelledStatus(statusShort: string | null | undefined): b
 
 export function isGameSuspendedStatus(statusShort: string | null | undefined): boolean {
   const short = normalizeApiStatusShort(statusShort);
-  return short === "SUSP" || short === "SUSPENDED";
+  return (
+    short === "SUSP" ||
+    short === "SUSPENDED" ||
+    short === "DELAY" ||
+    short === "DELAYED" ||
+    short === "INT" ||
+    short === "INTERRUPT" ||
+    short === "INTERRUPTED"
+  );
 }
 
 /** 스코어보드·경기관리 UI용 짧은 한글 라벨 */
@@ -93,7 +101,7 @@ export function isConfirmedPostponedMatch(input: {
   const long = (input.statusLong ?? "").toLowerCase();
   const label = (input.inningLabel ?? "").trim();
 
-  if (label === "연기" || label === "취소" || label === "중단") return true;
+  if (label === "연기" || label === "취소") return true;
   if (short === "PST" || short === "POSTPONED") return true;
   if (short === "CAN" || short === "CANCELLED" || short === "CANCELED" || short === "ABD") {
     return true;

@@ -74,6 +74,7 @@ export const FLOW_CROSS_LINKS: string[] = [
   "연결: Express :5000 + MongoDB `ppamong` + Redis 세션 + WebSocket `/ws/match`.",
   "실황 ON(AdminUser.apiSyncEnabled)인 경기만 회원이 「경기 선택」에서 고를 수 있습니다.",
   "「예측 시작」은 predictionEnabled만 켭니다. matchStatus=ongoing은 다음 실황이 시작했을 때만.",
+  "우천 중단(다음 SUSPEND/DELAY 또는 네이버 최근 문자)이면 예측을 멈추고 대기한다. 우천 취소는 경기 취소.",
 ];
 
 export const OPERATOR_USER_STEPS: {

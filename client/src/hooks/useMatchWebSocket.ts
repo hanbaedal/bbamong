@@ -53,6 +53,8 @@ export interface WSEventHandlers {
     currentRound?: number;
     settledResult?: string | null;
   }) => void;
+  onGameSuspended?: (data: any) => void;
+  onGameResumed?: (data: any) => void;
   onError?: (error: Error) => void;
   onReconnecting?: (attempt: number) => void;
 }
@@ -332,6 +334,12 @@ export function useMatchWebSocket({
               break;
             case "end":
               handlersRef.current.onMatchEnd?.(message.data);
+              break;
+            case "game_suspended":
+              handlersRef.current.onGameSuspended?.(message.data);
+              break;
+            case "game_resumed":
+              handlersRef.current.onGameResumed?.(message.data);
               break;
             case "at_bat_phase":
               handlersRef.current.onAtBatPhase?.(message.data);

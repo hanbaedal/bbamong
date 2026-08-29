@@ -212,6 +212,10 @@ assert(
   }).kind === "wait_live_three_outs",
   "hold without result waits for live 3",
 );
+assert(
+  deriveOperatorNextAction({ atBatPhase: "idle", gameSuspended: true }).kind === "none",
+  "rain delay is not start_prediction",
+);
 assert(shouldBlockAdvanceForSwitchHalf({ outsInHalf: 3, liveOuts: 2 }) === false, "op 3 live 2 does not block start");
 assert(shouldContinueSameHalfAfterResult({ outsInHalf: 3, liveOuts: 2, liveHalf: "top", operatorHalf: "top" }) === true, "same half live 2 continues at-bat");
 assert(shouldContinueSameHalfAfterResult({ outsInHalf: 3, liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === false, "live 3 does not continue");

@@ -17,6 +17,10 @@ import { isValidBetAmount, DEFAULT_BET_AMOUNT } from "@shared/predictionOdds";
 import { z } from "zod";
 import { mongoose, PredictionModel, UserModel, PointTransactionModel, getNextSequence } from "../UserStorage/db";
 import { userAuthMiddleware } from "../middleware/userAuth";
+import {
+  GAME_SUSPENDED_OPERATOR_MESSAGE,
+  isMatchPredictionSuspended,
+} from "@shared/gameSuspend";
 
 const router = Router();
 
@@ -52,6 +56,19 @@ router.post("/predictions", userAuthMiddleware, async (req: any, res: Response) 
       return res.status(400).json({ 
         error: "현재 예측이 불가능합니다. 예측 시작을 기다려주세요." 
       });
+    }
+
+    if (
+      isMatchPredictionSuspended({
+        matchStatus: match.matchStatus,
+        liveScoreboard: (match as { liveScoreboard?: unknown }).liveScoreboard as {
+          statusShort?: string | null;
+          statusLong?: string | null;
+          inningLabel?: string | null;
+        } | null,
+      })
+    ) {
+      return res.status(400).json({ error: GAME_SUSPENDED_OPERATOR_MESSAGE });
     }
 
     const currentRound = match.currentRound;

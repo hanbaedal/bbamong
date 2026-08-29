@@ -67,7 +67,8 @@ export function mapDaumGameStatus(gameStatus?: string | null): {
   statusShort: string;
   statusLong: string;
 } {
-  const status = (gameStatus ?? "").trim().toUpperCase();
+  const raw = (gameStatus ?? "").trim();
+  const status = raw.toUpperCase();
   if (!status || DAUM_PREGAME_STATUSES.has(status)) {
     return { statusShort: "NS", statusLong: "Not Started" };
   }
@@ -77,13 +78,22 @@ export function mapDaumGameStatus(gameStatus?: string | null): {
   if (status === "END" || status === "RESULT" || status === "FINAL" || status === "FINISHED") {
     return { statusShort: "FT", statusLong: "Game Finished" };
   }
-  if (status === "CANCEL" || status === "CANCELED" || status === "CANCELLED") {
+  if (status === "CANCEL" || status === "CANCELED" || status === "CANCELLED" || /취소/.test(raw)) {
     return { statusShort: "CAN", statusLong: "Cancelled" };
   }
-  if (status === "SUSPEND" || status === "SUSPENDED") {
+  if (
+    status === "SUSPEND" ||
+    status === "SUSPENDED" ||
+    status === "DELAY" ||
+    status === "DELAYED" ||
+    status === "INT" ||
+    status === "INTERRUPT" ||
+    status === "INTERRUPTED" ||
+    (/중단|지연/.test(raw) && !/취소/.test(raw))
+  ) {
     return { statusShort: "SUSP", statusLong: "Suspended" };
   }
-  if (status === "DELAY" || status === "POSTPONE" || status === "POSTPONED") {
+  if (status === "POSTPONE" || status === "POSTPONED" || /연기/.test(raw)) {
     return { statusShort: "PST", statusLong: "Postponed" };
   }
   return { statusShort: "NS", statusLong: "Not Started" };
