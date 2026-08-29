@@ -34,6 +34,7 @@ import {
   switchHalfHoldMessage,
   switchHalfLiveMovedOnMessage,
   switchHalfAdBreakMessage,
+  shouldBlockAdvanceForSwitchHalf,
 } from "@shared/threeOutsGuard";
 import {
   WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS,
@@ -178,6 +179,7 @@ export default function MatchDetailPage() {
   const liveMovedOn = liveHalfAlreadyStarted(switchLiveInput);
   const showThreeOutsHint = resolveShowThreeOutsHint(switchLiveInput);
   const holdSwitchForLive = shouldHoldSwitchHalfForLive(switchLiveInput);
+  const blockForSwitchHalf = shouldBlockAdvanceForSwitchHalf(switchLiveInput);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const connectFnRef = useRef<(() => void | Promise<void>) | null>(null);
@@ -702,17 +704,6 @@ export default function MatchDetailPage() {
           return;
         }
         setMatch(data);
-        if (
-          data.showThreeOutsHint &&
-          !threeOutsSpokenRef.current &&
-          Date.now() >= adBreakLockUntilRef.current
-        ) {
-          threeOutsSpokenRef.current = true;
-          void speakGameVoice("operator.threeOuts");
-        }
-        if (!data.showThreeOutsHint) {
-          threeOutsSpokenRef.current = false;
-        }
       } else if (response.status === 429) {
         console.log("[Manager] 요청 제한 (429) - 무시하고 기존 데이터 유지");
       } else if (response.status === 403) {
@@ -764,6 +755,20 @@ export default function MatchDetailPage() {
       fetchMatchDetail();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (
+      showThreeOutsHint &&
+      !threeOutsSpokenRef.current &&
+      Date.now() >= adBreakLockUntilRef.current
+    ) {
+      threeOutsSpokenRef.current = true;
+      void speakGameVoice("operator.threeOuts");
+    }
+    if (!showThreeOutsHint) {
+      threeOutsSpokenRef.current = false;
+    }
+  }, [showThreeOutsHint]);
 
   // 경기 시작 5분 전부터 MongoDB 폴링 (선택 경기 1건)
   useEffect(() => {
@@ -1072,7 +1077,7 @@ export default function MatchDetailPage() {
       toast({ description: "예측이 열려 있습니다. 중지(8초 자동)와 결과 전송 뒤에 「다음 타자」를 누르세요." });
       return;
     }
-    if (showThreeOutsHint) {
+    if (blockForSwitchHalf) {
       toast({
         description: holdSwitchForLive
           ? switchHalfHoldMessage(liveOutsNow)
@@ -1096,7 +1101,7 @@ export default function MatchDetailPage() {
   };
 
   const handlePitcherChange = () => {
-    if (showThreeOutsHint && !isAdPlaying) {
+    if (blockForSwitchHalf && !isAdPlaying) {
       toast({ description: "공수교대 시에는 투수 교체 대신 공수 교대를 사용하세요." });
       return;
     }
@@ -1302,7 +1307,7 @@ export default function MatchDetailPage() {
   /** 결과 후·3아웃에는 예측 시작 불가 — 다음 타자/공수교대만 */
   const canStartPrediction =
     isMatchLive &&
-    !showThreeOutsHint &&
+    !blockForSwitchHalf &&
     !awaitAdvanceAfterResult &&
     !isStartingPrediction &&
     (!predictionRunning || withinStartCancel);
@@ -1318,13 +1323,13 @@ export default function MatchDetailPage() {
   /** 공수교대(3아웃) 제외 — 예측 시작·중지 중에도 투수 교체 가능. 결과 전송 후에도 수동 가능. */
   const canPitcherChange =
     isMatchLive &&
-    !showThreeOutsHint &&
+    !blockForSwitchHalf &&
     !anyAdvanceBusy &&
     !isAdPlaying;
   /** 다음 타자 — 예측 중지·결과 전송 후에만. 3아웃이면 공수교대만 */
   const canNextBatter =
     isMatchLive &&
-    !showThreeOutsHint &&
+    !blockForSwitchHalf &&
     !anyAdvanceBusy &&
     !blockAdvanceActions &&
     !isAdPlaying &&
@@ -1597,7 +1602,7 @@ export default function MatchDetailPage() {
             </div>
           )}
 
-          {showThreeOutsHint && holdSwitchForLive && !adBreakLocked && (
+          {holdSwitchForLive && !adBreakLocked && (
             <div
               className="manager-match-notice manager-match-notice--three-outs"
               data-testid="text-three-outs-hint"
@@ -1615,7 +1620,7 @@ export default function MatchDetailPage() {
             </div>
           )}
 
-          {!showThreeOutsHint && awaitAdvanceAfterResult && (
+          {!showThreeOutsHint && !holdSwitchForLive && awaitAdvanceAfterResult && (
             <div
               className="manager-match-notice"
               data-testid="text-await-next-batter"

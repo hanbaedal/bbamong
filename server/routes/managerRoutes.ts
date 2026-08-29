@@ -24,6 +24,7 @@ import {
   PPAMONG_OPERATOR_LOGIN_DENIED,
 } from "../../shared/operatorLoginPolicy";
 import { operatorControlErrorStatus } from "../../shared/operatorControlError";
+import { switchHalfHoldMessage } from "../../shared/threeOutsGuard";
 
 const adminStorage = new AdminStorage();
 const MANAGER_APP_SCHEME = "ppamongmanager";
@@ -993,8 +994,12 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       await assertMatchLiveForControls(id);
 
-      if (match.showThreeOutsHint) {
-        return res.status(400).json({ error: "3아웃입니다. 공수교대를 눌러주세요." });
+      if (match.blockAdvanceForSwitchHalf) {
+        return res.status(400).json({
+          error: match.holdSwitchForLive
+            ? switchHalfHoldMessage(match.liveOuts)
+            : "3아웃입니다. 공수교대를 눌러주세요.",
+        });
       }
 
       await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
@@ -1053,8 +1058,12 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       await assertMatchLiveForControls(id);
 
-      if (match.showThreeOutsHint) {
-        return res.status(400).json({ error: "3아웃입니다. 공수교대를 눌러주세요." });
+      if (match.blockAdvanceForSwitchHalf) {
+        return res.status(400).json({
+          error: match.holdSwitchForLive
+            ? switchHalfHoldMessage(match.liveOuts)
+            : "3아웃입니다. 공수교대를 눌러주세요.",
+        });
       }
 
       const { match: updatedMatch, predictionAutoStopped, skippedResult, pinchCleared } =

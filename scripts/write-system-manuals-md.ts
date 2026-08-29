@@ -176,7 +176,7 @@ ${MATCH_STATUS_RULES.map((l) => `- ${l}`).join("\n")}
 - 예측 시작/중지, 결과 전송, 다음타자, 공수교대, 투수교체, PATCH \`/api/manager/matches/:id/scoreboard\`
 - WS \`/ws/match\`: \`at_bat_phase\`, \`prediction_started\` / \`stopped\`, \`round_result\`, \`round_next\`, \`ad_started\` / \`ad_stopped\`, \`match_ended\`
 - 회원 \`uiStage\` 권위는 서버 \`at_bat_phase\`
-- 3아웃 카운트는 \`Match.outsInHalf\`. 공수교대 타이밍은 네이버 같은 초/말 3아웃(강제 두 번 탭 가능)
+- 3아웃 카운트는 \`Match.outsInHalf\`. 「3아웃 공수교대」음성은 네이버 같은 초/말 3아웃만. 실황 1·2면 보류 배너. 강제 두 번 탭 가능
 - 실황 ON은 \`AdminUser.apiSyncEnabled\` (Match 필드가 아님)
 `;
 }

@@ -98,12 +98,17 @@ export function liveThreeOutsSameHalf(input: SwitchHalfLiveInput): boolean {
   return true;
 }
 
-/** 운영자 3아웃, 또는 중간 합류용 같은 초/말 실황 3아웃. 교대 직후 잔상은 숨긴다. */
+/**
+ * 「3아웃 — 공수교대」펄스·음성.
+ * 같은 초/말 실황 3아웃만. 운영자만 3이고 실황 1·2면 보류 배너만 (여기서 true 하지 않음).
+ * 실황 아웃 공란 + 운영자 3은 가짜 0으로 숨기지 않는다.
+ */
 export function resolveShowThreeOutsHint(input: SwitchHalfLiveInput): boolean {
   if (liveHalfAlreadyStarted(input)) return false;
-  if ((input.outsInHalf ?? 0) >= 3) return true;
-  if (input.recentlySwitched) return false;
-  return liveThreeOutsSameHalf(input);
+  if (input.recentlySwitched && (input.outsInHalf ?? 0) < 3) return false;
+  if (liveThreeOutsSameHalf(input)) return true;
+  if ((input.outsInHalf ?? 0) >= 3 && liveOutsCount(input.liveOuts) == null) return true;
+  return false;
 }
 
 /**
@@ -141,6 +146,14 @@ export function shouldSuggestSwitchHalf(input: SwitchHalfLiveInput): boolean {
   if ((input.outsInHalf ?? 0) >= 3) {
     return !shouldHoldSwitchHalfForLive(input);
   }
+  if (input.recentlySwitched) return false;
+  return liveThreeOutsSameHalf(input);
+}
+
+/** 다음 타자·투수교체·예측 시작 대신 공수교대(또는 실황 3아웃 대기). */
+export function shouldBlockAdvanceForSwitchHalf(input: SwitchHalfLiveInput): boolean {
+  if (liveHalfAlreadyStarted(input)) return false;
+  if ((input.outsInHalf ?? 0) >= 3) return true;
   if (input.recentlySwitched) return false;
   return liveThreeOutsSameHalf(input);
 }

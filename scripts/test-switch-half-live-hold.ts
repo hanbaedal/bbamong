@@ -222,8 +222,8 @@ async function main() {
   await processLiveAutoOperator(MATCH_ID, board({ outs: 3, half: "top" }));
   const midJoin = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
   assert((midJoin as { inningHalf?: string })?.inningHalf === "top", "mid-join keeps same half");
-  assert((midJoin as { outsInHalf?: number })?.outsInHalf === 3, "mid-join live 3 raises operator outs");
-  console.log("OK: mid-join same-half live 3 raises outsInHalf to 3");
+  assert((midJoin as { outsInHalf?: number })?.outsInHalf === 0, "mid-join live 3 does not write outsInHalf");
+  console.log("OK: mid-join same-half live 3 does not persist live 3 into outsInHalf");
 
   await seedMatch({ outsInHalf: 0, inningHalf: "top", liveOuts: 3, liveHalf: "top" });
   resetSwitchHalfRecentForTest(MATCH_ID);

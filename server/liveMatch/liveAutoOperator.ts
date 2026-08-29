@@ -275,8 +275,8 @@ async function syncPhaseFromLive(
     } else if (!staleThreeOuts && !staleAfterSwitch) {
       // 운영자 3아웃 동안 초/말을 실황이 덮으면, 같은 초/말로 오인되어 공수교대가 막힌다.
       if (half && currentOuts < 3) phaseUpdate.inningHalf = half;
-      // 운영자 병살·삼살로 올린 아웃을 실황(늦은 2아웃)이 깎지 않는다.
-      if (outs != null && outs >= currentOuts) phaseUpdate.outsInHalf = outs;
+      // 실황 0~2만 운영자 누적에 맞춤. 실황 3을 쓰면 투아웃에 3아웃 잔상이 남는다.
+      if (outs != null && outs >= currentOuts && outs < 3) phaseUpdate.outsInHalf = outs;
     }
   }
   const lineup = (match?.matchLineup as MatchLineupSnapshot | null) ?? null;
