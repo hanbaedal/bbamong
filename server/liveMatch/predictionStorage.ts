@@ -24,8 +24,10 @@ import { isMatchLiveWindowOpen } from "@shared/matchLiveWindow";
 import { isMongoTransientError } from "../../shared/mongoTransientError";
 import {
   liveOutsFromScoreboard,
+  liveHalfAlreadyStarted,
   shouldHoldSwitchHalfForLive,
   switchHalfHoldMessage,
+  switchHalfLiveMovedOnMessage,
 } from "@shared/threeOutsGuard";
 
 /**
@@ -903,15 +905,19 @@ export async function advanceInningHalf(
       inningHalf?: string | null;
     } | null) ?? null;
   const liveOuts = liveOutsFromScoreboard(liveBoard);
-  if (
-    !options?.force &&
-    shouldHoldSwitchHalfForLive({
-      outsInHalf: (rec.outsInHalf as number | undefined) ?? 0,
-      liveOuts,
-      liveHalf: liveBoard?.inningHalf,
-      operatorHalf: rec.inningHalf as string | undefined,
-    })
-  ) {
+  const switchInput = {
+    outsInHalf: (rec.outsInHalf as number | undefined) ?? 0,
+    liveOuts,
+    liveHalf: liveBoard?.inningHalf,
+    operatorHalf: rec.inningHalf as string | undefined,
+  };
+  if (liveHalfAlreadyStarted(switchInput)) {
+    throw new Error(switchHalfLiveMovedOnMessage(liveOuts));
+  }
+  if ((switchInput.outsInHalf ?? 0) < 3) {
+    throw new Error("3아웃일 때만 공수교대합니다.");
+  }
+  if (!options?.force && shouldHoldSwitchHalfForLive(switchInput)) {
     throw new Error(switchHalfHoldMessage(liveOuts));
   }
 

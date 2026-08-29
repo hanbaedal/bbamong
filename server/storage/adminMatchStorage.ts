@@ -18,6 +18,7 @@ import {
 import { atBatPhaseLabel, deriveAtBatPhase } from "@shared/atBatPhase";
 import {
   liveOutsFromScoreboard,
+  resolveShowThreeOutsHint,
   shouldHoldSwitchHalfForLive,
 } from "@shared/threeOutsGuard";
 
@@ -216,7 +217,12 @@ export class AdminMatchStorage implements IAdminMatchStorage {
       outsInHalf,
       liveOuts,
       holdSwitchForLive,
-      showThreeOutsHint: outsInHalf >= 3,
+      showThreeOutsHint: resolveShowThreeOutsHint({
+        outsInHalf,
+        liveOuts,
+        liveHalf,
+        operatorHalf,
+      }),
       liveAutoEnabled: (doc.liveAutoEnabled as boolean | undefined) !== false,
       atBatPhase,
       atBatPhaseLabel: atBatPhaseLabel(atBatPhase),

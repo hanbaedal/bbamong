@@ -27,9 +27,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { subscribeForegroundResume } from "@/lib/foregroundResume";
 import { isLiveAutoOperatorWsType } from "@shared/liveAutoWsEvents";
 import {
+  liveHalfAlreadyStarted,
   liveOutsFromScoreboard,
+  resolveShowThreeOutsHint,
   shouldHoldSwitchHalfForLive,
   switchHalfHoldMessage,
+  switchHalfLiveMovedOnMessage,
 } from "@shared/threeOutsGuard";
 import {
   WS_MANAGER_CLIENT_HEARTBEAT_INTERVAL_MS,
@@ -159,17 +162,18 @@ export default function MatchDetailPage() {
     matchStatus: match?.matchStatus,
     pollMs: 2_000,
   });
-  const showThreeOutsHint =
-    Boolean(match?.showThreeOutsHint) || (match?.outsInHalf ?? 0) >= 3;
   const liveBoardForOuts =
     scoreboardPayload?.scoreboard ?? match?.liveScoreboard ?? null;
   const liveOutsNow = liveOutsFromScoreboard(liveBoardForOuts) ?? match?.liveOuts ?? null;
-  const holdSwitchForLive = shouldHoldSwitchHalfForLive({
+  const switchLiveInput = {
     outsInHalf: match?.outsInHalf,
     liveOuts: liveOutsNow,
     liveHalf: liveBoardForOuts?.inningHalf,
     operatorHalf: match?.inningHalf,
-  });
+  };
+  const liveMovedOn = liveHalfAlreadyStarted(switchLiveInput);
+  const showThreeOutsHint = resolveShowThreeOutsHint(switchLiveInput);
+  const holdSwitchForLive = shouldHoldSwitchHalfForLive(switchLiveInput);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const connectFnRef = useRef<(() => void | Promise<void>) | null>(null);
@@ -893,10 +897,27 @@ export default function MatchDetailPage() {
       if (response.ok) {
         const data = await response.json();
         setSelectedResult(null);
-        if (data.threeOutsReached) {
-          threeOutsSpokenRef.current = true;
-          void speakGameVoice("operator.threeOuts");
-          toast({ description: "결과가 전송되었습니다. 공수교대를 기다립니다." });
+        if (data.threeOutsReached && !liveHalfAlreadyStarted({
+          outsInHalf: data.outsInHalf ?? match?.outsInHalf,
+          liveOuts: liveOutsNow,
+          liveHalf: liveBoardForOuts?.inningHalf,
+          operatorHalf: match?.inningHalf,
+        })) {
+          const holdAfterResult = shouldHoldSwitchHalfForLive({
+            outsInHalf: data.outsInHalf ?? match?.outsInHalf,
+            liveOuts: liveOutsNow,
+            liveHalf: liveBoardForOuts?.inningHalf,
+            operatorHalf: match?.inningHalf,
+          });
+          if (!holdAfterResult) {
+            threeOutsSpokenRef.current = true;
+            void speakGameVoice("operator.threeOuts");
+          }
+          toast({
+            description: holdAfterResult
+              ? "결과가 전송되었습니다. 실황 3아웃을 기다립니다."
+              : "결과가 전송되었습니다. 공수교대를 눌러주세요.",
+          });
         } else {
           toast({ description: "결과가 전송되었습니다. 다음 타자를 기다립니다." });
         }
@@ -908,7 +929,12 @@ export default function MatchDetailPage() {
             predictionStartTime: undefined,
             predictionStopTime: undefined,
             outsInHalf: data.outsInHalf ?? match.outsInHalf,
-            showThreeOutsHint: Boolean(data.threeOutsReached),
+            showThreeOutsHint: resolveShowThreeOutsHint({
+              outsInHalf: data.outsInHalf ?? match.outsInHalf,
+              liveOuts: liveOutsNow,
+              liveHalf: liveBoardForOuts?.inningHalf,
+              operatorHalf: match.inningHalf,
+            }),
             needsResultBeforeAdvance: false,
             needsAdvanceAfterResult: true,
             isResultSent: true,
@@ -1063,7 +1089,11 @@ export default function MatchDetailPage() {
       toast({ description: "먼저 예측 결과를 전송해 주세요." });
       return;
     }
-    if (!showThreeOutsHint && (match?.outsInHalf ?? 0) < 3 && !awaitAdvanceAfterResult) {
+    if (liveMovedOn) {
+      toast({ description: switchHalfLiveMovedOnMessage(liveOutsNow) });
+      return;
+    }
+    if (!showThreeOutsHint && (match?.outsInHalf ?? 0) < 3) {
       toast({ description: "3아웃일 때만 공수교대합니다." });
       return;
     }
@@ -1272,7 +1302,8 @@ export default function MatchDetailPage() {
     !anyAdvanceBusy &&
     !blockAdvanceActions &&
     !isAdPlaying &&
-    (showThreeOutsHint || (match.outsInHalf ?? 0) >= 3 || awaitAdvanceAfterResult);
+    (showThreeOutsHint || (match.outsInHalf ?? 0) >= 3) &&
+    !liveMovedOn;
   /** 대타 — 경기중·예측 중이 아닐 때 (현재 타석 교체) */
   const canSetPinchHitter =
     isMatchLive && !anyAdvanceBusy && !predictionRunning && !isAdPlaying;
