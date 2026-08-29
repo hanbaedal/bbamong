@@ -24,9 +24,11 @@ import { isMatchLiveWindowOpen } from "@shared/matchLiveWindow";
 import { isMongoTransientError } from "../../shared/mongoTransientError";
 import {
   liveOutsFromScoreboard,
+  liveOutsCount,
   liveHalfAlreadyStarted,
   shouldHoldSwitchHalfForLive,
   shouldBlockAdvanceForSwitchHalf,
+  shouldContinueSameHalfAfterResult,
   switchHalfHoldMessage,
   switchHalfLiveMovedOnMessage,
   canAdvanceInningHalf,
@@ -362,32 +364,45 @@ async function refundPendingPredictionsForRound(
   return pending.length;
 }
 
+function switchInputFromMatchDoc(
+  match: { outsInHalf?: number; inningHalf?: string; liveScoreboard?: unknown },
+  matchId: string,
+) {
+  const liveBoard =
+    (match.liveScoreboard as {
+      situation?: { outs?: number | null };
+      inningHalf?: string | null;
+    } | null) ?? null;
+  return {
+    outsInHalf: match.outsInHalf ?? 0,
+    liveOuts: liveOutsFromScoreboard(liveBoard),
+    liveHalf: liveBoard?.inningHalf,
+    operatorHalf: match.inningHalf,
+    recentlySwitched: wasSwitchHalfRecent(matchId),
+  };
+}
+
 export async function startRound(matchId: string): Promise<Match> {
+  const peek = await MatchModel.findOne({ id: matchId }).lean();
+  if (!peek) throw new Error("경기를 찾을 수 없습니다.");
+  const switchInput = switchInputFromMatchDoc(
+    peek as { outsInHalf?: number; inningHalf?: string; liveScoreboard?: unknown },
+    matchId,
+  );
+  if (shouldBlockAdvanceForSwitchHalf(switchInput)) {
+    throw new Error(
+      shouldHoldSwitchHalfForLive(switchInput)
+        ? switchHalfHoldMessage(switchInput.liveOuts)
+        : "3아웃입니다. 공수교대를 눌러주세요.",
+    );
+  }
+
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
 
     const match = await MatchModel.findOne({ id: matchId }).session(session).lean();
     if (!match) throw new Error("경기를 찾을 수 없습니다.");
-
-    const outsInHalf = (match as { outsInHalf?: number }).outsInHalf ?? 0;
-    const liveBoard =
-      ((match as { liveScoreboard?: { situation?: { outs?: number | null }; inningHalf?: string | null } | null })
-        .liveScoreboard) ?? null;
-    const switchInput = {
-      outsInHalf,
-      liveOuts: liveOutsFromScoreboard(liveBoard),
-      liveHalf: liveBoard?.inningHalf,
-      operatorHalf: (match as { inningHalf?: string }).inningHalf,
-      recentlySwitched: wasSwitchHalfRecent(matchId),
-    };
-    if (shouldBlockAdvanceForSwitchHalf(switchInput)) {
-      throw new Error(
-        shouldHoldSwitchHalfForLive(switchInput)
-          ? switchHalfHoldMessage(switchInput.liveOuts)
-          : "3아웃입니다. 공수교대를 눌러주세요.",
-      );
-    }
 
     let currentRound =
       typeof match.currentRound === "number" && Number.isFinite(match.currentRound)
@@ -401,14 +416,29 @@ export async function startRound(matchId: string): Promise<Match> {
       .lean();
 
     /**
-     * 결과가 이미 전송된 라운드 — 자동 진행 없음.
-     * 운영자가 「다음 타자」또는 「공수교대」를 누른 뒤에만 새 예측을 연다.
+     * 결과가 이미 전송된 라운드 — 보통 다음 타자/공수교대 후 새 예측.
+     * 실황이 같은 초/말 0~2면 같은 타석이 이어지므로 라운드만 올리고 예측을 연다.
      */
     if (existing?.isResultSent) {
-      throw new Error(
-        shouldBlockAdvanceForSwitchHalf(switchInput)
-          ? "결과가 전송되었습니다. 공수교대를 눌러주세요."
-          : "결과가 전송되었습니다. 다음 타자를 눌러주세요.",
+      if (!shouldContinueSameHalfAfterResult(switchInput)) {
+        throw new Error(
+          shouldBlockAdvanceForSwitchHalf(switchInput)
+            ? "결과가 전송되었습니다. 공수교대를 눌러주세요."
+            : "결과가 전송되었습니다. 다음 타자를 눌러주세요.",
+        );
+      }
+      currentRound += 1;
+      existing = null;
+      const live = liveOutsCount(switchInput.liveOuts);
+      await MatchModel.updateOne(
+        { id: matchId },
+        {
+          $inc: { currentRound: 1 },
+          $set: {
+            ...(live != null ? { outsInHalf: live } : {}),
+          },
+        },
+        { session },
       );
     }
 
@@ -899,7 +929,11 @@ export async function advancePitcherChange(
       pinchCleared: false,
     };
   } catch (error) {
-    await session.abortTransaction();
+    try {
+      await session.abortTransaction();
+    } catch {
+      /* ignore abort errors */
+    }
     throw error;
   } finally {
     session.endSession();

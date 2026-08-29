@@ -150,12 +150,20 @@ export function shouldSuggestSwitchHalf(input: SwitchHalfLiveInput): boolean {
   return liveThreeOutsSameHalf(input);
 }
 
-/** 다음 타자·투수교체·예측 시작 대신 공수교대(또는 실황 3아웃 대기). */
+/**
+ * 다음 타자·투수교체·예측 시작을 막을지.
+ * 실황이 같은 초/말 1·2아웃이면 이닝이 이어지므로 막지 않는다.
+ * 막을 때: 실황 3아웃, 또는 실황 공란+운영자 3.
+ */
 export function shouldBlockAdvanceForSwitchHalf(input: SwitchHalfLiveInput): boolean {
+  return resolveShowThreeOutsHint(input);
+}
+
+/** 결과는 났지만 실황이 같은 초/말 0~2 — 같은 타석 예측을 다시 연다. */
+export function shouldContinueSameHalfAfterResult(input: SwitchHalfLiveInput): boolean {
   if (liveHalfAlreadyStarted(input)) return false;
-  if ((input.outsInHalf ?? 0) >= 3) return true;
-  if (input.recentlySwitched) return false;
-  return liveThreeOutsSameHalf(input);
+  const live = liveOutsCount(input.liveOuts);
+  return live != null && live < 3;
 }
 
 /** 공수교대 POST 허용. hold(실황 0~2)는 별도. 다음 초/말은 거부. */

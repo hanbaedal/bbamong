@@ -1305,11 +1305,11 @@ export default function MatchDetailPage() {
     predictionRunning &&
     startToggleAt > 0 &&
     Date.now() - startToggleAt < PREDICTION_TOGGLE_MS;
-  /** 결과 후·3아웃에는 예측 시작 불가 — 다음 타자/공수교대만 */
+  /** 결과 후는 다음 타자. 실황이 같은 초/말 0~2면 같은 타석 예측을 다시 연다 */
   const canStartPrediction =
     isMatchLive &&
     !blockForSwitchHalf &&
-    !awaitAdvanceAfterResult &&
+    (!awaitAdvanceAfterResult || holdSwitchForLive) &&
     !isStartingPrediction &&
     (!predictionRunning || withinStartCancel);
   const canStopPrediction = isMatchLive && !isStoppingPrediction && predictionRunning;

@@ -734,21 +734,9 @@ export async function managerRoutes(app: Express): Promise<void> {
         return res.status(401).json({ error: "인증이 만료되었습니다." });
       }
       console.error("Start prediction error:", error);
-      const message = error instanceof Error ? error.message : "";
-      if (
-        message.includes("경기전에") ||
-        message.includes("종료되어") ||
-        message.includes("재시작할 수 없습니다") ||
-        message.includes("3아웃") ||
-        message.includes("다음 타자") ||
-        message.includes("공수교대") ||
-        message.includes("찾을 수 없습니다")
-      ) {
-        return res.status(400).json({ error: message });
-      }
-      // 운영자가 원인을 볼 수 있도록 메시지 전달 (트랜잭션/DB 오류 포함)
-      return res.status(500).json({
-        error: message || "예측 시작에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+      const { status, message } = operatorControlErrorStatus(error);
+      return res.status(status).json({
+        error: status === 500 ? message || "예측 시작에 실패했습니다. 잠시 후 다시 시도해 주세요." : message,
       });
     }
   });

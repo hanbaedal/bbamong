@@ -6,7 +6,7 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import type { LiveScoreboard } from "../shared/apiSportsTypes";
 import { MatchModel, RoundStatisticsModel } from "../server/UserStorage/db";
-import { advanceInningHalf } from "../server/liveMatch/predictionStorage";
+import { advanceInningHalf, startRound } from "../server/liveMatch/predictionStorage";
 import {
   clearLiveAutoOperator,
   processLiveAutoOperator,
@@ -146,6 +146,21 @@ async function main() {
   await expectHold();
   console.log("OK: live 2 holds switch (match unchanged)");
 
+  await seedMatch({ outsInHalf: 3, inningHalf: "top", liveOuts: 2, liveHalf: "top" });
+  try {
+    await startRound(MATCH_ID);
+    throw new Error("unexpected success on standalone mongo");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    assert(!msg.includes("3아웃"), `start must not treat live 2 as switch, got: ${msg}`);
+    assert(!msg.includes("다음 타자"), `start must reopen same at-bat, got: ${msg}`);
+    assert(
+      msg.includes("Transaction numbers") || msg.includes("예측"),
+      `start expected txn/round error, got: ${msg}`,
+    );
+  }
+  console.log("OK: start after result + live 2 is not blocked as 3-out");
+
   try {
     await advanceInningHalf(MATCH_ID, { force: true });
     throw new Error("unexpected success on standalone mongo");
@@ -194,8 +209,8 @@ async function main() {
   );
   const frozen = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
   assert((frozen as { inningHalf?: string })?.inningHalf === "top", "same-half freeze inningHalf");
-  assert(((frozen as { outsInHalf?: number })?.outsInHalf ?? 0) >= 3, "live 2 does not cut operator 3");
-  console.log("OK: same-half live 2 does not cut operator 3");
+  assert((frozen as { outsInHalf?: number })?.outsInHalf === 2, "live 2 clears stuck operator 3");
+  console.log("OK: same-half live 2 clears stuck operator 3");
 
   await seedMatch({ outsInHalf: 3, inningHalf: "top", liveOuts: 3, liveHalf: "top" });
   clearLiveAutoOperator(MATCH_ID);
