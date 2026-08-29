@@ -757,6 +757,7 @@ export default function MatchDetailPage() {
   }, [id]);
 
   useEffect(() => {
+    if (!match) return;
     if (
       showThreeOutsHint &&
       !threeOutsSpokenRef.current &&
@@ -768,7 +769,7 @@ export default function MatchDetailPage() {
     if (!showThreeOutsHint) {
       threeOutsSpokenRef.current = false;
     }
-  }, [showThreeOutsHint]);
+  }, [match, showThreeOutsHint]);
 
   // 경기 시작 5분 전부터 MongoDB 폴링 (선택 경기 1건)
   useEffect(() => {
