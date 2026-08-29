@@ -4,6 +4,7 @@
  */
 import { readFileSync } from "fs";
 import { computeInningHalfCatchUp } from "../server/liveMatch/gamePhase";
+import { deriveOperatorNextAction } from "../shared/operatorNextAction";
 import { shouldExecutePredictionAutoStop } from "../shared/predictionAutoStop";
 import {
   resolveShowThreeOutsHint,
