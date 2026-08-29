@@ -22,6 +22,11 @@ import { AD_PLAY_MS, AD_PLAY_SECONDS, PREDICTION_AUTO_STOP_MS } from "../shared/
 import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR, GAME_OUTS_COLOR } from "../client/src/components/game/gameHudColors";
 import { PYAMONG_ARMS_WAIT_WIDTH, PYAMONG_BATTER_BACK_WIDTH } from "../client/src/components/game/gameLayoutSizes";
 import { AD_EARLY_DISMISS_SECONDS } from "../shared/predictionOdds";
+import {
+  clientPhaseAfterPredictionClosed,
+  hasClientPredictionStake,
+  shouldKeepWaitResultWithoutCheck,
+} from "../shared/predictionUiStage";
 
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(msg);
@@ -178,4 +183,46 @@ assert(AD_EARLY_DISMISS_SECONDS === 5, "X after 5s");
 assert(PYAMONG_BATTER_BACK_WIDTH === "min(12.6vw, 101px)", "back 70% of 18vw/144");
 assert(PYAMONG_ARMS_WAIT_WIDTH === "min(18vw, 144px)", "arms wait unchanged");
 
-console.log("OK: operator 3-out count, live hold for switch-half, single 8s stop, uniforms, ad 80s, back size");
+assert(clientPhaseAfterPredictionClosed(true) === "wait_result", "predictor waits for result");
+assert(clientPhaseAfterPredictionClosed(false) === "wait_start", "spectator stays in game wait");
+assert(hasClientPredictionStake({}) === false, "no stake");
+assert(hasClientPredictionStake({ activeBet: { id: 1 } }) === true, "active bet is stake");
+assert(hasClientPredictionStake({ submitting: true }) === true, "in-flight submit is stake");
+assert(
+  shouldKeepWaitResultWithoutCheck({
+    hasLocalBet: true,
+    submitting: true,
+    awaitRound: 3,
+    checkRound: 3,
+  }) === true,
+  "same-round predictor keeps wait_result",
+);
+assert(
+  shouldKeepWaitResultWithoutCheck({
+    hasLocalBet: false,
+    submitting: true,
+    awaitRound: 3,
+    checkRound: 3,
+  }) === true,
+  "in-flight submit keeps wait_result",
+);
+assert(
+  shouldKeepWaitResultWithoutCheck({
+    hasLocalBet: false,
+    submitting: false,
+    awaitRound: 3,
+    checkRound: 3,
+  }) === false,
+  "spectator same round does not stay in wait_result",
+);
+assert(
+  shouldKeepWaitResultWithoutCheck({
+    hasLocalBet: true,
+    submitting: true,
+    awaitRound: 3,
+    checkRound: 4,
+  }) === false,
+  "round change releases wait_result",
+);
+
+console.log("OK: operator 3-out count, live hold for switch-half, spectator skip wait_result, uniforms, ad 80s, back size");
