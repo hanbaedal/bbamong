@@ -15,6 +15,7 @@ import {
   isLivePhaseBehindOperator,
   isStaleLiveThreeOutsAfterSwitch,
 } from "@shared/threeOutsGuard";
+import { markSwitchHalfDone, wasSwitchHalfRecent, resetSwitchHalfRecentForTest } from "./switchHalfAdGuard";
 import { MatchModel, RoundStatisticsModel } from "../UserStorage/db";
 import { broadcastManager } from "./broadcastManager";
 import { broadcastAtBatPhase, resolveAtBatPhase } from "./atBatStateMachine";
@@ -255,12 +256,14 @@ async function syncPhaseFromLive(
     liveInning: inning,
     operatorInning,
   });
-  const staleAfterSwitch = isStaleLiveThreeOutsAfterSwitch({
-    outsInHalf: currentOuts,
-    liveOuts: outs,
-    liveHalf: half,
-    operatorHalf,
-  });
+  const staleAfterSwitch =
+    wasSwitchHalfRecent(matchId) &&
+    isStaleLiveThreeOutsAfterSwitch({
+      outsInHalf: currentOuts,
+      liveOuts: outs,
+      liveHalf: half,
+      operatorHalf,
+    });
   if (inning != null && inning > 0 && !liveBehind) alwaysUpdate.gameInning = inning;
   const phaseUpdate: Record<string, unknown> = {};
   // 광고(안내 5초 포함) 중·실황이 한 박자 뒤·교대 직후 3아웃 잔상은 초/말·아웃을 되돌리지 않는다.
@@ -464,6 +467,7 @@ export async function processLiveAutoOperator(
       liveHalf: half,
       operatorHalf:
         nullableInningHalf((latestPhase as { inningHalf?: string } | null)?.inningHalf) ?? half,
+      recentlySwitched: wasSwitchHalfRecent(matchId),
     };
     const holdSwitch =
       !broadcastManager.isAdBreakActive(matchId) && shouldHoldSwitchHalfForLive(switchInput);
@@ -571,6 +575,7 @@ export async function processLiveAutoOperator(
 export function clearLiveAutoOperator(matchId: string): void {
   clearStopTimer(matchId);
   clearAdResumeTimer(matchId);
+  resetSwitchHalfRecentForTest(matchId);
   stateByMatch.delete(matchId);
   // 열려 있는 예측을 닫아 영구 OPEN 방지
   void (async () => {
@@ -613,6 +618,7 @@ export function notifyManualAtBatAction(
   // 수동 공수교대 직후 실황 3아웃/초말 변경이 같은 교대를 재방송하지 않게
   if (action === "switch") {
     state.lastSwitchEmitAt = Date.now();
+    markSwitchHalfDone(matchId);
   }
   if (action === "pitcher") {
     state.lastPitcherChangeEmitAt = Date.now();

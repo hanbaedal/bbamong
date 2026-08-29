@@ -10,9 +10,10 @@ import { advanceInningHalf } from "../server/liveMatch/predictionStorage";
 import {
   clearLiveAutoOperator,
   processLiveAutoOperator,
+  notifyManualAtBatAction,
 } from "../server/liveMatch/liveAutoOperator";
 import { broadcastManager } from "../server/liveMatch/broadcastManager";
-import { assertSwitchHalfNotDuringAd } from "../server/liveMatch/switchHalfAdGuard";
+import { assertSwitchHalfNotDuringAd, resetSwitchHalfRecentForTest } from "../server/liveMatch/switchHalfAdGuard";
 
 const MATCH_ID = "test-switch-half-live-hold-e07b";
 let statsIdSeq = Date.now();
@@ -215,8 +216,33 @@ async function main() {
   assert((noRewind as { outsInHalf?: number })?.outsInHalf === 0, "behind live 3 does not restore outs");
   console.log("OK: after switch, live still previous half 3 does not rewind");
 
+  await seedMatch({ outsInHalf: 0, inningHalf: "top", liveOuts: 3, liveHalf: "top" });
+  clearLiveAutoOperator(MATCH_ID);
+  resetSwitchHalfRecentForTest(MATCH_ID);
+  await processLiveAutoOperator(MATCH_ID, board({ outs: 3, half: "top" }));
+  const midJoin = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
+  assert((midJoin as { inningHalf?: string })?.inningHalf === "top", "mid-join keeps same half");
+  assert((midJoin as { outsInHalf?: number })?.outsInHalf === 3, "mid-join live 3 raises operator outs");
+  console.log("OK: mid-join same-half live 3 raises outsInHalf to 3");
+
+  await seedMatch({ outsInHalf: 0, inningHalf: "top", liveOuts: 3, liveHalf: "top" });
+  resetSwitchHalfRecentForTest(MATCH_ID);
+  try {
+    await advanceInningHalf(MATCH_ID);
+    throw new Error("unexpected success on standalone mongo");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    assert(!msg.includes("3아웃일 때만"), `mid-join live 3 should allow switch, got: ${msg}`);
+    assert(
+      msg.includes("Transaction numbers") || msg.includes("결과") || msg.includes("예측"),
+      `mid-join expected nextRound error, got: ${msg}`,
+    );
+  }
+  console.log("OK: mid-join live 3 passes switch-half 3-out gate");
+
   await seedMatch({ outsInHalf: 0, inningHalf: "bottom", liveOuts: 3, liveHalf: "bottom" });
   clearLiveAutoOperator(MATCH_ID);
+  notifyManualAtBatAction(MATCH_ID, "switch");
   await processLiveAutoOperator(MATCH_ID, board({ outs: 3, half: "bottom" }));
   const noRestore = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
   assert((noRestore as { inningHalf?: string })?.inningHalf === "bottom", "same-half live 3 after switch keeps half");
@@ -271,6 +297,7 @@ async function main() {
   await RoundStatisticsModel.deleteMany({ matchId: MATCH_ID });
   clearLiveAutoOperator(MATCH_ID);
   broadcastManager.resetAdBreakForTest(MATCH_ID);
+  resetSwitchHalfRecentForTest(MATCH_ID);
   await mongoose.disconnect();
   console.log("OK: switch-half live hold");
 }
@@ -282,6 +309,7 @@ main().catch(async (e) => {
     await RoundStatisticsModel.deleteMany({ matchId: MATCH_ID });
     clearLiveAutoOperator(MATCH_ID);
     broadcastManager.resetAdBreakForTest(MATCH_ID);
+    resetSwitchHalfRecentForTest(MATCH_ID);
     await mongoose.disconnect();
   } catch {
     /* */

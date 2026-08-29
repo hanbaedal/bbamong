@@ -3,6 +3,7 @@
  * 2아웃+아웃 / 1아웃+병살 / 노아웃+삼살 → 예측은 3아웃으로 끝낸다.
  * 공수교대(이닝 넘김·광고)는 네이버가 **같은 초/말에서 3아웃**일 때만 연다.
  * 실황이 이미 다음 초/말(0~2아웃)이면 3아웃 잔상을 지우고 공수교대를 말하지 않는다.
+ * 중간 합류: 같은 초/말 실황 3아웃이면 운영자 누적 없이도 공수교대.
  * 공수교대 직후(아웃 0)·광고 중에는 실황 3아웃 잔상으로 다시 부르지 않는다.
  * 실황 아웃이 없으면(위젯 공란) 가짜 0아웃으로 막지 않는다.
  */
@@ -33,6 +34,8 @@ export type SwitchHalfLiveInput = {
   operatorHalf?: string | null;
   liveInning?: number | null;
   operatorInning?: number | null;
+  /** 방금 공수교대(광고·쿨다운). 같은 초/말 실황 3아웃 잔상으로 다시 열지 않음 */
+  recentlySwitched?: boolean;
 };
 
 /** 실황 이닝이 운영자보다 한 박자 뒤 (공수교대 직후 중계 지연). */
@@ -81,11 +84,26 @@ export function liveHalfAlreadyStarted(input: SwitchHalfLiveInput): boolean {
   return Boolean(liveHalf && operatorHalf && liveHalf !== operatorHalf);
 }
 
-/** 운영자 누적 아웃이 3이면 「3아웃」표시. 실황이 이미 다음 초/말이면 숨긴다. */
-export function resolveShowThreeOutsHint(input: SwitchHalfLiveInput): boolean {
-  if ((input.outsInHalf ?? 0) < 3) return false;
+/**
+ * 같은 초/말(또는 초/말 정보 없음)에서 실황 3아웃.
+ * 다른 초/말 3아웃은 직전 이닝 잔상.
+ */
+export function liveThreeOutsSameHalf(input: SwitchHalfLiveInput): boolean {
   if (liveHalfAlreadyStarted(input)) return false;
+  const live = liveOutsCount(input.liveOuts);
+  if (live == null || live < 3) return false;
+  const liveHalf = nullableInningHalf(input.liveHalf);
+  const operatorHalf = nullableInningHalf(input.operatorHalf);
+  if (liveHalf && operatorHalf && liveHalf !== operatorHalf) return false;
   return true;
+}
+
+/** 운영자 3아웃, 또는 중간 합류용 같은 초/말 실황 3아웃. 교대 직후 잔상은 숨긴다. */
+export function resolveShowThreeOutsHint(input: SwitchHalfLiveInput): boolean {
+  if (liveHalfAlreadyStarted(input)) return false;
+  if ((input.outsInHalf ?? 0) >= 3) return true;
+  if (input.recentlySwitched) return false;
+  return liveThreeOutsSameHalf(input);
 }
 
 /**
@@ -117,9 +135,20 @@ export function switchHalfAdBreakMessage(): string {
   return "공수교대가 이미 반영되었습니다. 광고가 끝난 뒤 다음 타석을 진행하세요.";
 }
 
-/** 공수교대 제안 — 운영자 3아웃 + 같은 초/말. 교대 직후 0아웃·실황 3 잔상은 제안 없음. */
+/** 공수교대 제안 — 운영자 3아웃, 또는 중간 합류 시 같은 초/말 실황 3아웃. */
 export function shouldSuggestSwitchHalf(input: SwitchHalfLiveInput): boolean {
-  if ((input.outsInHalf ?? 0) < 3) return false;
   if (liveHalfAlreadyStarted(input)) return false;
-  return !shouldHoldSwitchHalfForLive(input);
+  if ((input.outsInHalf ?? 0) >= 3) {
+    return !shouldHoldSwitchHalfForLive(input);
+  }
+  if (input.recentlySwitched) return false;
+  return liveThreeOutsSameHalf(input);
+}
+
+/** 공수교대 POST 허용. hold(실황 0~2)는 별도. 다음 초/말은 거부. */
+export function canAdvanceInningHalf(input: SwitchHalfLiveInput): boolean {
+  if (liveHalfAlreadyStarted(input)) return false;
+  if ((input.outsInHalf ?? 0) >= 3) return true;
+  if (input.recentlySwitched) return false;
+  return liveThreeOutsSameHalf(input);
 }
