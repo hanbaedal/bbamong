@@ -99,7 +99,7 @@ export const OPERATOR_USER_STEPS: {
   },
   {
     title: "5. 3아웃·공수교대",
-    body: "3아웃 카운트는 운영자 결과(outsInHalf)입니다. 병살·삼살은 실황이 2아웃이어도 예측을 끝냅니다. 「3아웃 — 공수교대」음성·펄스는 네이버가 같은 초/말에서 3아웃일 때만 냅니다. 운영자만 3이고 실황이 1·2면 보류 배너만 보여 주고, 중계가 3아웃이면 공수교대합니다. 실황 3아웃을 운영자 누적에 쓰지 않습니다. 실황이 이미 다음 초/말(원아웃 등)이면 3아웃 잔상을 지우고 공수교대를 말하지 않습니다. 실황 아웃이 없으면 가짜 0으로 막지 않습니다. 같은 초/말에서 실황이 늦으면 공수교대를 두 번 눌러 강제합니다.",
+    body: "3아웃 카운트는 운영자 결과(outsInHalf)입니다. 병살·삼살은 실황이 2아웃이어도 예측을 끝냅니다. 「3아웃 — 공수교대」음성·펄스는 네이버가 같은 초/말에서 3아웃일 때만 냅니다. 운영자만 3이고 실황이 1·2면 보류 배너만 보여 주고, 중계가 3아웃이면 공수교대합니다. 실황 3아웃을 운영자 누적에 쓰지 않습니다. 실황이 이미 다음 초/말(원아웃 등)이면 공수교대로 운영자 초/말을 실황에 맞추고 광고합니다. 폴링이 초/말·아웃을 덮지 않습니다. 실황 아웃이 없으면 가짜 0으로 막지 않습니다. 같은 초/말에서 실황이 늦으면 공수교대를 두 번 눌러 강제합니다.",
   },
   {
     title: "6. 투수교체",
@@ -122,7 +122,7 @@ export const OPERATOR_RULES: string[] = [
   "예측 시작 시 광고 자동 중지(ad_stopped.reason=prediction_start, 보상 없음).",
   "스코어 PATCH → controlMode=manual. 「수동」을 끄면 다음 점수를 다시 받습니다.",
   "공수교대는 liveScoreboard 이닝을 덮어쓰지 않습니다.",
-  "공수교대 타이밍: 운영자 3아웃 후 네이버 같은 초/말 3아웃(또는 초/말 변경). 급하면 공수교대 두 번.",
+  "공수교대 타이밍: 네이버 같은 초/말 3아웃, 또는 실황이 이미 다음 초/말이면 맞춤+광고. 급하면 같은 초/말에서 공수교대 두 번.",
 ];
 
 export const OPERATOR_TECH_STACK: { label: string; value: string }[] = [
@@ -133,7 +133,7 @@ export const OPERATOR_TECH_STACK: { label: string; value: string }[] = [
   { label: "예측 창", value: `열린 뒤 ${Math.round(PREDICTION_AUTO_STOP_MS / 1000)}초 자동 중지(schedulePredictionAutoStop 한 루틴)` },
   { label: "타석 단계", value: "idle → prediction_open → prediction_closed → result_confirmed" },
   { label: "WS", value: "/ws/match — at_bat_phase, prediction_started/stopped, round_result, round_next, ad_started/stopped, match_ended" },
-  { label: "권위", value: "회원 화면 uiStage는 서버 at_bat_phase. 3아웃 카운트는 outsInHalf. 공수교대 음성·펄스는 네이버 같은 초/말 3아웃만(실황 1·2면 보류, 강제 두 번 탭 가능)" },
+  { label: "권위", value: "회원 화면 uiStage는 서버 at_bat_phase. 3아웃 카운트는 outsInHalf. 공수교대 음성은 네이버 같은 초/말 3아웃. 실황이 다음 초/말이면 공수교대=맞춤+광고(폴링이 초/말을 덮지 않음)" },
   { label: "API 예", value: "예측 시작/중지, 결과 전송, 다음타자, 공수교대, 투수교체, PATCH scoreboard" },
 ];
 

@@ -3,12 +3,14 @@
  * 실행: npx tsx scripts/test-ops-live-guards.ts
  */
 import { readFileSync } from "fs";
+import { computeInningHalfCatchUp } from "../server/liveMatch/gamePhase";
 import { deriveOperatorNextAction } from "../shared/operatorNextAction";
 import { shouldExecutePredictionAutoStop } from "../shared/predictionAutoStop";
 import {
   resolveShowThreeOutsHint,
   shouldSuggestSwitchHalf,
   shouldHoldSwitchHalfForLive,
+  shouldCatchUpSwitchHalf,
   switchHalfHoldMessage,
   switchHalfLiveMovedOnMessage,
   liveHalfAlreadyStarted,
@@ -78,8 +80,56 @@ assert(
     liveOuts: 1,
     liveHalf: "bottom",
     operatorHalf: "top",
+  }) === true,
+  "1-out next half tells operator to catch-up switch",
+);
+assert(
+  shouldCatchUpSwitchHalf({
+    outsInHalf: 3,
+    liveOuts: 1,
+    liveHalf: "bottom",
+    operatorHalf: "top",
+  }) === true,
+  "1-out next half is catch-up switch",
+);
+assert(
+  canAdvanceInningHalf({
+    outsInHalf: 3,
+    liveOuts: 1,
+    liveHalf: "bottom",
+    operatorHalf: "top",
+  }) === true,
+  "live next half 0-2 allows catch-up switch",
+);
+assert(
+  shouldBlockAdvanceForSwitchHalf({
+    outsInHalf: 3,
+    liveOuts: 1,
+    liveHalf: "bottom",
+    operatorHalf: "top",
+  }) === true,
+  "live next half blocks next batter — switch instead",
+);
+assert(
+  shouldCatchUpSwitchHalf({
+    outsInHalf: 3,
+    liveOuts: 1,
+    liveHalf: "bottom",
+    operatorHalf: "top",
+    recentlySwitched: true,
   }) === false,
-  "1-out next half does not tell operator to switch",
+  "just-switched does not catch-up again",
+);
+assert(
+  shouldCatchUpSwitchHalf({
+    outsInHalf: 0,
+    liveOuts: 1,
+    liveHalf: "top",
+    operatorHalf: "top",
+    liveInning: 6,
+    operatorInning: 5,
+  }) === true,
+  "later inning same half name is catch-up",
 );
 assert(
   shouldHoldSwitchHalfForLive({
@@ -93,6 +143,14 @@ assert(
 assert(
   switchHalfLiveMovedOnMessage(1).includes("1아웃"),
   "moved-on message names live 1 out",
+);
+assert(
+  switchHalfLiveMovedOnMessage(1).includes("공수교대"),
+  "moved-on message tells operator to switch",
+);
+assert(
+  !switchHalfLiveMovedOnMessage(1).includes("공수교대하지"),
+  "moved-on message no longer forbids switch",
 );
 assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: 2 }) === false, "op 3 live 2 does not pulse switch");
 assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: null }) === true, "no live outs → switch ok");
@@ -174,7 +232,20 @@ assert(
   }) === false,
   "same inning live bottom is ahead of operator top",
 );
-assert(switchHalfAdBreakMessage().includes("광고"), "ad-break message names ad");
+assert(
+  computeInningHalfCatchUp(
+    { gameInning: 5, inningHalf: "top", awayBatterOrder: 4, homeBatterOrder: 2 },
+    { gameInning: 5, inningHalf: "bottom" },
+  ).inningHalf === "bottom",
+  "catch-up top→bottom keeps inning",
+);
+assert(
+  computeInningHalfCatchUp(
+    { gameInning: 5, inningHalf: "bottom", awayBatterOrder: 4, homeBatterOrder: 2 },
+    { gameInning: 6, inningHalf: "top" },
+  ).gameInning === 6,
+  "catch-up uses live inning not operator+1 from a drifted gameInning",
+);
 assert(nullableInningHalf(undefined) == null, "missing half is null not top");
 assert(switchHalfHoldMessage(2).includes("실황 2아웃"), "hold message names live outs");
 assert(switchHalfHoldMessage(2).includes("한 번 더"), "hold message tells operator to press again");
@@ -193,6 +264,15 @@ assert(
     showThreeOutsHint: true,
   }).kind === "switch_half",
   "3-out hint → switch",
+);
+assert(
+  deriveOperatorNextAction({
+    atBatPhase: "result_confirmed",
+    showThreeOutsHint: false,
+    catchUpSwitchHalf: true,
+    liveOuts: 1,
+  }).kind === "switch_half",
+  "live already next half → switch catch-up",
 );
 assert(
   deriveOperatorNextAction({
@@ -313,4 +393,4 @@ assert(
   "already-shown result releases wait_result",
 );
 
-console.log("OK: live-3-only 3-out voice, live hold, no-pick same result flow, uniforms, ad 80s, back size");
+console.log("OK: live-3-only 3-out voice, live hold, catch-up switch, no-pick same result flow, uniforms, ad 80s, back size");

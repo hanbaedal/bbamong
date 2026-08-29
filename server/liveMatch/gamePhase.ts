@@ -98,3 +98,36 @@ export function computeInningHalfSwitch(current: {
     homeBatterOrder: home,
   };
 }
+
+/** 실황이 이미 다음 초/말 — 운영자 초/말·이닝을 실황에 맞춘다. */
+export function computeInningHalfCatchUp(
+  current: {
+    gameInning: number;
+    inningHalf: InningHalf;
+    batterIndexInHalf?: number | null;
+    awayBatterOrder?: number | null;
+    homeBatterOrder?: number | null;
+  },
+  live: {
+    gameInning: number;
+    inningHalf: InningHalf;
+    batterIndexInHalf?: number | null;
+  },
+) {
+  const away = wrapBatterOrder(
+    current.awayBatterOrder ?? (current.inningHalf === "top" ? current.batterIndexInHalf : 1),
+  );
+  const home = wrapBatterOrder(
+    current.homeBatterOrder ?? (current.inningHalf === "bottom" ? current.batterIndexInHalf : 1),
+  );
+  const batterIndexInHalf = wrapBatterOrder(
+    live.batterIndexInHalf ?? (live.inningHalf === "top" ? away : home),
+  );
+  return {
+    gameInning: live.gameInning,
+    inningHalf: live.inningHalf,
+    batterIndexInHalf,
+    awayBatterOrder: live.inningHalf === "top" ? batterIndexInHalf : away,
+    homeBatterOrder: live.inningHalf === "bottom" ? batterIndexInHalf : home,
+  };
+}
