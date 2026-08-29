@@ -42,7 +42,7 @@ export function isPredictionUiStage(value: unknown): value is PredictionUiStage 
   return value === "wait" || value === "open" || value === "closed" || value === "result";
 }
 
-/** 예측 창이 닫힌 뒤 클라 화면 — 제출자만 결과대기, 미참여는 관전(대기) */
+/** 예측 창이 닫힌 뒤 클라 화면 — 제출·미선택 모두 결과대기(미선택은 포인트·주루 없음) */
 export type ClientClosedScreenPhase = "wait_result" | "wait_start";
 
 export function hasClientPredictionStake(input: {
@@ -55,26 +55,29 @@ export function hasClientPredictionStake(input: {
 
 /**
  * 예측 중지·결과 확정 시 화면.
- * 미참여는 wait_result에 묶지 않고 경기 진행(대기·결과 큰 글씨·다음 타석)을 따라간다.
+ * 선택을 못 해도 제출자와 같이 wait_result → 결과 큰 글씨 → 다음 타석.
  */
-export function clientPhaseAfterPredictionClosed(hasStake: boolean): ClientClosedScreenPhase {
-  return hasStake ? "wait_result" : "wait_start";
+export function clientPhaseAfterPredictionClosed(_hasStake?: boolean): ClientClosedScreenPhase {
+  return "wait_result";
 }
 
 /**
  * /check 에 예측이 없을 때 결과대기를 유지할지.
- * 제출자·제출 중만 유지. 미참여 관전은 같은 라운드여도 대기를 푼다.
+ * 같은 라운드 결과가 오기 전에는 미선택도 유지한다. 라운드가 바뀌었거나 이미 본 결과만 푼다.
  */
 export function shouldKeepWaitResultWithoutCheck(input: {
   hasLocalBet: boolean;
   submitting: boolean;
   awaitRound?: number | null;
   checkRound?: number | null;
+  resultAlreadyShown?: boolean;
 }): boolean {
+  if (input.resultAlreadyShown) return false;
   const roundChanged =
     typeof input.awaitRound === "number" &&
     typeof input.checkRound === "number" &&
     input.awaitRound !== input.checkRound;
   if (roundChanged) return false;
-  return input.hasLocalBet || input.submitting;
+  if (input.hasLocalBet || input.submitting) return true;
+  return typeof input.awaitRound === "number";
 }

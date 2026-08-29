@@ -149,6 +149,7 @@ export const USER_USER_EXTRA: string[] = [
   `사이드벳: ${SIDE_BET_AMOUNT_OPTIONS.join(" / ")}P. 우승팀 ${WINNER_ODDS}배, 최종 스코어 ${EXACT_SCORE_ODDS}배. 1회 시작 전 마감, 경기 종료 후 실황 스코어로 정산.`,
   `광고: 공수·투수 때만 리워드. 웹 ${AD_EARLY_DISMISS_SECONDS}초 후 ×(보상 없음). 운영자 중지 시 ${AD_REWARD_POINTS}P. 게임 하단 배너 없음.`,
   "스마트폰은 화면을 한 번 탭해야 음성이 납니다. 자리비움 중 해당 타석 예측은 불가합니다.",
+  "예측을 선택하지 못해도 결과 큰 글씨 후 다음 타석으로 갑니다. 포인트 계산·주루는 없습니다.",
   "끝난 경기 마지막 화면이 남으면 제목을 눌러 오늘 실황 ON인 다른 경기를 고릅니다.",
 ];
 

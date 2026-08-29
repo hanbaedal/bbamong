@@ -246,7 +246,7 @@ assert(PYAMONG_BATTER_BACK_WIDTH === "min(12.6vw, 101px)", "back 70% of 18vw/144
 assert(PYAMONG_ARMS_WAIT_WIDTH === "min(18vw, 144px)", "arms wait unchanged");
 
 assert(clientPhaseAfterPredictionClosed(true) === "wait_result", "predictor waits for result");
-assert(clientPhaseAfterPredictionClosed(false) === "wait_start", "spectator stays in game wait");
+assert(clientPhaseAfterPredictionClosed(false) === "wait_result", "no pick also waits for result");
 assert(hasClientPredictionStake({}) === false, "no stake");
 assert(hasClientPredictionStake({ activeBet: { id: 1 } }) === true, "active bet is stake");
 assert(hasClientPredictionStake({ submitting: true }) === true, "in-flight submit is stake");
@@ -274,8 +274,17 @@ assert(
     submitting: false,
     awaitRound: 3,
     checkRound: 3,
+  }) === true,
+  "no-pick same round keeps wait_result for result flash",
+);
+assert(
+  shouldKeepWaitResultWithoutCheck({
+    hasLocalBet: false,
+    submitting: false,
+    awaitRound: 3,
+    checkRound: 4,
   }) === false,
-  "spectator same round does not stay in wait_result",
+  "no-pick round change releases wait_result",
 );
 assert(
   shouldKeepWaitResultWithoutCheck({
@@ -286,5 +295,15 @@ assert(
   }) === false,
   "round change releases wait_result",
 );
+assert(
+  shouldKeepWaitResultWithoutCheck({
+    hasLocalBet: false,
+    submitting: false,
+    awaitRound: 3,
+    checkRound: 3,
+    resultAlreadyShown: true,
+  }) === false,
+  "already-shown result releases wait_result",
+);
 
-console.log("OK: live-3-only 3-out voice, live hold for switch-half, spectator skip wait_result, uniforms, ad 80s, back size");
+console.log("OK: live-3-only 3-out voice, live hold, no-pick same result flow, uniforms, ad 80s, back size");
