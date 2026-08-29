@@ -7,6 +7,7 @@ import {
   isOutcomePresentationPhase,
   RESULT_FLASH_MS,
 } from "../client/src/components/game/gameTypes";
+import { clientPhaseAfterPredictionClosed } from "../shared/predictionUiStage";
 
 function assert(cond: unknown, msg: string) {
   if (!cond) throw new Error(msg);
@@ -26,8 +27,7 @@ assert(!isOutcomePresentationPhase("wait_result"), "wait_result not outcome");
 assert(!isOutcomePresentationPhase("picking"), "picking not outcome");
 assert(RESULT_FLASH_MS >= 1500 && RESULT_FLASH_MS <= 4000, "flash ms visible");
 
-// HTTP demote must map closed → wait_result (not wait_start)
-const closedMapsToWaitResult = true;
-assert(closedMapsToWaitResult, "prediction_closed → wait_result");
+assert(clientPhaseAfterPredictionClosed(false) === "wait_result", "prediction_closed → wait_result even without pick");
+assert(clientPhaseAfterPredictionClosed(true) === "wait_result", "prediction_closed → wait_result with stake");
 
 console.log("OK: prediction phase flow helpers");

@@ -495,17 +495,7 @@ export function useLandscapePredictionFlow(
         });
         closePickingUi({ keepSelection: hadBet });
         setBetLocked(false);
-        if (!hadBet) {
-          waitingResultRef.current = false;
-          awaitingResultRoundRef.current = null;
-          if (ui !== "wait_start" && ui !== "result_flash") {
-            setScreenPhase("wait_start");
-          }
-          // 마지막 순간 제출이 서버에만 있으면 결과대기로 복구
-          void checkPredictionStatusRef.current();
-          return;
-        }
-        waitingResultRef.current = true;
+        if (hadBet) waitingResultRef.current = true;
         if (typeof opts?.roundNumber === "number") {
           awaitingResultRoundRef.current = opts.roundNumber;
         } else if (
@@ -514,9 +504,12 @@ export function useLandscapePredictionFlow(
         ) {
           awaitingResultRoundRef.current = selectedMatch.currentRound;
         }
-        if (ui !== "wait_result" && ui !== "result_flash") {
-          setScreenPhase("wait_result");
+        const nextPhase = clientPhaseAfterPredictionClosed(hadBet);
+        if (ui !== nextPhase && ui !== "result_flash") {
+          setScreenPhase(nextPhase);
         }
+        // 마지막 순간 제출이 서버에만 있으면 결과대기로 복구
+        if (!hadBet) void checkPredictionStatusRef.current();
         return;
       }
 
@@ -1004,6 +997,7 @@ export function useLandscapePredictionFlow(
           submitting: waitingResultRef.current,
           awaitRound,
           checkRound: typeof data.roundNumber === "number" ? data.roundNumber : null,
+          resultAlreadyShown: resultShownRef.current,
         })
       ) {
         return;
@@ -1156,7 +1150,7 @@ export function useLandscapePredictionFlow(
   }, [selectedMatch?.id, selectedMatch?.startTime, selectedMatch?.matchStatus, syncMatchFromServer]);
 
   useEffect(() => {
-    // 제출한 예측 복구용 — 미참여 wait_result 는 /check 로 깨지므로 폴링하지 않음
+    // 제출한 예측 복구용 — 미선택은 결과 큰 글씨가 WS/uiStage로 오므로 /check 폴링 없음
     if (screenPhase !== "wait_result" || predictionResult !== "pending" || !selectedMatch?.id) return;
     if (!activeBetRef.current && !betSnapshotRef.current) return;
 
@@ -1223,10 +1217,13 @@ export function useLandscapePredictionFlow(
       waitingResultRef.current = false;
       awaitingResultRoundRef.current = null;
       setBetLocked(false);
-      setLastWonAmount(data.wonAmount ?? 0);
       if (bet) {
+        setLastWonAmount(data.wonAmount ?? 0);
         setLastBetAmount(bet.amount);
         setSelectedPrediction(bet.prediction);
+      } else {
+        setLastWonAmount(0);
+        setLastBetAmount(0);
       }
       activeBetRef.current = null;
 
@@ -1737,7 +1734,7 @@ export function useLandscapePredictionFlow(
     const epoch = predictionEpochRef.current;
 
     setShowBetModal(false);
-    // 제출 후에도 예측 창(베이스)은 유지 — 중지 시 제출자만 wait_result, 미참여는 관전
+    // 제출 후에도 예측 창(베이스)은 유지 — 중지 후 제출·미선택 모두 결과대기
     waitingResultRef.current = true;
     setBetLocked(true);
     acknowledgedResultIdRef.current = null;
@@ -1746,10 +1743,20 @@ export function useLandscapePredictionFlow(
     try {
       if (predictionEpochRef.current !== epoch || !predictionEnabledRef.current) {
         waitingResultRef.current = false;
-        awaitingResultRoundRef.current = null;
         setBetLocked(false);
         setSelectedPrediction(null);
-        setScreenPhase("wait_start");
+        if (predictionEnabledRef.current) {
+          awaitingResultRoundRef.current = null;
+          setScreenPhase("picking");
+        } else {
+          if (
+            awaitingResultRoundRef.current == null &&
+            typeof selectedMatch.currentRound === "number"
+          ) {
+            awaitingResultRoundRef.current = selectedMatch.currentRound;
+          }
+          setScreenPhase("wait_result");
+        }
         return;
       }
       const res = await apiRequest("POST", "/api/live-match/predictions", {
@@ -1777,12 +1784,22 @@ export function useLandscapePredictionFlow(
       setUser({ ...user, points: (user.points ?? 0) - selectedBetAmount });
     } catch (error: unknown) {
       waitingResultRef.current = false;
-      awaitingResultRoundRef.current = null;
       activeBetRef.current = null;
       betSnapshotRef.current = null;
       setBetLocked(false);
       setSelectedPrediction(null);
-      setScreenPhase(predictionEnabledRef.current ? "picking" : "wait_start");
+      if (predictionEnabledRef.current) {
+        awaitingResultRoundRef.current = null;
+        setScreenPhase("picking");
+      } else {
+        if (
+          awaitingResultRoundRef.current == null &&
+          typeof selectedMatch.currentRound === "number"
+        ) {
+          awaitingResultRoundRef.current = selectedMatch.currentRound;
+        }
+        setScreenPhase("wait_result");
+      }
       toast({
         description: error instanceof Error ? error.message : "예측 제출에 실패했습니다.",
         variant: "destructive",
