@@ -6,6 +6,7 @@ import {
   isGameNotStarted,
   normalizeApiStatusShort,
 } from "./apiSportsStatus";
+import { isGameSuspendedScoreboard } from "./gameSuspend";
 import { resolveOperatorMatchPhase } from "./operatorMatchStatus";
 
 /** 진행 이닝 정보가 있으면 true (1회, 3회초 등) */
@@ -15,7 +16,7 @@ export function hasLiveInningProgress(input: {
 }): boolean {
   if (input.inning != null && input.inning > 0) return true;
   const label = input.inningLabel ?? "";
-  return /\d+회/.test(label) && !/종료|연기|취소/.test(label);
+  return /\d+회/.test(label) && !/종료|연기|취소|중단/.test(label);
 }
 
 /** DB/API 종료·연기인데 이닝 진행 중 — 상태 오분류 (실제로는 경기 중) */
@@ -128,7 +129,17 @@ export function resolveMatchManagementStatusDisplay(input: {
 }): string {
   const inningLabel = input.inningLabel?.trim();
 
-  if (inningLabel && /\d+회/.test(inningLabel) && !/종료|연기|취소/.test(inningLabel)) {
+  if (
+    isGameSuspendedScoreboard({
+      statusShort: input.statusShort,
+      statusLong: input.statusLong,
+      inningLabel,
+    })
+  ) {
+    return "중단";
+  }
+
+  if (inningLabel && /\d+회/.test(inningLabel) && !/종료|연기|취소|중단/.test(inningLabel)) {
     return inningLabel;
   }
 
@@ -202,7 +213,7 @@ export function resolveMatchManagementStatusDisplay(input: {
     statusLong: input.statusLong,
   });
 
-  if (phase === "경기중" && inningLabel && !/종료|연기|취소/.test(inningLabel)) {
+  if (phase === "경기중" && inningLabel && !/종료|연기|취소|중단/.test(inningLabel)) {
     return inningLabel;
   }
 

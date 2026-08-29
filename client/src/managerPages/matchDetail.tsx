@@ -27,6 +27,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { subscribeForegroundResume } from "@/lib/foregroundResume";
 import { isLiveAutoOperatorWsType } from "@shared/liveAutoWsEvents";
 import {
+  GAME_SUSPENDED_OPERATOR_MESSAGE,
+  isMatchPredictionSuspended,
+} from "@shared/gameSuspend";
+import {
   liveHalfAlreadyStarted,
   liveOutsFromScoreboard,
   resolveShowThreeOutsHint,
@@ -533,6 +537,19 @@ export default function MatchDetailPage() {
             case "end":
             case "match_ended":
               logoutOnMatchEnded();
+              break;
+            case "game_suspended":
+              toast({
+                description:
+                  data?.message || "경기가 우천 등으로 중단되었습니다. 재개 후 예측을 시작해 주세요.",
+              });
+              fetchMatchDetail();
+              break;
+            case "game_resumed":
+              toast({
+                description: data?.message || "경기가 재개되었습니다. 예측 시작을 눌러주세요.",
+              });
+              fetchMatchDetail();
               break;
             case "rewarded_ad_offer":
             case "banner_ad_show":
@@ -1306,8 +1323,13 @@ export default function MatchDetailPage() {
     startToggleAt > 0 &&
     Date.now() - startToggleAt < PREDICTION_TOGGLE_MS;
   /** 결과 후는 다음 타자. 실황이 같은 초/말 0~2면 같은 타석 예측을 다시 연다 */
+  const gameSuspended = isMatchPredictionSuspended({
+    matchStatus: match.matchStatus,
+    liveScoreboard: liveBoardForOuts,
+  });
   const canStartPrediction =
     isMatchLive &&
+    !gameSuspended &&
     !blockForSwitchHalf &&
     (!awaitAdvanceAfterResult || holdSwitchForLive) &&
     !isStartingPrediction &&
@@ -1370,6 +1392,14 @@ export default function MatchDetailPage() {
           )}
           <span data-testid="text-match-status">{matchPhaseText}</span>
         </div>
+        {gameSuspended && (
+          <p
+            className="px-3 py-2 text-[clamp(11px,2.6vw,13px)] text-amber-800 bg-amber-50 font-medium leading-snug"
+            data-testid="text-game-suspended"
+          >
+            {GAME_SUSPENDED_OPERATOR_MESSAGE}
+          </p>
+        )}
 
         <div className="manager-match-score">
           <ManagerOperatorScorePanel

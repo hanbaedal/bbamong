@@ -17,6 +17,11 @@ import {
   isGamePostponedOrCancelled,
   normalizeApiStatusShort,
 } from "@shared/apiSportsStatus";
+import {
+  GAME_RESUMED_USER_HINT,
+  GAME_SUSPENDED_OPERATOR_MESSAGE,
+  isGameSuspendedScoreboard,
+} from "@shared/gameSuspend";
 import { isApiSyncEnabledForRegistrationOrder } from "../managerOperatorService";
 import { LIVE_SCORE_NS_GATE_POLL_MS, LIVE_SCORE_SYNC_START_BEFORE_MS } from "./constants";
 import {
@@ -287,6 +292,19 @@ export function resolveMatchStatusFromScoreboard(
     inning: scoreboard.inning,
     inningLabel: scoreboard.inningLabel,
   };
+
+  if (isGameSuspendedScoreboard(staleInput)) {
+    const liveInning = hasLiveInningProgress({
+      inning: scoreboard.inning,
+      inningLabel: scoreboard.inningLabel,
+    });
+    const totalRuns = (scoreboard.homeScore ?? 0) + (scoreboard.awayScore ?? 0);
+    if (currentStatus === "completed" && !liveInning && totalRuns === 0) {
+      return "completed";
+    }
+    if (currentStatus === "ongoing" || liveInning || totalRuns > 0) return "ongoing";
+    return "scheduled";
+  }
 
   if (isConfirmedPostponedMatch(staleInput)) {
     return "cancelled";
@@ -1007,6 +1025,8 @@ async function persistIncomingLiveScoreboard(
   const nextStatus = resolveMatchStatusFromScoreboard(previousStatus, incoming, match.startTime);
   const notStarted = isGameNotStarted(incoming.statusShort);
   const nextKey = buildInningKey(scoreboard);
+  const wasSuspended = isGameSuspendedScoreboard(match.liveScoreboard ?? {});
+  const nowSuspended = isGameSuspendedScoreboard(scoreboard);
 
   await MatchModel.updateOne(
     { id: matchId },
@@ -1048,7 +1068,43 @@ async function persistIncomingLiveScoreboard(
     broadcastManager.sendToMatch(matchId, "scoreboard_update", { scoreboard });
   }
 
-  if (nextStatus === "ongoing") {
+  if (nowSuspended && !wasSuspended) {
+    try {
+      const { pausePredictionForWeatherDelay } = await import("../liveMatch/predictionStorage");
+      const paused = await pausePredictionForWeatherDelay(matchId);
+      broadcastManager.stopAdPlaying(matchId, "round_advance", "우천 중단으로 광고를 닫습니다.");
+      broadcastManager.sendToMatch(matchId, "game_suspended", {
+        matchId,
+        message: GAME_SUSPENDED_OPERATOR_MESSAGE,
+        refunded: paused.refunded,
+      });
+      if (paused.predictionWasOpen) {
+        broadcastManager.sendToMatch(matchId, "prediction_stopped", {
+          matchId,
+          currentRound: paused.currentRound,
+          message: "우천 중단으로 예측이 중지되었습니다.",
+          source: "weather_delay",
+        });
+      }
+      console.log(
+        `[LiveScoreSync] ${match.name} (${matchId}) → suspended (refunded ${paused.refunded})`,
+      );
+    } catch (error) {
+      console.warn(`[LiveScoreSync] weather pause failed ${matchId}:`, error);
+    }
+  } else if (
+    wasSuspended &&
+    !nowSuspended &&
+    (isGameLiveStatus(scoreboard.statusShort) || nextStatus === "ongoing")
+  ) {
+    broadcastManager.sendToMatch(matchId, "game_resumed", {
+      matchId,
+      message: GAME_RESUMED_USER_HINT,
+    });
+    console.log(`[LiveScoreSync] ${match.name} (${matchId}) → resumed from suspend`);
+  }
+
+  if (nextStatus === "ongoing" && !nowSuspended) {
     void runLiveAutoAfterPersist(matchId, scoreboard);
   }
 

@@ -26,6 +26,11 @@ import type { SideBetBottomSummary } from "./GameBottomStatusBar";
 import { AD_PLAY_MS } from "@shared/adBreakTiming";
 import type { BetAmountOption } from "@shared/predictionOdds";
 import { isTransientAdOrEventPhase, type GameScreenPhase, type PredictionOption } from "./gameTypes";
+import {
+  GAME_SUSPENDED_USER_HINT,
+  GAME_SUSPENDED_USER_SUBTITLE,
+  GAME_SUSPENDED_USER_TITLE,
+} from "@shared/gameSuspend";
 import { useAtBatPitchDisplay } from "@/hooks/useAtBatPitchDisplay";
 import { resolveGameSceneKind, shouldMirrorCinematic } from "./gameSceneBackground";
 import {
@@ -96,6 +101,8 @@ interface LandscapeGameShellProps {
   onFriendRoomClick?: () => void;
   /** 종료 오버레이 안내 문구 (기본: 홈으로) */
   terminalRedirectLabel?: string;
+  /** 우천 중단 — 종료가 아님. 재개까지 대기 */
+  gameSuspended?: boolean;
 }
 
 export default function LandscapeGameShell({
@@ -154,6 +161,7 @@ export default function LandscapeGameShell({
   friendRoomName = null,
   onFriendRoomClick,
   terminalRedirectLabel,
+  gameSuspended = false,
 }: LandscapeGameShellProps) {
   const { isGuest } = useUser();
   const { showGuestPopup, setShowGuestPopup } = useGuestRestriction(isGuest);
@@ -324,6 +332,34 @@ export default function LandscapeGameShell({
                 <div className="absolute inset-0 bg-black/65" />
                 <p className="relative text-white text-[clamp(2rem,8vw,4.5rem)] font-black tracking-tight drop-shadow-lg">
                   경기종료
+                </p>
+              </div>
+            )}
+
+            {gameSuspended && screenPhase !== "match_ended" && (
+              <div
+                className="absolute inset-0 z-[50] flex flex-col items-center justify-center pointer-events-none px-4"
+                data-testid="overlay-game-suspended"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="absolute inset-0 bg-black/70" />
+                <p className="relative text-white/90 font-semibold tracking-tight drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)]"
+                  style={{ fontSize: "clamp(10px, 2.2vw, 14px)" }}
+                >
+                  {GAME_SUSPENDED_USER_SUBTITLE}
+                </p>
+                <p
+                  className="relative mt-1 font-black leading-none tracking-tight drop-shadow-[0_4px_16px_rgba(0,0,0,0.85)]"
+                  style={{ fontSize: "clamp(34px, 9.6vw, 84px)", color: "#FBBF24" }}
+                >
+                  {GAME_SUSPENDED_USER_TITLE}
+                </p>
+                <p
+                  className="relative mt-2 text-white/85 font-semibold drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)]"
+                  style={{ fontSize: "clamp(10px, 2.4vw, 16px)" }}
+                >
+                  {GAME_SUSPENDED_USER_HINT}
                 </p>
               </div>
             )}

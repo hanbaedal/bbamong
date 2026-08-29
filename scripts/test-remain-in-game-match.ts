@@ -24,6 +24,21 @@ const liveOn: GameMatchItem = {
   sideBetEnabled: true,
 };
 
+const rainDelay: GameMatchItem = {
+  ...liveOn,
+  id: "m2",
+  name: "2경기",
+  liveScoreboard: {
+    statusShort: "SUSP",
+    statusLong: "Suspended",
+    inningLabel: "5회 초",
+    homeScore: 2,
+    awayScore: 8,
+  } as GameMatchItem["liveScoreboard"],
+};
+assert(canRemainInGameMatch(rainDelay) === true, "rain delay remains in game");
+assert(isMatchSelectableForGame(rainDelay) === true, "rain delay still selectable");
+
 const liveOff: GameMatchItem = { ...liveOn, sideBetEnabled: false };
 const finished: GameMatchItem = { ...liveOn, matchStatus: "completed" };
 const cancelled: GameMatchItem = { ...liveOn, matchStatus: "cancelled" };
@@ -65,4 +80,4 @@ assert(
   "non-empty list uses normal overlay",
 );
 
-console.log("OK: remain-in-game ignores live-sync OFF, still drops finished/cancelled");
+console.log("OK: remain-in-game ignores live-sync OFF, still drops finished/cancelled, keeps rain delay");

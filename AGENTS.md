@@ -55,4 +55,5 @@ Standard commands live in `package.json` scripts and `README.md`. Dev run is `np
 - During `matchStatus === "ongoing"` and `controlMode === "auto"`, live polls **do overwrite** `liveScoreboard` scores/inning tables (Daum). `controlMode === "manual"` (운영자/관리자 점수 보정) keeps operator scores until they turn auto back on. 주자·볼카운트는 manual이어도 네이버 실황을 갱신한다. 네이버 폴링이 비면 직전 `situation`을 유지한다.
 - Operators/admins can PATCH scores (`/api/manager/matches/:id/scoreboard`, `/api/admin/matches/:id/scoreboard`) which sets `controlMode: "manual"`. `lockManual: false` (또는 관리자 「수동」 끄기) returns to auto.
 - **`matchStatus` vs 예측 오픈**: 「예측 시작」은 `predictionEnabled`/`sideBetsLocked`만 켠다. `matchStatus: ongoing`은 실황(다음 스포츠) 근거로만 올린다. 시작 전(`NS`·다음 `BEFORE`/`READY`)이면 `scheduled`로 되돌린다(ongoing 고착 방지). UI「경기중」도 시작 전을 우선한다. 다음 `BEFORE`는 진행이 아니다.
+- **우천 중단 vs 취소**: 다음 `SUSPEND`/`DELAY`(또는 네이버 최근 문자 우천 중단)는 재개 가능한 중단이다. `matchStatus`는 `ongoing`을 유지하고 예측만 중지·미확정 환불·「예측 시작」차단. 회원은 종료 오버레이 없이 대기. 재개 후 운영자 「예측 시작」만. 다음 `CANCEL`·우천취소는 기존 `cancelled`.
 - 관리자 `/admin/operators/list`의 **실황 ON/OFF**는 다음·네이버 실황 + 회원 게임 연동이다. API-SPORTS가 아니다. 기본은 1경기만 ON.

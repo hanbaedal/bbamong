@@ -3,9 +3,10 @@ import { getKstDateString } from "../utils/dateUtils";
 import { resolveMatchTeamShort } from "../kboRoster/kboRosterService";
 import { fetchDaumKboGameList, findDaumGameForMatch } from "./daumHermesClient";
 import { parseDaumLiveScoreboard } from "./parseDaumLiveScoreboard";
-import { fetchNaverLiveSituation } from "./naverRelayClient";
+import { fetchNaverLiveSituation, getCachedRelayTexts } from "./naverRelayClient";
 import { attachNaverSituation } from "../apiSports/liveScoreboardPolicy";
 import { MatchModel } from "../UserStorage/db";
+import { applyWeatherDelayHint, naverRelaysIndicateWeatherDelay } from "@shared/gameSuspend";
 
 type MatchForDaum = {
   id: string;
@@ -43,9 +44,10 @@ export async function resolveDaumLiveScoreboard(match: MatchForDaum): Promise<{
   } catch (error) {
     console.warn("[DaumLive] naver situation failed:", error);
   }
+  const delayHint = naverRelaysIndicateWeatherDelay(getCachedRelayTexts(found.cpGameId));
   return {
     daumGameId: Number(found.gameId),
-    scoreboard: attachNaverSituation(board, situation),
+    scoreboard: attachNaverSituation(applyWeatherDelayHint(board, delayHint), situation),
   };
 }
 

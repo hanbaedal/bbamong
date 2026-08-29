@@ -27,6 +27,8 @@ function gameStatusLabel(status: string): string {
     RESULT: "경기 종료",
     CANCEL: "경기 취소",
     SUSPEND: "경기 중단",
+    DELAY: "경기 지연",
+    POSTPONE: "경기 연기",
   };
   return map[status] ?? status ?? "";
 }

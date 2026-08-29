@@ -143,6 +143,7 @@ export const AT_BAT_GUARDS: string[] = [
 export const MATCH_STATUS_RULES: string[] = [
   "「예측 시작」은 predictionEnabled / sideBetsLocked만 켭니다. matchStatus를 ongoing으로 올리지 않습니다.",
   "matchStatus=ongoing은 다음 스포츠 실황 근거로만 올립니다. 시작 전이면 scheduled로 되돌립니다.",
+  "다음·네이버가 우천 중단(재개 가능)이면 예측을 즉시 중지·환불하고 matchStatus는 종료하지 않습니다. 우천 취소는 cancelled.",
   "관리자·운영자 스코어 PATCH는 controlMode=manual. 「수동」을 끄면 auto로 돌아가 다음 점수를 다시 받습니다.",
   "운영자 공수교대는 liveScoreboard 이닝을 덮어쓰지 않습니다. 화면의 N회 초/말·점수는 실황 보드를 우선합니다.",
 ];
@@ -162,6 +163,7 @@ export const OPERATOR_EXCEPTION_STEPS: string[] = [
   "가드에 걸리면: 예측시작 → 중지 → 결과 전송 → 다음 타자(3아웃이면 공수교대).",
   "투수교체: 같은 타석 유지(대타 유지). 진행 중 예측은 환불·결과 생략 가능. 광고 시작.",
   "공수교대: 운영자 3아웃 후, 네이버 같은 초/말 3아웃(또는 초/말 변경)이면 연다. 급하면 공수교대 두 번. 광고 시작. 예측 시작으로 광고를 끄면 보상 없음.",
+  "우천 중단: 실황이 SUSPEND/DELAY(또는 네이버 우천 중단)이면 예측이 자동 중지됩니다. 재개 후 「예측 시작」만. 우천 취소는 경기 취소입니다.",
   "경기 종료: 약 10초 「경기종료」 후 로그아웃입니다. 「세션 만료」가 아닙니다.",
 ];
 

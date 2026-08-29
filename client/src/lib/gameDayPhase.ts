@@ -93,7 +93,8 @@ function classifyMatchTerminal(match: GameMatchItem): GameTerminalKind | "playab
   if (/\d+회/.test(display) || display === "경기중" || display === "경기전") {
     return "playable";
   }
-  if (display === "취소" || display === "중단") return "cancelled";
+  if (display === "중단") return "playable";
+  if (display === "취소") return "cancelled";
   if (display === "연기됨" || display === "연기") return "postponed";
   if (display === "경기종료" || display === "종료" || display === "경기 종료") {
     return "ended";

@@ -5,6 +5,7 @@ import {
   isGameSuspendedStatus,
   normalizeApiStatusShort,
 } from "@shared/apiSportsStatus";
+import { isGameSuspendedScoreboard } from "@shared/gameSuspend";
 import type { LiveScoreboard } from "@shared/apiSportsTypes";
 import {
   formatMatchTeamLineWithHeadToHead,
@@ -184,7 +185,9 @@ function resolveMatchStatusDisplay(match: GameMatchItem): string {
   if (isGameCancelledStatus(short) || match.matchStatus === "cancelled") {
     return MATCH_STATUS_LABEL.cancelled;
   }
-  if (isGameSuspendedStatus(short)) return MATCH_STATUS_LABEL.suspended;
+  if (isGameSuspendedStatus(short) || isGameSuspendedScoreboard(match.liveScoreboard ?? {})) {
+    return MATCH_STATUS_LABEL.suspended;
+  }
 
   const phase = resolveOperatorMatchPhase({
     matchStatus: match.matchStatus,
@@ -228,7 +231,9 @@ export function getGameMatchSelectDisabledReason(match: GameMatchItem): string |
   if (isGameCancelledStatus(short) || match.matchStatus === "cancelled") {
     return MATCH_STATUS_LABEL.cancelled;
   }
-  if (isGameSuspendedStatus(short)) return MATCH_STATUS_LABEL.suspended;
+  if (isGameSuspendedStatus(short) || isGameSuspendedScoreboard(match.liveScoreboard ?? {})) {
+    return null;
+  }
 
   const phase = resolveOperatorMatchPhase({
     matchStatus: match.matchStatus,
@@ -278,7 +283,9 @@ export function isMatchSelectableForGame(match: GameMatchItem, _nowMs = Date.now
 export function canRemainInGameMatch(match: GameMatchItem, _nowMs = Date.now()): boolean {
   const short = normalizeApiStatusShort(match.liveScoreboard?.statusShort);
   if (isGameCancelledStatus(short) || match.matchStatus === "cancelled") return false;
-  if (isGameSuspendedStatus(short)) return false;
+  if (isGameSuspendedStatus(short) || isGameSuspendedScoreboard(match.liveScoreboard ?? {})) {
+    return true;
+  }
 
   const phase = resolveOperatorMatchPhase({
     matchStatus: match.matchStatus,

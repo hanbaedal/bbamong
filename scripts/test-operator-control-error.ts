@@ -11,7 +11,12 @@ function assert(cond: unknown, msg: string) {
   if (!cond) throw new Error(msg);
 }
 
-assert(isOperatorControlFlowError("예측을 먼저 중지해 주세요."), "open prediction is 400");
+assert(
+  isOperatorControlFlowError(
+    "경기가 우천 등으로 중단되었습니다. 재개 후 예측을 시작해 주세요.",
+  ),
+  "rain delay start is 400",
+);
 assert(
   isOperatorControlFlowError(
     "라운드 3의 예측이 아직 중지되지 않았습니다. 먼저 예측을 중지해주세요.",

@@ -4,6 +4,7 @@ import { blocksAdvanceUntilResult, type AtBatPhase } from "@shared/atBatPhase";
 import { findLineupBatterByName, normalizeBatterName } from "@shared/batterDisplay";
 import { parseInningHalf, wrapBatterOrder, type InningHalf } from "@shared/gamePhaseTypes";
 import { shouldExecutePredictionAutoStop } from "@shared/predictionAutoStop";
+import { isGameSuspendedScoreboard } from "@shared/gameSuspend";
 import {
   shouldSuggestSwitchHalf,
   shouldHoldSwitchHalfForLive,
@@ -326,7 +327,10 @@ export async function processLiveAutoOperator(
     const match = await MatchModel.findOne({ id: matchId }).lean();
     if (!match) return;
     if (match.matchStatus !== "ongoing") {
-      // 공수교대 직후 scheduled 깜빡임에 8초 타이머를 지우지 않는다
+      await runDuePredictionAutoStop(matchId);
+      return;
+    }
+    if (isGameSuspendedScoreboard(scoreboard)) {
       await runDuePredictionAutoStop(matchId);
       return;
     }

@@ -21,6 +21,7 @@ import type {
 import { AD_PLAY_MS, isAdPlayExpired, resolveAdPlayingFromServer } from "@shared/adBreakTiming";
 import { GAME_EVENT_SHOW_MS, MATCH_ENDED_SHOW_MS, RESULT_FLASH_MS, CATCHUP_RESULT_MS, isOutcomePresentationPhase, isTransientAdOrEventPhase, isPageHidden, normalizeRoundResultLabel, displayRoundResultLabel } from "@/components/game/gameTypes";
 import { speakGameVoice } from "@/lib/gameVoiceAnnouncements";
+import { speakKorean } from "@/lib/speakKorean";
 import { consumeFirstPredictionOpen } from "@/lib/gameVoiceSession";
 import {
   ackPredictionResult,
@@ -43,6 +44,12 @@ import {
   clientPhaseAfterPredictionClosed,
   shouldKeepWaitResultWithoutCheck,
 } from "@shared/predictionUiStage";
+import {
+  GAME_RESUMED_USER_HINT,
+  GAME_SUSPENDED_USER_HINT,
+  GAME_SUSPENDED_USER_SUBTITLE,
+  isMatchPredictionSuspended,
+} from "@shared/gameSuspend";
 
 export interface MatchFlowData {
   id: string;
@@ -52,6 +59,7 @@ export interface MatchFlowData {
   matchStatus: string;
   predictionEnabled?: boolean;
   currentRound?: number;
+  liveScoreboard?: LiveScoreboard | null;
 }
 
 interface ActiveBet {
@@ -136,6 +144,8 @@ export function useLandscapePredictionFlow(
   const matchEndedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const predictionEnabledRef = useRef(false);
   const screenPhaseRef = useRef<GameScreenPhase>("wait_start");
+  const gameSuspendedRef = useRef(false);
+  const [gameSuspended, setGameSuspended] = useState(false);
   /** 예측 시작/중지마다 증가 — 클릭·모달 레이스로 잔상 UI가 남지 않게 함 */
   const predictionEpochRef = useRef(0);
   const pendingRoundNextRef = useRef<PendingRoundNext | null>(null);
@@ -183,6 +193,37 @@ export function useLandscapePredictionFlow(
       setSelectedPrediction(null);
     }
   }, [bumpPredictionEpoch]);
+
+  const applyGameSuspended = useCallback(
+    (next: boolean, opts?: { silent?: boolean }) => {
+      if (matchEndedRef.current) return;
+      if (gameSuspendedRef.current === next) return;
+      gameSuspendedRef.current = next;
+      setGameSuspended(next);
+      if (next) {
+        wantPickingAfterResultRef.current = false;
+        closePickingUi();
+        waitingResultRef.current = false;
+        if (
+          screenPhaseRef.current === "picking" ||
+          screenPhaseRef.current === "wait_result"
+        ) {
+          setScreenPhase("wait_start");
+        }
+        if (!opts?.silent) {
+          void speakKorean(`${GAME_SUSPENDED_USER_SUBTITLE}. ${GAME_SUSPENDED_USER_HINT}`);
+          toast({ description: GAME_SUSPENDED_USER_SUBTITLE, duration: 4_000 });
+        }
+        queryClient.invalidateQueries({ queryKey: ["/api/users/me"] });
+        void refetchUser?.();
+        return;
+      }
+      if (!opts?.silent) {
+        toast({ description: GAME_RESUMED_USER_HINT, duration: 4_000 });
+      }
+    },
+    [closePickingUi, toast, refetchUser],
+  );
 
   const clearResultTimers = useCallback(() => {
     if (resultTimerRef.current) {
@@ -305,12 +346,36 @@ export function useLandscapePredictionFlow(
     predictionEpochRef.current += 1;
     lastLiveResultLabelRef.current = null;
     lastLiveResultBatterRef.current = null;
+    const nextSuspended = isMatchPredictionSuspended({
+      matchStatus: selectedMatch?.matchStatus,
+      liveScoreboard: selectedMatch?.liveScoreboard,
+    });
+    gameSuspendedRef.current = nextSuspended;
+    setGameSuspended(nextSuspended);
     clearAdHardStop();
     if (matchEndedTimerRef.current) {
       clearTimeout(matchEndedTimerRef.current);
       matchEndedTimerRef.current = null;
     }
   }, [selectedMatch?.id]);
+
+  useEffect(() => {
+    if (!selectedMatch) return;
+    applyGameSuspended(
+      isMatchPredictionSuspended({
+        matchStatus: selectedMatch.matchStatus,
+        liveScoreboard: selectedMatch.liveScoreboard,
+      }),
+      { silent: true },
+    );
+  }, [
+    selectedMatch,
+    selectedMatch?.matchStatus,
+    selectedMatch?.liveScoreboard?.statusShort,
+    selectedMatch?.liveScoreboard?.statusLong,
+    selectedMatch?.liveScoreboard?.inningLabel,
+    applyGameSuspended,
+  ]);
 
   useEffect(
     () => () => {
@@ -467,6 +532,7 @@ export function useLandscapePredictionFlow(
       if (isTransientAdOrEventPhase(ui) && stage !== "open") return;
 
       if (stage === "open") {
+        if (gameSuspendedRef.current) return;
         pendingInterstitialRef.current = false;
         if (adSessionActiveRef.current || ui === "ad_playing") {
           adSessionActiveRef.current = false;
@@ -1058,10 +1124,18 @@ export function useLandscapePredictionFlow(
         return;
       }
 
+      applyGameSuspended(
+        isMatchPredictionSuspended({
+          matchStatus: matchData.matchStatus,
+          liveScoreboard: matchData.liveScoreboard,
+        }),
+        { silent: true },
+      );
+
       // 결과 연출 중에는 predictionEnabled promote/demote 만 보류
       if (resultShownRef.current) return;
 
-      const enabled = Boolean(matchData.predictionEnabled);
+      const enabled = Boolean(matchData.predictionEnabled) && !gameSuspendedRef.current;
       predictionEnabledRef.current = enabled;
       setPredictionEnabled(enabled);
 
@@ -1104,6 +1178,7 @@ export function useLandscapePredictionFlow(
     handleMatchEnded,
     applyUiStagePayload,
     applyPredictionUiStage,
+    applyGameSuspended,
   ]);
 
   const syncMatchFromServerRef = useRef(syncMatchFromServer);
@@ -1413,11 +1488,19 @@ export function useLandscapePredictionFlow(
       if (data.liveScoreboard && typeof data.liveScoreboard.homeScore === "number") {
         onScoreboardRef.current?.(data.liveScoreboard);
       }
+      applyGameSuspended(
+        isMatchPredictionSuspended({
+          matchStatus: selectedMatch?.matchStatus,
+          liveScoreboard: data.liveScoreboard,
+        }),
+        { silent: true },
+      );
       applyUiStagePayload(data);
       void checkPredictionStatus();
-    }, [checkPredictionStatus, applyUiStagePayload]),
+    }, [checkPredictionStatus, applyUiStagePayload, applyGameSuspended, selectedMatch?.matchStatus]),
 
     onPredictionStarted: useCallback(() => {
+      applyGameSuspended(false, { silent: true });
       const key = consumeFirstPredictionOpen(selectedMatch?.id)
         ? "user.predictionOpenFirst"
         : "user.predictionOpen";
@@ -1464,6 +1547,7 @@ export function useLandscapePredictionFlow(
       applyHurryResultPresentation,
       bumpPredictionEpoch,
       applyPredictionUiStage,
+      applyGameSuspended,
     ]),
 
     onPredictionEnded: useCallback(() => {
@@ -1653,8 +1737,25 @@ export function useLandscapePredictionFlow(
     ),
 
     onScoreboardUpdate: useCallback((data: { scoreboard?: LiveScoreboard }) => {
-      if (data?.scoreboard) onScoreboardRef.current?.(data.scoreboard);
-    }, []),
+      if (data?.scoreboard) {
+        onScoreboardRef.current?.(data.scoreboard);
+        applyGameSuspended(
+          isMatchPredictionSuspended({
+            matchStatus: selectedMatch?.matchStatus,
+            liveScoreboard: data.scoreboard,
+          }),
+          { silent: true },
+        );
+      }
+    }, [applyGameSuspended, selectedMatch?.matchStatus]),
+
+    onGameSuspended: useCallback(() => {
+      applyGameSuspended(true);
+    }, [applyGameSuspended]),
+
+    onGameResumed: useCallback(() => {
+      applyGameSuspended(false);
+    }, [applyGameSuspended]),
 
     onPinchHitterSet: useCallback(() => {
       void speakGameVoice("user.pinchHitter", 4_000);
@@ -1702,6 +1803,8 @@ export function useLandscapePredictionFlow(
 
   const handleFieldSelect = useCallback((option: PredictionOption) => {
     // 클로저 state 대신 ref — 예측 중지와 클릭 레이스 방지
+    if (gameSuspendedRef.current) return;
+    if (gameSuspendedRef.current) return;
     if (screenPhaseRef.current !== "picking") return;
     if (!predictionEnabledRef.current) return;
     const epoch = predictionEpochRef.current;
@@ -1725,6 +1828,11 @@ export function useLandscapePredictionFlow(
 
   const handleBetSubmit = useCallback(async () => {
     if (!user || !selectedMatch || !selectedPrediction) return;
+    if (gameSuspendedRef.current) {
+      setShowBetModal(false);
+      setSelectedPrediction(null);
+      return;
+    }
     if (screenPhaseRef.current !== "picking" || !predictionEnabledRef.current) {
       setShowBetModal(false);
       setSelectedPrediction(null);
@@ -1807,8 +1915,8 @@ export function useLandscapePredictionFlow(
     }
   }, [user, selectedMatch, selectedPrediction, selectedBetAmount, setUser, toast, rememberActiveBet, betLocked]);
 
-  const labelsVisible = screenPhase === "picking" && predictionEnabled;
-  const labelsInteractive = screenPhase === "picking" && predictionEnabled && !betLocked;
+  const labelsVisible = screenPhase === "picking" && predictionEnabled && !gameSuspended;
+  const labelsInteractive = screenPhase === "picking" && predictionEnabled && !betLocked && !gameSuspended;
   const blinkPrediction = null;
 
   return {
@@ -1842,5 +1950,6 @@ export function useLandscapePredictionFlow(
     handleAdOverlayDismiss,
     handleAdOverlayComplete,
     notifyLiveAtBatResult,
+    gameSuspended,
   };
 }
