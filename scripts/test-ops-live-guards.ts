@@ -32,6 +32,7 @@ import {
   clientPhaseAfterPredictionClosed,
   hasClientPredictionStake,
   shouldKeepWaitResultWithoutCheck,
+  shouldShowSettledResultFlash,
 } from "../shared/predictionUiStage";
 
 function assert(cond: unknown, msg: string): asserts cond {
@@ -392,5 +393,7 @@ assert(
   }) === false,
   "already-shown result releases wait_result",
 );
+assert(shouldShowSettledResultFlash({ alreadyAcked: false, presenting: false }) === true, "unset result flashes once");
+assert(shouldShowSettledResultFlash({ alreadyAcked: true, presenting: false }) === false, "acked result does not replay");
 
 console.log("OK: live-3-only 3-out voice, live hold, catch-up switch, no-pick same result flow, uniforms, ad 80s, back size");

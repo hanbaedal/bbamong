@@ -1098,13 +1098,15 @@ export default function MatchDetailPage() {
       toast({ description: "예측이 열려 있습니다. 중지(8초 자동)와 결과 전송 뒤에 「다음 타자」를 누르세요." });
       return;
     }
+    if (holdSwitchForLive) {
+      toast({ description: switchHalfHoldMessage(liveOutsNow) });
+      return;
+    }
     if (blockForSwitchHalf) {
       toast({
-        description: holdSwitchForLive
-          ? switchHalfHoldMessage(liveOutsNow)
-          : catchUpSwitch
-            ? switchHalfLiveMovedOnMessage(liveOutsNow)
-            : "3아웃입니다. 공수교대를 눌러주세요.",
+        description: catchUpSwitch
+          ? switchHalfLiveMovedOnMessage(liveOutsNow)
+          : "3아웃입니다. 공수교대를 눌러주세요.",
       });
       return;
     }
@@ -1354,6 +1356,7 @@ export default function MatchDetailPage() {
   const canNextBatter =
     isMatchLive &&
     !blockForSwitchHalf &&
+    !holdSwitchForLive &&
     !anyAdvanceBusy &&
     !blockAdvanceActions &&
     !isAdPlaying &&
