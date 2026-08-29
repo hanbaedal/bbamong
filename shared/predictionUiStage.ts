@@ -81,3 +81,15 @@ export function shouldKeepWaitResultWithoutCheck(input: {
   if (input.hasLocalBet || input.submitting) return true;
   return typeof input.awaitRound === "number";
 }
+
+/**
+ * 확정 결과 큰 글씨 — 이미 본 라운드·연출 중이면 다시 그리지 않는다.
+ * WS / HTTP /check / 실황 문구가 같은 결과를 재생하지 않게 한곳만 쓴다.
+ */
+export function shouldShowSettledResultFlash(input: {
+  alreadyAcked: boolean;
+  presenting: boolean;
+}): boolean {
+  if (input.presenting) return false;
+  return !input.alreadyAcked;
+}

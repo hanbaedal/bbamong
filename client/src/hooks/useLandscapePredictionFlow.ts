@@ -25,7 +25,10 @@ import { speakKorean } from "@/lib/speakKorean";
 import { consumeFirstPredictionOpen } from "@/lib/gameVoiceSession";
 import {
   ackPredictionResult,
+  ackRoundResult,
+  hasAnyRoundResultAcked,
   isPredictionResultAcked,
+  isRoundResultAcked,
   listAckedPredictionResults,
 } from "@/lib/predictionResultAck";
 import {
@@ -43,6 +46,7 @@ import {
   hasClientPredictionStake,
   clientPhaseAfterPredictionClosed,
   shouldKeepWaitResultWithoutCheck,
+  shouldShowSettledResultFlash,
 } from "@shared/predictionUiStage";
 import {
   GAME_RESUMED_USER_HINT,
@@ -607,9 +611,12 @@ export function useLandscapePredictionFlow(
   );
 
   /** handleRoundResult 정의 전 — ref로 연결 */
-  const handleRoundResultRef = useRef<(data: { result?: string; wonAmount?: number; displayResult?: string }) => void>(
-    () => {},
-  );
+  const handleRoundResultRef = useRef<(data: {
+    result?: string;
+    wonAmount?: number;
+    displayResult?: string | null;
+    roundNumber?: number;
+  }) => void>(() => {});
 
   const applyUiStagePayload = useCallback(
     (data: {
@@ -645,16 +652,38 @@ export function useLandscapePredictionFlow(
       }
       if (!stage) return;
 
+      const matchId = selectedMatch?.id ?? "";
+      const presenting =
+        resultShownRef.current || isOutcomePresentationPhase(screenPhaseRef.current);
+      const alreadyAcked = Boolean(
+        matchId && isRoundResultAcked(matchId, round, data.settledResult),
+      );
+
+      if (stage === "result" && alreadyAcked && !presenting) {
+        waitingResultRef.current = false;
+        awaitingResultRoundRef.current = null;
+        if (screenPhaseRef.current === "picking" && predictionEnabledRef.current) {
+          return;
+        }
+        setScreenPhase("wait_start");
+        return;
+      }
+
       applyPredictionUiStage(stage, { roundNumber: round });
 
-      if (stage === "result" && data.settledResult && !resultShownRef.current) {
+      if (
+        stage === "result" &&
+        data.settledResult &&
+        shouldShowSettledResultFlash({ alreadyAcked, presenting })
+      ) {
         handleRoundResultRef.current({
           result: data.settledResult,
           displayResult: data.displayResult ?? undefined,
+          roundNumber: round,
         });
       }
     },
-    [applyPredictionUiStage],
+    [applyPredictionUiStage, selectedMatch?.id],
   );
 
   const rememberActiveBet = useCallback((bet: ActiveBet) => {
@@ -802,6 +831,13 @@ export function useLandscapePredictionFlow(
         ackPredictionResult(selectedMatch.id, lastResultPredictionIdRef.current);
       }
     }
+    if (selectedMatch?.id) {
+      ackRoundResult(
+        selectedMatch.id,
+        awaitingResultRoundRef.current ?? selectedMatch.currentRound,
+        lastLiveResultLabelRef.current,
+      );
+    }
     clearResultTimers();
     clearSuccessRunTimer();
 
@@ -929,10 +965,12 @@ export function useLandscapePredictionFlow(
       const phase = screenPhaseRef.current;
       if (phase === "picking" || isTransientAdOrEventPhase(phase)) return;
       if (phase !== "wait_start") return;
+      const matchId = selectedMatch?.id ?? "";
+      if (matchId && hasAnyRoundResultAcked(matchId, selectedMatch?.currentRound)) return;
       lastLiveResultBatterRef.current = batterKey;
       startResultFlash(label, "spectator");
     },
-    [isInResultPresentation, isWaitingForResult, startResultFlash],
+    [isInResultPresentation, isWaitingForResult, startResultFlash, selectedMatch?.id, selectedMatch?.currentRound],
   );
 
   type PredictionSnapshot = {
@@ -1011,24 +1049,36 @@ export function useLandscapePredictionFlow(
 
         if (isResolved) {
           if (resolvedId != null) lastResultPredictionIdRef.current = resolvedId;
-          resultShownRef.current = true;
-          setPredictionResult(data.status as PredictionResult);
           setLastWonAmount(data.wonAmount ?? 0);
           const label =
             normalizeRoundResultLabel(data.prediction) ??
             (data.prediction as PredictionOption | undefined) ??
             null;
-          // /check 는 실제 라운드 결과 필드가 없어, 성공 시 본인 예측(=결과)로 큰 글씨
+          const officialAcked =
+            Boolean(matchId && isRoundResultAcked(matchId, data.roundNumber, label)) ||
+            alreadyAcked;
+          // /check 성공만 본인 예측(=결과)로 큰 글씨. 공식 결과는 handleRoundResult 한곳.
           if (label && data.status === "success") {
-            startResultFlash(label, "success");
+            if (shouldShowSettledResultFlash({ alreadyAcked: officialAcked, presenting })) {
+              handleRoundResultRef.current({
+                result: label,
+                wonAmount: data.wonAmount,
+                roundNumber: data.roundNumber,
+              });
+            } else if (!presenting) {
+              finishResultPresentation();
+            }
           } else if (data.status === "fail") {
-            // 실패 시 실제 결과 모름 → 큰 글씨 없이 대기로 (따라잡기)
-            setPredictionResult("fail");
-            void speakGameVoice("user.predictionFail");
-            finishResultPresentation();
+            if (officialAcked || presenting) {
+              if (!presenting) finishResultPresentation();
+            } else {
+              setPredictionResult("fail");
+              void speakGameVoice("user.predictionFail");
+              finishResultPresentation();
+            }
           } else if (data.status === "success") {
-            beginSuccessPresentation();
-          } else {
+            if (!presenting) beginSuccessPresentation();
+          } else if (!presenting) {
             finishResultPresentation();
           }
           activeBetRef.current = null;
@@ -1063,7 +1113,9 @@ export function useLandscapePredictionFlow(
           submitting: waitingResultRef.current,
           awaitRound,
           checkRound: typeof data.roundNumber === "number" ? data.roundNumber : null,
-          resultAlreadyShown: resultShownRef.current,
+          resultAlreadyShown:
+            resultShownRef.current ||
+            Boolean(selectedMatch?.id && hasAnyRoundResultAcked(selectedMatch.id, awaitRound)),
         })
       ) {
         return;
@@ -1082,7 +1134,7 @@ export function useLandscapePredictionFlow(
       if (isTransientAdOrEventPhase(screenPhaseRef.current)) return;
       setScreenPhase(enabled ? "picking" : "wait_start");
     },
-    [rememberActiveBet, beginSuccessPresentation, startResultFlash, finishResultPresentation, selectedMatch?.id, refetchUser],
+    [rememberActiveBet, beginSuccessPresentation, finishResultPresentation, selectedMatch?.id, refetchUser],
   );
 
   const checkPredictionStatus = useCallback(async () => {
@@ -1266,9 +1318,12 @@ export function useLandscapePredictionFlow(
   }, [screenPhase, scheduleResultDismiss]);
 
   const handleRoundResult = useCallback(
-    (data: { result?: string; wonAmount?: number; displayResult?: string | null }) => {
-      if (resultShownRef.current) return;
-
+    (data: {
+      result?: string;
+      wonAmount?: number;
+      displayResult?: string | null;
+      roundNumber?: number;
+    }) => {
       const outcome = normalizeRoundResultLabel(data.result);
       if (!outcome) {
         if (isWaitingForResult()) {
@@ -1276,6 +1331,23 @@ export function useLandscapePredictionFlow(
         }
         return;
       }
+
+      const matchId = selectedMatch?.id ?? "";
+      const round =
+        typeof data.roundNumber === "number"
+          ? data.roundNumber
+          : awaitingResultRoundRef.current ?? selectedMatch?.currentRound ?? null;
+      const alreadyAcked = Boolean(matchId && isRoundResultAcked(matchId, round, outcome));
+      if (
+        !shouldShowSettledResultFlash({
+          alreadyAcked,
+          presenting: resultShownRef.current || isOutcomePresentationPhase(screenPhaseRef.current),
+        })
+      ) {
+        return;
+      }
+
+      if (matchId) ackRoundResult(matchId, round, outcome);
 
       const flashLabel = displayRoundResultLabel(data.result, data.displayResult) ?? outcome;
 
@@ -1311,7 +1383,7 @@ export function useLandscapePredictionFlow(
       startResultFlash(flashLabel, personal);
       queryClient.invalidateQueries({ queryKey: ["/api/matches"] });
     },
-    [user, isWaitingForResult, checkPredictionStatus, startResultFlash, refetchUser],
+    [user, isWaitingForResult, checkPredictionStatus, startResultFlash, refetchUser, selectedMatch?.id, selectedMatch?.currentRound],
   );
 
   handleRoundResultRef.current = handleRoundResult;
