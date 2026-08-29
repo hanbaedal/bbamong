@@ -69,6 +69,12 @@ export function deriveOperatorNextAction(input: {
 
   if (input.holdSwitchForLive) {
     const n = typeof input.liveOuts === "number" ? input.liveOuts : null;
+    if (phase === "result_confirmed" || input.needsAdvanceAfterResult) {
+      return {
+        kind: "start_prediction",
+        label: n == null ? "실황 진행 중 · 예측 시작" : `실황 ${n}아웃 · 예측 시작`,
+      };
+    }
     return {
       kind: "wait_live_three_outs",
       label: n == null ? "실황 3아웃 대기" : `실황 ${n}아웃 · 3아웃되면 공수교대`,

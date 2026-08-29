@@ -23,6 +23,11 @@ assert(
   isOperatorControlFlowError("먼저 예측을 시작하고 결과를 전송해 주세요."),
   "missing start is 400",
 );
+assert(
+  isOperatorControlFlowError("운영자 3아웃 · 실황 2아웃. 중계가 3아웃이면 공수교대하세요."),
+  "hold message is 400",
+);
+assert(isOperatorControlFlowError("결과가 전송되었습니다. 다음 타자를 눌러주세요."), "result sent is 400");
 assert(!isOperatorControlFlowError("Transaction numbers are only allowed"), "mongo stays 500");
 assert(!isOperatorControlFlowError("ECONNRESET"), "network stays 500");
 

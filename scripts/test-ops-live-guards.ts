@@ -20,6 +20,7 @@ import {
   liveThreeOutsSameHalf,
   canAdvanceInningHalf,
   shouldBlockAdvanceForSwitchHalf,
+  shouldContinueSameHalfAfterResult,
 } from "../shared/threeOutsGuard";
 import { AD_PLAY_MS, AD_PLAY_SECONDS, PREDICTION_AUTO_STOP_MS } from "../shared/adBreakTiming";
 import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR, GAME_OUTS_COLOR } from "../client/src/components/game/gameHudColors";
@@ -196,22 +197,24 @@ assert(
 assert(
   deriveOperatorNextAction({
     atBatPhase: "result_confirmed",
-    showThreeOutsHint: true,
+    showThreeOutsHint: false,
     holdSwitchForLive: true,
     liveOuts: 2,
-  }).kind === "wait_live_three_outs",
-  "live 2 holds next-action on switch",
+  }).kind === "start_prediction",
+  "op 3 live 2 after result → start same at-bat",
 );
 assert(
   deriveOperatorNextAction({
-    atBatPhase: "result_confirmed",
+    atBatPhase: "idle",
     showThreeOutsHint: false,
     holdSwitchForLive: true,
     liveOuts: 2,
   }).kind === "wait_live_three_outs",
-  "hint off + hold still waits for live 3",
+  "hold without result waits for live 3",
 );
-assert(shouldBlockAdvanceForSwitchHalf({ outsInHalf: 3, liveOuts: 2 }) === true, "op 3 live 2 blocks next batter");
+assert(shouldBlockAdvanceForSwitchHalf({ outsInHalf: 3, liveOuts: 2 }) === false, "op 3 live 2 does not block start");
+assert(shouldContinueSameHalfAfterResult({ outsInHalf: 3, liveOuts: 2, liveHalf: "top", operatorHalf: "top" }) === true, "same half live 2 continues at-bat");
+assert(shouldContinueSameHalfAfterResult({ outsInHalf: 3, liveOuts: 3, liveHalf: "top", operatorHalf: "top" }) === false, "live 3 does not continue");
 assert(shouldBlockAdvanceForSwitchHalf({ outsInHalf: 2, liveOuts: 2 }) === false, "2 outs does not block advance");
 assert(
   shouldBlockAdvanceForSwitchHalf({
