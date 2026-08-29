@@ -35,6 +35,7 @@ import {
   liveOutsFromScoreboard,
   resolveShowThreeOutsHint,
   shouldHoldSwitchHalfForLive,
+  shouldCatchUpSwitchHalf,
   switchHalfHoldMessage,
   switchHalfLiveMovedOnMessage,
   switchHalfAdBreakMessage,
@@ -178,9 +179,11 @@ export default function MatchDetailPage() {
     liveOuts: liveOutsNow,
     liveHalf: liveBoardForOuts?.inningHalf,
     operatorHalf: match?.inningHalf,
+    liveInning: liveBoardForOuts?.inning ?? null,
+    operatorInning: match?.gameInning ?? null,
     recentlySwitched: adBreakLocked,
   };
-  const liveMovedOn = liveHalfAlreadyStarted(switchLiveInput);
+  const catchUpSwitch = shouldCatchUpSwitchHalf(switchLiveInput);
   const showThreeOutsHint = resolveShowThreeOutsHint(switchLiveInput);
   const holdSwitchForLive = shouldHoldSwitchHalfForLive(switchLiveInput);
   const blockForSwitchHalf = shouldBlockAdvanceForSwitchHalf(switchLiveInput);
@@ -947,18 +950,18 @@ export default function MatchDetailPage() {
       if (response.ok) {
         const data = await response.json();
         setSelectedResult(null);
-        if (data.threeOutsReached && !liveHalfAlreadyStarted({
+        const afterSwitchInput = {
           outsInHalf: data.outsInHalf ?? match?.outsInHalf,
           liveOuts: liveOutsNow,
           liveHalf: liveBoardForOuts?.inningHalf,
           operatorHalf: match?.inningHalf,
-        })) {
-          const holdAfterResult = shouldHoldSwitchHalfForLive({
-            outsInHalf: data.outsInHalf ?? match?.outsInHalf,
-            liveOuts: liveOutsNow,
-            liveHalf: liveBoardForOuts?.inningHalf,
-            operatorHalf: match?.inningHalf,
-          });
+          liveInning: liveBoardForOuts?.inning ?? null,
+          operatorInning: match?.gameInning ?? null,
+        };
+        if (shouldCatchUpSwitchHalf(afterSwitchInput)) {
+          toast({ description: switchHalfLiveMovedOnMessage(liveOutsNow) });
+        } else if (data.threeOutsReached && !liveHalfAlreadyStarted(afterSwitchInput)) {
+          const holdAfterResult = shouldHoldSwitchHalfForLive(afterSwitchInput);
           if (!holdAfterResult) {
             threeOutsSpokenRef.current = true;
             void speakGameVoice("operator.threeOuts");
@@ -1099,7 +1102,9 @@ export default function MatchDetailPage() {
       toast({
         description: holdSwitchForLive
           ? switchHalfHoldMessage(liveOutsNow)
-          : "3아웃입니다. 공수교대를 눌러주세요.",
+          : catchUpSwitch
+            ? switchHalfLiveMovedOnMessage(liveOutsNow)
+            : "3아웃입니다. 공수교대를 눌러주세요.",
       });
       return;
     }
@@ -1145,11 +1150,7 @@ export default function MatchDetailPage() {
       toast({ description: "먼저 예측 결과를 전송해 주세요." });
       return;
     }
-    if (liveMovedOn) {
-      toast({ description: switchHalfLiveMovedOnMessage(liveOutsNow) });
-      return;
-    }
-    if (!showThreeOutsHint && (match?.outsInHalf ?? 0) < 3) {
+    if (!showThreeOutsHint && !catchUpSwitch && (match?.outsInHalf ?? 0) < 3) {
       toast({ description: "3아웃일 때만 공수교대합니다." });
       return;
     }
@@ -1364,8 +1365,7 @@ export default function MatchDetailPage() {
     !blockAdvanceActions &&
     !isAdPlaying &&
     !adBreakLocked &&
-    (showThreeOutsHint || (match.outsInHalf ?? 0) >= 3) &&
-    !liveMovedOn;
+    (showThreeOutsHint || (match.outsInHalf ?? 0) >= 3 || catchUpSwitch);
   /** 대타 — 경기중·예측 중이 아닐 때 (현재 타석 교체) */
   const canSetPinchHitter =
     isMatchLive && !anyAdvanceBusy && !predictionRunning && !isAdPlaying;
@@ -1642,7 +1642,16 @@ export default function MatchDetailPage() {
             </div>
           )}
 
-          {showThreeOutsHint && !holdSwitchForLive && !adBreakLocked && (
+          {catchUpSwitch && !holdSwitchForLive && !adBreakLocked && (
+            <div
+              className="manager-match-notice manager-match-notice--three-outs"
+              data-testid="text-switch-half-catch-up"
+            >
+              {switchHalfLiveMovedOnMessage(liveOutsNow)}
+            </div>
+          )}
+
+          {showThreeOutsHint && !holdSwitchForLive && !catchUpSwitch && !adBreakLocked && (
             <div
               className="manager-match-notice manager-match-notice--three-outs"
               data-testid="text-three-outs-hint"
@@ -1651,7 +1660,7 @@ export default function MatchDetailPage() {
             </div>
           )}
 
-          {!showThreeOutsHint && !holdSwitchForLive && awaitAdvanceAfterResult && (
+          {!showThreeOutsHint && !holdSwitchForLive && !catchUpSwitch && awaitAdvanceAfterResult && (
             <div
               className="manager-match-notice"
               data-testid="text-await-next-batter"
@@ -1688,7 +1697,9 @@ export default function MatchDetailPage() {
                   disabled={!canSwitchHalf}
                   data-testid="button-switch-half"
                   className={`manager-match-bottom-btn bg-[#E11936] ${
-                    showThreeOutsHint && !holdSwitchForLive && !adBreakLocked ? "manager-match-bottom-btn--pulse" : ""
+                    (showThreeOutsHint || catchUpSwitch) && !holdSwitchForLive && !adBreakLocked
+                      ? "manager-match-bottom-btn--pulse"
+                      : ""
                   }`}
                 >
                   {advanceBusy === "switch" ? "처리중" : "공수\n교대"}

@@ -1,8 +1,9 @@
 /**
  * 3아웃 카운트는 운영자 결과(outsInHalf)가 권위다.
  * 2아웃+아웃 / 1아웃+병살 / 노아웃+삼살 → 예측은 3아웃으로 끝낸다.
- * 공수교대(이닝 넘김·광고)는 네이버가 **같은 초/말에서 3아웃**일 때만 연다.
- * 실황이 이미 다음 초/말(0~2아웃)이면 3아웃 잔상을 지우고 공수교대를 말하지 않는다.
+ * 공수교대 **실행·광고**는 운영자 버튼만 (자동 공수교대 없음).
+ * 공수교대 **시점**은 실황: 네이버 같은 초/말 3아웃, 또는 이미 다음 초/말(0~2)이면 맞춤.
+ * 폴링이 운영자 inningHalf/outsInHalf를 덮지 않는다.
  * 중간 합류: 같은 초/말 실황 3아웃이면 운영자 누적 없이도 공수교대.
  * 공수교대 직후(아웃 0)·광고 중에는 실황 3아웃 잔상으로 다시 부르지 않는다.
  * 실황 아웃이 없으면(위젯 공란) 가짜 0아웃으로 막지 않는다.
@@ -133,15 +134,37 @@ export function switchHalfHoldMessage(liveOuts?: number | null): string {
 export function switchHalfLiveMovedOnMessage(liveOuts?: number | null): string {
   const n = liveOutsCount(liveOuts);
   const liveLabel = n == null ? "실황이 이미 다음 초/말" : `실황이 이미 다음 초/말 · ${n}아웃`;
-  return `${liveLabel}. 공수교대하지 말고 다음 타자로 이어가세요.`;
+  return `${liveLabel}. 공수교대로 맞추고 광고합니다.`;
+}
+
+/**
+ * 실황이 이미 다음 초/말(또는 다음 이닝) 0~2아웃 — 운영자 초/말을 실황에 맞추는 공수교대.
+ * 광고 직후 재호출은 막는다.
+ */
+export function shouldCatchUpSwitchHalf(input: SwitchHalfLiveInput): boolean {
+  if (input.recentlySwitched) return false;
+  if (isLivePhaseBehindOperator(input)) return false;
+  if (liveHalfAlreadyStarted(input)) return true;
+  const live = liveOutsCount(input.liveOuts);
+  if (live == null || live >= 3) return false;
+  const liveInn =
+    typeof input.liveInning === "number" && Number.isFinite(input.liveInning)
+      ? Math.floor(input.liveInning)
+      : null;
+  const opInn =
+    typeof input.operatorInning === "number" && Number.isFinite(input.operatorInning)
+      ? Math.floor(input.operatorInning)
+      : null;
+  return Boolean(liveInn != null && opInn != null && liveInn > opInn);
 }
 
 export function switchHalfAdBreakMessage(): string {
   return "공수교대가 이미 반영되었습니다. 광고가 끝난 뒤 다음 타석을 진행하세요.";
 }
 
-/** 공수교대 제안 — 운영자 3아웃, 또는 중간 합류 시 같은 초/말 실황 3아웃. */
+/** 공수교대 제안 — 실황 3아웃, 또는 실황이 이미 다음 초/말(맞춤). */
 export function shouldSuggestSwitchHalf(input: SwitchHalfLiveInput): boolean {
+  if (shouldCatchUpSwitchHalf(input)) return true;
   if (liveHalfAlreadyStarted(input)) return false;
   if ((input.outsInHalf ?? 0) >= 3) {
     return !shouldHoldSwitchHalfForLive(input);
@@ -153,10 +176,10 @@ export function shouldSuggestSwitchHalf(input: SwitchHalfLiveInput): boolean {
 /**
  * 다음 타자·투수교체·예측 시작을 막을지.
  * 실황이 같은 초/말 1·2아웃이면 이닝이 이어지므로 막지 않는다.
- * 막을 때: 실황 3아웃, 또는 실황 공란+운영자 3.
+ * 막을 때: 실황 3아웃, 실황 공란+운영자 3, 또는 실황이 이미 다음 초/말(맞춤 공수교대).
  */
 export function shouldBlockAdvanceForSwitchHalf(input: SwitchHalfLiveInput): boolean {
-  return resolveShowThreeOutsHint(input);
+  return resolveShowThreeOutsHint(input) || shouldCatchUpSwitchHalf(input);
 }
 
 /** 결과는 났지만 실황이 같은 초/말 0~2 — 같은 타석 예측을 다시 연다. */
@@ -166,8 +189,9 @@ export function shouldContinueSameHalfAfterResult(input: SwitchHalfLiveInput): b
   return live != null && live < 3;
 }
 
-/** 공수교대 POST 허용. hold(실황 0~2)는 별도. 다음 초/말은 거부. */
+/** 공수교대 POST 허용. hold(실황 0~2)는 별도. 다음 초/말은 맞춤 허용. */
 export function canAdvanceInningHalf(input: SwitchHalfLiveInput): boolean {
+  if (shouldCatchUpSwitchHalf(input)) return true;
   if (liveHalfAlreadyStarted(input)) return false;
   if ((input.outsInHalf ?? 0) >= 3) return true;
   if (input.recentlySwitched) return false;

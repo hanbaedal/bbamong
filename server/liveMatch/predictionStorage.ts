@@ -13,7 +13,7 @@ import type {
   Match,
   RoundStatistics,
 } from "@shared/schema";
-import { computeInningHalfSwitch, computeNextBatterPhase } from "./gamePhase";
+import { computeInningHalfCatchUp, computeInningHalfSwitch, computeNextBatterPhase } from "./gamePhase";
 import { calculateFixedOddsPayout } from "@shared/predictionOdds";
 import type { ClientSession } from "mongoose";
 import {
@@ -25,8 +25,9 @@ import { isMongoTransientError } from "../../shared/mongoTransientError";
 import {
   liveOutsFromScoreboard,
   liveOutsCount,
-  liveHalfAlreadyStarted,
+  nullableInningHalf,
   shouldHoldSwitchHalfForLive,
+  shouldCatchUpSwitchHalf,
   shouldBlockAdvanceForSwitchHalf,
   shouldContinueSameHalfAfterResult,
   switchHalfHoldMessage,
@@ -370,19 +371,27 @@ async function refundPendingPredictionsForRound(
 }
 
 function switchInputFromMatchDoc(
-  match: { outsInHalf?: number; inningHalf?: string; liveScoreboard?: unknown },
+  match: {
+    outsInHalf?: number;
+    inningHalf?: string;
+    gameInning?: number | null;
+    liveScoreboard?: unknown;
+  },
   matchId: string,
 ) {
   const liveBoard =
     (match.liveScoreboard as {
       situation?: { outs?: number | null };
       inningHalf?: string | null;
+      inning?: number | null;
     } | null) ?? null;
   return {
     outsInHalf: match.outsInHalf ?? 0,
     liveOuts: liveOutsFromScoreboard(liveBoard),
     liveHalf: liveBoard?.inningHalf,
     operatorHalf: match.inningHalf,
+    liveInning: liveBoard?.inning ?? null,
+    operatorInning: match.gameInning ?? null,
     recentlySwitched: wasSwitchHalfRecent(matchId),
   };
 }
@@ -410,7 +419,9 @@ export async function startRound(matchId: string): Promise<Match> {
     throw new Error(
       shouldHoldSwitchHalfForLive(switchInput)
         ? switchHalfHoldMessage(switchInput.liveOuts)
-        : "3아웃입니다. 공수교대를 눌러주세요.",
+        : shouldCatchUpSwitchHalf(switchInput)
+          ? switchHalfLiveMovedOnMessage(switchInput.liveOuts)
+          : "3아웃입니다. 공수교대를 눌러주세요.",
     );
   }
 
@@ -1047,17 +1058,22 @@ export async function advanceInningHalf(
     (rec.liveScoreboard as {
       situation?: { outs?: number | null };
       inningHalf?: string | null;
+      inning?: number | null;
     } | null) ?? null;
   const liveOuts = liveOutsFromScoreboard(liveBoard);
+  const liveHalf = nullableInningHalf(liveBoard?.inningHalf);
+  const liveInning =
+    typeof liveBoard?.inning === "number" && Number.isFinite(liveBoard.inning)
+      ? Math.floor(liveBoard.inning)
+      : null;
   const switchInput = {
     outsInHalf: (rec.outsInHalf as number | undefined) ?? 0,
     liveOuts,
     liveHalf: liveBoard?.inningHalf,
     operatorHalf: rec.inningHalf as string | undefined,
+    liveInning,
+    operatorInning: rec.gameInning as number | undefined,
   };
-  if (liveHalfAlreadyStarted(switchInput)) {
-    throw new Error(switchHalfLiveMovedOnMessage(liveOuts));
-  }
   if (
     !canAdvanceInningHalf({
       ...switchInput,
@@ -1071,7 +1087,14 @@ export async function advanceInningHalf(
   }
 
   const phase = readGamePhase(rec);
-  const nextPhase = computeInningHalfSwitch(phase);
+  const catchUp = shouldCatchUpSwitchHalf({
+    ...switchInput,
+    recentlySwitched: wasSwitchHalfRecent(matchId),
+  });
+  const nextPhase =
+    catchUp && liveHalf && liveInning != null && liveInning > 0
+      ? computeInningHalfCatchUp(phase, { gameInning: liveInning, inningHalf: liveHalf })
+      : computeInningHalfSwitch(phase);
 
   const { predictionAutoStopped } = await nextRound(matchId);
 

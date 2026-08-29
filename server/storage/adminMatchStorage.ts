@@ -201,9 +201,13 @@ export class AdminMatchStorage implements IAdminMatchStorage {
     const liveOuts = liveOutsFromScoreboard(
       (doc.liveScoreboard as { situation?: { outs?: number | null } } | null) ?? null,
     );
-    const liveHalf =
-      ((doc.liveScoreboard as { inningHalf?: string | null } | null)?.inningHalf as string | null) ??
-      null;
+    const liveBoard =
+      (doc.liveScoreboard as {
+        inningHalf?: string | null;
+        inning?: number | null;
+        situation?: { outs?: number | null };
+      } | null) ?? null;
+    const liveHalf = (liveBoard?.inningHalf as string | null) ?? null;
     const operatorHalf = (doc.inningHalf as string | undefined) ?? null;
     const recentlySwitched = wasSwitchHalfRecent(doc.id as string);
     const switchLiveInput = {
@@ -211,6 +215,8 @@ export class AdminMatchStorage implements IAdminMatchStorage {
       liveOuts,
       liveHalf,
       operatorHalf,
+      liveInning: liveBoard?.inning ?? null,
+      operatorInning: (doc.gameInning as number | undefined) ?? null,
       recentlySwitched,
     };
     const holdSwitchForLive = shouldHoldSwitchHalfForLive(switchLiveInput);

@@ -179,17 +179,8 @@ async function main() {
   console.log("OK: live 3 allows switch");
 
   await seedMatch({ outsInHalf: 3, inningHalf: "top", liveOuts: 0, liveHalf: "bottom" });
-  try {
-    await advanceInningHalf(MATCH_ID);
-    throw new Error("expected reject when live already next half");
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    assert(
-      msg.includes("다음 초/말") || msg.includes("공수교대하지"),
-      `next-half reject, got: ${msg}`,
-    );
-  }
-  console.log("OK: live already next half (0-2 outs) rejects switch");
+  await expectHoldSkipped("live next half catch-up");
+  console.log("OK: live already next half (0-2 outs) allows catch-up switch");
 
   await seedMatch({
     outsInHalf: 3,
@@ -209,8 +200,8 @@ async function main() {
   );
   const frozen = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
   assert((frozen as { inningHalf?: string })?.inningHalf === "top", "same-half freeze inningHalf");
-  assert((frozen as { outsInHalf?: number })?.outsInHalf === 2, "live 2 clears stuck operator 3");
-  console.log("OK: same-half live 2 clears stuck operator 3");
+  assert((frozen as { outsInHalf?: number })?.outsInHalf === 3, "poll does not lower operator 3 to live 2");
+  console.log("OK: same-half live 2 does not overwrite operator outs");
 
   await seedMatch({ outsInHalf: 3, inningHalf: "top", liveOuts: 3, liveHalf: "top" });
   clearLiveAutoOperator(MATCH_ID);
@@ -219,9 +210,9 @@ async function main() {
     board({ outs: 1, half: "bottom" }),
   );
   const caught = await MatchModel.findOne({ id: MATCH_ID }).select("inningHalf outsInHalf").lean();
-  assert((caught as { inningHalf?: string })?.inningHalf === "bottom", "catch-up half to live");
-  assert((caught as { outsInHalf?: number })?.outsInHalf === 1, "catch-up outs to live 1");
-  console.log("OK: live 1-out next half clears operator 3-out leftover");
+  assert((caught as { inningHalf?: string })?.inningHalf === "top", "poll does not catch-up half");
+  assert((caught as { outsInHalf?: number })?.outsInHalf === 3, "poll does not catch-up outs");
+  console.log("OK: live 1-out next half leaves operator 3 for the switch-half button");
 
   await seedMatch({ outsInHalf: 0, inningHalf: "bottom", liveOuts: 3, liveHalf: "top" });
   clearLiveAutoOperator(MATCH_ID);

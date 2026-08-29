@@ -8,13 +8,13 @@ import { isGameSuspendedScoreboard } from "@shared/gameSuspend";
 import {
   shouldSuggestSwitchHalf,
   shouldHoldSwitchHalfForLive,
+  shouldCatchUpSwitchHalf,
+  shouldBlockAdvanceForSwitchHalf,
   switchHalfHoldMessage,
+  switchHalfLiveMovedOnMessage,
   liveOutsFromScoreboard,
-  liveOutsCount,
-  liveHalfAlreadyStarted,
   nullableInningHalf,
   isLivePhaseBehindOperator,
-  isStaleLiveThreeOutsAfterSwitch,
 } from "@shared/threeOutsGuard";
 import { markSwitchHalfDone, wasSwitchHalfRecent, resetSwitchHalfRecentForTest } from "./switchHalfAdGuard";
 import { MatchModel, RoundStatisticsModel } from "../UserStorage/db";
@@ -233,69 +233,37 @@ async function syncPhaseFromLive(
 ): Promise<void> {
   const inning = scoreboard.inning;
   const half = scoreboard.inningHalf ? parseInningHalf(scoreboard.inningHalf) : null;
-  const outs = liveOutsCount(scoreboard.situation?.outs);
   const batterName = scoreboard.situation?.batterName?.trim() || "";
 
-  const alwaysUpdate: Record<string, unknown> = {};
-
   const match = await MatchModel.findOne({ id: matchId })
-    .select("matchLineup inningHalf outsInHalf gameInning")
+    .select("matchLineup inningHalf gameInning")
     .lean();
   const operatorHalf = nullableInningHalf((match as { inningHalf?: string } | null)?.inningHalf);
-  const currentOuts = (match as { outsInHalf?: number } | null)?.outsInHalf ?? 0;
   const operatorInning = (match as { gameInning?: number } | null)?.gameInning ?? null;
-  const liveMovedOn = liveHalfAlreadyStarted({
-    outsInHalf: currentOuts,
-    liveOuts: outs,
-    liveHalf: half,
-    operatorHalf,
-  });
-  const staleThreeOuts = Boolean(half && operatorHalf && half !== operatorHalf && (outs ?? 0) >= 3);
   const liveBehind = isLivePhaseBehindOperator({
     liveHalf: half,
     operatorHalf,
     liveInning: inning,
     operatorInning,
   });
-  const staleAfterSwitch =
-    wasSwitchHalfRecent(matchId) &&
-    isStaleLiveThreeOutsAfterSwitch({
-      outsInHalf: currentOuts,
-      liveOuts: outs,
-      liveHalf: half,
-      operatorHalf,
-    });
-  if (inning != null && inning > 0 && !liveBehind) alwaysUpdate.gameInning = inning;
-  const phaseUpdate: Record<string, unknown> = {};
-  // 광고(안내 5초 포함) 중·실황이 한 박자 뒤·교대 직후 3아웃 잔상은 초/말·아웃을 되돌리지 않는다.
-  if (!broadcastManager.isAdBreakActive(matchId) && !liveBehind) {
-    if (liveMovedOn && half != null && outs != null) {
-      // 실황이 이미 다음 초/말(원아웃 등) — 3아웃 잔상을 지워 공수교대를 부르지 않는다.
-      phaseUpdate.inningHalf = half;
-      phaseUpdate.outsInHalf = outs;
-    } else if (!staleThreeOuts && !staleAfterSwitch) {
-      // 운영자 3아웃 동안 초/말을 실황이 덮으면, 같은 초/말로 오인되어 공수교대가 막힌다.
-      if (half && currentOuts < 3) phaseUpdate.inningHalf = half;
-      // 실황 0~2만 반영. 운영자 3 잔상은 실황 투아웃에 맞춰 내린다(예측 시작 고착 방지).
-      if (outs != null && outs < 3 && (outs > currentOuts || currentOuts >= 3)) {
-        phaseUpdate.outsInHalf = outs;
-      }
+  const samePhase =
+    Boolean(half) &&
+    (!operatorHalf || operatorHalf === half) &&
+    (operatorInning == null || inning == null || operatorInning === inning);
+
+  const alwaysUpdate: Record<string, unknown> = {};
+  // 초/말·아웃·이닝은 공수교대 버튼만. 같은 초/말에서만 타순 인덱스를 실황 타자에 맞춘다.
+  if (!liveBehind && samePhase && batterName) {
+    const lineup = (match?.matchLineup as MatchLineupSnapshot | null) ?? null;
+    if (lineup && half) {
+      const side = half === "top" ? lineup.away : lineup.home;
+      const found = findLineupBatterByName(side ?? [], batterName);
+      if (found) alwaysUpdate.batterIndexInHalf = wrapBatterOrder(found.battingOrder);
     }
-  }
-  const lineup = (match?.matchLineup as MatchLineupSnapshot | null) ?? null;
-  if (batterName && lineup && half) {
-    const side = half === "top" ? lineup.away : lineup.home;
-    const found = findLineupBatterByName(side ?? [], batterName);
-    if (found) alwaysUpdate.batterIndexInHalf = wrapBatterOrder(found.battingOrder);
   }
 
   if (Object.keys(alwaysUpdate).length > 0) {
     await MatchModel.updateOne({ id: matchId }, { $set: alwaysUpdate });
-  }
-  if (Object.keys(phaseUpdate).length > 0) {
-    const filter: Record<string, unknown> = { id: matchId };
-    if (operatorHalf) filter.inningHalf = operatorHalf;
-    await MatchModel.updateOne(filter, { $set: phaseUpdate });
   }
 }
 
@@ -465,7 +433,7 @@ export async function processLiveAutoOperator(
     const phaseNow = await resolveAtBatPhase(matchId);
 
     const latestPhase = await MatchModel.findOne({ id: matchId })
-      .select("outsInHalf inningHalf")
+      .select("outsInHalf inningHalf gameInning")
       .lean();
     const switchInput = {
       liveOuts: liveOutsFromScoreboard(scoreboard),
@@ -473,6 +441,8 @@ export async function processLiveAutoOperator(
       liveHalf: half,
       operatorHalf:
         nullableInningHalf((latestPhase as { inningHalf?: string } | null)?.inningHalf) ?? half,
+      liveInning: inning,
+      operatorInning: (latestPhase as { gameInning?: number } | null)?.gameInning ?? null,
       recentlySwitched: wasSwitchHalfRecent(matchId),
     };
     const holdSwitch =
@@ -500,7 +470,9 @@ export async function processLiveAutoOperator(
         broadcastManager.sendToMatchStaff(matchId, "auto_action_suggested", {
           matchId,
           action: "switch_half",
-          message: "3아웃입니다. 공수교대를 눌러 주세요.",
+          message: shouldCatchUpSwitchHalf(switchInput)
+            ? switchHalfLiveMovedOnMessage(switchInput.liveOuts)
+            : "3아웃입니다. 공수교대를 눌러 주세요.",
           oneTapConfirm: true,
           suggestedResult: suggested,
         });
@@ -544,7 +516,11 @@ export async function processLiveAutoOperator(
           state.lastPinchName = null;
         }
       }
-      if (outs < 3 && (phaseNow === "idle" || phaseNow === "result_confirmed")) {
+      if (
+        outs < 3 &&
+        (phaseNow === "idle" || phaseNow === "result_confirmed") &&
+        !shouldBlockAdvanceForSwitchHalf(switchInput)
+      ) {
         broadcastManager.sendToMatchStaff(matchId, "auto_action_suggested", {
           matchId,
           action: "next_batter",

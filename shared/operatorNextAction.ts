@@ -29,6 +29,7 @@ export function deriveOperatorNextAction(input: {
   suggestedResult?: string | null;
   showThreeOutsHint?: boolean | null;
   holdSwitchForLive?: boolean | null;
+  catchUpSwitchHalf?: boolean | null;
   liveOuts?: number | null;
   needsAdvanceAfterResult?: boolean | null;
   needsResultBeforeAdvance?: boolean | null;
@@ -87,6 +88,10 @@ export function deriveOperatorNextAction(input: {
       kind: "wait_live_three_outs",
       label: n == null ? "실황 3아웃 대기" : `실황 ${n}아웃 · 3아웃되면 공수교대`,
     };
+  }
+
+  if (input.catchUpSwitchHalf) {
+    return { kind: "switch_half", label: "실황이 다음 초/말 · 공수교대" };
   }
 
   const threeOuts = Boolean(input.showThreeOutsHint);
