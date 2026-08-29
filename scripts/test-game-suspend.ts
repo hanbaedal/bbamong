@@ -183,6 +183,13 @@ assert(
   resolveMatchStatusFromScoreboard("ongoing", rainCancel) === "cancelled",
   "official cancel sets cancelled",
 );
+assert(
+  isMatchPredictionSuspended({
+    matchStatus: "cancelled",
+    liveScoreboard: { statusShort: "CAN" },
+  }) === false,
+  "cancel is not the delay overlay",
+);
 
 assert(
   resolveGameDayOverlayKind([liveOn], false) === null,

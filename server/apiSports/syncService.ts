@@ -1145,6 +1145,28 @@ async function persistIncomingLiveScoreboard(
   }
 
   if (nextStatus === "cancelled" || isGamePostponedOrCancelled(scoreboard.statusShort)) {
+    try {
+      const { pausePredictionForWeatherDelay } = await import("../liveMatch/predictionStorage");
+      const paused = await pausePredictionForWeatherDelay(
+        matchId,
+        "경기 취소·연기로 인한 환불",
+      );
+      if (paused.predictionWasOpen) {
+        broadcastManager.sendToMatch(matchId, "prediction_stopped", {
+          matchId,
+          currentRound: paused.currentRound,
+          message: "경기가 취소·연기되어 예측이 중지되었습니다.",
+          source: "match_cancelled",
+        });
+      }
+    } catch (error) {
+      console.warn(`[LiveScoreSync] cancel refund failed ${matchId}:`, error);
+    }
+    broadcastManager.sendToMatch(matchId, "end", {
+      matchId,
+      message: "경기가 취소되었습니다.",
+      matchStatus: "cancelled",
+    });
     console.log(`[LiveScoreSync] ${match.name} (${matchId}) → cancelled/postponed`);
     return true;
   }

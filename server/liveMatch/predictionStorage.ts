@@ -685,8 +685,11 @@ async function stopRoundOnce(matchId: string): Promise<Match> {
   }
 }
 
-/** 우천 중단 — 예측 창을 닫고 미확정 베팅을 환불한다. 경기는 종료하지 않는다. */
-export async function pausePredictionForWeatherDelay(matchId: string): Promise<{
+/** 우천 중단·취소 — 예측 창을 닫고 미확정 베팅을 환불한다. 경기 종료 여부는 호출 측이 결정한다. */
+export async function pausePredictionForWeatherDelay(
+  matchId: string,
+  refundReason = "우천 중단으로 인한 환불",
+): Promise<{
   refunded: number;
   predictionWasOpen: boolean;
   currentRound: number;
@@ -717,7 +720,7 @@ export async function pausePredictionForWeatherDelay(matchId: string): Promise<{
         session,
         matchId,
         currentRound,
-        `우천 중단으로 인한 환불`,
+        refundReason,
       );
     }
 
