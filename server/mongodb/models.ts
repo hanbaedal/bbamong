@@ -420,7 +420,7 @@ const homePageSettingsSchema = new Schema(
     id: { type: String, required: true, unique: true, default: "default" },
     greetingPrefix: { type: String, default: "안녕하세요" },
     subGreeting: { type: String, default: "" },
-    buttonText: { type: String, default: "예측게임 하러가기" },
+    buttonText: { type: String, default: "실시간 예측게임" },
     buttonEnabled: { type: Boolean, default: true },
     showDate: { type: Boolean, default: true },
     gameGuideTitle: { type: String, default: "야구 예측 게임이란?" },

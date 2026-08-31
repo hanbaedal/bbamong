@@ -465,7 +465,7 @@ KBO 선수 마스터(타율 등). 선발명단·대타 검색
 | id | string | 문서 키. 보통 default |  |
 | greetingPrefix | string | 인사 앞말. 기본 안녕하세요 |  |
 | subGreeting | string | 보조 인사 |  |
-| buttonText | string | CTA. 기본 예측게임 하러가기 |  |
+| buttonText | string | CTA. 기본 실시간 예측게임 |  |
 | buttonEnabled | boolean | CTA 노출 |  |
 | showDate | boolean | 홈 날짜 표시 |  |
 | gameGuideTitle | string | 야구 예측 게임이란? 제목 |  |
