@@ -14,7 +14,7 @@ import {
 import { AD_PLAY_SECONDS, PREDICTION_AUTO_STOP_MS } from "./adBreakTiming";
 import { PREDICTION_SCREEN_FLOW } from "./predictionScreenFlow";
 
-export const MANUAL_DETAIL_UPDATED = "2026-08-29";
+export const MANUAL_DETAIL_UPDATED = "2026-08-31";
 
 export const FLOW_SWIMLANES = [
   {
@@ -39,6 +39,7 @@ export const FLOW_SWIMLANES = [
       "예측 시작 → (8초 자동 중지) → 결과 확정",
       "다음 타자 / 같은 초·말 실황 3아웃일 때만 공수교대",
       "투수교체·공수 = 광고 80초. 예측 시작으로 광고 끔",
+      "중간 합류는 켜진 다음 버튼만. 끊기면 재로그인 말고 재연결",
       "경기종료 10초 후 로그아웃",
     ],
   },
@@ -83,7 +84,7 @@ export const OPERATOR_USER_STEPS: {
 }[] = [
   {
     title: "1. 입장",
-    body: "카톡 로그인 링크 또는 아이디+당일 비밀번호. 배정된 제N경기만 다룹니다. 경기 시작 5분 전 이전에는 예측·진행 버튼이 비활성입니다.",
+    body: "카톡 로그인 링크 또는 아이디+당일 비밀번호. 배정된 제N경기만 다룹니다. 경기 시작 5분 전 이전에는 예측·진행 버튼이 비활성입니다. 처음부터 있는 것이 원칙입니다. 중간 입장도 되며, 지나간 타석은 다시 안 돌리고 화면에 켜진 다음 버튼만 누릅니다.",
   },
   {
     title: "2. 화면",
@@ -113,6 +114,10 @@ export const OPERATOR_USER_STEPS: {
     title: "8. 경기 종료",
     body: "약 10초 「경기종료」 후 로그아웃입니다. 세션 만료 팝업이 아닙니다.",
   },
+  {
+    title: "9. 중간 합류 · 재연결",
+    body: "중간 입장은 현재 타석부터입니다. 화면에 켜진 다음 버튼만 누릅니다. 공수교대가 켜져 있으면 한 번만 누르고, 이미 눌렀는지 모르면 실황 초/말·아웃을 본 뒤 맞을 때만 누릅니다. 네트워크가 끊기면 재로그인하지 말고 같은 화면에서 재연결합니다. 「실시간 연결 재시도 중」이어도 예측 시작·중지는 됩니다. 같은 기기 재로그인은 허용, 다른 기기는 거부입니다. 다른 폰으로 바꾸려면 예전 기기에서 먼저 로그아웃합니다.",
+  },
 ];
 
 export const OPERATOR_RULES: string[] = [
@@ -123,6 +128,8 @@ export const OPERATOR_RULES: string[] = [
   "스코어 PATCH → controlMode=manual. 「수동」을 끄면 다음 점수를 다시 받습니다.",
   "공수교대는 liveScoreboard 이닝을 덮어쓰지 않습니다.",
   "공수교대 타이밍: 네이버 같은 초/말 3아웃, 또는 실황이 이미 다음 초/말이면 맞춤+광고. 급하면 같은 초/말에서 공수교대 두 번.",
+  "중간 합류: 지나간 타석은 메우지 않는다. 화면에 켜진 다음 버튼만 누른다.",
+  "네트워크 끊김: 재로그인하지 말고 재연결. 같은 기기 재로그인만 허용, 다른 기기는 거부.",
 ];
 
 export const OPERATOR_TECH_STACK: { label: string; value: string }[] = [
