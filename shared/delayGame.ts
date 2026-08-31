@@ -17,6 +17,18 @@ export const DELAY_AD_REWARD_POINTS = 500;
 export const DELAY_LIVE_BLOCK_MESSAGE =
   "실시간 예측에 참여한 경기는 딜레이 예측에 참여할 수 없습니다.";
 
+/** 스케줄러가 타석을 돌리는 경기 상태. 시작 전(scheduled) 선발 타자명으로는 창을 열지 않는다. */
+export const DELAY_SCHEDULER_MATCH_STATUSES = ["ongoing"] as const;
+
+export function isDelayMatchEnded(status?: string | null): boolean {
+  const s = (status || "").trim();
+  return s === "completed" || s === "cancelled" || s === "종료" || s === "취소";
+}
+
+export function isDelayMatchOngoing(status?: string | null): boolean {
+  return (status || "").trim() === "ongoing";
+}
+
 export type DelayGamePhase = "idle" | "open" | "closed" | "ad" | "ended";
 
 export type DelayAdReason = "switch_half" | "pitcher_change";

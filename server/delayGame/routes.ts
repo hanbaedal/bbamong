@@ -7,6 +7,7 @@ import { Router, type Response } from "express";
 import {
   DELAY_LIVE_BLOCK_MESSAGE,
   delayUiStage,
+  isDelayMatchOngoing,
   isDelaySuggestedResult,
 } from "@shared/delayGame";
 import { isValidBetAmount, DEFAULT_BET_AMOUNT } from "@shared/predictionOdds";
@@ -266,6 +267,14 @@ router.post("/:matchId/predictions", userAuthMiddleware, async (req: Authenticat
     }
     if (!isValidBetAmount(amount)) {
       return res.status(400).json({ error: "허용되지 않는 배팅 금액입니다." });
+    }
+
+    const match = await MatchModel.findOne({ id: matchId }).select("id matchStatus").lean();
+    if (!match) {
+      return res.status(404).json({ error: "경기를 찾을 수 없습니다." });
+    }
+    if (!isDelayMatchOngoing(match.matchStatus)) {
+      return res.status(400).json({ error: "경기가 시작된 뒤에만 딜레이 예측이 가능합니다." });
     }
 
     const delay = await DelayGameStateModel.findOne({ sourceMatchId: matchId }).lean();
