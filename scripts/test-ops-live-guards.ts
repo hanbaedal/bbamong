@@ -5,7 +5,11 @@
 import { readFileSync } from "fs";
 import { computeInningHalfCatchUp } from "../server/liveMatch/gamePhase";
 import { deriveOperatorNextAction } from "../shared/operatorNextAction";
-import { shouldExecutePredictionAutoStop } from "../shared/predictionAutoStop";
+import {
+  PREDICTION_STOPPED_DEDUP_MS,
+  shouldExecutePredictionAutoStop,
+  shouldSkipDuplicatePredictionStop,
+} from "../shared/predictionAutoStop";
 import {
   resolveShowThreeOutsHint,
   shouldSuggestSwitchHalf,
@@ -326,6 +330,17 @@ assert(shouldExecutePredictionAutoStop({ predictionEnabled: true, phase: "idle" 
 assert(!shouldExecutePredictionAutoStop({ predictionEnabled: true, phase: "prediction_closed" }), "already closed");
 assert(!shouldExecutePredictionAutoStop({ predictionEnabled: false, phase: "prediction_open" }), "not enabled");
 assert(PREDICTION_AUTO_STOP_MS === 8_000, "single 8s stop");
+assert(PREDICTION_STOPPED_DEDUP_MS === 2_500, "stop broadcast dedup window");
+assert(shouldSkipDuplicatePredictionStop({ inFlight: true }), "in-flight skip");
+assert(!shouldSkipDuplicatePredictionStop({ inFlight: false, lastEmitAt: null }), "first emit ok");
+assert(
+  shouldSkipDuplicatePredictionStop({ lastEmitAt: 1_000, now: 1_000 + 400 }),
+  "timer+due same stop skipped",
+);
+assert(
+  !shouldSkipDuplicatePredictionStop({ lastEmitAt: 1_000, now: 1_000 + PREDICTION_STOPPED_DEDUP_MS }),
+  "later stop allowed",
+);
 
 assert(AD_PLAY_MS === 80_000, "ad 80s");
 assert(AD_PLAY_SECONDS === 80, "ad seconds 80");

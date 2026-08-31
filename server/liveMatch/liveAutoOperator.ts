@@ -3,7 +3,10 @@ import { PREDICTION_AUTO_STOP_MS } from "@shared/adBreakTiming";
 import { blocksAdvanceUntilResult, type AtBatPhase } from "@shared/atBatPhase";
 import { findLineupBatterByName, normalizeBatterName } from "@shared/batterDisplay";
 import { parseInningHalf, wrapBatterOrder, type InningHalf } from "@shared/gamePhaseTypes";
-import { shouldExecutePredictionAutoStop } from "@shared/predictionAutoStop";
+import {
+  shouldExecutePredictionAutoStop,
+  shouldSkipDuplicatePredictionStop,
+} from "@shared/predictionAutoStop";
 import { isGameSuspendedScoreboard } from "@shared/gameSuspend";
 import {
   shouldSuggestSwitchHalf,
@@ -82,6 +85,9 @@ type AutoState = {
   resumeAfterAdBreak: boolean;
   resumeInFlight: boolean;
   adResumeTimer: NodeJS.Timeout | null;
+  /** 타이머·폴링 due 가 같은 중지를 두 번 집행하지 않게 */
+  stopInFlight: boolean;
+  stopBroadcastAt: number | null;
 };
 
 const stateByMatch = new Map<string, AutoState>();
@@ -116,6 +122,8 @@ function getState(matchId: string): AutoState {
       resumeAfterAdBreak: false,
       resumeInFlight: false,
       adResumeTimer: null,
+      stopInFlight: false,
+      stopBroadcastAt: null,
     };
     stateByMatch.set(matchId, state);
   }
@@ -141,6 +149,16 @@ async function executeScheduledPredictionStop(
   source: string,
 ): Promise<void> {
   const state = getState(matchId);
+  if (
+    shouldSkipDuplicatePredictionStop({
+      inFlight: state.stopInFlight,
+      lastEmitAt: state.stopBroadcastAt,
+    })
+  ) {
+    clearScheduledAutoStop(matchId);
+    return;
+  }
+  state.stopInFlight = true;
   try {
     const match = await MatchModel.findOne({ id: matchId })
       .select("predictionEnabled matchStatus liveAutoEnabled")
@@ -160,13 +178,30 @@ async function executeScheduledPredictionStop(
       clearScheduledAutoStop(matchId);
       return;
     }
+    if (
+      shouldSkipDuplicatePredictionStop({
+        lastEmitAt: state.stopBroadcastAt,
+      })
+    ) {
+      clearScheduledAutoStop(matchId);
+      return;
+    }
     const updated = await stopRound(matchId);
+    if (
+      shouldSkipDuplicatePredictionStop({
+        lastEmitAt: state.stopBroadcastAt,
+      })
+    ) {
+      clearScheduledAutoStop(matchId);
+      return;
+    }
     broadcastManager.sendToMatch(matchId, "prediction_stopped", {
       matchId,
       currentRound: updated.currentRound,
       message: "실황 자동: 예측이 중지되었습니다.",
       source: "live_auto",
     });
+    state.stopBroadcastAt = Date.now();
     await emitPhaseIfChanged(matchId, "prediction_closed");
     clearScheduledAutoStop(matchId);
     console.log(`[LiveAuto] prediction stop ${matchId} (${source})`);
@@ -178,6 +213,8 @@ async function executeScheduledPredictionStop(
         void executeScheduledPredictionStop(matchId, `${source}_retry`);
       }, 1_000);
     }
+  } finally {
+    state.stopInFlight = false;
   }
 }
 
@@ -590,6 +627,7 @@ export function notifyManualAtBatAction(
   }
   if (action === "stop" || action === "cancel") {
     clearScheduledAutoStop(matchId);
+    state.stopBroadcastAt = Date.now();
   }
   if (action === "result" || action === "next" || action === "switch" || action === "pitcher") {
     clearScheduledAutoStop(matchId);

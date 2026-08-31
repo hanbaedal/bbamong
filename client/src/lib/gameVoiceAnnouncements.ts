@@ -70,12 +70,32 @@ export const GAME_VOICE_CLIPS: Record<GameVoiceKey, string> = {
 
 const recentSpeakAt = new Map<GameVoiceKey, number>();
 
+/** 예측 중지는 기본 8초 중복 차단 — 같은 클립 재시작이 「타자가」를 두 번 냄 */
+const DEFAULT_DEDUP_MS: Partial<Record<GameVoiceKey, number>> = {
+  "user.predictionClose": 8_000,
+};
+
+export function resolveGameVoiceDedupMs(key: GameVoiceKey, override?: number): number {
+  if (override != null) return override;
+  return DEFAULT_DEDUP_MS[key] ?? 0;
+}
+
+export function shouldSkipDuplicateSpeak(
+  lastAt: number | undefined,
+  now: number,
+  dedupMs: number,
+): boolean {
+  return dedupMs > 0 && lastAt != null && now - lastAt < dedupMs;
+}
+
 /** 같은 키가 짧은 시간에 중복 재생되지 않도록 */
-export function speakGameVoice(key: GameVoiceKey, dedupMs = 0): Promise<void> {
-  if (dedupMs > 0) {
+export function speakGameVoice(key: GameVoiceKey, dedupMs?: number): Promise<void> {
+  const windowMs = resolveGameVoiceDedupMs(key, dedupMs);
+  if (windowMs > 0) {
     const now = Date.now();
-    const last = recentSpeakAt.get(key) ?? 0;
-    if (now - last < dedupMs) return Promise.resolve();
+    if (shouldSkipDuplicateSpeak(recentSpeakAt.get(key), now, windowMs)) {
+      return Promise.resolve();
+    }
     recentSpeakAt.set(key, now);
   }
   return speakKorean(GAME_VOICE_TEXT[key], GAME_VOICE_CLIPS[key]);
