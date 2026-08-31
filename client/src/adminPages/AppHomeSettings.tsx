@@ -137,7 +137,7 @@ export default function AppHomeSettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>예측게임 버튼 문구</Label>
+                <Label>실시간 예측게임 버튼 문구</Label>
                 <Input
                   value={settingsForm.buttonText}
                   onChange={(e) =>

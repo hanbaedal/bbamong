@@ -19,6 +19,14 @@ import { navigateToMall } from "@/lib/appNavigation";
 import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 import { USER_LOGIN_PATH } from "@/lib/loginSession";
 import { clearGuestSessionArtifacts } from "@/lib/shopRoutes";
+import SimpleInfoPopup from "@/components/customUi/simpleInfoPopup";
+import {
+  HOME_DELAY_PREDICTION_LABEL,
+  HOME_DELAY_PREDICTION_SOON,
+  HOME_FRIEND_ROOM_LABEL,
+  HOME_LIVE_PREDICTION_LABEL,
+  resolveHomeLivePredictionLabel,
+} from "@shared/homeGameEntry";
 import sceneBefore from "@assets/game/scene-before.jpg";
 import "@/styles/user-landscape.css";
 
@@ -46,6 +54,7 @@ export default function HomePage() {
   const { user, logout } = useUser();
   const { assets } = useUserAssets();
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
+  const [showDelaySoonPopup, setShowDelaySoonPopup] = useState(false);
   const [showUserGuideModal, setShowUserGuideModal] = useState(false);
   const [embedPanel, setEmbedPanel] = useState<HomeEmbedPanel | null>(null);
 
@@ -72,11 +81,10 @@ export default function HomePage() {
   const settings = content?.settings;
   const goodsSectionEnabled = settings?.goodsSectionEnabled ?? true;
   const greetingPrefix = settings?.greetingPrefix ?? "안녕하세요";
-  const buttonText = useMemo(() => {
-    const raw = settings?.buttonText ?? "예측게임 하러가기";
-    if (raw === "경기 참여하기" || raw === "게임하러가기") return "예측게임 하러가기";
-    return raw;
-  }, [settings?.buttonText]);
+  const buttonText = useMemo(
+    () => resolveHomeLivePredictionLabel(settings?.buttonText ?? HOME_LIVE_PREDICTION_LABEL),
+    [settings?.buttonText],
+  );
   const buttonEnabled = settings?.buttonEnabled ?? true;
   const gameGuideEnabled = settings?.gameGuideEnabled ?? true;
   const gameGuideTitle = settings?.gameGuideTitle ?? "야구 예측 게임이란?";
@@ -94,7 +102,7 @@ export default function HomePage() {
   }, []);
 
   const goToGame = () => {
-    // 홈「예측게임 하러가기」= 공개 예측 (친구방 배지·맥락 해제)
+    // 홈「실시간 예측게임」= 공개 예측 (친구방 배지·맥락 해제)
     setCurrentFriendRoom(null);
     prefetchPredictionData();
     navigateUserApp("/prediction", setLocation);
@@ -184,7 +192,7 @@ export default function HomePage() {
               type="button"
               onClick={goToGame}
               className="user-home-mascot-btn"
-              aria-label="예측게임 하러가기"
+              aria-label={HOME_LIVE_PREDICTION_LABEL}
               data-testid="button-mascot-game"
             >
               <img src={assets.mainLogo} alt="" className="user-landscape-mascot" />
@@ -207,7 +215,15 @@ export default function HomePage() {
             onClick={() => navigateUserApp("/home/rooms", setLocation)}
             className="user-home-friend-room-btn"
           >
-            친구·동호회 방
+            {HOME_FRIEND_ROOM_LABEL}
+          </button>
+          <button
+            type="button"
+            data-testid="button-delay-prediction"
+            onClick={() => setShowDelaySoonPopup(true)}
+            className="user-home-friend-room-btn user-home-delay-game-btn"
+          >
+            {HOME_DELAY_PREDICTION_LABEL}
           </button>
           <a
             className="user-home-credit user-home-credit--left"
@@ -292,6 +308,14 @@ export default function HomePage() {
           <p className="user-home-credit user-home-credit--right" data-testid="home-daum-data-credit">
             본 게임은 다음(Daum) 야구 실시간 문자 중계 데이터를 기반으로 운영됩니다.
           </p>
+          {showDelaySoonPopup &&
+            createPortal(
+              <SimpleInfoPopup
+                message={HOME_DELAY_PREDICTION_SOON}
+                onClose={() => setShowDelaySoonPopup(false)}
+              />,
+              document.body,
+            )}
           {showLogoutPopup &&
             createPortal(
               <SimpleConfirmPopup

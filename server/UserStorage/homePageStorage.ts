@@ -6,6 +6,10 @@ import {
   DEFAULT_GAME_GUIDE_SUMMARY,
   DEFAULT_GAME_GUIDE_TITLE,
 } from "@shared/defaultGameGuide";
+import {
+  HOME_LIVE_PREDICTION_LABEL,
+  resolveHomeLivePredictionLabel,
+} from "@shared/homeGameEntry";
 
 /** 예전 기본 요약 — getSettings에서도 새 문구로 치환 */
 const LEGACY_GAME_GUIDE_SUMMARIES = new Set([
@@ -41,7 +45,7 @@ const DEFAULT_SETTINGS: Omit<HomePageSettings, "updatedAt"> = {
   id: "default",
   greetingPrefix: "안녕하세요",
   subGreeting: "",
-  buttonText: "예측게임 하러가기",
+  buttonText: HOME_LIVE_PREDICTION_LABEL,
   buttonEnabled: true,
   showDate: true,
   gameGuideTitle: DEFAULT_GAME_GUIDE_TITLE,
@@ -70,9 +74,11 @@ export class HomePageStorage {
     const rawSummary = String((doc as { gameGuideSummary?: string }).gameGuideSummary ?? "").trim();
     const rawContent = String((doc as { gameGuideContent?: string }).gameGuideContent ?? "").trim();
     const rawTitle = String((doc as { gameGuideTitle?: string }).gameGuideTitle ?? "").trim();
+    const rawButton = String((doc as { buttonText?: string }).buttonText ?? "").trim();
     return {
       ...DEFAULT_SETTINGS,
       ...doc,
+      buttonText: resolveHomeLivePredictionLabel(rawButton),
       gameGuideTitle: rawTitle || DEFAULT_GAME_GUIDE_TITLE,
       gameGuideSummary:
         !rawSummary || LEGACY_GAME_GUIDE_SUMMARIES.has(rawSummary)

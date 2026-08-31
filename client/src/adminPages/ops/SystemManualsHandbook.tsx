@@ -268,7 +268,7 @@ export default function SystemManualsHandbook() {
 
         <h3 className="mt-2 text-base font-semibold text-[#047857]">3.1 사용 설명서 (단계)</h3>
         <p className="mt-1 mb-3 text-sm text-[#555]">
-          홈 「예측게임 하러가기」→ 실황 ON 경기 선택 → 사이드벳(선택) → 타석 7단계.
+          홈 「실시간 예측게임」→ 실황 ON 경기 선택 → 사이드벳(선택) → 타석 7단계.
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {SCENE_IMAGES.map((img) => (

@@ -34,8 +34,10 @@
 
 ## 3. 경로
 
-- A: 「예측게임 하러가기」 → `/prediction`  
+- A: 「실시간 예측게임」 → `/prediction`  
 - B: 「친구·동호회 방」 → `/home/rooms`  
+- C: 「딜레이 예측게임」 — 준비 중  
+
 - 초대: `/rooms/join/:token`
 
 ---

@@ -614,7 +614,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transform: translateY(clamp(-28px, -6vh, -18px));
+  transform: translateY(clamp(-36px, -8vh, -22px));
   pointer-events: none;
 }
 
@@ -716,6 +716,8 @@
   gap: 4px;
   cursor: pointer;
   line-height: 1.2;
+  white-space: nowrap;
+  z-index: 2;
 }
 
 .user-home-play-btn img {
@@ -743,6 +745,13 @@
   line-height: 1.2;
   white-space: nowrap;
   z-index: 2;
+}
+
+.user-home-delay-game-btn {
+  top: calc(
+    50% + clamp(28px, 8vh, 52px) + clamp(30px, 5vh, 44px) + clamp(34px, 6vh, 44px) +
+      clamp(34px, 6vh, 44px)
+  );
 }
 
 /* 홈 — 좌우 하단 다음 스포츠 출처 */

@@ -479,7 +479,7 @@ export const MONGO_COLLECTIONS: MongoCollectionDoc[] = [
       { name: "id", type: "string", role: "문서 키. 보통 default" },
       { name: "greetingPrefix", type: "string", role: "인사 앞말. 기본 안녕하세요" },
       { name: "subGreeting", type: "string", role: "보조 인사" },
-      { name: "buttonText", type: "string", role: "CTA. 기본 예측게임 하러가기" },
+      { name: "buttonText", type: "string", role: "CTA. 기본 실시간 예측게임" },
       { name: "buttonEnabled", type: "boolean", role: "CTA 노출" },
       { name: "showDate", type: "boolean", role: "홈 날짜 표시" },
       { name: "gameGuideTitle", type: "string", role: "야구 예측 게임이란? 제목" },
