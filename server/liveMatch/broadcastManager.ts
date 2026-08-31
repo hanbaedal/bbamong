@@ -5,6 +5,7 @@ import {
   isAdPlayExpired,
 } from "@shared/adBreakTiming";
 import { LIVE_AUTO_STAFF_WS_ROLES } from "@shared/liveAutoWsEvents";
+import { shouldSkipDuplicatePredictionStop } from "@shared/predictionAutoStop";
 import { wsManager } from "./wsManager";
 
 type AdStopReason = "prediction_start" | "operator_stop" | "round_advance";
@@ -14,10 +15,20 @@ class BroadcastManager {
   private adDelayTimers: Map<string, NodeJS.Timeout> = new Map();
   private adPlayTimers: Map<string, NodeJS.Timeout> = new Map();
   private lastAdScheduledAt: Map<string, number> = new Map();
+  private lastPredictionStoppedAt: Map<string, number> = new Map();
   private adStopListeners: AdStopListener[] = [];
   private adWatchdog: NodeJS.Timeout | null = null;
 
   sendToMatch(matchId: string, eventType: string, data: any) {
+    if (eventType === "prediction_stopped") {
+      const now = Date.now();
+      const last = this.lastPredictionStoppedAt.get(matchId) ?? null;
+      if (shouldSkipDuplicatePredictionStop({ lastEmitAt: last, now })) {
+        console.log(`[WS] skip duplicate prediction_stopped ${matchId}`);
+        return;
+      }
+      this.lastPredictionStoppedAt.set(matchId, now);
+    }
     wsManager.sendToMatch(matchId, eventType, data);
   }
 

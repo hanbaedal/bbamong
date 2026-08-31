@@ -14,3 +14,20 @@ export function shouldExecutePredictionAutoStop(input: {
   if (phase === "prediction_closed" || phase === "result_confirmed") return false;
   return true;
 }
+
+/** 8초 타이머와 실황 폴링 due 가 같은 중지를 두 번 보내지 않게 */
+export const PREDICTION_STOPPED_DEDUP_MS = 2_500;
+
+export function shouldSkipDuplicatePredictionStop(input: {
+  inFlight?: boolean;
+  lastEmitAt?: number | null;
+  now?: number;
+  dedupMs?: number;
+}): boolean {
+  if (input.inFlight) return true;
+  const last = input.lastEmitAt;
+  if (last == null) return false;
+  const now = input.now ?? Date.now();
+  const window = input.dedupMs ?? PREDICTION_STOPPED_DEDUP_MS;
+  return now - last < window;
+}

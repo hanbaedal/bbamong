@@ -1623,7 +1623,7 @@ export function useLandscapePredictionFlow(
     ]),
 
     onPredictionEnded: useCallback(() => {
-      void speakGameVoice("user.predictionClose");
+      void speakGameVoice("user.predictionClose", 8_000);
       if (isInResultPresentation()) {
         closePickingUi({ keepSelection: true });
         if (pendingRoundNextRef.current) {
