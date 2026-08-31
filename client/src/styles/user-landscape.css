@@ -726,17 +726,28 @@
   object-fit: contain;
 }
 
-.user-home-friend-room-btn {
+.user-home-secondary-game-row {
   position: absolute;
   left: 50%;
   top: calc(50% + clamp(28px, 8vh, 52px) + clamp(30px, 5vh, 44px) + clamp(34px, 6vh, 44px));
   transform: translateX(-50%);
-  padding: clamp(3px, 0.9vh, 5px) clamp(10px, 2.5vw, 14px);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: center;
+  gap: clamp(6px, 1.2vw, 10px);
+  width: max-content;
+  max-width: calc(100% - 12px);
+  z-index: 2;
+}
+
+.user-home-friend-room-btn {
+  padding: clamp(3px, 0.9vh, 5px) clamp(8px, 1.6vw, 12px);
   border-radius: 6px;
   border: 1px solid #3a3a3a;
   background: #1a1a1a;
   color: #cdff00;
-  font-size: clamp(10px, 2.4vw, 12px);
+  font-size: clamp(9px, 2vw, 12px);
   font-weight: 700;
   display: inline-flex;
   align-items: center;
@@ -744,14 +755,7 @@
   cursor: pointer;
   line-height: 1.2;
   white-space: nowrap;
-  z-index: 2;
-}
-
-.user-home-delay-game-btn {
-  top: calc(
-    50% + clamp(28px, 8vh, 52px) + clamp(30px, 5vh, 44px) + clamp(34px, 6vh, 44px) +
-      clamp(34px, 6vh, 44px)
-  );
+  flex: 0 1 auto;
 }
 
 /* 홈 — 좌우 하단 다음 스포츠 출처 */

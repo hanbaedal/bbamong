@@ -213,22 +213,24 @@ export default function HomePage() {
               {buttonText}
             </button>
           ) : null}
-          <button
-            type="button"
-            data-testid="button-friend-rooms"
-            onClick={() => navigateUserApp("/home/rooms", setLocation)}
-            className="user-home-friend-room-btn"
-          >
-            {HOME_FRIEND_ROOM_LABEL}
-          </button>
-          <button
-            type="button"
-            data-testid="button-delay-prediction"
-            onClick={goToDelayGame}
-            className="user-home-friend-room-btn user-home-delay-game-btn"
-          >
-            {HOME_DELAY_PREDICTION_LABEL}
-          </button>
+          <div className="user-home-secondary-game-row">
+            <button
+              type="button"
+              data-testid="button-friend-rooms"
+              onClick={() => navigateUserApp("/home/rooms", setLocation)}
+              className="user-home-friend-room-btn"
+            >
+              {HOME_FRIEND_ROOM_LABEL}
+            </button>
+            <button
+              type="button"
+              data-testid="button-delay-prediction"
+              onClick={goToDelayGame}
+              className="user-home-friend-room-btn user-home-delay-game-btn"
+            >
+              {HOME_DELAY_PREDICTION_LABEL}
+            </button>
+          </div>
           <a
             className="user-home-credit user-home-credit--left"
             href="https://sports.daum.net/schedule/kbo"
