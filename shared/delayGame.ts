@@ -1,0 +1,69 @@
+/**
+ * 딜레이 자동 예측 — 실시간 예측게임과 무관한 전용 상수·가드.
+ * 실시간 AD_PLAY_MS / PREDICTION_AUTO_STOP / Match.predictionEnabled 를 쓰지 않는다.
+ */
+
+export const DELAY_GAME_PATH = "/delay-prediction";
+
+export const DELAY_PREDICTION_OPEN_MS = 8_000;
+export const DELAY_BATTER_STABLE_MS = 2_000;
+export const DELAY_RESULT_STABLE_MS = 12_000;
+export const DELAY_AD_INTRO_MS = 5_000;
+export const DELAY_AD_PLAY_MS = 40_000;
+export const DELAY_AD_PLAY_SECONDS = Math.round(DELAY_AD_PLAY_MS / 1000);
+export const DELAY_AD_BREAK_MS = DELAY_AD_INTRO_MS + DELAY_AD_PLAY_MS;
+export const DELAY_AD_REWARD_POINTS = 500;
+
+export const DELAY_LIVE_BLOCK_MESSAGE =
+  "실시간 예측에 참여한 경기는 딜레이 예측에 참여할 수 없습니다.";
+
+export type DelayGamePhase = "idle" | "open" | "closed" | "ad" | "ended";
+
+export type DelayAdReason = "switch_half" | "pitcher_change";
+
+export type DelaySuggestedResult = "아웃" | "1루" | "2루" | "3루" | "홈런";
+
+export function isDelaySuggestedResult(value: unknown): value is DelaySuggestedResult {
+  return value === "아웃" || value === "1루" || value === "2루" || value === "3루" || value === "홈런";
+}
+
+export function delayUiStage(phase: DelayGamePhase): "wait" | "open" | "closed" | "result" {
+  if (phase === "open") return "open";
+  if (phase === "closed") return "closed";
+  return "wait";
+}
+
+export function delayBatterKey(input: {
+  inning?: number | null;
+  half?: string | null;
+  batterName?: string | null;
+}): string {
+  const inning = typeof input.inning === "number" ? input.inning : 0;
+  const half = (input.half || "").trim() || "-";
+  const batter = (input.batterName || "").trim() || "-";
+  return `${inning}:${half}:${batter}`;
+}
+
+export function delayHalfChanged(input: {
+  prevInning?: number | null;
+  prevHalf?: string | null;
+  nextInning?: number | null;
+  nextHalf?: string | null;
+}): boolean {
+  const prevInn = input.prevInning;
+  const nextInn = input.nextInning;
+  const prevHalf = (input.prevHalf || "").trim();
+  const nextHalf = (input.nextHalf || "").trim();
+  if (!prevHalf || !nextHalf) return false;
+  if (typeof prevInn === "number" && typeof nextInn === "number" && prevInn !== nextInn) {
+    return true;
+  }
+  return prevHalf !== nextHalf;
+}
+
+export function delayPitcherChanged(prev?: string | null, next?: string | null): boolean {
+  const a = (prev || "").trim();
+  const b = (next || "").trim();
+  if (!a || !b) return false;
+  return a !== b;
+}

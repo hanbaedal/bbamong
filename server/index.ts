@@ -24,6 +24,7 @@ import { backfillOfficialSupportContent } from "./utils/officialContentBackfill"
 import { ensureOperatorsReady, syncOperatorMatchAssignments } from "./managerOperatorService";
 import { startManagerDailyPasswordBatch } from "./managerDailyPasswordBatch";
 import { startMatchManagementSchedule } from "./apiSports/matchManagementSchedule";
+import { startDelayGameScheduler } from "./delayGame/engine";
 
 const execAsync = promisify(exec);
 
@@ -258,6 +259,7 @@ app.use((req, res, next) => {
     startGuestCleanupBatch();
     startManagerDailyPasswordBatch();
     startMatchManagementSchedule();
+    startDelayGameScheduler();
     
     (async () => {
       try {

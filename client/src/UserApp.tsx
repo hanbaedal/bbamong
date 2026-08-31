@@ -24,6 +24,7 @@ import UserSimulationPage from "@/pages/home/user-simulation";
 import FriendRoomsPage, { FriendRoomJoinPage } from "@/pages/home/rooms";
 import HomePage from "@/pages/home";
 import PredictionPage from "@/pages/prediction";
+import DelayPredictionPage from "@/pages/delayPrediction";
 import SocialOnboardingPage from "@/pages/auth/social-onboarding";
 import NotFound from "@/pages/not-found";
 import HomeNoticeSplitPage from "@/pages/landscape/HomeNoticeSplitPage";
@@ -138,6 +139,7 @@ function Router() {
       <Route path="/mall">{() => <LegacyMallRedirect target={MALL_BASE_PATH} />}</Route>
 
       <Route path="/prediction">{() => <ProtectedRoute component={PredictionPage} />}</Route>
+      <Route path="/delay-prediction">{() => <ProtectedRoute component={DelayPredictionPage} />}</Route>
       <Route path="/point/history">{() => <Redirect to="/game/info/point" />}</Route>
       <Route path="/settings">{() => <Redirect to="/home" />}</Route>
       <Route path="/mypage">{() => <ProtectedRoute component={NotFound} />}</Route>

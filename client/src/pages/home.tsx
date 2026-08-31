@@ -19,14 +19,13 @@ import { navigateToMall } from "@/lib/appNavigation";
 import { useAndroidImmersiveMode } from "@/hooks/useAndroidImmersiveMode";
 import { USER_LOGIN_PATH } from "@/lib/loginSession";
 import { clearGuestSessionArtifacts } from "@/lib/shopRoutes";
-import SimpleInfoPopup from "@/components/customUi/simpleInfoPopup";
 import {
   HOME_DELAY_PREDICTION_LABEL,
-  HOME_DELAY_PREDICTION_SOON,
   HOME_FRIEND_ROOM_LABEL,
   HOME_LIVE_PREDICTION_LABEL,
   resolveHomeLivePredictionLabel,
 } from "@shared/homeGameEntry";
+import { DELAY_GAME_PATH } from "@shared/delayGame";
 import sceneBefore from "@assets/game/scene-before.jpg";
 import "@/styles/user-landscape.css";
 
@@ -54,7 +53,6 @@ export default function HomePage() {
   const { user, logout } = useUser();
   const { assets } = useUserAssets();
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
-  const [showDelaySoonPopup, setShowDelaySoonPopup] = useState(false);
   const [showUserGuideModal, setShowUserGuideModal] = useState(false);
   const [embedPanel, setEmbedPanel] = useState<HomeEmbedPanel | null>(null);
 
@@ -106,6 +104,12 @@ export default function HomePage() {
     setCurrentFriendRoom(null);
     prefetchPredictionData();
     navigateUserApp("/prediction", setLocation);
+  };
+
+  const goToDelayGame = () => {
+    setCurrentFriendRoom(null);
+    void queryClient.prefetchQuery({ queryKey: ["/api/delay-game/matches"] });
+    navigateUserApp(DELAY_GAME_PATH, setLocation);
   };
 
   const openEmbed = (panel: HomeEmbedPanel) => {
@@ -220,7 +224,7 @@ export default function HomePage() {
           <button
             type="button"
             data-testid="button-delay-prediction"
-            onClick={() => setShowDelaySoonPopup(true)}
+            onClick={goToDelayGame}
             className="user-home-friend-room-btn user-home-delay-game-btn"
           >
             {HOME_DELAY_PREDICTION_LABEL}
@@ -308,14 +312,6 @@ export default function HomePage() {
           <p className="user-home-credit user-home-credit--right" data-testid="home-daum-data-credit">
             본 게임은 다음(Daum) 야구 실시간 문자 중계 데이터를 기반으로 운영됩니다.
           </p>
-          {showDelaySoonPopup &&
-            createPortal(
-              <SimpleInfoPopup
-                message={HOME_DELAY_PREDICTION_SOON}
-                onClose={() => setShowDelaySoonPopup(false)}
-              />,
-              document.body,
-            )}
           {showLogoutPopup &&
             createPortal(
               <SimpleConfirmPopup

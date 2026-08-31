@@ -41,6 +41,7 @@ import { managerRoutes } from "./routes/managerRoutes"
 import predictionRoutes from "./liveMatch/predictionRoutes"
 import sideBetRoutes from "./liveMatch/sideBetRoutes"
 import matchControlRoutes from "./liveMatch/matchControlRoutes"
+import delayGameRoutes from "./delayGame/routes"
 import { healthRoutes } from "./routes/healthRoutes"
 import { apiSportsRoutes } from "./apiSports/routes";
 import { friendRoomRoutes } from "./UserRoutes/friendRoomRoutes";
@@ -105,5 +106,8 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.use("/api/live-match", predictionRoutes)
   app.use("/api/live-match", sideBetRoutes)
   app.use("/api/live-match", matchControlRoutes)
+
+  // 딜레이 자동 예측 (실시간 /api/live-match 와 분리 — Match 미기록)
+  app.use("/api/delay-game", delayGameRoutes)
   
 }
