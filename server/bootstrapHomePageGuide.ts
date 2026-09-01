@@ -39,7 +39,14 @@ export async function ensureHomePageGameGuide(): Promise<void> {
     if (!summary || LEGACY_GAME_GUIDE_SUMMARIES.has(summary)) {
       updates.gameGuideSummary = DEFAULT_GAME_GUIDE_SUMMARY;
     }
-    if (!content) updates.gameGuideContent = DEFAULT_GAME_GUIDE_CONTENT;
+    if (!content) {
+      updates.gameGuideContent = DEFAULT_GAME_GUIDE_CONTENT;
+    } else if (content.includes("「딜레이 예측게임」은 준비 중입니다.")) {
+      updates.gameGuideContent = content.replaceAll(
+        "「딜레이 예측게임」은 준비 중입니다.",
+        "「딜레이 예측게임」은 경기가 시작된 뒤에 타석이 자동으로 열립니다.",
+      );
+    }
 
     if (Object.keys(updates).length === 0) return;
 

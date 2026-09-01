@@ -6,9 +6,12 @@ import {
   DELAY_BATTER_STABLE_MS,
   DELAY_PREDICTION_OPEN_MS,
   DELAY_RESULT_STABLE_MS,
+  DELAY_SCHEDULER_MATCH_STATUSES,
   delayBatterKey,
   delayHalfChanged,
   delayPitcherChanged,
+  isDelayMatchEnded,
+  isDelayMatchOngoing,
   isDelaySuggestedResult,
   type DelayAdReason,
   type DelayGamePhase,
@@ -55,13 +58,53 @@ export function snapshotLive(scoreboard: LiveScoreboard | null | undefined) {
   };
 }
 
+function holdUntilOngoing(
+  state: DelayStateDoc,
+  live: ReturnType<typeof snapshotLive>,
+): { patch: Partial<DelayStateDoc>; settleRound: boolean; settleResult: DelaySuggestedResult | null } {
+  if (state.phase === "open" || state.phase === "closed") {
+    return {
+      patch: {
+        phase: "idle",
+        openAtMs: null,
+        pendingBatterName: null,
+        pendingBatterSince: null,
+        pendingResult: null,
+        pendingResultSince: null,
+      },
+      settleRound: true,
+      settleResult: null,
+    };
+  }
+  const patch: Partial<DelayStateDoc> = {};
+  if (!state.seeded) {
+    patch.seeded = true;
+    patch.lastHalf = live.half;
+    patch.lastInning = live.inning;
+    patch.lastOuts = live.outs;
+    patch.lastPitcherName = live.pitcherName || null;
+    patch.pendingBatterName = null;
+    patch.pendingBatterSince = null;
+    return { patch, settleRound: false, settleResult: null };
+  }
+  if (state.pendingBatterName || state.pendingBatterSince != null) {
+    return {
+      patch: { pendingBatterName: null, pendingBatterSince: null },
+      settleRound: false,
+      settleResult: null,
+    };
+  }
+  return { patch: {}, settleRound: false, settleResult: null };
+}
+
 export function nextDelayPhase(input: {
   state: DelayStateDoc;
   now: number;
   live: ReturnType<typeof snapshotLive>;
   matchEnded: boolean;
+  matchOngoing: boolean;
 }): { patch: Partial<DelayStateDoc>; settleRound: boolean; settleResult: DelaySuggestedResult | null } {
-  const { state, now, live, matchEnded } = input;
+  const { state, now, live, matchEnded, matchOngoing } = input;
   if (matchEnded) {
     return {
       patch: { phase: "ended", adUntilMs: null, adReason: null },
@@ -88,6 +131,10 @@ export function nextDelayPhase(input: {
       settleRound: false,
       settleResult: null,
     };
+  }
+
+  if (!matchOngoing) {
+    return holdUntilOngoing(state, live);
   }
 
   if (!state.seeded) {
@@ -363,11 +410,8 @@ export async function tickDelayMatch(sourceMatchId: string, now = Date.now()): P
     .select("id matchStatus liveScoreboard")
     .lean();
   if (!match) return;
-  const ended =
-    match.matchStatus === "completed" ||
-    match.matchStatus === "cancelled" ||
-    match.matchStatus === "종료" ||
-    match.matchStatus === "취소";
+  const ended = isDelayMatchEnded(match.matchStatus);
+  const matchOngoing = isDelayMatchOngoing(match.matchStatus);
   let state = (await DelayGameStateModel.findOne({ sourceMatchId }).lean()) as
     | (DelayStateDoc & { id: number })
     | null;
@@ -383,6 +427,7 @@ export async function tickDelayMatch(sourceMatchId: string, now = Date.now()): P
     now,
     live,
     matchEnded: ended,
+    matchOngoing,
   });
   if (next.settleRound) {
     await settleRound(sourceMatchId, state.roundNumber, next.settleResult);
@@ -397,7 +442,7 @@ export async function tickDelayMatch(sourceMatchId: string, now = Date.now()): P
 export async function tickAllDelayGames(now = Date.now()): Promise<void> {
   const todayDocs = await MatchModel.find({
     ...todayDelayMatchFilter(),
-    matchStatus: { $in: ["ongoing", "scheduled"] },
+    matchStatus: { $in: [...DELAY_SCHEDULER_MATCH_STATUSES] },
   })
     .select("id")
     .lean();
