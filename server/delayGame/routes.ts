@@ -9,6 +9,7 @@ import {
   delayUiStage,
   isDelayMatchOngoing,
   isDelaySuggestedResult,
+  maskDelayOpenScoreboard,
 } from "@shared/delayGame";
 import { isValidBetAmount, DEFAULT_BET_AMOUNT } from "@shared/predictionOdds";
 import { resolveMatchTeamNames } from "@shared/matchTeamDisplay";
@@ -229,6 +230,10 @@ router.get("/:matchId/state", userAuthMiddleware, async (req: AuthenticatedUserR
       delayHalf: delay?.lastHalf ?? null,
       liveScoreboard: liveScoreboard as LiveScoreboard | null,
     });
+    const publicScoreboard =
+      delay?.phase === "open"
+        ? maskDelayOpenScoreboard(liveScoreboard as LiveScoreboard | null)
+        : liveScoreboard;
 
     res.json({
       serverNow: Date.now(),
@@ -251,7 +256,7 @@ router.get("/:matchId/state", userAuthMiddleware, async (req: AuthenticatedUserR
               season: headToHead.season,
             }
           : null,
-        liveScoreboard,
+        liveScoreboard: publicScoreboard,
       },
       currentBatter,
       delay,

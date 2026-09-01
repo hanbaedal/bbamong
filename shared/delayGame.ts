@@ -3,6 +3,9 @@
  * 실시간 AD_PLAY_MS / PREDICTION_AUTO_STOP / Match.predictionEnabled 를 쓰지 않는다.
  */
 
+import { normalizeBatterName } from "./batterDisplay";
+import type { LiveScoreboard } from "./apiSportsTypes";
+
 export const DELAY_GAME_PATH = "/delay-prediction";
 
 export const DELAY_PREDICTION_OPEN_MS = 8_000;
@@ -48,12 +51,46 @@ export function delayUiStage(phase: DelayGamePhase): "wait" | "open" | "closed" 
 export function delayBatterKey(input: {
   inning?: number | null;
   half?: string | null;
+  outs?: number | null;
   batterName?: string | null;
 }): string {
   const inning = typeof input.inning === "number" ? input.inning : 0;
   const half = (input.half || "").trim() || "-";
+  const outs =
+    typeof input.outs === "number" && Number.isFinite(input.outs)
+      ? String(Math.min(3, Math.max(0, Math.floor(input.outs))))
+      : "-";
   const batter = (input.batterName || "").trim() || "-";
-  return `${inning}:${half}:${batter}`;
+  return `${inning}:${half}:${outs}:${batter}`;
+}
+
+/** 공백 무시. 한쪽 이름이 비면 같은 타자로 보지 않는다. */
+export function delaySameBatter(a?: string | null, b?: string | null): boolean {
+  const left = normalizeBatterName(a || "");
+  const right = normalizeBatterName(b || "");
+  if (!left || !right) return false;
+  return left === right;
+}
+
+/** 예측 창이 열린 동안 실황 타석 결과·구종 문구를 HUD에서 가린다. */
+export function maskDelayOpenScoreboard(
+  scoreboard: LiveScoreboard | null | undefined,
+): LiveScoreboard | null {
+  if (!scoreboard) return scoreboard ?? null;
+  const sit = scoreboard.situation;
+  if (!sit) return scoreboard;
+  return {
+    ...scoreboard,
+    situation: {
+      ...sit,
+      suggestedResult: null,
+      atBatResultDisplay: null,
+      pitchLabel: null,
+      pitchDetail: null,
+      pitchLocations: null,
+      batterToday: null,
+    },
+  };
 }
 
 export function delayHalfChanged(input: {
