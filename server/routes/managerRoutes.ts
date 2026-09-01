@@ -1360,7 +1360,9 @@ export async function managerRoutes(app: Express): Promise<void> {
       }
       await assertMatchLiveForControls(id);
 
-      await assertRoundResultSentOrAllowAdvance(id, match.currentRound);
+      await assertRoundResultSentOrAllowAdvance(id, match.currentRound, {
+        allowIfPredictionNeverStarted: true,
+      });
       assertSwitchHalfNotDuringAd(id);
 
       const body = z.object({ force: z.boolean().optional() }).parse(req.body ?? {});

@@ -27,6 +27,7 @@ import {
   canAdvanceInningHalf,
   shouldBlockAdvanceForSwitchHalf,
   shouldContinueSameHalfAfterResult,
+  switchHalfMaySkipUnplayedRound,
 } from "../shared/threeOutsGuard";
 import { AD_PLAY_MS, AD_PLAY_SECONDS, PREDICTION_AUTO_STOP_MS } from "../shared/adBreakTiming";
 import { GAME_AWAY_TEAM_COLOR, GAME_HOME_TEAM_COLOR, GAME_OUTS_COLOR } from "../client/src/components/game/gameHudColors";
@@ -156,6 +157,18 @@ assert(
 assert(
   !switchHalfLiveMovedOnMessage(1).includes("공수교대하지"),
   "moved-on message no longer forbids switch",
+);
+assert(
+  switchHalfMaySkipUnplayedRound({}) === true,
+  "no round stats means switch-half may skip result",
+);
+assert(
+  switchHalfMaySkipUnplayedRound({ isPredictionStarted: false }) === true,
+  "never-started round may skip result on switch-half",
+);
+assert(
+  switchHalfMaySkipUnplayedRound({ isPredictionStarted: true }) === false,
+  "started round still needs result before switch-half",
 );
 assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: 2 }) === false, "op 3 live 2 does not pulse switch");
 assert(shouldSuggestSwitchHalf({ outsInHalf: 3, liveOuts: null }) === true, "no live outs → switch ok");

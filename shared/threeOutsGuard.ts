@@ -189,6 +189,16 @@ export function shouldContinueSameHalfAfterResult(input: SwitchHalfLiveInput): b
   return live != null && live < 3;
 }
 
+/**
+ * 공수교대만: 이번 라운드에 예측을 연 적이 없으면 결과 없이 진행.
+ * 다음 타자는 쓰지 않는다. 예측을 열었으면 결과는 필수.
+ */
+export function switchHalfMaySkipUnplayedRound(input: {
+  isPredictionStarted?: boolean | null;
+}): boolean {
+  return !input.isPredictionStarted;
+}
+
 /** 공수교대 POST 허용. hold(실황 0~2)는 별도. 다음 초/말은 맞춤 허용. */
 export function canAdvanceInningHalf(input: SwitchHalfLiveInput): boolean {
   if (shouldCatchUpSwitchHalf(input)) return true;
