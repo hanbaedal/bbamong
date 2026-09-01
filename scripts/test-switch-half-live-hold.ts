@@ -6,7 +6,11 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import type { LiveScoreboard } from "../shared/apiSportsTypes";
 import { MatchModel, RoundStatisticsModel } from "../server/UserStorage/db";
-import { advanceInningHalf, startRound } from "../server/liveMatch/predictionStorage";
+import {
+  advanceInningHalf,
+  assertRoundResultSentOrAllowAdvance,
+  startRound,
+} from "../server/liveMatch/predictionStorage";
 import {
   clearLiveAutoOperator,
   processLiveAutoOperator,
@@ -69,6 +73,8 @@ async function seedMatch(opts: {
   omitSituation?: boolean;
   gameInning?: number;
   liveInning?: number;
+  skipRoundStats?: boolean;
+  currentRound?: number;
 }) {
   await MatchModel.deleteOne({ id: MATCH_ID });
   await RoundStatisticsModel.deleteMany({ matchId: MATCH_ID });
@@ -80,7 +86,7 @@ async function seedMatch(opts: {
     startTime: new Date(Date.now() - 60_000),
     endTime: new Date(Date.now() + 3 * 3600_000),
     matchStatus: "ongoing",
-    currentRound: 1,
+    currentRound: opts.currentRound ?? 1,
     predictionEnabled: false,
     liveAutoEnabled: true,
     outsInHalf: opts.outsInHalf,
@@ -97,14 +103,16 @@ async function seedMatch(opts: {
       inning: opts.liveInning ?? opts.gameInning ?? 3,
     }),
   });
-  await RoundStatisticsModel.create({
-    id: ++statsIdSeq,
-    matchId: MATCH_ID,
-    roundNumber: 1,
-    isPredictionStarted: true,
-    isPredictionStopped: true,
-    isResultSent: true,
-  });
+  if (!opts.skipRoundStats) {
+    await RoundStatisticsModel.create({
+      id: ++statsIdSeq,
+      matchId: MATCH_ID,
+      roundNumber: opts.currentRound ?? 1,
+      isPredictionStarted: true,
+      isPredictionStopped: true,
+      isResultSent: true,
+    });
+  }
 }
 
 async function expectHold() {
@@ -298,6 +306,64 @@ async function main() {
   assert((adSync as { outsInHalf?: number })?.outsInHalf === 0, "ad-break sync does not restore outs");
   broadcastManager.resetAdBreakForTest(MATCH_ID);
   console.log("OK: live sync during ad break does not rewind switch");
+
+  await seedMatch({
+    outsInHalf: 2,
+    inningHalf: "top",
+    liveOuts: 2,
+    liveHalf: "top",
+    gameInning: 1,
+    liveInning: 2,
+    skipRoundStats: true,
+    currentRound: 2,
+  });
+  await assertRoundResultSentOrAllowAdvance(MATCH_ID, 2, {
+    allowIfPredictionNeverStarted: true,
+  });
+  try {
+    await assertRoundResultSentOrAllowAdvance(MATCH_ID, 2);
+    throw new Error("next-batter must still require a started round");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    assert(msg.includes("예측을 시작"), `next-batter still needs start, got: ${msg}`);
+  }
+  resetSwitchHalfRecentForTest(MATCH_ID);
+  const caughtUp = await advanceInningHalf(MATCH_ID);
+  const caughtDoc = caughtUp.match as {
+    gameInning?: number;
+    inningHalf?: string;
+    outsInHalf?: number;
+    currentRound?: number;
+  };
+  assert(caughtDoc.gameInning === 2, `catch-up inning, got ${caughtDoc.gameInning}`);
+  assert(caughtDoc.inningHalf === "top", `catch-up half, got ${caughtDoc.inningHalf}`);
+  assert(caughtDoc.outsInHalf === 0, `catch-up resets outs, got ${caughtDoc.outsInHalf}`);
+  assert(caughtDoc.currentRound === 3, `unplayed round increments, got ${caughtDoc.currentRound}`);
+  console.log("OK: unplayed round catch-up switch skips result (standalone)");
+
+  await seedMatch({
+    outsInHalf: 2,
+    inningHalf: "top",
+    liveOuts: 2,
+    liveHalf: "top",
+    gameInning: 1,
+    liveInning: 2,
+    currentRound: 2,
+  });
+  await RoundStatisticsModel.updateOne(
+    { matchId: MATCH_ID, roundNumber: 2 },
+    { $set: { isResultSent: false, isPredictionStopped: true, isPredictionStarted: true } },
+  );
+  try {
+    await assertRoundResultSentOrAllowAdvance(MATCH_ID, 2, {
+      allowIfPredictionNeverStarted: true,
+    });
+    throw new Error("started round must still require result on switch-half");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    assert(msg.includes("결과"), `started round still needs result, got: ${msg}`);
+  }
+  console.log("OK: started round still requires result before switch-half");
 
   await MatchModel.deleteOne({ id: MATCH_ID });
   await RoundStatisticsModel.deleteMany({ matchId: MATCH_ID });

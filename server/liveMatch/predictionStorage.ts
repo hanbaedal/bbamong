@@ -33,6 +33,7 @@ import {
   switchHalfHoldMessage,
   switchHalfLiveMovedOnMessage,
   canAdvanceInningHalf,
+  switchHalfMaySkipUnplayedRound,
 } from "@shared/threeOutsGuard";
 import { wasSwitchHalfRecent } from "./switchHalfAdGuard";
 import {
@@ -888,7 +889,30 @@ export async function endMatch(matchId: string): Promise<Match> {
 
 export async function nextRound(
   matchId: string,
+  options?: { allowIfPredictionNeverStarted?: boolean },
 ): Promise<{ match: Match; predictionAutoStopped: boolean }> {
+  if (options?.allowIfPredictionNeverStarted) {
+    const peek = await MatchModel.findOne({ id: matchId }).lean();
+    if (!peek) throw new Error("경기를 찾을 수 없습니다.");
+    const peekStats = await RoundStatisticsModel.findOne({
+      matchId,
+      roundNumber: peek.currentRound,
+    }).lean();
+    if (
+      switchHalfMaySkipUnplayedRound({
+        isPredictionStarted: peekStats?.isPredictionStarted,
+      })
+    ) {
+      const skipped = await MatchModel.findOneAndUpdate(
+        { id: matchId },
+        { currentRound: peek.currentRound + 1, predictionEnabled: false },
+        { new: true },
+      ).lean();
+      if (!skipped) throw new Error("경기를 찾을 수 없습니다.");
+      return { match: skipped as Match, predictionAutoStopped: false };
+    }
+  }
+
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -1096,7 +1120,9 @@ export async function advanceInningHalf(
       ? computeInningHalfCatchUp(phase, { gameInning: liveInning, inningHalf: liveHalf })
       : computeInningHalfSwitch(phase);
 
-  const { predictionAutoStopped } = await nextRound(matchId);
+  const { predictionAutoStopped } = await nextRound(matchId, {
+    allowIfPredictionNeverStarted: true,
+  });
 
   const updated = await MatchModel.findOneAndUpdate(
     { id: matchId },
@@ -1274,12 +1300,19 @@ export async function getAllRoundStatistics(matchId: string): Promise<RoundStati
   return docs as RoundStatistics[];
 }
 
-/** 예측 시작했으나 결과 미전송 — 다음 타자·공수교대·투수교체 불가 */
+/** 예측 시작했으나 결과 미전송 — 다음 타자·공수교대 불가. 공수교대만 미시작 라운드 생략 가능. */
 export async function assertRoundResultSentOrAllowAdvance(
   matchId: string,
   roundNumber: number,
+  options?: { allowIfPredictionNeverStarted?: boolean },
 ): Promise<void> {
   const stats = await RoundStatisticsModel.findOne({ matchId, roundNumber }).lean();
+  if (
+    options?.allowIfPredictionNeverStarted &&
+    switchHalfMaySkipUnplayedRound({ isPredictionStarted: stats?.isPredictionStarted })
+  ) {
+    return;
+  }
   if (!stats) {
     throw new Error("먼저 예측을 시작하고 결과를 전송해 주세요.");
   }
