@@ -25,6 +25,13 @@ import {
 import { DelayGameStateModel, DelayPredictionModel } from "./models";
 import { todayDelayMatchFilter } from "./engine";
 import { grantDelayAdRewardPoints } from "./adReward";
+import { buildDelayCurrentBatter } from "./batterPreview";
+import type {
+  LiveScoreboard,
+  MatchLineupSnapshot,
+  MatchPlayerStatsEntry,
+  PinchHitterSnapshot,
+} from "@shared/apiSportsTypes";
 
 const router = Router();
 
@@ -166,7 +173,7 @@ router.get("/:matchId/state", userAuthMiddleware, async (req: AuthenticatedUserR
 
     const match = await MatchModel.findOne({ id: matchId })
       .select(
-        "id name stadiumId startTime matchStatus registrationOrder apiSportsHomeTeam apiSportsAwayTeam liveScoreboard matchHeadToHead",
+        "id name stadiumId startTime matchStatus registrationOrder apiSportsHomeTeam apiSportsAwayTeam liveScoreboard matchHeadToHead matchLineup matchPlayerStats pinchHitter gameInning inningHalf batterIndexInHalf",
       )
       .lean();
     if (!match) {
@@ -209,6 +216,20 @@ router.get("/:matchId/state", userAuthMiddleware, async (req: AuthenticatedUserR
 
     const blocked = await hasLivePrediction(userId, matchId);
 
+    const currentBatter = buildDelayCurrentBatter({
+      startTime: match.startTime,
+      inningHalf: (match as { inningHalf?: string | null }).inningHalf,
+      batterIndexInHalf: (match as { batterIndexInHalf?: number | null }).batterIndexInHalf,
+      matchLineup: ((match as { matchLineup?: MatchLineupSnapshot | null }).matchLineup) ?? null,
+      matchPlayerStats:
+        ((match as { matchPlayerStats?: Record<string, MatchPlayerStatsEntry> | null }).matchPlayerStats) ??
+        null,
+      pinchHitter: ((match as { pinchHitter?: PinchHitterSnapshot | null }).pinchHitter) ?? null,
+      delayBatterName: delay?.batterName ?? null,
+      delayHalf: delay?.lastHalf ?? null,
+      liveScoreboard: liveScoreboard as LiveScoreboard | null,
+    });
+
     res.json({
       serverNow: Date.now(),
       blocked,
@@ -232,6 +253,7 @@ router.get("/:matchId/state", userAuthMiddleware, async (req: AuthenticatedUserR
           : null,
         liveScoreboard,
       },
+      currentBatter,
       delay,
       myPrediction,
       lastSettledPrediction,

@@ -31,7 +31,7 @@ import { subscribeForegroundResume } from "@/lib/foregroundResume";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import type { CurrentBatterPreview, LiveScoreboard } from "@shared/apiSportsTypes";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
-import { DELAY_GAME_PATH, DELAY_LIVE_BLOCK_MESSAGE } from "@shared/delayGame";
+import { DELAY_GAME_PATH, DELAY_LIVE_BLOCK_MESSAGE, resolveDelayBatterName } from "@shared/delayGame";
 import { MATCH_STATUS_LABEL } from "@shared/matchStatusLabels";
 import { resolveGameDayPhase, type GameDayOverlayKind } from "@/lib/gameDayPhase";
 import { useDelayGameFlow, type DelayMyPrediction, type DelayStatePayload } from "@/hooks/useDelayGameFlow";
@@ -48,6 +48,7 @@ type DelayStateResponse = {
   match: DelayMatchItem;
   delay: DelayStatePayload | null;
   myPrediction: DelayMyPrediction | null;
+  currentBatter?: CurrentBatterPreview | null;
 };
 
 function isDelaySelectable(match: DelayMatchItem): boolean {
@@ -80,21 +81,25 @@ function delayDayOverlayKind(matches: DelayMatchItem[], loading: boolean): GameD
   return "ended";
 }
 
-function batterFromScoreboard(scoreboard: LiveScoreboard | null): CurrentBatterPreview | null {
-  const name = scoreboard?.situation?.batterName?.trim();
+function delayBatterNameFallback(
+  scoreboard: LiveScoreboard | null,
+  delayBatterName?: string | null,
+): CurrentBatterPreview | null {
+  const name = resolveDelayBatterName({
+    delayBatterName,
+    liveBatterName: scoreboard?.situation?.batterName,
+  });
   if (!name) return null;
-  const today = scoreboard.situation?.batterToday;
   return {
     orderLabel: name,
     playerName: name,
     battingAverage: null,
-    hits: today?.hits ?? null,
-    homeRuns: today?.homeRuns ?? null,
-    rbi: today?.rbi ?? null,
+    hits: null,
+    homeRuns: null,
+    rbi: null,
     ops: null,
-    runs: today?.runs ?? null,
     season: new Date().getFullYear(),
-    batsSide: scoreboard.situation?.batsSide ?? null,
+    batsSide: scoreboard?.situation?.batsSide ?? null,
   };
 }
 
@@ -315,7 +320,12 @@ export default function DelayPredictionPage() {
         matchTitle={matchTitle}
         stadiumName={stadiumName}
         headToHead={matchHeaderLines.headToHead}
-        currentBatter={displayMatch ? batterFromScoreboard(liveScoreboard) : null}
+        currentBatter={
+          displayMatch
+            ? (stateData?.currentBatter ??
+              delayBatterNameFallback(liveScoreboard, stateData?.delay?.batterName))
+            : null
+        }
         scoreboard={liveScoreboard}
         scoreLoading={Boolean(displayMatch) && !liveScoreboard}
         matchesInitialLoading={matchesLoading && !hasMatchesSnapshot}

@@ -79,3 +79,14 @@ export function delayPitcherChanged(prev?: string | null, next?: string | null):
   if (!a || !b) return false;
   return a !== b;
 }
+
+/** 딜레이 타석 카드 — 열린 라운드 타자를 우선, 없으면 실황 타자. */
+export function resolveDelayBatterName(input: {
+  delayBatterName?: string | null;
+  liveBatterName?: string | null;
+}): string | null {
+  const delay = (input.delayBatterName || "").trim();
+  if (delay) return delay;
+  const live = (input.liveBatterName || "").trim();
+  return live || null;
+}

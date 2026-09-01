@@ -19,6 +19,7 @@ import {
   delayUiStage,
   isDelayMatchEnded,
   isDelayMatchOngoing,
+  resolveDelayBatterName,
 } from "../shared/delayGame";
 import { AD_PLAY_MS, AD_PLAY_SECONDS } from "../shared/adBreakTiming";
 import {
@@ -26,6 +27,7 @@ import {
   nextDelayPhase,
   snapshotLive,
 } from "../server/delayGame/engine";
+import { buildDelayCurrentBatter, overlayDelayBatterBatsSide } from "../server/delayGame/batterPreview";
 import type { LiveScoreboard } from "../shared/apiSportsTypes";
 
 function assert(cond: unknown, msg: string): asserts cond {
@@ -381,5 +383,126 @@ const scheduledOpenRefund = tick({
 assert(scheduledOpenRefund.patch.phase === "idle", "pre-live open returns idle");
 assert(scheduledOpenRefund.settleRound, "pre-live open refunds");
 assert(scheduledOpenRefund.settleResult === null, "pre-live open no result");
+
+assert(resolveDelayBatterName({ delayBatterName: "김타자", liveBatterName: "이타자" }) === "김타자", "delay name wins");
+assert(resolveDelayBatterName({ delayBatterName: "  ", liveBatterName: "이타자" }) === "이타자", "live name fallback");
+assert(resolveDelayBatterName({}) === null, "no batter name");
+
+const seasonStats = {
+  battingAverage: "0.327",
+  hits: 80,
+  homeRuns: 12,
+  rbi: 41,
+  ops: "0.912",
+  runs: 55,
+  stolenBases: 9,
+  onBasePercentage: "0.401",
+  syncedAt: "2026-09-01T00:00:00.000Z",
+};
+const delaySeasonBatter = buildDelayCurrentBatter({
+  startTime: new Date("2026-06-01T00:00:00.000Z"),
+  inningHalf: "top",
+  batterIndexInHalf: 1,
+  delayBatterName: "김타자",
+  delayHalf: "top",
+  matchLineup: {
+    syncedAt: "2026-09-01T00:00:00.000Z",
+    home: [],
+    away: [{ playerId: 11, name: "김타자", battingOrder: 3 }],
+  },
+  matchPlayerStats: { "11": seasonStats },
+  liveScoreboard: {
+    homeTeamName: "홈",
+    awayTeamName: "원정",
+    homeScore: 0,
+    awayScore: 0,
+    homeHits: 0,
+    awayHits: 0,
+    homeErrors: 0,
+    awayErrors: 0,
+    inning: 2,
+    inningHalf: "top",
+    inningLabel: "2회초",
+    statusShort: "LIVE",
+    statusLong: "In Progress",
+    syncedAt: "2026-09-01T00:00:00.000Z",
+    situation: {
+      balls: 0,
+      strikes: 0,
+      outs: 0,
+      first: false,
+      second: false,
+      third: false,
+      batterName: "이타자",
+      batsSide: "left",
+      batterToday: { hits: 2, homeRuns: 1, rbi: 3, runs: 1 },
+    },
+  },
+});
+assert(delaySeasonBatter?.playerName === "김타자", "delay round batter, not live");
+assert(delaySeasonBatter?.season === 2026, "season year from match start");
+assert(delaySeasonBatter?.battingAverage === "0.327", `avg ${delaySeasonBatter?.battingAverage}`);
+assert(delaySeasonBatter?.hits === 80, "season hits, not today");
+assert(delaySeasonBatter?.homeRuns === 12, "season HR");
+assert(delaySeasonBatter?.rbi === 41, "season RBI");
+assert(delaySeasonBatter?.ops === "0.912", `ops ${delaySeasonBatter?.ops}`);
+assert(delaySeasonBatter?.runs === 55, "season runs");
+assert(delaySeasonBatter?.stolenBases === 9, "season SB");
+assert(delaySeasonBatter?.onBasePercentage === "0.401", "season OBP");
+assert(delaySeasonBatter?.batsSide !== "left", "does not take live batsSide for other batter");
+
+const liveFallbackBatter = buildDelayCurrentBatter({
+  startTime: new Date("2026-06-01T00:00:00.000Z"),
+  inningHalf: "top",
+  delayBatterName: null,
+  matchLineup: {
+    syncedAt: "2026-09-01T00:00:00.000Z",
+    home: [],
+    away: [{ playerId: 11, name: "김타자", battingOrder: 1 }],
+  },
+  matchPlayerStats: { "11": seasonStats },
+  liveScoreboard: {
+    homeTeamName: "홈",
+    awayTeamName: "원정",
+    homeScore: 0,
+    awayScore: 0,
+    homeHits: 0,
+    awayHits: 0,
+    homeErrors: 0,
+    awayErrors: 0,
+    inning: 1,
+    inningHalf: "top",
+    inningLabel: "1회초",
+    statusShort: "LIVE",
+    statusLong: "In Progress",
+    syncedAt: "2026-09-01T00:00:00.000Z",
+    situation: {
+      balls: 0,
+      strikes: 0,
+      outs: 0,
+      first: false,
+      second: false,
+      third: false,
+      batterName: "김타자",
+      batsSide: "right",
+    },
+  },
+});
+assert(liveFallbackBatter?.playerName === "김타자", "idle uses live batter");
+assert(liveFallbackBatter?.battingAverage === "0.327", "idle still has season avg");
+assert(liveFallbackBatter?.batsSide === "right", "matching live batter keeps batsSide");
+
+const noName = buildDelayCurrentBatter({
+  delayBatterName: null,
+  liveScoreboard: null,
+});
+assert(noName === null, "no batter hides card");
+
+const overlaid = overlayDelayBatterBatsSide(
+  { orderLabel: "1번 타자", playerName: "김타자", battingAverage: null, hits: null, homeRuns: null, rbi: null, ops: null, season: 2026 },
+  "김타자",
+  "left",
+);
+assert(overlaid.batsSide === "left", "overlay same-name batsSide");
 
 console.log("delay game engine OK");
