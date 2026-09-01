@@ -27,6 +27,7 @@ const delayGameStateSchema = new Schema(
     adReason: { type: String, default: null },
     adRewardKey: { type: String, default: null },
     seeded: { type: Boolean, default: false },
+    seenOtherBatter: { type: Boolean, default: false },
     updatedAt: { type: Date, default: Date.now },
   },
   { versionKey: false, collection: "delay_game_states" },

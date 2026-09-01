@@ -10,6 +10,7 @@ import {
   delayBatterKey,
   delayHalfChanged,
   delayPitcherChanged,
+  delaySameBatter,
   isDelayMatchEnded,
   isDelayMatchOngoing,
   isDelaySuggestedResult,
@@ -43,6 +44,8 @@ export type DelayStateDoc = {
   adReason: DelayAdReason | null;
   adRewardKey: string | null;
   seeded: boolean;
+  /** 이번 타석 이후 다른 타자를 한 번이라도 봄 — 같은 이름 재타석 오픈 */
+  seenOtherBatter: boolean;
 };
 
 export function snapshotLive(scoreboard: LiveScoreboard | null | undefined) {
@@ -127,6 +130,7 @@ export function nextDelayPhase(input: {
         lastPitcherName: live.pitcherName || state.lastPitcherName,
         pendingBatterName: live.batterName || null,
         pendingBatterSince: live.batterName ? now : null,
+        seenOtherBatter: true,
       },
       settleRound: false,
       settleResult: null,
@@ -156,14 +160,27 @@ export function nextDelayPhase(input: {
   if (state.phase === "idle") {
     const name = live.batterName;
     if (!name) return { patch: {}, settleRound: false, settleResult: null };
-    const same = name === state.pendingBatterName;
+    const same = delaySameBatter(name, state.pendingBatterName);
     const since = same ? state.pendingBatterSince ?? now : now;
     const patch: Partial<DelayStateDoc> = {
       pendingBatterName: name,
       pendingBatterSince: since,
     };
-    const key = delayBatterKey({ inning: live.inning, half: live.half, batterName: name });
-    if (same && now - since >= DELAY_BATTER_STABLE_MS && key !== state.batterKey) {
+    const key = delayBatterKey({
+      inning: live.inning,
+      half: live.half,
+      outs: live.outs,
+      batterName: name,
+    });
+    let seenOther = Boolean(state.seenOtherBatter);
+    if (state.batterName && !delaySameBatter(name, state.batterName)) {
+      seenOther = true;
+    }
+    if (seenOther !== Boolean(state.seenOtherBatter)) {
+      patch.seenOtherBatter = seenOther;
+    }
+    const newAppearance = key !== state.batterKey || seenOther;
+    if (same && now - since >= DELAY_BATTER_STABLE_MS && newAppearance) {
       patch.phase = "open";
       patch.roundNumber = state.roundNumber + 1;
       patch.batterKey = key;
@@ -172,6 +189,8 @@ export function nextDelayPhase(input: {
       patch.settledResult = null;
       patch.pendingResult = null;
       patch.pendingResultSince = null;
+      patch.seenOtherBatter = false;
+      patch.lastOuts = live.outs;
     }
     return { patch, settleRound: false, settleResult: null };
   }
@@ -198,9 +217,13 @@ export function nextDelayPhase(input: {
   }
 
   if (state.phase === "closed") {
+    const batterLeft =
+      Boolean(state.batterName) &&
+      Boolean(live.batterName) &&
+      !delaySameBatter(state.batterName, live.batterName);
     let pending = state.pendingResult;
     let since = state.pendingResultSince;
-    if (live.suggested) {
+    if (!batterLeft && live.suggested) {
       if (live.suggested !== pending) {
         pending = live.suggested;
         since = now;
@@ -208,15 +231,11 @@ export function nextDelayPhase(input: {
         since = now;
       }
     }
-    const batterGone =
-      Boolean(state.batterName) &&
-      Boolean(live.batterName) &&
-      live.batterName !== state.batterName;
     const stable =
       isDelaySuggestedResult(pending) &&
       since != null &&
       now - since >= DELAY_RESULT_STABLE_MS;
-    if (!stable && !batterGone) {
+    if (!stable && !(batterLeft && !isDelaySuggestedResult(pending))) {
       return {
         patch: { pendingResult: pending, pendingResultSince: since },
         settleRound: false,
@@ -240,6 +259,7 @@ export function nextDelayPhase(input: {
       lastInning: live.inning,
       lastOuts: live.outs,
       lastPitcherName: live.pitcherName || state.lastPitcherName,
+      seenOtherBatter: batterLeft,
     };
     if (halfChanged || pitcherChanged) {
       const reason: DelayAdReason = halfChanged ? "switch_half" : "pitcher_change";
@@ -279,6 +299,7 @@ export function emptyDelayState(overrides: Partial<DelayStateDoc> = {}): DelaySt
     adReason: null,
     adRewardKey: null,
     seeded: false,
+    seenOtherBatter: false,
     ...overrides,
   };
 }

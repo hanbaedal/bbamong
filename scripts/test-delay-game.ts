@@ -16,9 +16,11 @@ import {
   delayBatterKey,
   delayHalfChanged,
   delayPitcherChanged,
+  delaySameBatter,
   delayUiStage,
   isDelayMatchEnded,
   isDelayMatchOngoing,
+  maskDelayOpenScoreboard,
   resolveDelayBatterName,
 } from "../shared/delayGame";
 import { AD_PLAY_MS, AD_PLAY_SECONDS } from "../shared/adBreakTiming";
@@ -95,7 +97,16 @@ assert(DELAY_LIVE_BLOCK_MESSAGE.includes("실시간"), "live block copy");
 assert(delayUiStage("open") === "open", "ui open");
 assert(delayUiStage("closed") === "closed", "ui closed");
 assert(delayUiStage("idle") === "wait", "ui idle");
-assert(delayBatterKey({ inning: 3, half: "bottom", batterName: "김타자" }) === "3:bottom:김타자");
+assert(delayBatterKey({ inning: 3, half: "bottom", batterName: "김타자" }) === "3:bottom:-:김타자");
+assert(
+  delayBatterKey({ inning: 1, half: "top", outs: 0, batterName: "김타자" }) === "1:top:0:김타자",
+);
+assert(
+  delayBatterKey({ inning: 1, half: "top", outs: 1, batterName: "김타자" }) === "1:top:1:김타자",
+);
+assert(delaySameBatter("김 타자", "김타자"), "same batter ignores spaces");
+assert(!delaySameBatter("김타자", "이타자"), "different batter");
+assert(!delaySameBatter("김타자", ""), "empty is not same batter");
 assert(
   delayHalfChanged({ prevInning: 1, prevHalf: "top", nextInning: 1, nextHalf: "bottom" }),
   "half change",
@@ -150,6 +161,61 @@ const idleOpen = tick({
 assert(idleOpen.patch.phase === "open", "stable new batter opens");
 assert(idleOpen.patch.roundNumber === 1, "round increments");
 assert(idleOpen.patch.openAtMs === t0 + DELAY_BATTER_STABLE_MS, "openAt");
+assert(idleOpen.patch.batterKey === "1:top:0:김타자", "open key includes outs");
+
+const idleSamePa = tick({
+  state: emptyDelayState({
+    seeded: true,
+    batterKey: "1:top:0:김타자",
+    batterName: "김타자",
+    pendingBatterName: "김타자",
+    pendingBatterSince: t0,
+    lastOuts: 0,
+    lastHalf: "top",
+    lastInning: 1,
+  }),
+  now: t0 + DELAY_BATTER_STABLE_MS,
+  live: live({ batterName: "김타자", outs: 0, pitcherName: "박투수" }),
+  matchEnded: false,
+});
+assert(idleSamePa.patch.phase == null, "same PA does not reopen");
+
+const idleSameNameNewOuts = tick({
+  state: emptyDelayState({
+    seeded: true,
+    batterKey: "1:top:0:김타자",
+    batterName: "김타자",
+    pendingBatterName: "김타자",
+    pendingBatterSince: t0,
+    lastOuts: 0,
+    lastHalf: "top",
+    lastInning: 1,
+  }),
+  now: t0 + DELAY_BATTER_STABLE_MS,
+  live: live({ batterName: "김타자", outs: 1, pitcherName: "박투수" }),
+  matchEnded: false,
+});
+assert(idleSameNameNewOuts.patch.phase === "open", "same name new outs is a new PA");
+assert(idleSameNameNewOuts.patch.batterKey === "1:top:1:김타자", "re-at-bat key uses new outs");
+
+const idleWrapAround = tick({
+  state: emptyDelayState({
+    seeded: true,
+    batterKey: "1:top:0:김타자",
+    batterName: "김타자",
+    pendingBatterName: "김타자",
+    pendingBatterSince: t0,
+    seenOtherBatter: true,
+    lastOuts: 0,
+    lastHalf: "top",
+    lastInning: 1,
+  }),
+  now: t0 + DELAY_BATTER_STABLE_MS,
+  live: live({ batterName: "김타자", outs: 0, pitcherName: "박투수" }),
+  matchEnded: false,
+});
+assert(idleWrapAround.patch.phase === "open", "wrap-around same outs opens after other batters");
+assert(idleWrapAround.patch.seenOtherBatter === false, "open clears seenOtherBatter");
 
 const openHold = tick({
   state: emptyDelayState({
@@ -288,8 +354,47 @@ const batterGoneRefund = tick({
   live: live({ batterName: "이타자", pitcherName: "박투수" }),
   matchEnded: false,
 });
-assert(batterGoneRefund.settleRound, "batter change settles");
+assert(batterGoneRefund.settleRound, "batter change without result refunds");
 assert(batterGoneRefund.settleResult === null, "no suggested -> refund");
+
+const batterLeftHold = tick({
+  state: emptyDelayState({
+    seeded: true,
+    phase: "closed",
+    roundNumber: 1,
+    batterName: "김타자",
+    lastHalf: "top",
+    lastInning: 1,
+    lastPitcherName: "박투수",
+    pendingResult: "1루",
+    pendingResultSince: t0,
+  }),
+  now: t0 + 3_000,
+  live: live({ batterName: "이타자", pitcherName: "박투수", suggested: "아웃" }),
+  matchEnded: false,
+});
+assert(!batterLeftHold.settleRound, "batter change does not settle early");
+assert(batterLeftHold.patch.pendingResult === "1루", "does not take next batter suggested");
+assert(batterLeftHold.patch.phase == null, "stays closed until 12s");
+
+const batterLeftKeep = tick({
+  state: emptyDelayState({
+    seeded: true,
+    phase: "closed",
+    roundNumber: 1,
+    batterName: "김타자",
+    lastHalf: "top",
+    lastInning: 1,
+    lastPitcherName: "박투수",
+    pendingResult: "1루",
+    pendingResultSince: t0,
+  }),
+  now: t0 + DELAY_RESULT_STABLE_MS,
+  live: live({ batterName: "이타자", pitcherName: "박투수", suggested: "아웃" }),
+  matchEnded: false,
+});
+assert(batterLeftKeep.settleRound, "12s still settles after batter left");
+assert(batterLeftKeep.settleResult === "1루", "keeps this PA result, not next batter");
 
 const adHold = tick({
   state: emptyDelayState({
@@ -319,6 +424,7 @@ const adDone = tick({
   matchEnded: false,
 });
 assert(adDone.patch.phase === "idle", "ad ends to idle");
+assert(adDone.patch.seenOtherBatter === true, "ad end allows next PA even if name collides");
 
 const matchEnd = tick({
   state: emptyDelayState({ seeded: true, phase: "open", roundNumber: 2 }),
@@ -504,5 +610,47 @@ const overlaid = overlayDelayBatterBatsSide(
   "left",
 );
 assert(overlaid.batsSide === "left", "overlay same-name batsSide");
+
+const leakBoard: LiveScoreboard = {
+  homeTeamName: "홈",
+  awayTeamName: "원정",
+  homeScore: 0,
+  awayScore: 0,
+  homeHits: 0,
+  awayHits: 0,
+  homeErrors: 0,
+  awayErrors: 0,
+  inning: 1,
+  inningHalf: "top",
+  inningLabel: "1회초",
+  statusShort: "LIVE",
+  statusLong: "In Progress",
+  syncedAt: "2026-09-01T00:00:00.000Z",
+  situation: {
+    balls: 0,
+    strikes: 2,
+    outs: 1,
+    first: false,
+    second: false,
+    third: false,
+    batterName: "김타자",
+    suggestedResult: "아웃",
+    atBatResultDisplay: "삼진아웃",
+    pitchLabel: "3구 헛스윙",
+    pitchDetail: "145km/h 직구",
+    pitchLocations: [{ pitchNum: 3, result: "S", plateX: 0, plateZ: 2.5, topSz: 3.5, bottomSz: 1.5 }],
+    batterToday: { atBats: 1, hits: 1, homeRuns: 0 },
+  },
+};
+const maskedOpen = maskDelayOpenScoreboard(leakBoard);
+assert(maskedOpen?.situation?.suggestedResult == null, "open hides suggested");
+assert(maskedOpen?.situation?.atBatResultDisplay == null, "open hides at-bat result");
+assert(maskedOpen?.situation?.pitchLabel == null, "open hides pitch label");
+assert(maskedOpen?.situation?.pitchDetail == null, "open hides pitch detail");
+assert(maskedOpen?.situation?.batterToday == null, "open hides today line");
+assert((maskedOpen?.situation?.pitchLocations ?? null) == null, "open hides pitch dots");
+assert(leakBoard.situation?.suggestedResult === "아웃", "mask does not mutate source");
+assert(maskedOpen?.situation?.outs === 1, "open keeps outs");
+assert(maskedOpen?.situation?.strikes === 2, "open keeps strikes");
 
 console.log("delay game engine OK");

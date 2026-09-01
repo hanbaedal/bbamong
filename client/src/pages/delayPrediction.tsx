@@ -31,7 +31,7 @@ import { subscribeForegroundResume } from "@/lib/foregroundResume";
 import { getDisplayStadiumName } from "@shared/stadiumDisplay";
 import type { CurrentBatterPreview, LiveScoreboard } from "@shared/apiSportsTypes";
 import { parseInningHalf } from "@shared/gamePhaseTypes";
-import { DELAY_GAME_PATH, DELAY_LIVE_BLOCK_MESSAGE, resolveDelayBatterName } from "@shared/delayGame";
+import { DELAY_GAME_PATH, DELAY_LIVE_BLOCK_MESSAGE, maskDelayOpenScoreboard, resolveDelayBatterName } from "@shared/delayGame";
 import { MATCH_STATUS_LABEL } from "@shared/matchStatusLabels";
 import { resolveGameDayPhase, type GameDayOverlayKind } from "@/lib/gameDayPhase";
 import { useDelayGameFlow, type DelayMyPrediction, type DelayStatePayload } from "@/hooks/useDelayGameFlow";
@@ -192,9 +192,11 @@ export default function DelayPredictionPage() {
     return orderedMatches.find((m) => m.id === selectedMatchId) ?? null;
   }, [stateData?.match, selectedMatchId, orderedMatches]);
 
-  const liveScoreboard = (stateData?.match?.liveScoreboard ??
+  const rawScoreboard = (stateData?.match?.liveScoreboard ??
     selectedMatch?.liveScoreboard ??
     null) as LiveScoreboard | null;
+  const liveScoreboard =
+    stateData?.delay?.phase === "open" ? maskDelayOpenScoreboard(rawScoreboard) : rawScoreboard;
 
   const flow = useDelayGameFlow({
     matchId: selectedMatchId,
